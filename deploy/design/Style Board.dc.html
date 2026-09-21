@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوح النظام — anasaq.me</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Bold.woff2') format('woff2');font-weight:700;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+body{margin:0;background:#DDCDB6;color:#1C1A17;-webkit-font-smoothing:antialiased}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#DDCDB6;color:#1C1A17;min-height:100vh;padding:64px 56px 100px">
+  <!-- header -->
+  <div style="max-width:1280px;margin:0 auto 56px">
+    <div style="display:flex;align-items:baseline;gap:16px">
+      <h1 style="margin:0;font-family:var(--fh);font-weight:400;font-size:48px;color:#1C1A17">لوح النظام البصري</h1>
+      <span style="font-family:monospace;font-size:13px;color:#6E4B33;letter-spacing:1px">anasaq.me · design system</span>
+    </div>
+    <p style="margin:16px 0 0;font-size:15px;line-height:1.9;color:#5C4E3F;max-width:680px;font-weight:300">المرجع البصري الكامل: الألوان، اقتران الخطوط، الروابط والأزرار، البطاقات، حقول النماذج، والفواصل والملمس. كل قيمة جاهزة للنقل المباشر إلى الكود.</p>
+  </div>
+
+  <div style="max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:32px">
+
+    <!-- PALETTE -->
+    <section style="background:#F4ECE0;border:1px solid #C9B99F;padding:44px">
+      <div style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A;margin-bottom:8px">٠١ — PALETTE</div>
+      <h2 style="margin:0 0 32px;font-family:var(--fh);font-weight:400;font-size:30px">لوحة الألوان</h2>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+        <div><div style="height:96px;background:#F4ECE0;border:1px solid #D9C9B4"></div><div style="margin-top:10px;font-size:13px;font-weight:500">paper</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#F4ECE0</div></div>
+        <div><div style="height:96px;background:#E7D8C3;border:1px solid #D9C9B4"></div><div style="margin-top:10px;font-size:13px;font-weight:500">sand</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#E7D8C3</div></div>
+        <div><div style="height:96px;background:#1C1A17"></div><div style="margin-top:10px;font-size:13px;font-weight:500">ink</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#1C1A17</div></div>
+        <div><div style="height:96px;background:#234A30"></div><div style="margin-top:10px;font-size:13px;font-weight:500">forest · أساسي</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#234A30</div></div>
+        <div><div style="height:96px;background:#4A2740"></div><div style="margin-top:10px;font-size:13px;font-weight:500">plum</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#4A2740</div></div>
+        <div><div style="height:96px;background:#20223F"></div><div style="margin-top:10px;font-size:13px;font-weight:500">midnight</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#20223F</div></div>
+        <div><div style="height:96px;background:#6E4B33"></div><div style="margin-top:10px;font-size:13px;font-weight:500">oud</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#6E4B33</div></div>
+        <div><div style="height:96px;background:#6F5E4E"></div><div style="margin-top:10px;font-size:13px;font-weight:500">mutedText</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#6F5E4E</div></div>
+        <div><div style="height:96px;background:#B28E5A"></div><div style="margin-top:10px;font-size:13px;font-weight:500">brass · شعيرة</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#B28E5A</div></div>
+        <div><div style="height:96px;background:#B65C43"></div><div style="margin-top:10px;font-size:13px;font-weight:500">clay · شرارة</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#B65C43</div></div>
+        <div><div style="height:96px;background:#D9C9B4"></div><div style="margin-top:10px;font-size:13px;font-weight:500">hairline</div><div style="font-family:monospace;font-size:11.5px;color:#8A7862">#D9C9B4</div></div>
+      </div>
+      <div style="margin-top:28px;display:flex;gap:20px;flex-wrap:wrap;font-size:13px;color:#5C4E3F">
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:#234A30;display:inline-block"></span>الغرفة الأولى — forest</span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:#20223F;display:inline-block"></span>الغرفة الثانية — midnight</span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:#4A2740;display:inline-block"></span>الغرفة الثالثة — plum</span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:14px;height:14px;border-radius:50%;background:#6E4B33;display:inline-block"></span>الورشة — oud</span>
+      </div>
+    </section>
+
+    <!-- TYPE -->
+    <section style="background:#F4ECE0;border:1px solid #C9B99F;padding:44px">
+      <div style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A;margin-bottom:8px">٠٢ — TYPE</div>
+      <h2 style="margin:0 0 32px;font-family:var(--fh);font-weight:400;font-size:30px">اقتران الخطوط</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px">
+        <div style="border-right:2px solid #B28E5A;padding-right:28px">
+          <div style="font-family:monospace;font-size:12px;color:#8A7862">العناوين · Lyon Arabic Display</div>
+          <div style="font-family:var(--fh);font-size:64px;line-height:1.4;color:#1C1A17;margin-top:12px">بعض الناس يبنون أثراً</div>
+          <div style="font-family:var(--fh);font-size:30px;color:#234A30;margin-top:8px">حكايات شارع 4</div>
+          <div style="margin-top:14px;font-size:12.5px;color:#6F5E4E">أوزان: Light 300 · Regular 400 · Medium 500 — للعناوين والأسطر الأدبية والاقتباسات.</div>
+        </div>
+        <div style="border-right:2px solid #B28E5A;padding-right:28px">
+          <div style="font-family:monospace;font-size:12px;color:#8A7862">المتن والواجهة · Thmanyah Sans</div>
+          <div style="font-family:var(--fb);font-weight:300;font-size:19px;line-height:2.05;color:#5C4E3F;margin-top:12px">بين الهندسة وريادة الأعمال، وبين القهوة والضيافة، أؤمن أن كل شيء يبدأ بفكرة، وأن أفضل الأفكار هي تلك التي تترك أثراً.</div>
+          <div style="margin-top:14px;font-size:12.5px;color:#6F5E4E">أوزان: Light 300 · Regular 400 · Medium 500 · Bold 700 — للمتن والتنقّل والأزرار. ارتفاع السطر ١٫٩–٢٫١.</div>
+        </div>
+      </div>
+      <div style="margin-top:32px;display:flex;gap:14px;flex-wrap:wrap;align-items:baseline">
+        <span style="font-family:var(--fb);font-size:40px">0 1 2 3 4 5 6 7 8 9</span>
+        <span style="font-size:12.5px;color:#6F5E4E">— الأرقام دائماً بالصيغة الإنجليزية</span>
+      </div>
+    </section>
+
+    <!-- LINKS + BUTTONS -->
+    <section style="background:#F4ECE0;border:1px solid #C9B99F;padding:44px">
+      <div style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A;margin-bottom:8px">٠٣ — LINKS &amp; BUTTONS</div>
+      <h2 style="margin:0 0 32px;font-family:var(--fh);font-weight:400;font-size:30px">الروابط والأزرار</h2>
+      <div style="display:flex;gap:56px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <a href="#" style="text-decoration:none;font-size:14px;color:#234A30;border-bottom:1px solid #B28E5A;padding-bottom:3px;width:fit-content">اقرأ المزيد ←</a>
+          <a href="#" style="text-decoration:none;font-size:14px;color:#4A2740;border-bottom:1px solid #B28E5A;padding-bottom:3px;width:fit-content">ادخل الغرفة كاملة ←</a>
+          <span style="font-size:12.5px;color:#6F5E4E">رابط نصي هادئ + شعيرة نحاسية سفلية</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px;align-items:flex-start">
+          <button type="button" style="background:#234A30;color:#F4ECE0;border:none;padding:14px 46px;font-family:var(--fb);font-size:14.5px;cursor:pointer">أرسل</button>
+          <button type="button" style="background:transparent;color:#234A30;border:1px solid #234A30;padding:13px 44px;font-family:var(--fb);font-size:14.5px;cursor:pointer">زر ثانوي</button>
+          <span style="font-size:12.5px;color:#6F5E4E">زر رئيسي مصمت + زر ثانوي محدد — بلا زوايا دائرية</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARDS -->
+    <section style="background:#F4ECE0;border:1px solid #C9B99F;padding:44px">
+      <div style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A;margin-bottom:8px">٠٤ — CARDS</div>
+      <h2 style="margin:0 0 32px;font-family:var(--fh);font-weight:400;font-size:30px">البطاقات</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:28px">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="position:relative;aspect-ratio:4/5;background:repeating-linear-gradient(-45deg,#E7D8C3 0 14px,#E0CFB7 14px 28px)"><span style="position:absolute;top:14px;right:14px;width:32px;height:32px;border:1px solid #B28E5A;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--fh);color:#234A30">1</span></div>
+          <div><div style="font-family:var(--fh);font-size:24px;color:#234A30">بطاقة الغرفة</div><div style="font-family:var(--fh);font-size:15px;color:#5C4E3F;margin-top:6px">سطر شعري قصير يصف الغرفة.</div></div>
+        </div>
+        <div style="background:#E7D8C3;border:1px solid #D9C9B4;padding:32px 28px;text-align:center">
+          <div style="width:30px;height:1px;background:#B28E5A;margin:0 auto 18px"></div>
+          <div style="font-family:var(--fh);font-size:22px;color:#4A2740">لوحة متحف</div>
+          <div style="font-size:13.5px;color:#6F5E4E;margin-top:10px;line-height:1.9">بطاقة هادئة بإطار شعيرة، لعرض البصمات.</div>
+        </div>
+        <div style="position:relative;background:#F4ECE0;border:1px solid #D9C9B4;padding:18px 18px 22px;transform:rotate(-2deg);box-shadow:0 12px 30px rgba(28,26,23,.08)">
+          <div style="position:absolute;top:-10px;right:50%;transform:translateX(50%);width:54px;height:18px;background:rgba(178,142,90,.4);border:1px solid rgba(110,75,51,.25)"></div>
+          <div style="aspect-ratio:4/3;background:repeating-linear-gradient(90deg,#EDE2D0 0 9px,#F4ECE0 9px 18px)"></div>
+          <div style="font-family:var(--fh);font-size:20px;color:#1C1A17;margin-top:12px">بطاقة الرف</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORM FIELDS -->
+    <section style="background:#F4ECE0;border:1px solid #C9B99F;padding:44px">
+      <div style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A;margin-bottom:8px">٠٥ — FORM FIELDS</div>
+      <h2 style="margin:0 0 32px;font-family:var(--fh);font-weight:400;font-size:30px">حقول النماذج</h2>
+      <div style="max-width:440px;display:flex;flex-direction:column;gap:26px">
+        <label style="display:block"><span style="display:block;font-size:12.5px;color:#8A7862;margin-bottom:8px">الاسم</span><input type="text" placeholder="اسمك الكريم" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid #C9B99F;padding:12px 2px;font-family:var(--fb);font-size:16px;color:#1C1A17;outline:none"></label>
+        <label style="display:block"><span style="display:block;font-size:12.5px;color:#234A30;margin-bottom:8px">البريد · حالة التركيز</span><input type="text" value="anas@anasaq.me" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid #234A30;padding:12px 2px;font-family:var(--fb);font-size:16px;color:#1C1A17;outline:none"></label>
+      </div>
+    </section>
+
+    <!-- TEXTURE + DIVIDERS -->
+    <section style="background:#F4ECE0;border:1px solid #C9B99F;padding:44px">
+      <div style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A;margin-bottom:8px">٠٦ — TEXTURE &amp; DIVIDERS</div>
+      <h2 style="margin:0 0 32px;font-family:var(--fh);font-weight:400;font-size:30px">الملمس والفواصل</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+        <div>
+          <div style="height:120px;background:repeating-linear-gradient(0deg,rgba(178,142,90,.04) 0 1px,transparent 1px 5px),#F4ECE0;border:1px solid #D9C9B4"></div>
+          <div style="margin-top:12px;font-size:12.5px;color:#6F5E4E">حبيبات الورق — خطوط أفقية شعرية خفيفة على الخلفية</div>
+        </div>
+        <div>
+          <div style="height:120px;background:repeating-linear-gradient(45deg,#E7D8C3 0 6px,#EAD9C2 6px 12px),repeating-linear-gradient(-45deg,rgba(110,75,51,.05) 0 6px,transparent 6px 12px);border:1px solid #D9C9B4"></div>
+          <div style="margin-top:12px;font-size:12.5px;color:#6F5E4E">نسيج خوص / كتّان — للفواصل فقط، بهمس</div>
+        </div>
+      </div>
+      <div style="margin-top:32px">
+        <div style="height:1px;background:linear-gradient(90deg,transparent,#D9C9B4 20%,#D9C9B4 80%,transparent)"></div>
+        <div style="margin-top:12px;font-size:12.5px;color:#6F5E4E">فاصل الشعيرة المتلاشية</div>
+      </div>
+      <div style="margin-top:28px;display:flex;align-items:center;gap:14px">
+        <div style="font-family:var(--fh);font-size:34px;color:#6E4B33;opacity:.6;transform:rotate(-4deg)">أنس</div>
+        <span style="font-size:12.5px;color:#6F5E4E">— علامة التوقيع اليدوية (تذييل / بجانب الاسم)</span>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1440, &quot;height&quot;: 2400}}"></script>
+</body>
+</html>

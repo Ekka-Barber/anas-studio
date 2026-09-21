@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4ECE0">
+<title>أنس عبدالله القرني — anasaq.me · معرض التصميم</title>
+<meta name="description" content="البيت الرقمي لأنس عبدالله القرني — أبني الأفكار والأماكن والحكايات.">
+<meta property="og:title" content="أنس عبدالله القرني — anasaq.me">
+<meta property="og:description" content="بعض الناس يبنون مشاريع… وبعضهم يبنون أثراً يعيش داخلها.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/images/khous-og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="كتاب «خوص — حكايات شارع 4» لأنس عبدالله القرني، بغلاف قماشي بلون الزعفران وفاصل خوص مجدول.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="font" type="font/otf" href="/fonts/lyon/LyonArabicDisplay-Regular.otf" crossorigin>
+<link rel="preload" as="font" type="font/woff2" href="/fonts/thmanyah/thmanyahsans-Regular.woff2" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== real self-hosted licensed fonts ===== */
+  @font-face{font-family:'Lyon Arabic Display';src:url('/fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+  @font-face{font-family:'Lyon Arabic Display';src:url('/fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+  @font-face{font-family:'Lyon Arabic Display';src:url('/fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+  @font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+  @font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+  @font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+  @font-face{font-family:'Thmanyah Sans';src:url('/fonts/thmanyah/thmanyahsans-Bold.woff2') format('woff2');font-weight:700;font-display:swap}
+  @font-face{font-family:'Thmanyah Serif';src:url('/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+  @font-face{font-family:'Thmanyah Serif';src:url('/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+
+  :root{
+    --paper:#F4ECE0; --sand:#E7D8C3; --ink:#1C1A17;
+    --forest:#234A30; --plum:#4A2740; --midnight:#20223F; --oud:#6E4B33;
+    --muted:#6F5E4E; --muted2:#5C4E3F; --brass:#B28E5A; --clay:#B65C43;
+    --hairline:#D9C9B4; --line2:#C9B99F;
+    --accent:#234A30;  /* tweakable primary accent */
+    --fh:'Lyon Arabic Display','Amiri', serif;
+    --fn:'Lyon Arabic Display','Aref Ruqaa', serif;
+    --fb:'Thmanyah Sans','IBM Plex Sans Arabic', sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--fb); -webkit-font-smoothing:antialiased; overflow-x:hidden}
+  ::selection{background:var(--accent); color:var(--paper)}
+  h1,h2,h3{font-family:var(--fh); font-weight:400; margin:0}
+  p{margin:0}
+  a{color:inherit}
+
+  .wrap{max-width:1240px; margin-inline:auto; padding-inline:clamp(20px,5vw,56px)}
+  .sec{padding-block:clamp(74px,12vw,150px)}
+  .eyebrow{font-size:clamp(11px,2.6vw,12.5px); letter-spacing:3px; font-weight:600}
+  .link{display:inline-block; text-decoration:none; font-size:14px; border-bottom:1px solid var(--brass); padding-bottom:3px; transition:opacity .3s}
+  .link:hover{opacity:.7}
+  .rule{width:44px; height:1px; background:var(--brass)}
+
+  .ph{position:relative; overflow:hidden; background:repeating-linear-gradient(-45deg,var(--sand) 0 14px,#E0CFB7 14px 28px)}
+  .ph.alt{background:repeating-linear-gradient(-45deg,var(--paper) 0 14px,#EDE1CE 14px 28px)}
+  .ph .cap{position:absolute; bottom:12px; right:14px; left:14px; font-size:11.5px; color:var(--muted); font-family:var(--fb)}
+  .img-wrap img{display:block; width:100%; height:auto}
+
+  /* progress + nav */
+  .progress{position:fixed; top:0; right:0; height:2px; width:0; background:var(--brass); z-index:120; transition:width .1s linear}
+  header.nav{position:fixed; inset-inline:0; top:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:18px clamp(20px,5vw,56px); background:rgba(244,236,224,0); border-bottom:1px solid transparent; transition:background .4s,border-color .4s,padding .4s,box-shadow .4s}
+  header.nav.scrolled{background:rgba(244,236,224,.9); border-bottom-color:var(--hairline); padding-block:11px; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); box-shadow:0 1px 20px rgba(28,26,23,.05)}
+  .brand{display:flex; align-items:baseline; gap:12px; text-decoration:none}
+  .brand b{font-family:var(--fn); font-size:22px; font-weight:400; color:var(--ink)}
+  .brand span{font-size:11px; color:var(--muted); letter-spacing:1px}
+  nav.links{display:flex; gap:22px; align-items:center}
+  nav.links a{text-decoration:none; color:var(--muted2); font-size:13.5px; padding-bottom:3px; border-bottom:1px solid transparent; transition:color .25s,border-color .25s; white-space:nowrap}
+  nav.links a:hover{color:var(--accent); border-bottom-color:var(--brass)}
+  .menu-btn{display:none; background:none; border:none; font-size:24px; color:var(--ink); cursor:pointer; line-height:1; padding:4px}
+  .mobile-menu{position:fixed; inset:0; z-index:110; background:rgba(244,236,224,.98); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; opacity:0; visibility:hidden; transition:opacity .35s,visibility .35s}
+  .mobile-menu.open{opacity:1; visibility:visible}
+  .mobile-menu a{text-decoration:none; color:var(--ink); font-family:var(--fh); font-size:26px}
+  .mobile-menu .close{position:absolute; top:22px; left:24px; font-size:26px; background:none; border:none; color:var(--muted); cursor:pointer}
+
+  /* hero */
+  .hero{min-height:100svh; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:clamp(120px,18vh,170px) 24px 90px; background:repeating-linear-gradient(0deg,rgba(178,142,90,.025) 0 1px,transparent 1px 5px),var(--paper)}
+  .hero .grow{width:1px; height:60px; background:var(--brass); transform-origin:top; animation:grow 1.2s cubic-bezier(.22,.61,.36,1) both}
+  .hero .name{margin-top:34px; font-family:var(--fn); font-size:clamp(26px,6vw,38px); color:var(--accent); animation:up .9s .15s both}
+  .hero .tag{margin-top:12px; font-size:clamp(12px,3vw,15px); color:var(--muted); letter-spacing:2px; animation:up .9s .3s both}
+  .hero h1{margin-top:clamp(34px,6vw,56px); max-width:1060px; font-size:clamp(32px,8vw,72px); line-height:1.6; animation:up 1s .45s both}
+  .hero h1 .fg{color:var(--accent)}
+  .hero .lede{margin-top:clamp(26px,4vw,44px); max-width:720px; font-size:clamp(14px,3.4vw,18px); line-height:2.05; color:var(--muted); font-weight:300; animation:up 1s .65s both}
+  .hero .cue{position:absolute; bottom:30px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:10px; animation:up 1s 1s both}
+  .hero .cue span{font-size:12px; color:var(--muted); letter-spacing:2px}
+  .hero .cue i{width:1px; height:44px; background:linear-gradient(var(--brass),transparent)}
+
+  .center{text-align:center}
+  .circles{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr)); gap:clamp(32px,4vw,56px); margin-top:clamp(56px,8vw,96px)}
+  .circle{text-decoration:none; color:var(--ink); display:flex; flex-direction:column; gap:20px; transition:transform .5s cubic-bezier(.22,.61,.36,1)}
+  .circle:hover{transform:translateY(-8px)}
+  .circle .badge{position:absolute; top:16px; right:16px; width:34px; height:34px; border:1px solid var(--brass); border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--fh); font-size:16px}
+  .circle h3{font-size:clamp(26px,5vw,30px)}
+  .circle .poem{margin-top:12px; font-family:var(--fh); font-size:clamp(17px,3.6vw,18px); line-height:1.95; color:var(--muted2)}
+
+  .editorial{display:grid; grid-template-columns:1.05fr .95fr; gap:clamp(32px,5vw,72px); align-items:center; margin-bottom:clamp(70px,10vw,130px)}
+  .editorial.flip{grid-template-columns:.95fr 1.05fr}
+  .editorial .txt h3{font-size:clamp(26px,5vw,34px)}
+  .editorial .txt .poem{margin-top:16px; font-family:var(--fh); font-size:clamp(18px,4vw,20px); line-height:2; color:var(--muted2)}
+  .editorial .txt .note{margin-top:14px; font-size:14.5px; line-height:2; color:var(--muted); font-weight:300}
+
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(20px,4vw,32px); margin-top:44px}
+  .stat .num{font-family:var(--fh); font-size:clamp(34px,7vw,44px); color:var(--midnight)}
+  .stat .lbl{margin-top:6px; font-size:13px; color:var(--muted)}
+  .tabs{display:flex; flex-wrap:wrap; gap:22px; margin-top:38px; border-top:1px solid var(--hairline); padding-top:24px; font-size:13.5px; color:var(--muted)}
+  .tabs .on{color:var(--midnight); border-bottom:1px solid var(--brass); padding-bottom:3px}
+
+  .peak{position:relative; background:var(--sand); border-top:1px solid var(--hairline); overflow:hidden; padding-block:clamp(90px,16vw,200px)}
+  .peak .sig{position:absolute; top:12%; left:4%; width:clamp(420px,92vw,900px); color:var(--plum); opacity:.05; pointer-events:none; transform:rotate(-8deg); background:currentColor; aspect-ratio:1843/573; -webkit-mask:url(/images/signature-anas.svg) no-repeat center/contain; mask:url(/images/signature-anas.svg) no-repeat center/contain}
+  .peak h2{font-size:clamp(40px,11vw,84px); line-height:1.5; color:var(--plum)}
+  .plaques{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr)); gap:clamp(20px,3vw,44px); margin-top:clamp(56px,9vw,110px)}
+  .plaque{background:var(--paper); border:1px solid var(--hairline); padding:clamp(30px,5vw,44px) 30px; text-align:center}
+  .plaque h3{font-size:clamp(22px,4.5vw,26px)}
+  .plaque p{margin-top:14px; font-size:14px; line-height:2; color:var(--muted); font-weight:300}
+
+  .book-hero{display:grid; grid-template-columns:.85fr 1.15fr; gap:clamp(40px,6vw,80px); align-items:center}
+  .book-hero h2{font-size:clamp(34px,7vw,52px); line-height:1.5}
+  .book-hero .kicker{font-family:var(--fh); font-size:clamp(19px,4vw,23px); line-height:1.95; color:var(--accent); margin-top:22px}
+  .book-hero blockquote{margin:36px 0 0; padding-inline-start:24px; border-inline-start:2px solid var(--brass); font-family:var(--fh); font-style:italic; font-size:clamp(17px,3.6vw,19px); line-height:2.1; color:var(--muted2)}
+  .editions{background:var(--accent); color:var(--paper); margin-top:clamp(56px,8vw,90px); padding:clamp(56px,8vw,90px) clamp(20px,5vw,56px)}
+  .ed-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr)); gap:24px; max-width:1080px; margin:44px auto 0}
+  .ed{background:var(--paper); color:var(--ink); border:1px solid var(--hairline); padding:36px 30px; display:flex; flex-direction:column}
+  .ed.ltd{border-color:var(--brass); position:relative}
+  .ed .flag{position:absolute; top:14px; left:14px; font-size:10px; letter-spacing:1px; color:var(--clay); border:1px solid var(--clay); padding:3px 8px}
+  .ed .k{font-size:11px; letter-spacing:2px; color:var(--brass)}
+  .ed h3{margin-top:12px; font-size:26px}
+  .ed p{margin-top:10px; font-size:13.5px; line-height:1.9; color:var(--muted); font-weight:300; flex:1}
+  .ed .price{font-family:var(--fh); font-size:34px; color:var(--accent); margin-top:22px}
+  .ed .price small{font-size:14px; color:#8A7862}
+  .ed button{margin-top:18px; background:var(--accent); color:var(--paper); border:none; padding:13px; font-family:var(--fb); font-size:14px; cursor:pointer; transition:filter .3s}
+  .ed button:hover{filter:brightness(.85)}
+  .notify{max-width:440px; margin:40px auto 0; display:flex; border-bottom:1px solid rgba(244,236,224,.4)}
+  .notify input{flex:1; background:transparent; border:none; padding:14px 4px; font-family:var(--fb); font-size:14px; color:var(--paper); outline:none}
+  .notify input::placeholder{color:#CBBBA6}
+  .notify button{background:transparent; border:none; color:var(--paper); font-family:var(--fb); font-size:13.5px; padding:0 14px; cursor:pointer}
+
+  .shelf-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr)); gap:clamp(24px,3vw,40px); align-items:start}
+  .shelf-card{background:var(--paper); border:1px solid var(--hairline); padding:24px; transition:transform .5s}
+  .shelf-card:nth-child(1){transform:rotate(-1.2deg)}
+  .shelf-card:nth-child(2){transform:rotate(1deg)}
+  .shelf-card:nth-child(3){transform:rotate(-.6deg)}
+  .shelf-card:hover{transform:rotate(0) translateY(-6px)}
+  .shelf-card .label{margin-top:16px; font-family:var(--fh); font-size:20px}
+
+  .filters{display:flex; gap:20px; flex-wrap:wrap; font-size:13.5px; color:var(--muted); margin-top:8px}
+  .filters .on{color:var(--accent); border-bottom:1px solid var(--brass); padding-bottom:3px}
+  .masonry{columns:3; column-gap:clamp(16px,2.5vw,36px); margin-top:clamp(40px,6vw,70px)}
+  .masonry .ph{margin-bottom:clamp(16px,2.5vw,36px); break-inside:avoid; transition:transform .5s}
+  .masonry .ph:hover{transform:translateY(-6px)}
+
+  .contact{max-width:680px; margin-inline:auto; text-align:center}
+  .contact h2{font-size:clamp(30px,6vw,46px); line-height:1.7}
+  .form{margin-top:clamp(44px,6vw,70px); display:flex; flex-direction:column; gap:30px; text-align:right}
+  .form input,.form textarea{background:transparent; border:none; border-bottom:1px solid var(--line2); padding:14px 4px; font-family:var(--fb); font-size:15.5px; color:var(--ink); outline:none; transition:border-color .3s; width:100%}
+  .form input::placeholder,.form textarea::placeholder{color:#A8927B}
+  .form input:focus,.form textarea:focus{border-bottom-color:var(--accent)}
+  .form textarea{resize:vertical; line-height:2}
+  .form .send-row{display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap}
+  .btn{background:var(--accent); color:var(--paper); border:none; padding:14px 46px; font-family:var(--fb); font-size:14.5px; cursor:pointer; transition:filter .3s,transform .3s}
+  .btn:hover{filter:brightness(.85); transform:translateY(-2px)}
+  .socials{display:flex; gap:20px; font-size:13px; color:var(--muted)}
+  .socials span{cursor:pointer; transition:color .3s}
+  .socials span:hover{color:var(--accent)}
+
+  /* style board */
+  .sb{background:var(--sand); border-top:1px solid var(--hairline)}
+  .sb .block{background:var(--paper); border:1px solid var(--line2); padding:clamp(24px,4vw,40px); margin-bottom:24px}
+  .sb .no{font-family:monospace; font-size:12px; letter-spacing:2px; color:var(--brass); margin-bottom:6px}
+  .sb h3{font-size:clamp(22px,4vw,28px); margin-bottom:24px}
+  .swatches{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:14px}
+  .sw{cursor:pointer; text-align:right}
+  .sw .chip{height:80px; border:1px solid var(--hairline); transition:transform .2s}
+  .sw:hover .chip{transform:translateY(-3px)}
+  .sw .nm{margin-top:8px; font-size:12.5px; font-weight:500}
+  .sw .hx{font-family:monospace; font-size:11px; color:#8A7862}
+  .type-grid{display:grid; grid-template-columns:1fr 1fr; gap:clamp(24px,4vw,44px)}
+  .type-grid .col{border-inline-start:2px solid var(--brass); padding-inline-start:24px}
+  .type-grid .lab{font-family:monospace; font-size:12px; color:#8A7862}
+  .comp-row{display:flex; gap:40px; flex-wrap:wrap; align-items:center}
+
+  footer.site{background:var(--paper); border-top:1px solid var(--brass); padding:clamp(72px,10vw,110px) 24px 56px; text-align:center}
+  footer.site p{max-width:820px; margin-inline:auto; font-family:var(--fh); font-size:clamp(20px,4.4vw,27px); line-height:2}
+  footer.site p .fg{color:var(--accent)}
+  footer.site .sig{margin-top:44px; width:clamp(150px,26vw,200px); color:var(--oud); opacity:.65; transform:rotate(-4deg); background:currentColor; aspect-ratio:1843/573; -webkit-mask:url(/images/signature-anas.svg) no-repeat center/contain; mask:url(/images/signature-anas.svg) no-repeat center/contain}
+  footer.site .refs{margin-top:26px; font-size:12.5px; color:var(--muted)}
+  footer.site .refs a{color:var(--accent)}
+  footer.site .dom{margin-top:16px; font-size:11.5px; color:#A8927B; letter-spacing:2px}
+
+  .a-forest{color:var(--accent)} .a-mid{color:var(--midnight)} .a-plum{color:var(--plum)} .a-oud{color:var(--oud)}
+
+  /* ===== tweak panel ===== */
+  .tw-btn{position:fixed; bottom:18px; left:18px; z-index:130; background:var(--ink); color:var(--paper); border:none; border-radius:999px; padding:12px 20px; font-family:var(--fb); font-size:13.5px; cursor:pointer; box-shadow:0 8px 28px rgba(28,26,23,.28); display:flex; align-items:center; gap:8px}
+  .tw-btn b{color:var(--brass)}
+  .tw-panel{position:fixed; bottom:74px; left:18px; z-index:130; width:min(320px,calc(100vw - 36px)); background:var(--paper); border:1px solid var(--hairline); box-shadow:0 20px 60px rgba(28,26,23,.28); padding:20px; opacity:0; visibility:hidden; transform:translateY(10px); transition:opacity .3s,transform .3s,visibility .3s}
+  .tw-panel.open{opacity:1; visibility:visible; transform:none}
+  .tw-panel h4{margin:0 0 4px; font-family:var(--fh); font-size:20px; font-weight:400}
+  .tw-panel .hint{font-size:12px; color:var(--muted); margin:0 0 16px}
+  .tw-group{margin-bottom:18px}
+  .tw-group .glab{font-size:12px; color:var(--muted2); font-weight:600; margin-bottom:10px}
+  .tw-accents{display:flex; gap:10px}
+  .tw-accents button{width:34px; height:34px; border-radius:50%; border:2px solid transparent; cursor:pointer; padding:0}
+  .tw-accents button.sel{border-color:var(--ink)}
+  .tw-opts{display:flex; gap:8px; flex-wrap:wrap}
+  .tw-opts button{background:transparent; border:1px solid var(--line2); color:var(--muted2); font-family:var(--fb); font-size:13px; padding:8px 14px; cursor:pointer; transition:all .2s}
+  .tw-opts button.sel{background:var(--ink); color:var(--paper); border-color:var(--ink)}
+  .tw-note{font-size:11.5px; color:var(--muted); border-top:1px solid var(--hairline); padding-top:12px; margin-top:4px}
+  .tw-note a{color:var(--accent)}
+
+  .reveal{opacity:0; transform:translateY(24px); filter:blur(5px); transition:opacity .8s cubic-bezier(.22,.61,.36,1), transform .9s cubic-bezier(.22,.61,.36,1), filter .8s}
+  .reveal.in{opacity:1; transform:none; filter:none}
+  body.no-motion .reveal{opacity:1!important; transform:none!important; filter:none!important; transition:none!important}
+  body.no-motion *{animation:none!important}
+  @keyframes up{from{opacity:0; transform:translateY(24px)}to{opacity:1; transform:none}}
+  @keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+
+  @media (max-width:900px){
+    .editorial,.editorial.flip{grid-template-columns:1fr; gap:24px}
+    .editorial .img-wrap{order:-1}
+    .book-hero{grid-template-columns:1fr; gap:26px}
+    .book-hero .img-wrap{order:-1}
+    .masonry{columns:2}
+    .type-grid{grid-template-columns:1fr}
+  }
+  @media (max-width:820px){ nav.links{display:none} .menu-btn{display:block} }
+  @media (max-width:520px){ .stats{grid-template-columns:1fr 1fr} .peak h2 br{display:none} }
+  /* showcase: motion plays by default so the client sees it; manual toggle in the panel. */
+  @media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto} }
+
+/* real handwritten signature, used as a mask so it takes the surrounding colour */
+.sig-mark{display:block;background:currentColor;aspect-ratio:1843/573;-webkit-mask:url(/images/signature-anas.svg) no-repeat center/contain;mask:url(/images/signature-anas.svg) no-repeat center/contain}
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<header class="nav" id="nav">
+  <a class="brand" href="#home"><b>أنس</b><span>anasaq.me</span></a>
+  <nav class="links">
+    <a href="#home">الرئيسية</a>
+    <a href="#started">بدأت هنا</a>
+    <a href="#built">بُنيت هنا</a>
+    <a href="#passed">مرّت من هنا</a>
+    <a href="#book">كُتبت هنا</a>
+    <a href="#shelf">على الرف</a>
+    <a href="#scenes">المَشَاهِد</a>
+    <a href="#contact">تواصل</a>
+    <a href="#style" style="color:var(--brass)">لوح النظام</a>
+  </nav>
+  <button class="menu-btn" id="menuBtn" aria-label="القائمة">☰</button>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <button class="close" id="menuClose" aria-label="إغلاق">✕</button>
+  <a href="#home">الرئيسية</a>
+  <a href="#started">بدأت هنا</a>
+  <a href="#built">بُنيت هنا</a>
+  <a href="#passed">مرّت من هنا</a>
+  <a href="#book">كُتبت هنا</a>
+  <a href="#shelf">على الرف</a>
+  <a href="#scenes">المَشَاهِد</a>
+  <a href="#contact">تواصل</a>
+  <a href="#style">لوح النظام</a>
+</div>
+
+<!-- HERO -->
+<section id="home" class="hero">
+  <div class="grow"></div>
+  <div class="name">أنس عبدالله القرني</div>
+  <div class="tag">أبني الأفكار والأماكن والحكايات</div>
+  <h1>بعض الناس يبنون مشاريع…<br>وبعضهم يبنون <span class="fg">أثراً يعيش داخلها</span></h1>
+  <p class="lede">بين الهندسة وريادة الأعمال، وبين القهوة والشاي والضيافة، وبين الحكايات والذاكرة، أؤمن أن كل شيء يبدأ بفكرة… وأن أفضل الأفكار هي تلك التي تترك أثراً بعد أن تغادر.</p>
+  <div class="cue"><span>تجوّل في البيت</span><i></i></div>
+</section>
+
+<!-- THREE CIRCLES -->
+<section class="sec">
+  <div class="wrap">
+    <div class="center reveal">
+      <div class="rule" style="margin:0 auto 24px"></div>
+      <h2 style="font-size:clamp(30px,6vw,40px); line-height:1.8">هذا البيت ثلاث غرف</h2>
+      <p style="margin:16px auto 0; max-width:560px; font-size:15.5px; line-height:2; color:var(--muted); font-weight:300">أشياء بدأت مني، وأشياء ساعدت في بنائها، وأشياء مررت بها وتركت فيها أثراً صغيراً.</p>
+    </div>
+    <div class="circles">
+      <a href="#started" class="circle reveal">
+        <div class="ph" style="aspect-ratio:4/5"><span class="badge a-forest">1</span><span class="cap">صورة — يدان تعبّئان مرطبان مربى بضوء طبيعي</span></div>
+        <div><h3 class="a-forest">بدأت هنا</h3><p class="poem">ليست كل الأفكار تبحث عن مستثمر… بعضها يبحث فقط عن فرصة لتولد.</p><span class="link a-forest">اقرأ المزيد ←</span></div>
+      </a>
+      <a href="#built" class="circle reveal" data-d="120">
+        <div class="ph" style="aspect-ratio:4/5"><span class="badge a-mid">2</span><span class="cap">صورة — دلّة نحاسية وتفاصيل مقهى بإضاءة دافئة</span></div>
+        <div><h3 class="a-mid">بُنيت هنا</h3><p class="poem">بعض الأماكن لا تحمل اسمك… لكنها تحمل شيئاً منك تفخر به.</p><span class="link a-mid">اقرأ المزيد ←</span></div>
+      </a>
+      <a href="#passed" class="circle reveal" data-d="240">
+        <div class="ph" style="aspect-ratio:4/5"><span class="badge a-plum">3</span><span class="cap">صورة — ظلال سعف نخيل على جدار طيني</span></div>
+        <div><h3 class="a-plum">مرّت من هنا</h3><p class="poem">ليست كل البصمات تحتاج إلى توقيع.</p><span class="link a-plum">اقرأ المزيد ←</span></div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- بدأت هنا -->
+<section id="started" class="sec" style="background:var(--sand); border-top:1px solid var(--hairline)">
+  <div class="wrap">
+    <div class="reveal" style="max-width:760px; margin-bottom:clamp(56px,9vw,110px)">
+      <span class="eyebrow a-forest">الغرفة الأولى · بدأت هنا</span>
+      <h2 style="margin-top:22px; font-size:clamp(30px,7vw,48px); line-height:1.75">ليست كل الأفكار تبحث عن مستثمر…<br><span class="a-forest">بعضها يبحث فقط عن فرصة لتولد.</span></h2>
+    </div>
+    <div class="editorial reveal">
+      <div class="img-wrap"><div class="ph alt" style="aspect-ratio:5/4"><span class="cap">صورة — مرطبانات مربى حرفية على خشب دافئ</span></div></div>
+      <div class="txt"><h3>المربى وملحقاته</h3><p class="poem">حين تتحول القصة إلى منتج يعيش بين يديكم.</p></div>
+    </div>
+    <div class="editorial flip reveal">
+      <div class="txt"><h3>ذَرَى</h3><p class="poem">إعادة تقديم الضيافة السعودية بصورة معاصرة.</p></div>
+      <div class="img-wrap"><div class="ph alt" style="aspect-ratio:5/4"><span class="cap">صورة — فنجان قهوة سعودية وتمر على صينية نحاس</span></div></div>
+    </div>
+    <div class="editorial reveal">
+      <div class="img-wrap"><div class="ph alt" style="aspect-ratio:5/4"><span class="cap">صورة — نسيج خوص مجدول عن قرب</span></div></div>
+      <div class="txt"><h3>خوص</h3><p class="poem">محاولة لحفظ ما لا يجب أن يضيع.</p></div>
+    </div>
+    <div class="editorial flip reveal" style="margin-bottom:0">
+      <div class="txt"><h3>مشاريع قادمة</h3><p class="poem">الأفكار التي لا تزال تنتظر وقتها المناسب.</p><p class="note">ومنها «وداد» — ركن إكسسوارات بطابع سعودي عصري.</p></div>
+      <div class="img-wrap"><div class="ph alt" style="aspect-ratio:5/4"><span class="cap">صورة — دفتر رسومات وأدوات على طاولة عمل</span></div></div>
+    </div>
+    <div class="reveal" style="margin-top:clamp(48px,7vw,90px)"><a class="link a-forest" href="/design/بدأت%20هنا.dc.html" target="_blank" rel="noopener">ادخل الغرفة كاملة ←</a></div>
+  </div>
+</section>
+
+<!-- بُنيت هنا -->
+<section id="built" class="sec">
+  <div class="wrap">
+    <div class="reveal" style="max-width:760px; margin-bottom:clamp(48px,7vw,90px)">
+      <span class="eyebrow a-mid">الغرفة الثانية · بُنيت هنا</span>
+      <h2 style="margin-top:22px; font-size:clamp(30px,7vw,48px); line-height:1.75">بعض الأماكن لا تحمل اسمك…<br><span class="a-mid">لكنها تحمل شيئاً مني أفخر به.</span></h2>
+    </div>
+    <div class="editorial reveal" style="margin-bottom:0; align-items:start">
+      <div class="img-wrap"><div class="ph" style="aspect-ratio:4/5"><span class="cap">صورة — تفاصيل مقهى رحى المكان، ضوء صباحي</span></div></div>
+      <div class="txt">
+        <h3 style="font-size:clamp(30px,6vw,40px)" class="a-mid">رحى المكان</h3>
+        <p style="margin-top:22px; font-size:16.5px; line-height:2.1; color:var(--muted2); font-weight:300">من ثقة معلمي الشيخ حامد السهيمي، وتطوير الفروع وتجربة العميل، إلى المنتجات والحملات والتوسع وبناء الفرق، كانت الرحلة أقرب إلى بناء تجربة متكاملة منها إلى مجرد وظيفة.</p>
+        <div class="tabs"><span class="on">الفروع</span><span>الحملات</span><span>المنتجات</span><span>المحاصيل</span><span>مشاريع العلامة</span><span>الإنجازات والأرقام</span></div>
+        <div class="stats">
+          <div class="stat"><div class="num"><span data-count="14">0</span></div><div class="lbl">فرعاً جرى تطويره</div></div>
+          <div class="stat"><div class="num"><span data-count="60">0</span>+</div><div class="lbl">منتجاً وحملة موسمية</div></div>
+          <div class="stat"><div class="num"><span data-count="9">0</span></div><div class="lbl">سنوات من البناء</div></div>
+        </div>
+        <div style="margin-top:44px"><a class="link a-mid" href="/design/بُنيت%20هنا.dc.html" target="_blank" rel="noopener">ادخل الغرفة كاملة ←</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- مرّت من هنا -->
+<section id="passed" class="peak">
+  <div class="sig" aria-hidden="true"></div>
+  <div class="wrap" style="max-width:1100px; position:relative">
+    <div class="center reveal">
+      <span class="eyebrow a-plum">الغرفة الثالثة · مرّت من هنا</span>
+      <h2 style="margin-top:32px">ليست كل البصمات<br>تحتاج إلى توقيع.</h2>
+      <p style="margin:36px auto 0; max-width:640px; font-size:17px; line-height:2.1; color:var(--muted); font-weight:300">أحياناً يكون دورك منتجاً جديداً، أو فكرة، أو تطوير تجربة، أو مجرد تفصيلة صغيرة غيّرت النتيجة بالكامل.</p>
+    </div>
+    <div class="plaques">
+      <div class="plaque reveal"><div class="rule" style="margin:0 auto 20px"></div><h3>تطوير منيوهات</h3><p>قائمة تُقرأ كقصة، لا كجدول أسعار.</p></div>
+      <div class="plaque reveal" data-d="100"><div class="rule" style="margin:0 auto 20px"></div><h3>منتجات موسمية</h3><p>مواسم تمرّ، ونكهات تبقى في الذاكرة.</p></div>
+      <div class="plaque reveal" data-d="200"><div class="rule" style="margin:0 auto 20px"></div><h3>تجارب عملاء</h3><p>تفاصيل صغيرة تجعل الزائر يعود.</p></div>
+      <div class="plaque reveal"><div class="rule" style="margin:0 auto 20px"></div><h3>تحسين تشغيل</h3><p>نظام هادئ خلف كل تجربة سلسة.</p></div>
+      <div class="plaque reveal" data-d="100"><div class="rule" style="margin:0 auto 20px"></div><h3>أفكار حملات</h3><p>رسائل تصل بلا صوت مرتفع.</p></div>
+      <div class="plaque reveal" data-d="200"><div class="rule" style="margin:0 auto 20px"></div><h3>تطوير الهوية</h3><p>ملامح تُعرف من غير أن تُذكر الأسماء.</p></div>
+    </div>
+    <div class="reveal center" style="margin-top:clamp(48px,7vw,90px)"><a class="link a-plum" href="/design/مرّت%20من%20هنا.dc.html" target="_blank" rel="noopener">ادخل الغرفة كاملة ←</a></div>
+  </div>
+</section>
+
+<!-- كُتبت هنا -->
+<section id="book" class="sec">
+  <div class="wrap" style="max-width:1100px">
+    <div class="book-hero">
+      <div class="img-wrap reveal"><img src="/images/khous-cover.webp" width="1000" height="1339" loading="lazy" decoding="async" alt="كتاب «خوص» بغلاف قماشي بلون الزعفران، عليه عنوان الكتاب واسم المؤلف ورسم محفور لطبق خوص مجدول، وفاصل خوص ملوّن بشرّابة يخرج من أعلى الصفحات."></div>
+      <div class="reveal" data-d="120">
+        <span class="eyebrow a-forest">كُتبت هنا</span>
+        <h2 style="margin-top:22px">خوص <span style="color:var(--brass); font-size:.7em">|</span> حكايات شارع 4</h2>
+        <p class="kicker">ليست كل المدن تُحفظ في الخرائط… بعضها يعيش في الذاكرة.</p>
+        <blockquote>«فالطبق باب، والرائحة طريق، والبيت ذاكرة، والإنسان هو الحكاية كلها.»</blockquote>
+        <div style="margin-top:32px; display:flex; gap:22px; flex-wrap:wrap; font-size:13.5px; color:var(--muted)"><span class="a-forest" style="border-bottom:1px solid var(--brass); padding-bottom:3px">نبذة</span><span>شخصيات</span><span>مقتطفات</span><span>صور</span><span>رحلة الكتاب</span></div>
+        <div style="margin-top:26px"><a class="link a-forest" href="/design/كُتبت%20هنا.dc.html" target="_blank" rel="noopener">ادخل غرفة الكتاب كاملة ←</a></div>
+      </div>
+    </div>
+  </div>
+  <div class="editions">
+    <div class="center reveal">
+      <span class="eyebrow" style="color:var(--brass); letter-spacing:4px">الطلب المسبق متاح</span>
+      <h2 style="margin-top:18px; font-size:clamp(32px,6vw,46px); color:var(--paper)">اقتنِ نسختك</h2>
+      <p style="margin:16px auto 0; max-width:520px; font-size:15px; line-height:2; color:#CBBBA6; font-weight:300">النسخة الأولى قيد التجهيز. اطلبها الآن، وتصلك فور توفّرها.</p>
+    </div>
+    <div class="ed-grid reveal" data-d="120">
+      <div class="ed"><div class="k">رقمية</div><h3>نسخة رقمية</h3><p>ملف PDF أنيق يصلك فور الإطلاق، للقراءة على أي جهاز.</p><div class="price">45 <small>ر.س</small></div><button type="button">أضف إلى السلة</button></div>
+      <div class="ed"><div class="k">ورقية</div><h3>نسخة ورقية</h3><p>غلاف ورقي وورق شمواه دافئ، تُشحن إلى بابك.</p><div class="price">90 <small>ر.س</small></div><button type="button">أضف إلى السلة</button></div>
+      <div class="ed ltd"><div class="flag">عدد محدود</div><div class="k">موقّعة</div><h3>نسخة موقّعة</h3><p>نسخة ورقية بتوقيع وإهداء شخصي بخط اليد.</p><div class="price">150 <small>ر.س</small></div><button type="button">أضف إلى السلة</button></div>
+    </div>
+    <div class="notify reveal"><input type="email" placeholder="أو أبلغني عند التوفّر — بريدك"><button type="button">أبلغني</button></div>
+  </div>
+</section>
+
+<!-- على الرف -->
+<section id="shelf" class="sec" style="background:var(--sand); border-top:1px solid var(--hairline)">
+  <div class="wrap">
+    <div class="reveal" style="max-width:720px; margin-bottom:clamp(48px,7vw,90px)">
+      <span class="eyebrow a-oud">ورشة البيت · ما زال على الرف</span>
+      <h2 style="margin-top:22px; font-size:clamp(28px,6vw,44px); line-height:1.8">ليست كل الأفكار تحتاج أن ترى النور فوراً،<br>بعضها يحتاج فقط إلى الوقت المناسب.</h2>
+    </div>
+    <div class="shelf-grid">
+      <div class="shelf-card reveal"><div class="ph" style="aspect-ratio:4/3"><span class="cap">صورة — رسومات يدوية بقلم رصاص</span></div><p class="label">رسومات يدوية</p></div>
+      <div class="shelf-card reveal" data-d="120" style="margin-top:36px"><div class="ph" style="aspect-ratio:4/3"><span class="cap">صورة — نماذج منتجات أولية</span></div><p class="label">أفكار منتجات</p></div>
+      <div class="shelf-card reveal" data-d="240" style="margin-top:14px"><div class="ph" style="aspect-ratio:4/3"><span class="cap">صورة — ملاحظات ومخططات مشاريع</span></div><p class="label">مشاريع مستقبلية</p></div>
+    </div>
+    <div class="reveal" style="margin-top:clamp(48px,7vw,90px)"><a class="link a-oud" href="/design/على%20الرف.dc.html" target="_blank" rel="noopener">تصفّح الورشة كاملة ←</a></div>
+  </div>
+</section>
+
+<!-- المَشَاهِد -->
+<section id="scenes" class="sec">
+  <div class="wrap">
+    <div class="reveal" style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:20px">
+      <div>
+        <span class="eyebrow a-forest">المَشَاهِد</span>
+        <h2 style="margin-top:16px; font-size:clamp(30px,6vw,44px)">لقطات من الطريق</h2>
+      </div>
+      <div class="filters"><span class="on">الكل</span><span>أماكن</span><span>مشاريع</span><span>منتجات</span><span>رحلات</span><span>خلف الكواليس</span></div>
+    </div>
+    <div class="masonry reveal">
+      <div class="ph" style="aspect-ratio:3/4"><span class="cap">صورة — أوانٍ فخارية بضوء جانبي</span></div>
+      <div class="ph" style="aspect-ratio:1"><span class="cap">صورة — تحضير قهوة مقطّرة</span></div>
+      <div class="ph" style="aspect-ratio:4/5"><span class="cap">صورة — يد تجدل الخوص</span></div>
+      <div class="ph" style="aspect-ratio:4/3"><span class="cap">صورة — طريق جبلي في الباحة</span></div>
+      <div class="ph" style="aspect-ratio:3/4"><span class="cap">صورة — ورق شجر أخضر وظل دافئ</span></div>
+      <div class="ph" style="aspect-ratio:1"><span class="cap">صورة — ترتيب رفوف المتجر</span></div>
+      <div class="ph" style="aspect-ratio:4/5"><span class="cap">صورة — تفاصيل دلّة ونحاس</span></div>
+      <div class="ph" style="aspect-ratio:4/3"><span class="cap">صورة — خلف الكواليس</span></div>
+      <div class="ph" style="aspect-ratio:3/4"><span class="cap">صورة — مرطبانات مربى مصفوفة</span></div>
+    </div>
+    <div class="reveal" style="margin-top:clamp(40px,6vw,70px)"><a class="link a-forest" href="/design/المشاهد.dc.html" target="_blank" rel="noopener">كل المشاهد ←</a></div>
+  </div>
+</section>
+
+<!-- تواصل -->
+<section id="contact" class="sec" style="background:var(--sand); border-top:1px solid var(--hairline)">
+  <div class="wrap contact">
+    <div class="reveal">
+      <div class="rule" style="margin:0 auto 28px"></div>
+      <h2>إذا كانت لديك فكرة تستحق أن تُبنى…<br><span class="a-forest">فلنتحدث.</span></h2>
+    </div>
+    <div class="form reveal" data-d="120">
+      <input type="text" placeholder="الاسم">
+      <input type="email" placeholder="البريد">
+      <textarea placeholder="فكرتك" rows="4"></textarea>
+      <div class="send-row">
+        <button type="button" class="btn">أرسل</button>
+        <div class="socials"><span>إنستغرام</span><span>إكس</span><span>لينكدإن</span></div>
+      </div>
+    </div>
+    <div class="reveal" style="margin-top:40px"><a class="link a-forest" href="/design/تواصل.dc.html" target="_blank" rel="noopener">صفحة التواصل كاملة ←</a></div>
+  </div>
+</section>
+
+<!-- ===== STYLE BOARD ===== -->
+<section id="style" class="sec sb">
+  <div class="wrap">
+    <div class="reveal" style="margin-bottom:32px">
+      <span class="eyebrow a-forest">لوح النظام البصري · design system</span>
+      <h2 style="margin-top:14px; font-size:clamp(28px,6vw,40px)">الألوان والخطوط والعناصر</h2>
+      <p style="margin-top:12px; max-width:640px; font-size:14.5px; line-height:2; color:var(--muted2); font-weight:300">المرجع البصري الكامل. اضغط على أي لون ليصبح اللون الرئيسي للموقع أعلاه — أو استخدم لوحة «تخصيص» في الأسفل.</p>
+    </div>
+
+    <div class="block reveal">
+      <div class="no">٠١ — الألوان</div>
+      <h3>لوحة الألوان</h3>
+      <div class="swatches">
+        <div class="sw" data-accent="#234A30"><div class="chip" style="background:#234A30"></div><div class="nm">forest · أساسي</div><div class="hx">#234A30</div></div>
+        <div class="sw" data-accent="#4A2740"><div class="chip" style="background:#4A2740"></div><div class="nm">plum</div><div class="hx">#4A2740</div></div>
+        <div class="sw" data-accent="#20223F"><div class="chip" style="background:#20223F"></div><div class="nm">midnight</div><div class="hx">#20223F</div></div>
+        <div class="sw" data-accent="#6E4B33"><div class="chip" style="background:#6E4B33"></div><div class="nm">oud</div><div class="hx">#6E4B33</div></div>
+        <div class="sw"><div class="chip" style="background:#F4ECE0"></div><div class="nm">paper</div><div class="hx">#F4ECE0</div></div>
+        <div class="sw"><div class="chip" style="background:#E7D8C3"></div><div class="nm">sand</div><div class="hx">#E7D8C3</div></div>
+        <div class="sw"><div class="chip" style="background:#1C1A17"></div><div class="nm">ink</div><div class="hx">#1C1A17</div></div>
+        <div class="sw"><div class="chip" style="background:#6F5E4E"></div><div class="nm">mutedText</div><div class="hx">#6F5E4E</div></div>
+        <div class="sw"><div class="chip" style="background:#B28E5A"></div><div class="nm">brass · شعيرة</div><div class="hx">#B28E5A</div></div>
+        <div class="sw" data-accent="#B65C43"><div class="chip" style="background:#B65C43"></div><div class="nm">clay · شرارة</div><div class="hx">#B65C43</div></div>
+        <div class="sw"><div class="chip" style="background:#D9C9B4"></div><div class="nm">hairline</div><div class="hx">#D9C9B4</div></div>
+      </div>
+    </div>
+
+    <div class="block reveal">
+      <div class="no">٠٢ — الخطوط</div>
+      <h3>اقتران الخطوط</h3>
+      <div class="type-grid">
+        <div class="col">
+          <div class="lab">العناوين · Lyon Arabic Display</div>
+          <div style="font-family:var(--fh); font-size:clamp(38px,8vw,60px); line-height:1.4; margin-top:12px">بعض الناس يبنون أثراً</div>
+          <div style="font-family:var(--fh); font-size:clamp(22px,4vw,30px); color:var(--accent); margin-top:8px">حكايات شارع 4</div>
+          <div style="margin-top:14px; font-size:12.5px; color:var(--muted)">أوزان: Light · Regular · Medium — للعناوين والأسطر الأدبية.</div>
+        </div>
+        <div class="col">
+          <div class="lab">المتن والواجهة · Thmanyah Sans</div>
+          <div style="font-family:var(--fb); font-weight:300; font-size:clamp(16px,3.4vw,19px); line-height:2.05; color:var(--muted2); margin-top:12px">بين الهندسة وريادة الأعمال، وبين القهوة والضيافة، أؤمن أن كل شيء يبدأ بفكرة، وأن أفضل الأفكار هي تلك التي تترك أثراً.</div>
+          <div style="margin-top:14px; font-size:12.5px; color:var(--muted)">أوزان: Light · Regular · Medium · Bold. الأرقام دائماً إنجليزية: 0 1 2 3 4 5 6 7 8 9</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="block reveal">
+      <div class="no">٠٣ — العناصر</div>
+      <h3>الروابط والأزرار والبطاقات</h3>
+      <div class="comp-row" style="margin-bottom:36px">
+        <a href="#style" class="link a-forest">اقرأ المزيد ←</a>
+        <button class="btn" type="button">أرسل</button>
+        <button type="button" style="background:transparent; color:var(--accent); border:1px solid var(--accent); padding:13px 44px; font-family:var(--fb); font-size:14.5px; cursor:pointer">زر ثانوي</button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:24px">
+        <div>
+          <div class="ph" style="aspect-ratio:4/5"><span class="badge a-forest" style="position:absolute;top:14px;right:14px;width:32px;height:32px;border:1px solid var(--brass);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--fh)">1</span></div>
+          <div style="font-family:var(--fh); font-size:22px; color:var(--accent); margin-top:12px">بطاقة الغرفة</div>
+        </div>
+        <div style="background:var(--sand); border:1px solid var(--hairline); padding:30px; text-align:center">
+          <div class="rule" style="margin:0 auto 16px"></div>
+          <div style="font-family:var(--fh); font-size:20px; color:var(--plum)">لوحة متحف</div>
+          <div style="font-size:13px; color:var(--muted); margin-top:8px; line-height:1.9">بطاقة هادئة بإطار شعيرة، لعرض البصمات.</div>
+        </div>
+        <div style="background:var(--paper); border:1px solid var(--hairline); padding:18px; transform:rotate(-2deg); box-shadow:0 12px 30px rgba(28,26,23,.08)">
+          <div class="ph" style="aspect-ratio:4/3"></div>
+          <div style="font-family:var(--fh); font-size:19px; margin-top:12px">بطاقة الرف</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="site">
+  <p class="reveal">بعض المشاريع بدأت هنا، وبعضها بُني هنا، وبعضها مرّ من هنا…<br><span class="fg">أما الحكايات، فما زالت تُكتب.</span></p>
+  <div class="sig reveal" data-d="100" role="img" aria-label="توقيع أنس عبدالله القرني"></div>
+  <div class="refs">مراجع المصمم الأصلية: <a href="/design/">كل الشاشات ولوح النظام وقوالب الأجهزة ↗</a></div>
+  <div class="dom">anasaq.me · معرض التصميم</div>
+</footer>
+
+<!-- ===== TWEAK PANEL ===== -->
+<button class="tw-btn" id="twBtn"><b>✦</b> تخصيص</button>
+<div class="tw-panel" id="twPanel">
+  <h4>تخصيص العرض</h4>
+  <p class="hint">جرّب الألوان والخطوط — يتغيّر الموقع مباشرة.</p>
+  <div class="tw-group">
+    <div class="glab">اللون الرئيسي</div>
+    <div class="tw-accents" id="twAccents">
+      <button data-accent="#234A30" style="background:#234A30" title="forest"></button>
+      <button data-accent="#4A2740" style="background:#4A2740" title="plum"></button>
+      <button data-accent="#20223F" style="background:#20223F" title="midnight"></button>
+      <button data-accent="#6E4B33" style="background:#6E4B33" title="oud"></button>
+      <button data-accent="#B65C43" style="background:#B65C43" title="clay"></button>
+    </div>
+  </div>
+  <div class="tw-group">
+    <div class="glab">الخط</div>
+    <div class="tw-opts" id="twFonts">
+      <button data-font="lyon">ليون · فاخر</button>
+      <button data-font="thmanyah">ثمانية</button>
+      <button data-font="classic">كلاسيكي</button>
+    </div>
+  </div>
+  <div class="tw-group" style="margin-bottom:8px">
+    <div class="glab">الحركة</div>
+    <div class="tw-opts" id="twMotion">
+      <button data-motion="on">مفعّلة</button>
+      <button data-motion="off">إيقاف</button>
+    </div>
+  </div>
+  <div class="tw-note">هذه معاينة للتصميم. الصور النهائية تُضاف لاحقاً. <a href="/design/">النسخة الأصلية ↗</a></div>
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement, body = document.body;
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // reveal on scroll
+  var revs = [].slice.call(document.querySelectorAll('.reveal'));
+  function showAll(){ revs.forEach(function(el){ el.classList.add('in'); }); }
+  var io = null;
+  if (!('IntersectionObserver' in window)) { showAll(); }
+  else {
+    io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting){
+          var d = +(en.target.getAttribute('data-d') || 0);
+          en.target.style.transitionDelay = d + 'ms';
+          en.target.classList.add('in');
+          io.unobserve(en.target);
+        }
+      });
+    }, { threshold:0.12, rootMargin:'0px 0px -6% 0px' });
+    revs.forEach(function(el){ io.observe(el); });
+  }
+
+  // count-up
+  var counters = [].slice.call(document.querySelectorAll('[data-count]'));
+  var cio = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (!en.isIntersecting) return;
+      var el = en.target, target = +el.getAttribute('data-count');
+      cio.unobserve(el);
+      if (body.classList.contains('no-motion')){ el.textContent = target; return; }
+      var t0 = performance.now(), dur = 1500;
+      (function tick(t){ var p = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-p,3); el.textContent = Math.round(target*e); if (p<1) requestAnimationFrame(tick); })(performance.now());
+    });
+  }, { threshold:0.6 });
+  counters.forEach(function(el){ cio.observe(el); });
+
+  // nav + progress + scroll-driven motion (hero fade, image parallax, rising signature)
+  var nav = document.getElementById('nav'), bar = document.getElementById('progress');
+  var hero = document.getElementById('home'), heroKids = hero ? [].slice.call(hero.children) : [];
+  var sig = document.querySelector('.peak .sig');
+  var photos = [].slice.call(document.querySelectorAll('.ph'));
+  photos.forEach(function(p){ p.style.backgroundSize = '140% 140%'; });
+  var ticking = false;
+  function raf(){
+    ticking = false;
+    var y = scrollY, vh = innerHeight, h = document.documentElement.scrollHeight - vh, on = !body.classList.contains('no-motion');
+    nav.classList.toggle('scrolled', y > 30);
+    bar.style.width = (h>0 ? (y/h)*100 : 0) + '%';
+    if (hero){
+      var hp = Math.max(0, Math.min(1, y/(vh*0.9)));
+      heroKids.forEach(function(k,i){
+        if (on && hp > 0.001){ var depth = .4 + i*.16; k.style.transform = 'translateY('+(hp*-70*depth)+'px) scale('+(1 + hp*.06*(.4+i*.3))+')'; k.style.opacity = String(1 - hp*1.05); }
+        else { k.style.transform = ''; k.style.opacity = ''; }
+      });
+    }
+    if (on){ photos.forEach(function(p){ var r = p.getBoundingClientRect(); if (r.bottom < -80 || r.top > vh+80) return; var pr = (vh - r.top)/(vh + r.height); p.style.backgroundPosition = '50% '+((pr-.5)*30)+'px'; }); }
+    else { photos.forEach(function(p){ p.style.backgroundPosition = ''; }); }
+    if (sig){ if (on){ var sr = sig.parentElement.getBoundingClientRect(); var s = Math.max(0, Math.min(1, 1 - sr.top/vh)); sig.style.transform = 'rotate(-8deg) translateY('+(s*-50)+'px)'; sig.style.opacity = String(.03 + s*.06); } else { sig.style.transform = 'rotate(-8deg)'; sig.style.opacity = '.05'; } }
+  }
+  function onScroll(){ if(!ticking){ ticking = true; requestAnimationFrame(raf); } }
+  addEventListener('scroll', onScroll, { passive:true }); addEventListener('resize', onScroll, { passive:true }); raf();
+
+  // mobile menu
+  var mb = document.getElementById('menuBtn'), mm = document.getElementById('mobileMenu'), mc = document.getElementById('menuClose');
+  function mopen(){ mm.classList.add('open'); body.style.overflow='hidden'; }
+  function mclose(){ mm.classList.remove('open'); body.style.overflow=''; }
+  mb.addEventListener('click', mopen); mc.addEventListener('click', mclose);
+  mm.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', mclose); });
+
+  // ===== tweak panel =====
+  var FONTS = {
+    lyon:    ["'Lyon Arabic Display','Amiri',serif", "'Thmanyah Sans','IBM Plex Sans Arabic',sans-serif", "'Lyon Arabic Display','Aref Ruqaa',serif"],
+    thmanyah:["'Thmanyah Serif',serif", "'Thmanyah Sans',sans-serif", "'Thmanyah Serif',serif"],
+    classic: ["'Amiri',serif", "'IBM Plex Sans Arabic',sans-serif", "'Aref Ruqaa',serif"]
+  };
+  function setAccent(hex){
+    root.style.setProperty('--accent', hex);
+    [].slice.call(document.querySelectorAll('#twAccents button')).forEach(function(b){ b.classList.toggle('sel', b.getAttribute('data-accent')===hex); });
+  }
+  function setFont(key){
+    var f = FONTS[key] || FONTS.lyon;
+    root.style.setProperty('--fh', f[0]); root.style.setProperty('--fb', f[1]); root.style.setProperty('--fn', f[2]);
+    [].slice.call(document.querySelectorAll('#twFonts button')).forEach(function(b){ b.classList.toggle('sel', b.getAttribute('data-font')===key); });
+  }
+  function setMotion(on){
+    body.classList.toggle('no-motion', !on);
+    if (!on) showAll();
+    [].slice.call(document.querySelectorAll('#twMotion button')).forEach(function(b){ b.classList.toggle('sel', (b.getAttribute('data-motion')==='on')===on); });
+  }
+
+  document.getElementById('twBtn').addEventListener('click', function(){ document.getElementById('twPanel').classList.toggle('open'); });
+  [].slice.call(document.querySelectorAll('#twAccents button, .sw[data-accent]')).forEach(function(b){
+    b.addEventListener('click', function(){ setAccent(b.getAttribute('data-accent')); });
+  });
+  [].slice.call(document.querySelectorAll('#twFonts button')).forEach(function(b){ b.addEventListener('click', function(){ setFont(b.getAttribute('data-font')); }); });
+  [].slice.call(document.querySelectorAll('#twMotion button')).forEach(function(b){ b.addEventListener('click', function(){ setMotion(b.getAttribute('data-motion')==='on'); }); });
+
+  // defaults
+  setAccent('#234A30'); setFont('lyon'); setMotion(true);
+})();
+</script>
+</body>
+</html>

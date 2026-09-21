@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بدأت هنا — أنس عبدالله القرني</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Bold.woff2') format('woff2');font-weight:700;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+html{scroll-behavior:smooth}
+body{margin:0;background:#F4ECE0;color:#1C1A17;-webkit-font-smoothing:antialiased}
+::selection{background:#234A30;color:#F4ECE0}
+@keyframes lineGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#F4ECE0;color:#1C1A17;overflow-x:hidden;min-height:100vh">
+  <div data-progress style="position:fixed;top:0;right:0;height:2px;width:0%;background:#B28E5A;z-index:60"></div>
+
+  <!-- NAV -->
+  <header data-nav style="position:fixed;top:0;right:0;left:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:22px 56px;background:rgba(244,236,224,0);border-bottom:1px solid transparent;transition:background .45s,border-color .45s,padding .45s">
+    <div style="display:flex;align-items:baseline;gap:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#1C1A17;font-family:var(--fh);font-size:21px;line-height:1">أنس</a>
+      <span style="font-size:11.5px;color:#6F5E4E;letter-spacing:1px">anasaq.me</span>
+    </div>
+    <nav style="display:flex;gap:30px;align-items:center;font-size:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#5C4E3F">الرئيسية</a>
+      <a href="بدأت هنا.dc.html" style="text-decoration:none;color:#234A30;font-weight:500;padding-bottom:3px;border-bottom:1px solid #B28E5A">بدأت هنا</a>
+      <a href="بُنيت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">بُنيت هنا</a>
+      <a href="مرّت من هنا.dc.html" style="text-decoration:none;color:#5C4E3F">مرّت من هنا</a>
+      <a href="كُتبت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">كُتبت هنا</a>
+      <a href="على الرف.dc.html" style="text-decoration:none;color:#5C4E3F">على الرف</a>
+      <a href="المشاهد.dc.html" style="text-decoration:none;color:#5C4E3F">المَشَاهِد</a>
+      <a href="تواصل.dc.html" style="text-decoration:none;color:#5C4E3F">تواصل</a>
+    </nav>
+  </header>
+
+  <!-- PAGE HERO -->
+  <section data-screen-label="بدأت هنا — العنوان" style="padding:200px 56px 120px;max-width:1180px;margin:0 auto">
+    <div style="width:1px;height:56px;background:#B28E5A;transform-origin:top;animation:lineGrow 1s cubic-bezier(.22,.61,.36,1) both"></div>
+    <span style="display:block;margin-top:30px;font-size:12.5px;letter-spacing:4px;color:#234A30;font-weight:600;animation:fadeUp .8s .1s both">الغرفة الأولى</span>
+    <h1 style="margin:26px 0 0;font-family:var(--fh);font-weight:400;font-size:76px;line-height:1.55;color:#1C1A17;max-width:960px;animation:fadeUp .9s .25s both">بدأت هنا</h1>
+    <p style="margin:36px 0 0;font-family:var(--fh);font-size:26px;line-height:1.9;color:#234A30;max-width:820px;animation:fadeUp .9s .4s both">ليست كل الأفكار تبحث عن مستثمر… بعضها يبحث فقط عن فرصة لتولد.</p>
+    <p style="margin:28px 0 0;font-size:16.5px;line-height:2.1;color:#6F5E4E;font-weight:300;max-width:680px;animation:fadeUp .9s .55s both">هنا تبدأ الأشياء التي خرجت مني: منتجات وأماكن وأفكار وُلدت من قصة، لا من فرصة سوق. لكل واحدة منها جذر شخصي، وكل واحدة تحمل شيئاً لا يُقاس بالأرباح وحدها.</p>
+  </section>
+
+  <div style="height:1px;background:linear-gradient(90deg,transparent,#D9C9B4 20%,#D9C9B4 80%,transparent);max-width:1180px;margin:0 auto"></div>
+
+  <!-- PROJECTS -->
+  <section data-screen-label="المشاريع" style="padding:120px 56px;max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:150px">
+
+    <!-- المربى -->
+    <article data-rv style="display:grid;grid-template-columns:1.05fr .95fr;gap:80px;align-items:center">
+      <div style="position:relative;overflow:hidden;aspect-ratio:5/4;background:repeating-linear-gradient(-45deg,#E7D8C3 0 14px,#E0CFB7 14px 28px)">
+        <span style="position:absolute;bottom:14px;right:16px;font-family:monospace;font-size:11px;color:#6F5E4E">صورة — مرطبانات مربى حرفية على خشب دافئ</span>
+      </div>
+      <div>
+        <span style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A">٠١ — منتج</span>
+        <h2 style="margin:16px 0 0;font-family:var(--fh);font-weight:400;font-size:44px;color:#1C1A17">المربى وملحقاته</h2>
+        <p style="margin:22px 0 0;font-family:var(--fh);font-size:23px;line-height:1.9;color:#234A30">حين تتحول القصة إلى منتج يعيش بين يديكم.</p>
+        <p style="margin:22px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">مربى يُطبخ على مهل، من ثمار موسمها، بوصفات تحمل ذاكرة بيت. ليست مجرد سلعة على رف، بل دعوة لطاولة الإفطار كما نعرفها.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:26px">
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">تين</span>
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">مشمش</span>
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">سفرجل</span>
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">ملحقات الضيافة</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ذرى -->
+    <article data-rv style="display:grid;grid-template-columns:.95fr 1.05fr;gap:80px;align-items:center">
+      <div>
+        <span style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A">٠٢ — ضيافة</span>
+        <h2 style="margin:16px 0 0;font-family:var(--fh);font-weight:400;font-size:44px;color:#1C1A17">ذَرَى</h2>
+        <p style="margin:22px 0 0;font-family:var(--fh);font-size:23px;line-height:1.9;color:#234A30">إعادة تقديم الضيافة السعودية بصورة معاصرة.</p>
+        <p style="margin:22px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">القهوة والتمر والبخور، بلغة اليوم. مساحة تجمع بين دفء المجلس وهدوء التصميم الحديث، حيث يصبح الترحيب تجربة تُعاش لا طقساً يُؤدى.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:26px">
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">قهوة سعودية</span>
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">تجربة مكان</span>
+          <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #D9C9B4;border-radius:2px;padding:6px 14px">هوية معاصرة</span>
+        </div>
+      </div>
+      <div style="position:relative;overflow:hidden;aspect-ratio:5/4;background:repeating-linear-gradient(-45deg,#E7D8C3 0 14px,#DFCEB5 14px 28px)">
+        <span style="position:absolute;bottom:14px;right:16px;font-family:monospace;font-size:11px;color:#6F5E4E">صورة — فنجان قهوة سعودية وتمر على صينية نحاس</span>
+      </div>
+    </article>
+
+    <!-- خوص -->
+    <article data-rv style="display:grid;grid-template-columns:1.05fr .95fr;gap:80px;align-items:center">
+      <div style="position:relative;overflow:hidden;aspect-ratio:5/4;background:repeating-linear-gradient(-45deg,#E7D8C3 0 14px,#E3D3BE 14px 28px)">
+        <span style="position:absolute;bottom:14px;right:16px;font-family:monospace;font-size:11px;color:#6F5E4E">صورة — نسيج خوص مجدول عن قرب</span>
+      </div>
+      <div>
+        <span style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A">٠٣ — حرفة</span>
+        <h2 style="margin:16px 0 0;font-family:var(--fh);font-weight:400;font-size:44px;color:#1C1A17">خوص</h2>
+        <p style="margin:22px 0 0;font-family:var(--fh);font-size:23px;line-height:1.9;color:#234A30">محاولة لحفظ ما لا يجب أن يضيع.</p>
+        <p style="margin:22px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">حرفة سعف النخيل التي جدلتها أيدي الجدّات، نعيد تقديمها كمنتج وقصة في آن. لأن بعض الأشياء تستحق أن تبقى حيّة، لا أن تُعرض خلف زجاج المتاحف.</p>
+      </div>
+    </article>
+
+    <!-- مشاريع قادمة -->
+    <article data-rv style="background:#E7D8C3;border:1px solid #D9C9B4;padding:64px 60px">
+      <div style="display:grid;grid-template-columns:.95fr 1.05fr;gap:70px;align-items:center">
+        <div>
+          <span style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A">٠٤ — قيد التكوين</span>
+          <h2 style="margin:16px 0 0;font-family:var(--fh);font-weight:400;font-size:44px;color:#1C1A17">مشاريع قادمة</h2>
+          <p style="margin:22px 0 0;font-family:var(--fh);font-size:23px;line-height:1.9;color:#234A30">الأفكار التي لا تزال تنتظر وقتها المناسب.</p>
+          <p style="margin:22px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">ومنها «وداد» — ركن إكسسوارات بطابع سعودي عصري، يجمع بين الزينة والحنين. فكرة نضجت في الرأس، وتنتظر لحظتها لتخرج.</p>
+        </div>
+        <div style="position:relative;overflow:hidden;aspect-ratio:5/4;background:repeating-linear-gradient(-45deg,#F4ECE0 0 14px,#EDE1CE 14px 28px)">
+          <span style="position:absolute;bottom:14px;right:16px;font-family:monospace;font-size:11px;color:#6F5E4E">صورة — دفتر رسومات وأدوات على طاولة عمل</span>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- next room -->
+  <section data-rv data-screen-label="الانتقال" style="padding:110px 56px;text-align:center;border-top:1px solid #D9C9B4;max-width:1180px;margin:0 auto">
+    <span style="font-size:13px;color:#6F5E4E">الغرفة التالية</span>
+    <a href="بُنيت هنا.dc.html" style="display:block;margin-top:14px;text-decoration:none;font-family:var(--fh);font-size:40px;color:#20223F">بُنيت هنا ←</a>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="background:#F4ECE0;border-top:1px solid #B28E5A;padding:90px 56px 56px;text-align:center">
+    <p style="margin:0 auto;max-width:800px;font-family:var(--fh);font-size:24px;line-height:2;color:#1C1A17">بعض المشاريع بدأت هنا، وبعضها بُني هنا، وبعضها مرّ من هنا…<br><span style="color:#234A30">أما الحكايات، فما زالت تُكتب.</span></p>
+    <div style="margin-top:40px;font-family:var(--fh);font-size:26px;color:#6E4B33;opacity:.6;transform:rotate(-4deg)">أنس</div>
+    <div style="margin-top:24px;font-size:11.5px;color:#A8927B;letter-spacing:2px">anasaq.me</div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;motion&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;الحركة&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() {
+    this._c = [];
+    if (this.props.motion === false) return;
+    const ease = 'cubic-bezier(.22,.61,.36,1)';
+    const els = [...document.querySelectorAll('[data-rv]')];
+    els.forEach(el => { el.style.opacity = '0'; el.style.transform = 'translateY(30px) scale(.99)'; el.style.filter = 'blur(5px)'; });
+    const io = new IntersectionObserver(es => {
+      es.forEach(en => {
+        const el = en.target, d = +(el.dataset.rvd || 0);
+        if (en.isIntersecting) {
+          el.style.transition = 'opacity .8s ' + ease + ' ' + d + 'ms,transform .9s ' + ease + ' ' + d + 'ms,filter .8s ' + ease + ' ' + d + 'ms';
+          el.style.opacity = '1'; el.style.transform = 'none'; el.style.filter = 'none';
+        } else {
+          const up = en.boundingClientRect.top < 0;
+          el.style.transition = 'opacity .5s ' + ease + ',transform .6s ' + ease + ',filter .5s ' + ease;
+          el.style.opacity = '0'; el.style.transform = 'translateY(' + (up ? -30 : 30) + 'px) scale(.99)'; el.style.filter = 'blur(5px)';
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -6% 0px' });
+    els.forEach(el => io.observe(el));
+    this._c.push(() => io.disconnect());
+
+    const nav = document.querySelector('[data-nav]'), bar = document.querySelector('[data-progress]');
+    const photos = [...document.querySelectorAll('div[style*="repeating-linear-gradient(-45deg"]')];
+    photos.forEach(p => { p.style.backgroundSize = '140% 140%'; });
+    let t = false;
+    const raf = () => {
+      t = false; const y = scrollY, vh = innerHeight;
+      if (nav) { const on = y > 30; nav.style.background = on ? 'rgba(244,236,224,.88)' : 'rgba(244,236,224,0)'; nav.style.borderBottomColor = on ? '#D9C9B4' : 'transparent'; nav.style.backdropFilter = on ? 'blur(12px)' : 'none'; nav.style.webkitBackdropFilter = on ? 'blur(12px)' : 'none'; nav.style.padding = on ? '13px 56px' : '22px 56px'; }
+      if (bar) { const h = document.documentElement.scrollHeight - vh; bar.style.width = (h > 0 ? y / h * 100 : 0) + '%'; }
+      photos.forEach(p => { const r = p.getBoundingClientRect(); if (r.bottom < -80 || r.top > vh + 80) return; const pr = (vh - r.top) / (vh + r.height); p.style.backgroundPosition = '50% ' + ((pr - 0.5) * 30) + 'px'; });
+    };
+    const os = () => { if (!t) { t = true; requestAnimationFrame(raf); } };
+    addEventListener('scroll', os, { passive: true }); raf();
+    this._c.push(() => removeEventListener('scroll', os));
+  }
+  componentWillUnmount() { (this._c || []).forEach(f => f()); }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

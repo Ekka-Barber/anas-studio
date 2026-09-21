@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مواصفات الحركة وخريطة التحكم — anasaq.me</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+body{margin:0;background:#20223F;color:#F4ECE0;-webkit-font-smoothing:antialiased}
+@keyframes demoReveal{0%,12%{opacity:0;transform:translateY(22px) scale(.97);filter:blur(6px)}45%,72%{opacity:1;transform:none;filter:none}100%{opacity:0;transform:translateY(-22px) scale(.97);filter:blur(6px)}}
+@keyframes demoDrift{0%{transform:translateY(14px)}100%{transform:translateY(-14px)}}
+@keyframes demoSig{0%{opacity:.5;transform:rotate(-5deg) translateY(10px) scale(1)}100%{opacity:0;transform:rotate(-5deg) translateY(-20px) scale(1.18)}}
+@keyframes demoBar{0%{width:8%}100%{width:92%}}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#20223F;min-height:100vh;padding:64px 56px 110px">
+  <div style="max-width:1180px;margin:0 auto">
+    <div style="margin-bottom:12px;font-family:monospace;font-size:13px;color:#B28E5A;letter-spacing:2px">MOTION SPEC · anasaq.me</div>
+    <h1 style="margin:0;font-family:var(--fh);font-weight:400;font-size:46px;color:#F4ECE0">مواصفات الحركة وخريطة التحكم</h1>
+    <p style="margin:14px 0 0;font-size:14.5px;line-height:1.9;color:#B9B2C4;max-width:680px;font-weight:300">لغة حركة واحدة عبر الموقع: هادئة، عكسية عند الصعود والنزول، مبنية على المنحنى نفسه. كل سلوك موثّق بمحفّزه ومدّته ومسافته، وكل تأثير يُتحكم به من لوحة «الحركة» في Tweaks.</p>
+
+    <!-- easing card -->
+    <div style="margin-top:44px;background:#2A2D4F;border:1px solid #3A3D63;padding:36px 40px;display:flex;gap:48px;align-items:center;flex-wrap:wrap">
+      <div>
+        <div style="font-family:monospace;font-size:12px;color:#B28E5A">المنحنى الأساسي</div>
+        <div style="font-family:monospace;font-size:20px;color:#F4ECE0;margin-top:8px">cubic-bezier(.22,.61,.36,1)</div>
+        <div style="font-size:13px;color:#9A93AC;margin-top:8px;font-weight:300">خروج ناعم (ease-out) — يبدأ بثقة وينتهي بهدوء</div>
+      </div>
+      <div style="display:flex;gap:32px">
+        <div><div style="font-family:var(--fh);font-size:34px;color:#F4ECE0">700–900<span style="font-size:14px;color:#9A93AC">ms</span></div><div style="font-size:12px;color:#9A93AC">مدة الظهور</div></div>
+        <div><div style="font-family:var(--fh);font-size:34px;color:#F4ECE0">16–24<span style="font-size:14px;color:#9A93AC">px</span></div><div style="font-size:12px;color:#9A93AC">مسافة الارتفاع</div></div>
+        <div><div style="font-family:var(--fh);font-size:34px;color:#F4ECE0">1</div><div style="font-size:12px;color:#9A93AC">ظهور واحد لكل قسم</div></div>
+      </div>
+    </div>
+
+    <!-- BEHAVIORS -->
+    <h2 style="margin:56px 0 24px;font-family:var(--fh);font-weight:400;font-size:28px;color:#F4ECE0">السلوكيات الحيّة</h2>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:24px">
+
+      <div style="background:#2A2D4F;border:1px solid #3A3D63;padding:0;overflow:hidden">
+        <div style="height:150px;display:flex;align-items:center;justify-content:center;background:#F4ECE0;overflow:hidden">
+          <div style="font-family:var(--fh);font-size:26px;color:#234A30;animation:demoReveal 3.2s ease-in-out infinite">ظهور وارتفاع مع تلاشي التمويه</div>
+        </div>
+        <div style="padding:24px 28px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="margin:0;font-size:17px;color:#F4ECE0">الظهور العكسي · sectionReveal</h3><span style="font-family:monospace;font-size:11px;color:#B28E5A">.data-rv</span></div>
+          <p style="margin:10px 0 0;font-size:13px;line-height:1.85;color:#9A93AC;font-weight:300">opacity + translateY + scale(.985) + blur. يظهر عند الدخول، ويعود للاختفاء عند الخروج نحو الحافة التي غادر منها — فيُعاد تشغيله صعوداً ونزولاً.</p>
+        </div>
+      </div>
+
+      <div style="background:#2A2D4F;border:1px solid #3A3D63;padding:0;overflow:hidden">
+        <div style="height:150px;display:flex;align-items:center;justify-content:center;background:repeating-linear-gradient(-45deg,#E7D8C3 0 14px,#E0CFB7 14px 28px);overflow:hidden">
+          <div style="width:80%;height:70%;background:repeating-linear-gradient(-45deg,#EBDFCB 0 12px,#F4ECE0 12px 24px);animation:demoDrift 2.6s ease-in-out infinite alternate"></div>
+        </div>
+        <div style="padding:24px 28px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="margin:0;font-size:17px;color:#F4ECE0">انجراف الصور · imageParallax</h3><span style="font-family:monospace;font-size:11px;color:#B28E5A">bg-position</span></div>
+          <p style="margin:10px 0 0;font-size:13px;line-height:1.85;color:#9A93AC;font-weight:300">إزاحة خفيفة لموضع خلفية الصورة أثناء مرورها في الشاشة (±30px) لإيهام العمق، دون كسر التخطيط.</p>
+        </div>
+      </div>
+
+      <div style="background:#2A2D4F;border:1px solid #3A3D63;padding:0;overflow:hidden">
+        <div style="height:150px;display:flex;align-items:center;justify-content:center;background:#E7D8C3;overflow:hidden">
+          <div style="font-family:var(--fh);font-size:46px;color:#4A2740;animation:demoSig 3s ease-in-out infinite">أنس</div>
+        </div>
+        <div style="padding:24px 28px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="margin:0;font-size:17px;color:#F4ECE0">التوقيع المتلاشي · stickyHero</h3><span style="font-family:monospace;font-size:11px;color:#B28E5A">.data-sig</span></div>
+          <p style="margin:10px 0 0;font-size:13px;line-height:1.85;color:#9A93AC;font-weight:300">في غرفة «مرّت من هنا»: علامة الاسم ترتفع وتكبر وتتلاشى مع التمرير — تجسيد بصري لفكرة «بلا توقيع».</p>
+        </div>
+      </div>
+
+      <div style="background:#2A2D4F;border:1px solid #3A3D63;padding:0;overflow:hidden">
+        <div style="height:150px;display:flex;flex-direction:column;justify-content:center;gap:14px;background:#F4ECE0;padding:0 30px;overflow:hidden">
+          <div style="height:2px;background:#B28E5A;animation:demoBar 2.4s ease-in-out infinite alternate"></div>
+          <div style="font-family:var(--fh);font-size:40px;color:#20223F">0 → 60<span style="font-size:16px;color:#8A7862">+</span></div>
+        </div>
+        <div style="padding:24px 28px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="margin:0;font-size:17px;color:#F4ECE0">الشريط + العدّاد · header/count</h3><span style="font-family:monospace;font-size:11px;color:#B28E5A">progress</span></div>
+          <p style="margin:10px 0 0;font-size:13px;line-height:1.85;color:#9A93AC;font-weight:300">شعيرة تقدّم نحاسية أعلى الصفحة، شريط علوي يتحوّل لزجاج شفاف عند التمرير، وأرقام تعدّ تصاعدياً بالإنجليزية عند ظهورها.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TWEAKS MAP -->
+    <h2 style="margin:64px 0 10px;font-family:var(--fh);font-weight:400;font-size:28px;color:#F4ECE0">خريطة التحكم · Tweaks</h2>
+    <p style="margin:0 0 26px;font-size:13.5px;color:#9A93AC;max-width:620px;font-weight:300">كل مفتاح في لوحة «الحركة» وما يتحكم به. المجموعة كلها تحت مفتاح رئيسي واحد، مع خيار احترام تفضيل «تقليل الحركة».</p>
+    <div style="border:1px solid #3A3D63">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="14">
+        <div style="{{ r.style }}">
+          <div style="font-family:monospace;font-size:13px;color:#F4ECE0">{{ r.key }}</div>
+          <div style="font-size:12.5px;color:#B28E5A">{{ r.type }}</div>
+          <div style="font-size:13px;color:#B9B2C4;font-weight:300">{{ r.affects }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1320, &quot;height&quot;: 2100}}">
+class Component extends DCLogic {
+  ROWS = [
+    ['masterMotion', 'مفتاح', 'يشغّل/يوقف كل الحركة دفعة واحدة (احترام إمكانية الوصول)'],
+    ['motionStyle', 'خيار: هادئ/أنعم/شبه ساكن', 'يضبط شدة كل التأثيرات معاً — من كامل إلى شبه ثابت'],
+    ['reduceMotionSafe', 'مفتاح', 'يحترم prefers-reduced-motion تلقائياً في النظام'],
+    ['sectionReveal', 'مفتاح', 'تفعيل ظهور الأقسام عند التمرير'],
+    ['revealType', 'خيار: opacity/clip/opacity+blur', 'أسلوب الكشف عن العناصر'],
+    ['revealDuration', 'شريط: 400–1200ms', 'مدة حركة الظهور'],
+    ['revealStagger', 'شريط: 0–240ms', 'فارق التتابع بين العناصر المتجاورة'],
+    ['stickyHero', 'مفتاح', 'ثبات البطل مع انجرافه وتلاشيه عند المغادرة'],
+    ['heroZoomStrength', 'شريط: 0–0.3', 'قوة تكبير عناصر البطل أثناء الخروج'],
+    ['heroFadeStrength', 'شريط: 0–1', 'قوة تلاشي البطل مع التمرير'],
+    ['imageParallax', 'مفتاح', 'انجراف خلفيات الصور لإيهام العمق'],
+    ['parallaxSpeed', 'شريط: 0–60px', 'مدى الإزاحة'],
+    ['tickerEnabled', 'مفتاح', 'شريط نصّي هادئ اختياري (أسماء الغرف)'],
+    ['tickerSpeed', 'شريط: بطيء–متوسط', 'سرعة انزلاق الشريط'],
+    ['stickySplitSection', 'مفتاح', 'تثبيت التنقّل الفرعي في صفحة الكتاب'],
+    ['activeCardHighlight', 'مفتاح', 'إبراز القسم النشِط في التنقّل (scrollspy)'],
+    ['wordReveal', 'مفتاح', 'ظهور السطر الأدبي كلمةً كلمة في البطل'],
+    ['wordRevealIntensity', 'شريط: خفيف–قوي', 'فارق توقيت الكلمات'],
+    ['tiltCards', 'مفتاح', 'ميل بطاقات «على الرف» عند التمرير'],
+    ['tiltIntensity', 'شريط: 0–3°', 'زاوية الميل']
+  ];
+  renderVals() {
+    const rows = this.ROWS.map((r, i) => ({
+      key: r[0], type: r[1], affects: r[2],
+      style: 'display:grid;grid-template-columns:1.1fr 1.3fr 2fr;gap:20px;padding:16px 26px;align-items:center;background:' + (i % 2 ? '#252845' : '#2A2D4F') + ';border-bottom:1px solid #33365A'
+    }));
+    return { rows };
+  }
+}
+</script>
+</body>
+</html>

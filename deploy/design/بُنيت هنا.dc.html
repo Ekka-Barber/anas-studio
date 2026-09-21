@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بُنيت هنا — رحى المكان</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+html{scroll-behavior:smooth}
+body{margin:0;background:#F4ECE0;color:#1C1A17;-webkit-font-smoothing:antialiased}
+::selection{background:#20223F;color:#F4ECE0}
+@keyframes lineGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#F4ECE0;color:#1C1A17;overflow-x:hidden;min-height:100vh">
+  <div data-progress style="position:fixed;top:0;right:0;height:2px;width:0%;background:#B28E5A;z-index:60"></div>
+
+  <header data-nav style="position:fixed;top:0;right:0;left:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:22px 56px;background:rgba(244,236,224,0);border-bottom:1px solid transparent;transition:background .45s,border-color .45s,padding .45s">
+    <div style="display:flex;align-items:baseline;gap:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#1C1A17;font-family:var(--fh);font-size:21px;line-height:1">أنس</a>
+      <span style="font-size:11.5px;color:#6F5E4E;letter-spacing:1px">anasaq.me</span>
+    </div>
+    <nav style="display:flex;gap:30px;align-items:center;font-size:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#5C4E3F">الرئيسية</a>
+      <a href="بدأت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">بدأت هنا</a>
+      <a href="بُنيت هنا.dc.html" style="text-decoration:none;color:#20223F;font-weight:500;padding-bottom:3px;border-bottom:1px solid #B28E5A">بُنيت هنا</a>
+      <a href="مرّت من هنا.dc.html" style="text-decoration:none;color:#5C4E3F">مرّت من هنا</a>
+      <a href="كُتبت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">كُتبت هنا</a>
+      <a href="على الرف.dc.html" style="text-decoration:none;color:#5C4E3F">على الرف</a>
+      <a href="المشاهد.dc.html" style="text-decoration:none;color:#5C4E3F">المَشَاهِد</a>
+      <a href="تواصل.dc.html" style="text-decoration:none;color:#5C4E3F">تواصل</a>
+    </nav>
+  </header>
+
+  <!-- HERO -->
+  <section data-screen-label="بُنيت هنا — العنوان" style="padding:200px 56px 110px;max-width:1180px;margin:0 auto">
+    <div style="width:1px;height:56px;background:#B28E5A;transform-origin:top;animation:lineGrow 1s cubic-bezier(.22,.61,.36,1) both"></div>
+    <span style="display:block;margin-top:30px;font-size:12.5px;letter-spacing:4px;color:#20223F;font-weight:600;animation:fadeUp .8s .1s both">الغرفة الثانية</span>
+    <h1 style="margin:26px 0 0;font-family:var(--fh);font-weight:400;font-size:76px;line-height:1.55;color:#1C1A17;animation:fadeUp .9s .25s both">بُنيت هنا</h1>
+    <p style="margin:36px 0 0;font-family:var(--fh);font-size:26px;line-height:1.9;color:#20223F;max-width:820px;animation:fadeUp .9s .4s both">بعض الأماكن لا تحمل اسمك… لكنها تحمل شيئاً مني أفخر به.</p>
+  </section>
+
+  <!-- RAHHA FEATURE -->
+  <section data-screen-label="رحى المكان" style="padding:0 56px 120px;max-width:1180px;margin:0 auto">
+    <div data-rv style="display:grid;grid-template-columns:1fr 1.1fr;gap:80px;align-items:center">
+      <div style="position:relative;overflow:hidden;aspect-ratio:4/5;background:repeating-linear-gradient(-45deg,#E7D8C3 0 14px,#E0CFB7 14px 28px)">
+        <span style="position:absolute;bottom:14px;right:16px;font-family:monospace;font-size:11px;color:#6F5E4E">صورة — تفاصيل مقهى رحى المكان، ضوء صباحي</span>
+      </div>
+      <div>
+        <span style="font-family:monospace;font-size:12px;letter-spacing:2px;color:#B28E5A">العلامة</span>
+        <h2 style="margin:14px 0 0;font-family:var(--fh);font-weight:400;font-size:54px;color:#20223F">رحى المكان</h2>
+        <p style="margin:28px 0 0;font-size:16.5px;line-height:2.15;color:#5C4E3F;font-weight:300">من ثقة معلمي الشيخ حامد السهيمي، وتطوير الفروع وتجربة العميل، إلى المنتجات والحملات والتوسع وبناء الفرق، كانت الرحلة أقرب إلى بناء تجربة متكاملة منها إلى مجرد وظيفة.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- TABS -->
+  <section data-screen-label="التبويبات" style="background:#E7D8C3;border-top:1px solid #D9C9B4;padding:100px 56px 130px">
+    <div style="max-width:1180px;margin:0 auto">
+      <div style="display:flex;gap:34px;flex-wrap:wrap;border-bottom:1px solid #D2C0A8;padding-bottom:0">
+        <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="6">
+          <button type="button" onClick="{{ tab.onClick }}" style="{{ tab.style }}">{{ tab.label }}</button>
+        </sc-for>
+      </div>
+      <div style="margin-top:56px;min-height:280px">
+        <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:70px;align-items:center">
+          <div>
+            <h3 style="margin:0;font-family:var(--fh);font-weight:400;font-size:38px;color:#20223F">{{ active.title }}</h3>
+            <p style="margin:22px 0 0;font-size:16px;line-height:2.15;color:#5C4E3F;font-weight:300">{{ active.body }}</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:26px">
+              <sc-for list="{{ active.chips }}" as="chip" hint-placeholder-count="3">
+                <span style="font-size:12.5px;color:#5C4E3F;border:1px solid #C9B99F;border-radius:2px;padding:6px 14px">{{ chip }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="position:relative;overflow:hidden;aspect-ratio:4/3;background:repeating-linear-gradient(-45deg,#F4ECE0 0 14px,#EBDFCB 14px 28px)">
+            <span style="position:absolute;bottom:14px;right:16px;font-family:monospace;font-size:11px;color:#6F5E4E">{{ active.cap }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section data-screen-label="الإنجازات والأرقام" style="padding:130px 56px;max-width:1180px;margin:0 auto">
+    <div data-rv style="text-align:center;margin-bottom:80px">
+      <div style="width:44px;height:1px;background:#B28E5A;margin:0 auto 24px"></div>
+      <h2 style="margin:0;font-family:var(--fh);font-weight:400;font-size:40px;color:#1C1A17">الإنجازات والأرقام</h2>
+      <p style="margin:14px auto 0;max-width:520px;font-size:15px;line-height:2;color:#6F5E4E;font-weight:300">أرقام لا تُروى للتباهي، بل لأن خلف كل رقم تجربة وفريقاً ومكاناً.</p>
+    </div>
+    <div data-rv style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;border-top:1px solid #D9C9B4;border-bottom:1px solid #D9C9B4">
+      <div style="padding:52px 24px;text-align:center;border-left:1px solid #D9C9B4">
+        <div style="font-family:var(--fh);font-size:60px;color:#20223F;line-height:1"><span data-count="14">0</span></div>
+        <div style="margin-top:14px;font-size:13.5px;color:#6F5E4E">فرعاً جرى تطويره</div>
+      </div>
+      <div style="padding:52px 24px;text-align:center;border-left:1px solid #D9C9B4">
+        <div style="font-family:var(--fh);font-size:60px;color:#20223F;line-height:1"><span data-count="60">0</span>+</div>
+        <div style="margin-top:14px;font-size:13.5px;color:#6F5E4E">منتجاً وحملة موسمية</div>
+      </div>
+      <div style="padding:52px 24px;text-align:center;border-left:1px solid #D9C9B4">
+        <div style="font-family:var(--fh);font-size:60px;color:#20223F;line-height:1"><span data-count="9">0</span></div>
+        <div style="margin-top:14px;font-size:13.5px;color:#6F5E4E">سنوات من البناء</div>
+      </div>
+      <div style="padding:52px 24px;text-align:center">
+        <div style="font-family:var(--fh);font-size:60px;color:#20223F;line-height:1"><span data-count="40">0</span>+</div>
+        <div style="margin-top:14px;font-size:13.5px;color:#6F5E4E">فرداً في الفرق</div>
+      </div>
+    </div>
+  </section>
+
+  <section data-rv data-screen-label="الانتقال" style="padding:110px 56px;text-align:center;border-top:1px solid #D9C9B4;max-width:1180px;margin:0 auto">
+    <span style="font-size:13px;color:#6F5E4E">الغرفة التالية</span>
+    <a href="مرّت من هنا.dc.html" style="display:block;margin-top:14px;text-decoration:none;font-family:var(--fh);font-size:40px;color:#4A2740">مرّت من هنا ←</a>
+  </section>
+
+  <footer style="background:#F4ECE0;border-top:1px solid #B28E5A;padding:90px 56px 56px;text-align:center">
+    <p style="margin:0 auto;max-width:800px;font-family:var(--fh);font-size:24px;line-height:2;color:#1C1A17">بعض المشاريع بدأت هنا، وبعضها بُني هنا، وبعضها مرّ من هنا…<br><span style="color:#234A30">أما الحكايات، فما زالت تُكتب.</span></p>
+    <div style="margin-top:40px;font-family:var(--fh);font-size:26px;color:#6E4B33;opacity:.6;transform:rotate(-4deg)">أنس</div>
+    <div style="margin-top:24px;font-size:11.5px;color:#A8927B;letter-spacing:2px">anasaq.me</div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;motion&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;الحركة&quot;}}">
+class Component extends DCLogic {
+  state = { tab: 0 };
+  DATA = [
+    { label: 'الفروع', title: 'الفروع', body: 'من فرع أول يحمل حلماً، إلى شبكة فروع لكل منها روحه. عملنا على الموقع والتصميم وتجربة الدخول، حتى يشعر الزائر أنه في مكان يعرفه من قبل أن يدخله.', chips: ['اختيار المواقع', 'تجربة الدخول', 'هوية الفرع'], cap: 'صورة — واجهة فرع بإضاءة مسائية دافئة' },
+    { label: 'الحملات', title: 'الحملات', body: 'حملات موسمية تُروى كقصص لا كإعلانات. رمضان، الشتاء، مواسم الحصاد… لكل موسم لغته البصرية ونبرته الهادئة التي تصل دون أن ترفع صوتها.', chips: ['موسمية', 'سرد بصري', 'نبرة هادئة'], cap: 'صورة — مواد حملة موسمية على ورق كرافت' },
+    { label: 'المنتجات', title: 'المنتجات', body: 'من فكرة على ورقة إلى منتج على الرف. تطوير النكهات والتغليف والاسم والحكاية، بحيث يصبح المنتج امتداداً للتجربة لا مجرد سلعة تُباع.', chips: ['تطوير نكهات', 'تغليف', 'تسمية'], cap: 'صورة — عبوات منتجات مرتبة على خشب' },
+    { label: 'المحاصيل', title: 'المحاصيل', body: 'قرب من الأرض ومن المزارعين. اختيار محاصيل الموسم بعناية، وبناء علاقة مع المصدر، لأن جودة الكوب تبدأ قبل أن يصل إلى المحمصة بكثير.', chips: ['مصادر موسمية', 'علاقة بالمزارع', 'تتبّع الجودة'], cap: 'صورة — حبوب بن خضراء بين اليدين' },
+    { label: 'مشاريع العلامة', title: 'مشاريع العلامة', body: 'مبادرات تتجاوز البيع: تعاونات، فعاليات، ومساحات لقاء. أشياء تبني حول العلامة مجتمعاً، لا جمهور مستهلكين فقط.', chips: ['تعاونات', 'فعاليات', 'مجتمع'], cap: 'صورة — لقاء مجتمعي داخل المقهى' },
+    { label: 'الإنجازات والأرقام', title: 'الإنجازات والأرقام', body: 'خلاصة السنوات في أرقام هادئة: فروع طُوّرت، منتجات أُطلقت، فرق بُنيت. تجدها كاملة في القسم أدناه.', chips: ['نمو', 'استمرارية', 'أثر'], cap: 'صورة — لوحة أرقام مطبوعة على ورق' }
+  ];
+  componentDidMount() { this._mountMotion(); }
+  _mountMotion() {
+    this._c = [];
+    if (this.props.motion === false) return;
+    const ease = 'cubic-bezier(.22,.61,.36,1)';
+    const els = [...document.querySelectorAll('[data-rv]')];
+    els.forEach(el => { el.style.opacity = '0'; el.style.transform = 'translateY(30px) scale(.99)'; el.style.filter = 'blur(5px)'; });
+    const io = new IntersectionObserver(es => {
+      es.forEach(en => {
+        const el = en.target, d = +(el.dataset.rvd || 0);
+        if (en.isIntersecting) { el.style.transition = 'opacity .8s ' + ease + ' ' + d + 'ms,transform .9s ' + ease + ' ' + d + 'ms,filter .8s ' + ease + ' ' + d + 'ms'; el.style.opacity = '1'; el.style.transform = 'none'; el.style.filter = 'none'; }
+        else { const up = en.boundingClientRect.top < 0; el.style.transition = 'opacity .5s ' + ease + ',transform .6s ' + ease + ',filter .5s ' + ease; el.style.opacity = '0'; el.style.transform = 'translateY(' + (up ? -30 : 30) + 'px) scale(.99)'; el.style.filter = 'blur(5px)'; }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -6% 0px' });
+    els.forEach(el => io.observe(el)); this._c.push(() => io.disconnect());
+
+    const cio = new IntersectionObserver(es => {
+      es.forEach(en => {
+        const el = en.target, target = +el.dataset.count;
+        if (!en.isIntersecting) { el.textContent = '0'; el._run = false; return; }
+        if (el._run) return; el._run = true;
+        const t0 = performance.now(), dur = 1500;
+        const tick = t => { const p = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3); el.textContent = String(Math.round(target * e)); if (p < 1 && el._run) requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+      });
+    }, { threshold: 0.6 });
+    document.querySelectorAll('[data-count]').forEach(el => cio.observe(el)); this._c.push(() => cio.disconnect());
+
+    const nav = document.querySelector('[data-nav]'), bar = document.querySelector('[data-progress]');
+    const photos = [...document.querySelectorAll('div[style*="repeating-linear-gradient(-45deg"]')];
+    photos.forEach(p => { p.style.backgroundSize = '140% 140%'; });
+    let t = false;
+    const raf = () => {
+      t = false; const y = scrollY, vh = innerHeight;
+      if (nav) { const on = y > 30; nav.style.background = on ? 'rgba(244,236,224,.88)' : 'rgba(244,236,224,0)'; nav.style.borderBottomColor = on ? '#D9C9B4' : 'transparent'; nav.style.backdropFilter = on ? 'blur(12px)' : 'none'; nav.style.webkitBackdropFilter = on ? 'blur(12px)' : 'none'; nav.style.padding = on ? '13px 56px' : '22px 56px'; }
+      if (bar) { const h = document.documentElement.scrollHeight - vh; bar.style.width = (h > 0 ? y / h * 100 : 0) + '%'; }
+      photos.forEach(p => { const r = p.getBoundingClientRect(); if (r.bottom < -80 || r.top > vh + 80) return; const pr = (vh - r.top) / (vh + r.height); p.style.backgroundPosition = '50% ' + ((pr - 0.5) * 30) + 'px'; });
+    };
+    const os = () => { if (!t) { t = true; requestAnimationFrame(raf); } };
+    addEventListener('scroll', os, { passive: true }); raf();
+    this._c.push(() => removeEventListener('scroll', os));
+  }
+  componentWillUnmount() { (this._c || []).forEach(f => f()); }
+  renderVals() {
+    const active = this.DATA[this.state.tab];
+    const tabs = this.DATA.map((d, i) => {
+      const on = i === this.state.tab;
+      return {
+        label: d.label,
+        onClick: () => this.setState({ tab: i }),
+        style: 'background:none;border:none;cursor:pointer;font-family:var(--fb);font-size:15px;padding:0 0 16px;color:' + (on ? '#20223F' : '#8A7862') + ';font-weight:' + (on ? '500' : '400') + ';border-bottom:2px solid ' + (on ? '#20223F' : 'transparent') + ';margin-bottom:-1px;transition:color .3s,border-color .3s'
+      };
+    });
+    return { tabs, active };
+  }
+}
+</script>
+</body>
+</html>

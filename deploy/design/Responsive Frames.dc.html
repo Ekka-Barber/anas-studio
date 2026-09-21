@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<title>الإطارات المتجاوبة — anasaq.me</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+body{margin:0;background:#D5C4AC;color:#1C1A17;-webkit-font-smoothing:antialiased}
+.bezel{background:#2A2621;border-radius:44px;padding:12px;box-shadow:0 30px 70px rgba(28,26,23,.22)}
+.bezel.tab{border-radius:32px;padding:14px}
+.screen{background:#F4ECE0;border-radius:32px;overflow:hidden;position:relative}
+.screen.tab{border-radius:20px}
+.notch{position:absolute;top:0;right:50%;transform:translateX(50%);width:120px;height:26px;background:#2A2621;border-radius:0 0 16px 16px;z-index:5}
+.mrow{display:flex;gap:16px;padding:9px 18px;font-family:var(--fb);font-size:9px;color:#8A7862;border-bottom:1px solid #E1D0B8;justify-content:space-between;align-items:center}
+.ph{background:repeating-linear-gradient(-45deg,#E7D8C3 0 10px,#E0CFB7 10px 20px);position:relative}
+.lbl{font-family:monospace;font-size:12px;color:#6E4B33;letter-spacing:1px;margin-bottom:14px}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#D5C4AC;min-height:100vh;padding:60px 64px 120px;width:max-content">
+  <div style="margin-bottom:52px">
+    <h1 style="margin:0;font-family:var(--fh);font-weight:400;font-size:44px">الإطارات المتجاوبة</h1>
+    <p style="margin:12px 0 0;font-size:14px;color:#5C4E3F;max-width:640px;font-weight:300">جوال (375px) ولوح (768px) لأهم أربع شاشات: البطل، مرّت من هنا، الكتاب، والمَشَاهِد. نفس النظام: كريم دافئ، خط ليون للعناوين، حركة الظهور الهادئة.</p>
+  </div>
+
+  <div style="display:flex;gap:80px;align-items:flex-start">
+
+    <!-- HERO -->
+    <div>
+      <div class="lbl">الرئيسية — البطل</div>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <!-- mobile -->
+        <div class="bezel" style="width:300px"><div class="notch"></div><div class="screen" style="height:620px">
+          <div class="mrow"><span style="font-family:var(--fh);font-size:14px;color:#1C1A17">أنس</span><span style="font-size:16px">☰</span></div>
+          <div style="padding:70px 26px;text-align:center;background:repeating-linear-gradient(0deg,rgba(178,142,90,.04) 0 1px,transparent 1px 5px),#F4ECE0">
+            <div style="width:1px;height:36px;background:#B28E5A;margin:0 auto 24px"></div>
+            <div style="font-family:var(--fh);font-size:22px;color:#234A30">أنس عبدالله القرني</div>
+            <div style="font-size:9px;color:#6F5E4E;letter-spacing:1px;margin-top:8px">أبني الأفكار والأماكن والحكايات</div>
+            <div style="font-family:var(--fh);font-size:32px;line-height:1.6;color:#1C1A17;margin-top:34px">بعض الناس يبنون مشاريع… وبعضهم يبنون <span style="color:#234A30">أثراً يعيش داخلها</span></div>
+            <div style="font-size:11px;line-height:2;color:#6F5E4E;margin-top:26px;font-weight:300">بين الهندسة وريادة الأعمال، وبين القهوة والضيافة، أؤمن أن كل شيء يبدأ بفكرة.</div>
+          </div>
+        </div></div>
+        <!-- tablet -->
+        <div class="bezel tab" style="width:520px"><div class="screen tab" style="height:680px">
+          <div class="mrow" style="padding:12px 28px;font-size:11px"><span style="font-family:var(--fh);font-size:16px">أنس</span><div style="display:flex;gap:16px"><span>الرئيسية</span><span>بدأت هنا</span><span>مرّت من هنا</span><span>تواصل</span></div></div>
+          <div style="padding:96px 60px;text-align:center;background:repeating-linear-gradient(0deg,rgba(178,142,90,.04) 0 1px,transparent 1px 5px),#F4ECE0">
+            <div style="width:1px;height:44px;background:#B28E5A;margin:0 auto 26px"></div>
+            <div style="font-family:var(--fh);font-size:28px;color:#234A30">أنس عبدالله القرني</div>
+            <div style="font-family:var(--fh);font-size:48px;line-height:1.55;color:#1C1A17;margin-top:36px">بعض الناس يبنون مشاريع… وبعضهم يبنون <span style="color:#234A30">أثراً يعيش داخلها</span></div>
+            <div style="font-size:13px;line-height:2;color:#6F5E4E;margin-top:30px;max-width:440px;margin-inline:auto;font-weight:300">بين الهندسة وريادة الأعمال، وبين القهوة والضيافة، أؤمن أن كل شيء يبدأ بفكرة، وأن أفضل الأفكار تترك أثراً.</div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- مرّت من هنا -->
+    <div>
+      <div class="lbl" style="color:#4A2740">مرّت من هنا — الذروة</div>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div class="bezel" style="width:300px"><div class="notch"></div><div class="screen" style="height:620px;background:#E7D8C3">
+          <div class="mrow" style="border-color:#D2C0A8"><span style="font-family:var(--fh);font-size:14px">أنس</span><span style="font-size:16px">☰</span></div>
+          <div style="padding:80px 26px;text-align:center;position:relative;overflow:hidden">
+            <div style="position:absolute;top:40%;right:50%;transform:translateX(50%);font-family:var(--fh);font-size:120px;color:#4A2740;opacity:.05">أنس</div>
+            <div style="position:relative">
+              <div style="font-size:9px;letter-spacing:2px;color:#4A2740;font-weight:600">الغرفة الثالثة</div>
+              <div style="font-family:var(--fh);font-size:40px;line-height:1.5;color:#4A2740;margin-top:24px">ليست كل البصمات تحتاج إلى توقيع.</div>
+              <div style="font-size:11px;line-height:2;color:#6F5E4E;margin-top:26px;font-weight:300">أحياناً يكون دورك فكرة، أو تطوير تجربة، أو تفصيلة صغيرة غيّرت النتيجة.</div>
+            </div>
+          </div>
+        </div></div>
+        <div class="bezel tab" style="width:520px"><div class="screen tab" style="height:680px;background:#E7D8C3">
+          <div class="mrow" style="padding:12px 28px;font-size:11px;border-color:#D2C0A8"><span style="font-family:var(--fh);font-size:16px">أنس</span><div style="display:flex;gap:16px"><span>الرئيسية</span><span style="color:#4A2740">مرّت من هنا</span><span>تواصل</span></div></div>
+          <div style="padding:120px 60px;text-align:center;position:relative;overflow:hidden">
+            <div style="position:absolute;top:44%;right:50%;transform:translateX(50%);font-family:var(--fh);font-size:200px;color:#4A2740;opacity:.05">أنس</div>
+            <div style="position:relative">
+              <div style="font-size:10px;letter-spacing:3px;color:#4A2740;font-weight:600">الغرفة الثالثة · مرّت من هنا</div>
+              <div style="font-family:var(--fh);font-size:60px;line-height:1.45;color:#4A2740;margin-top:30px">ليست كل البصمات تحتاج إلى توقيع.</div>
+              <div style="font-size:13px;line-height:2;color:#6F5E4E;margin-top:30px;max-width:400px;margin-inline:auto;font-weight:300">أحياناً يكون دورك منتجاً جديداً، أو فكرة، أو مجرد تفصيلة صغيرة غيّرت النتيجة بالكامل.</div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- الكتاب -->
+    <div>
+      <div class="lbl" style="color:#234A30">كُتبت هنا — الكتاب</div>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div class="bezel" style="width:300px"><div class="notch"></div><div class="screen" style="height:620px">
+          <div class="mrow"><span style="font-family:var(--fh);font-size:14px">أنس</span><span style="font-size:16px">☰</span></div>
+          <div style="padding:30px 26px 0">
+            <div class="ph" style="aspect-ratio:3/4;box-shadow:-14px 14px 34px rgba(28,26,23,.14)"></div>
+            <div style="font-size:9px;letter-spacing:2px;color:#234A30;font-weight:600;margin-top:22px">كُتبت هنا · كتاب</div>
+            <div style="font-family:var(--fh);font-size:26px;line-height:1.4;color:#1C1A17;margin-top:12px">خوص <span style="color:#B28E5A">|</span> حكايات شارع 4</div>
+            <div style="font-family:var(--fh);font-size:15px;line-height:1.8;color:#234A30;margin-top:14px">ليست كل المدن تُحفظ في الخرائط… بعضها يعيش في الذاكرة.</div>
+          </div>
+          <div style="margin-top:24px;background:#F4ECE0;border-top:1px solid #D9C9B4;border-bottom:1px solid #D9C9B4;display:flex;gap:18px;padding:12px 26px;font-size:10px;color:#8A7862"><span style="color:#234A30;font-weight:500">نبذة</span><span>شخصيات</span><span>مقتطفات</span><span>صور</span></div>
+        </div></div>
+        <div class="bezel tab" style="width:520px"><div class="screen tab" style="height:680px">
+          <div class="mrow" style="padding:12px 28px;font-size:11px"><span style="font-family:var(--fh);font-size:16px">أنس</span><div style="display:flex;gap:16px"><span>الرئيسية</span><span style="color:#234A30">كُتبت هنا</span><span>تواصل</span></div></div>
+          <div style="padding:56px 60px 0;display:grid;grid-template-columns:.8fr 1.2fr;gap:36px;align-items:center">
+            <div class="ph" style="aspect-ratio:3/4;box-shadow:-16px 16px 40px rgba(28,26,23,.14)"></div>
+            <div>
+              <div style="font-size:10px;letter-spacing:3px;color:#234A30;font-weight:600">كُتبت هنا · كتاب</div>
+              <div style="font-family:var(--fh);font-size:38px;line-height:1.35;color:#1C1A17;margin-top:16px">خوص <span style="color:#B28E5A">|</span> حكايات شارع 4</div>
+              <div style="font-family:var(--fh);font-size:20px;line-height:1.8;color:#234A30;margin-top:18px">ليست كل المدن تُحفظ في الخرائط… بعضها يعيش في الذاكرة.</div>
+            </div>
+          </div>
+          <div style="margin-top:44px;background:#F4ECE0;border-top:1px solid #D9C9B4;border-bottom:1px solid #D9C9B4;display:flex;gap:26px;padding:14px 60px;font-size:12px;color:#8A7862"><span style="color:#234A30;font-weight:500">نبذة</span><span>شخصيات</span><span>مقتطفات</span><span>صور</span><span>رحلة الكتاب</span></div>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- المشاهد -->
+    <div>
+      <div class="lbl" style="color:#234A30">المَشَاهِد — المعرض</div>
+      <div style="display:flex;gap:32px;align-items:flex-start">
+        <div class="bezel" style="width:300px"><div class="notch"></div><div class="screen" style="height:620px">
+          <div class="mrow"><span style="font-family:var(--fh);font-size:14px">أنس</span><span style="font-size:16px">☰</span></div>
+          <div style="padding:26px 26px 0">
+            <div style="font-family:var(--fh);font-size:28px;color:#1C1A17">المَشَاهِد</div>
+            <div style="display:flex;gap:14px;margin-top:16px;font-size:10px;color:#8A7862;border-bottom:1px solid #D9C9B4;padding-bottom:12px;overflow:hidden"><span style="color:#234A30;border-bottom:1px solid #B28E5A;padding-bottom:4px">الكل</span><span>أماكن</span><span>مشاريع</span><span>منتجات</span></div>
+            <div style="columns:2;column-gap:12px;margin-top:16px">
+              <div class="ph" style="aspect-ratio:3/4;margin-bottom:12px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:1;margin-bottom:12px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:1;margin-bottom:12px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:4/5;margin-bottom:12px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:4/5;margin-bottom:12px;break-inside:avoid"></div>
+            </div>
+          </div>
+        </div></div>
+        <div class="bezel tab" style="width:520px"><div class="screen tab" style="height:680px">
+          <div class="mrow" style="padding:12px 28px;font-size:11px"><span style="font-family:var(--fh);font-size:16px">أنس</span><div style="display:flex;gap:16px"><span>الرئيسية</span><span style="color:#234A30">المَشَاهِد</span><span>تواصل</span></div></div>
+          <div style="padding:40px 44px 0">
+            <div style="font-family:var(--fh);font-size:38px;color:#1C1A17">المَشَاهِد</div>
+            <div style="display:flex;gap:22px;margin-top:18px;font-size:12px;color:#8A7862;border-bottom:1px solid #D9C9B4;padding-bottom:14px"><span style="color:#234A30;border-bottom:1px solid #B28E5A;padding-bottom:4px">الكل</span><span>أماكن</span><span>مشاريع</span><span>منتجات</span><span>رحلات</span><span>خلف الكواليس</span></div>
+            <div style="columns:3;column-gap:14px;margin-top:20px">
+              <div class="ph" style="aspect-ratio:3/4;margin-bottom:14px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:1;margin-bottom:14px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:4/5;margin-bottom:14px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:4/3;margin-bottom:14px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:4/5;margin-bottom:14px;break-inside:avoid"></div>
+              <div class="ph" style="aspect-ratio:3/4;margin-bottom:14px;break-inside:avoid"></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}"></script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>مرّت من هنا — أنس عبدالله القرني</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+html{scroll-behavior:smooth}
+body{margin:0;background:#E7D8C3;color:#1C1A17;-webkit-font-smoothing:antialiased}
+::selection{background:#4A2740;color:#F4ECE0}
+@keyframes lineGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+
+/* real handwritten signature, used as a mask so it takes the surrounding colour */
+.sig-mark{display:block;background:currentColor;aspect-ratio:1843/573;-webkit-mask:url(/images/signature-anas.svg) no-repeat center/contain;mask:url(/images/signature-anas.svg) no-repeat center/contain}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#E7D8C3;color:#1C1A17;overflow-x:hidden;min-height:100vh">
+  <div data-progress style="position:fixed;top:0;right:0;height:2px;width:0%;background:#B28E5A;z-index:60"></div>
+
+  <header data-nav style="position:fixed;top:0;right:0;left:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:22px 56px;background:rgba(231,216,195,0);border-bottom:1px solid transparent;transition:background .45s,border-color .45s,padding .45s">
+    <div style="display:flex;align-items:baseline;gap:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#1C1A17;font-family:var(--fh);font-size:21px;line-height:1">أنس</a>
+      <span style="font-size:11.5px;color:#6F5E4E;letter-spacing:1px">anasaq.me</span>
+    </div>
+    <nav style="display:flex;gap:30px;align-items:center;font-size:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#5C4E3F">الرئيسية</a>
+      <a href="بدأت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">بدأت هنا</a>
+      <a href="بُنيت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">بُنيت هنا</a>
+      <a href="مرّت من هنا.dc.html" style="text-decoration:none;color:#4A2740;font-weight:500;padding-bottom:3px;border-bottom:1px solid #B28E5A">مرّت من هنا</a>
+      <a href="كُتبت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">كُتبت هنا</a>
+      <a href="على الرف.dc.html" style="text-decoration:none;color:#5C4E3F">على الرف</a>
+      <a href="المشاهد.dc.html" style="text-decoration:none;color:#5C4E3F">المَشَاهِد</a>
+      <a href="تواصل.dc.html" style="text-decoration:none;color:#5C4E3F">تواصل</a>
+    </nav>
+  </header>
+
+  <!-- HERO (max air) -->
+  <section data-screen-label="مرّت من هنا — العنوان" style="position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:180px 24px 120px;overflow:hidden">
+    <div data-sig style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-6deg);font-family:var(--fh);color:#4A2740;opacity:.05;pointer-events:none;user-select:none;width:1000px" class="sig-mark" aria-hidden="true"></div>
+    <div style="position:relative">
+      <div style="width:1px;height:64px;background:#B28E5A;margin:0 auto;transform-origin:top;animation:lineGrow 1.2s cubic-bezier(.22,.61,.36,1) both"></div>
+      <span style="display:block;margin-top:32px;font-size:12.5px;letter-spacing:5px;color:#4A2740;font-weight:600;animation:fadeUp .8s .2s both">الغرفة الثالثة · مرّت من هنا</span>
+      <h1 style="margin:44px 0 0;font-family:var(--fh);font-weight:400;font-size:104px;line-height:1.5;color:#4A2740;animation:fadeUp 1.1s .4s both">ليست كل البصمات<br>تحتاج إلى توقيع.</h1>
+      <p style="margin:52px auto 0;max-width:640px;font-size:18px;line-height:2.2;color:#6F5E4E;font-weight:300;animation:fadeUp 1.1s .65s both">أحياناً يكون دورك منتجاً جديداً، أو فكرة، أو تطوير تجربة، أو مجرد تفصيلة صغيرة غيّرت النتيجة بالكامل.</p>
+    </div>
+  </section>
+
+  <!-- STATEMENT -->
+  <section data-rv data-screen-label="التمهيد" style="padding:60px 56px 140px;max-width:820px;margin:0 auto;text-align:center">
+    <p style="margin:0;font-family:var(--fh);font-size:34px;line-height:1.95;color:#1C1A17">في هذه الغرفة لا أملك شيئاً… ومع ذلك أفخر بها أكثر من غيرها. لأن الأثر الحقيقي هو ما يبقى بعد أن يُنسى صاحبه.</p>
+  </section>
+
+  <!-- MUSEUM PLAQUES -->
+  <section data-screen-label="اللوحات" style="background:#F4ECE0;border-top:1px solid #D9C9B4;padding:140px 56px">
+    <div style="max-width:1180px;margin:0 auto">
+      <div data-rv style="text-align:center;margin-bottom:96px">
+        <span style="font-family:monospace;font-size:12px;letter-spacing:3px;color:#B28E5A">لوحات المعرض</span>
+        <h2 style="margin:18px 0 0;font-family:var(--fh);font-weight:400;font-size:40px;color:#1C1A17">ست بصمات بلا توقيع</h2>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:0;border-top:1px solid #D9C9B4;border-right:1px solid #D9C9B4">
+        <div data-rv style="border-bottom:1px solid #D9C9B4;border-left:1px solid #D9C9B4;padding:64px 56px">
+          <div style="font-family:monospace;font-size:12px;color:#B28E5A;letter-spacing:2px">لوحة ٠١</div>
+          <h3 style="margin:20px 0 0;font-family:var(--fh);font-weight:400;font-size:34px;color:#4A2740">تطوير منيوهات</h3>
+          <p style="margin:18px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">قائمة تُقرأ كقصة لا كجدول أسعار. ترتيب الأصناف، وصفها، وإيقاع تصفّحها، حتى يصبح الاختيار متعة صغيرة.</p>
+        </div>
+        <div data-rv data-rvd="80" style="border-bottom:1px solid #D9C9B4;border-left:1px solid #D9C9B4;padding:64px 56px">
+          <div style="font-family:monospace;font-size:12px;color:#B28E5A;letter-spacing:2px">لوحة ٠٢</div>
+          <h3 style="margin:20px 0 0;font-family:var(--fh);font-weight:400;font-size:34px;color:#4A2740">منتجات موسمية</h3>
+          <p style="margin:18px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">مواسم تمرّ ونكهات تبقى في الذاكرة. فكرة تُطلق في وقتها، ثم تختفي، لتترك حنيناً ينتظر عودتها.</p>
+        </div>
+        <div data-rv style="border-bottom:1px solid #D9C9B4;border-left:1px solid #D9C9B4;padding:64px 56px">
+          <div style="font-family:monospace;font-size:12px;color:#B28E5A;letter-spacing:2px">لوحة ٠٣</div>
+          <h3 style="margin:20px 0 0;font-family:var(--fh);font-weight:400;font-size:34px;color:#4A2740">تجارب عملاء</h3>
+          <p style="margin:18px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">تفاصيل صغيرة تجعل الزائر يعود. لحظة ترحيب، ترتيب مقعد، توقيت كوب. أشياء لا تُرى لكنها تُحسّ.</p>
+        </div>
+        <div data-rv data-rvd="80" style="border-bottom:1px solid #D9C9B4;border-left:1px solid #D9C9B4;padding:64px 56px">
+          <div style="font-family:monospace;font-size:12px;color:#B28E5A;letter-spacing:2px">لوحة ٠٤</div>
+          <h3 style="margin:20px 0 0;font-family:var(--fh);font-weight:400;font-size:34px;color:#4A2740">تحسين تشغيل</h3>
+          <p style="margin:18px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">نظام هادئ خلف كل تجربة سلسة. حين يعمل كل شيء بلا احتكاك، يظن الزائر أنه أمر بديهي — وهذا أعلى أشكال الإتقان.</p>
+        </div>
+        <div data-rv style="border-bottom:1px solid #D9C9B4;border-left:1px solid #D9C9B4;padding:64px 56px">
+          <div style="font-family:monospace;font-size:12px;color:#B28E5A;letter-spacing:2px">لوحة ٠٥</div>
+          <h3 style="margin:20px 0 0;font-family:var(--fh);font-weight:400;font-size:34px;color:#4A2740">أفكار حملات</h3>
+          <p style="margin:18px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">رسائل تصل بلا صوت مرتفع. فكرة تُقال بهدوء فتبقى، بدل أن تُصرخ فتُنسى مع نهاية الموسم.</p>
+        </div>
+        <div data-rv data-rvd="80" style="border-bottom:1px solid #D9C9B4;border-left:1px solid #D9C9B4;padding:64px 56px">
+          <div style="font-family:monospace;font-size:12px;color:#B28E5A;letter-spacing:2px">لوحة ٠٦</div>
+          <h3 style="margin:20px 0 0;font-family:var(--fh);font-weight:400;font-size:34px;color:#4A2740">تطوير الهوية</h3>
+          <p style="margin:18px 0 0;font-size:15.5px;line-height:2.1;color:#6F5E4E;font-weight:300">ملامح تُعرف من غير أن تُذكر الأسماء. لون، خط، إيقاع — تجتمع لتصنع حضوراً يُتعرّف عليه من بعيد.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISSOLVING SIGNATURE CLOSER -->
+  <section data-rv data-screen-label="التوقيع المتلاشي" style="padding:170px 56px;text-align:center">
+    <div style="position:relative;display:inline-block">
+      <div class="sig-mark" aria-hidden="true" style="width:300px;color:#4A2740;opacity:.5;transform:rotate(-5deg)"></div>
+      <div style="position:absolute;top:50%;right:-8%;left:-8%;height:2px;background:#B65C43;transform:rotate(-4deg)"></div>
+    </div>
+    <p style="margin:44px auto 0;max-width:560px;font-family:var(--fh);font-size:28px;line-height:1.9;color:#6F5E4E">لا حاجة للتوقيع. يكفي أن يبقى الأثر.</p>
+  </section>
+
+  <section data-rv data-screen-label="الانتقال" style="padding:20px 56px 120px;text-align:center;max-width:1180px;margin:0 auto">
+    <span style="font-size:13px;color:#6F5E4E">الغرفة التالية</span>
+    <a href="كُتبت هنا.dc.html" style="display:block;margin-top:14px;text-decoration:none;font-family:var(--fh);font-size:40px;color:#234A30">كُتبت هنا ←</a>
+  </section>
+
+  <footer style="background:#E7D8C3;border-top:1px solid #B28E5A;padding:90px 56px 56px;text-align:center">
+    <p style="margin:0 auto;max-width:800px;font-family:var(--fh);font-size:24px;line-height:2;color:#1C1A17">بعض المشاريع بدأت هنا، وبعضها بُني هنا، وبعضها مرّ من هنا…<br><span style="color:#234A30">أما الحكايات، فما زالت تُكتب.</span></p>
+    <div class="sig-mark" role="img" aria-label="توقيع أنس عبدالله القرني" style="width:170px;margin-top:40px;color:#6E4B33;opacity:.6;transform:rotate(-4deg)"></div>
+    <div style="margin-top:24px;font-size:11.5px;color:#A8927B;letter-spacing:2px">anasaq.me</div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;motion&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;الحركة&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() {
+    this._c = [];
+    if (this.props.motion === false) return;
+    const ease = 'cubic-bezier(.22,.61,.36,1)';
+    const els = [...document.querySelectorAll('[data-rv]')];
+    els.forEach(el => { el.style.opacity = '0'; el.style.transform = 'translateY(32px) scale(.99)'; el.style.filter = 'blur(6px)'; });
+    const io = new IntersectionObserver(es => {
+      es.forEach(en => {
+        const el = en.target, d = +(el.dataset.rvd || 0);
+        if (en.isIntersecting) { el.style.transition = 'opacity .9s ' + ease + ' ' + d + 'ms,transform 1s ' + ease + ' ' + d + 'ms,filter .9s ' + ease + ' ' + d + 'ms'; el.style.opacity = '1'; el.style.transform = 'none'; el.style.filter = 'none'; }
+        else { const up = en.boundingClientRect.top < 0; el.style.transition = 'opacity .5s ' + ease + ',transform .6s ' + ease + ',filter .5s ' + ease; el.style.opacity = '0'; el.style.transform = 'translateY(' + (up ? -32 : 32) + 'px) scale(.99)'; el.style.filter = 'blur(6px)'; }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -6% 0px' });
+    els.forEach(el => io.observe(el)); this._c.push(() => io.disconnect());
+
+    const nav = document.querySelector('[data-nav]'), bar = document.querySelector('[data-progress]'), sig = document.querySelector('[data-sig]');
+    let t = false;
+    const raf = () => {
+      t = false; const y = scrollY, vh = innerHeight;
+      if (nav) { const on = y > 30; nav.style.background = on ? 'rgba(231,216,195,.9)' : 'rgba(231,216,195,0)'; nav.style.borderBottomColor = on ? '#D2C0A8' : 'transparent'; nav.style.backdropFilter = on ? 'blur(12px)' : 'none'; nav.style.webkitBackdropFilter = on ? 'blur(12px)' : 'none'; nav.style.padding = on ? '13px 56px' : '22px 56px'; }
+      if (bar) { const h = document.documentElement.scrollHeight - vh; bar.style.width = (h > 0 ? y / h * 100 : 0) + '%'; }
+      if (sig) { const p = Math.min(1, y / vh); sig.style.transform = 'translate(-50%,-50%) rotate(-6deg) translateY(' + (p * -80) + 'px) scale(' + (1 + p * 0.15) + ')'; sig.style.opacity = String(Math.max(0, 0.06 - p * 0.06)); }
+    };
+    const os = () => { if (!t) { t = true; requestAnimationFrame(raf); } };
+    addEventListener('scroll', os, { passive: true }); raf();
+    this._c.push(() => removeEventListener('scroll', os));
+  }
+  componentWillUnmount() { (this._c || []).forEach(f => f()); }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تواصل — أنس عبدالله القرني</title>
+<style>
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');font-weight:300;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+@font-face{font-family:'Lyon Arabic Display';src:url('fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');font-weight:500;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');font-weight:300;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Thmanyah Sans';src:url('fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2');font-weight:500;font-display:swap}
+:root{--fh:'Lyon Arabic Display','Amiri',serif;--fb:'Thmanyah Sans',sans-serif}
+html{scroll-behavior:smooth}
+body{margin:0;background:#F4ECE0;color:#1C1A17;-webkit-font-smoothing:antialiased}
+::selection{background:#234A30;color:#F4ECE0}
+input::placeholder,textarea::placeholder{color:#A8927B;font-family:var(--fb)}
+@keyframes lineGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+</style>
+<link rel="stylesheet" href="/mobile-fix.css">
+</helmet>
+<div dir="rtl" lang="ar" style="font-family:var(--fb);background:#F4ECE0;color:#1C1A17;overflow-x:hidden;min-height:100vh;display:flex;flex-direction:column">
+  <div data-progress style="position:fixed;top:0;right:0;height:2px;width:0%;background:#B28E5A;z-index:60"></div>
+
+  <header data-nav style="position:fixed;top:0;right:0;left:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:22px 56px;background:rgba(244,236,224,0);border-bottom:1px solid transparent;transition:background .45s,border-color .45s,padding .45s">
+    <div style="display:flex;align-items:baseline;gap:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#1C1A17;font-family:var(--fh);font-size:21px;line-height:1">أنس</a>
+      <span style="font-size:11.5px;color:#6F5E4E;letter-spacing:1px">anasaq.me</span>
+    </div>
+    <nav style="display:flex;gap:30px;align-items:center;font-size:14px">
+      <a href="Home.dc.html" style="text-decoration:none;color:#5C4E3F">الرئيسية</a>
+      <a href="بدأت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">بدأت هنا</a>
+      <a href="بُنيت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">بُنيت هنا</a>
+      <a href="مرّت من هنا.dc.html" style="text-decoration:none;color:#5C4E3F">مرّت من هنا</a>
+      <a href="كُتبت هنا.dc.html" style="text-decoration:none;color:#5C4E3F">كُتبت هنا</a>
+      <a href="على الرف.dc.html" style="text-decoration:none;color:#5C4E3F">على الرف</a>
+      <a href="المشاهد.dc.html" style="text-decoration:none;color:#5C4E3F">المَشَاهِد</a>
+      <a href="تواصل.dc.html" style="text-decoration:none;color:#234A30;font-weight:500;padding-bottom:3px;border-bottom:1px solid #B28E5A">تواصل</a>
+    </nav>
+  </header>
+
+  <section data-screen-label="تواصل" style="flex:1;display:flex;align-items:center;justify-content:center;padding:200px 56px 120px">
+    <div style="width:100%;max-width:680px">
+      <div style="text-align:center;animation:fadeUp .9s .1s both">
+        <div style="width:44px;height:1px;background:#B28E5A;margin:0 auto 30px"></div>
+        <h1 style="margin:0;font-family:var(--fh);font-weight:400;font-size:52px;line-height:1.65;color:#1C1A17">إذا كانت لديك فكرة تستحق أن تُبنى…<br><span style="color:#234A30">فلنتحدث.</span></h1>
+      </div>
+      <div style="margin-top:64px;display:flex;flex-direction:column;gap:34px;animation:fadeUp .9s .3s both">
+        <label style="display:block">
+          <span style="display:block;font-size:12.5px;color:#8A7862;margin-bottom:8px">الاسم</span>
+          <input type="text" placeholder="اسمك الكريم" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid #C9B99F;padding:12px 2px;font-family:var(--fb);font-size:16px;color:#1C1A17;outline:none;transition:border-color .3s" style-focus="border-bottom:1px solid #234A30">
+        </label>
+        <label style="display:block">
+          <span style="display:block;font-size:12.5px;color:#8A7862;margin-bottom:8px">البريد</span>
+          <input type="email" placeholder="بريدك الإلكتروني" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid #C9B99F;padding:12px 2px;font-family:var(--fb);font-size:16px;color:#1C1A17;outline:none;transition:border-color .3s" style-focus="border-bottom:1px solid #234A30">
+        </label>
+        <label style="display:block">
+          <span style="display:block;font-size:12.5px;color:#8A7862;margin-bottom:8px">فكرتك</span>
+          <textarea rows="4" placeholder="أخبرني عنها بهدوء…" style="width:100%;box-sizing:border-box;background:transparent;border:none;border-bottom:1px solid #C9B99F;padding:12px 2px;font-family:var(--fb);font-size:16px;color:#1C1A17;outline:none;resize:vertical;line-height:2;transition:border-color .3s" style-focus="border-bottom:1px solid #234A30"></textarea>
+        </label>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:20px">
+          <button type="button" style="background:#234A30;color:#F4ECE0;border:none;padding:15px 52px;font-family:var(--fb);font-size:15px;cursor:pointer;transition:background .3s,transform .3s" style-hover="background:#1B3A25;transform:translateY(-2px)">أرسل</button>
+          <div style="display:flex;gap:24px;font-size:13.5px">
+            <span style="color:#6F5E4E;cursor:pointer;transition:color .3s" style-hover="color:#234A30">إنستغرام</span>
+            <span style="color:#6F5E4E;cursor:pointer;transition:color .3s" style-hover="color:#234A30">إكس</span>
+            <span style="color:#6F5E4E;cursor:pointer;transition:color .3s" style-hover="color:#234A30">لينكدإن</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer style="background:#E7D8C3;border-top:1px solid #B28E5A;padding:80px 56px 52px;text-align:center">
+    <p style="margin:0 auto;max-width:800px;font-family:var(--fh);font-size:23px;line-height:2;color:#1C1A17">بعض المشاريع بدأت هنا، وبعضها بُني هنا، وبعضها مرّ من هنا…<br><span style="color:#234A30">أما الحكايات، فما زالت تُكتب.</span></p>
+    <div style="margin-top:36px;font-family:var(--fh);font-size:26px;color:#6E4B33;opacity:.6;transform:rotate(-4deg)">أنس</div>
+    <div style="margin-top:22px;font-size:11.5px;color:#A8927B;letter-spacing:2px">anasaq.me</div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  componentDidMount() {
+    this._c = [];
+    const nav = document.querySelector('[data-nav]'), bar = document.querySelector('[data-progress]');
+    let t = false;
+    const raf = () => {
+      t = false; const y = scrollY, vh = innerHeight;
+      if (nav) { const on = y > 30; nav.style.background = on ? 'rgba(244,236,224,.88)' : 'rgba(244,236,224,0)'; nav.style.borderBottomColor = on ? '#D9C9B4' : 'transparent'; nav.style.backdropFilter = on ? 'blur(12px)' : 'none'; nav.style.webkitBackdropFilter = on ? 'blur(12px)' : 'none'; nav.style.padding = on ? '13px 56px' : '22px 56px'; }
+      if (bar) { const h = document.documentElement.scrollHeight - vh; bar.style.width = (h > 0 ? y / h * 100 : 0) + '%'; }
+    };
+    const os = () => { if (!t) { t = true; requestAnimationFrame(raf); } };
+    addEventListener('scroll', os, { passive: true }); raf();
+    this._c.push(() => removeEventListener('scroll', os));
+  }
+  componentWillUnmount() { (this._c || []).forEach(f => f()); }
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

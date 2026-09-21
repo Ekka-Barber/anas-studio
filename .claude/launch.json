@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "showcase",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "serve", "deploy", "-l", "4321"],
+      "port": 4321
+    }
+  ]
+}

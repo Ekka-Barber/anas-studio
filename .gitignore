@@ -1,0 +1,12 @@
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# codegraph local index — regenerable
+/.codegraph/
+
+# archived superseded versions — cold storage, out of agent context
+/_archive/
+
+# locked by a running preview server; awaiting manual move to _archive/
+/offer-site/
+/offer-site-v2/

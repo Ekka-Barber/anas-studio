@@ -1,0 +1,10 @@
+# graft's cards are gitignored but should stay greppable: ripgrep reads
+# .ignore before .gitignore, so this re-admits the tree to search only.
+!graft/
+graft/.cache/
+graft/.graph/
+
+# archived + superseded-in-place (offer-site v1/v2 pending manual move)
+_archive/
+offer-site/
+offer-site-v2/

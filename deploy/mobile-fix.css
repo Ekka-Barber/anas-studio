@@ -1,0 +1,118 @@
+/* ============================================================
+   Mobile overrides for the design-tool exports (/design/*.dc.html)
+   ------------------------------------------------------------
+   Those pages were exported desktop-only: every rule is an inline
+   style and none of them ship a media query. Overriding inline
+   styles needs !important, and attribute-substring selectors are
+   the only way to reach them without rewriting every element.
+
+   IMPORTANT: these pages are React-rendered, so the browser
+   re-serialises the style attribute WITH spaces after the colon
+   ("font-size: 72px", "aspect-ratio: 3 / 4"). Selectors must match
+   the spaced form; the unspaced form is kept as a fallback for
+   when the page is served without the runtime.
+
+   index.html is hand-built and already responsive; it does not
+   load this file.
+   ============================================================ */
+
+@media (max-width: 820px) {
+
+  /* ---- top bar: let the nav scroll sideways instead of overflowing ---- */
+  header[data-nav] { padding: 12px 18px !important; }
+  header[data-nav] nav {
+    gap: 16px !important;
+    font-size: 12.5px !important;
+    max-width: 62vw !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  header[data-nav] nav::-webkit-scrollbar { display: none; }
+  header[data-nav] nav a { white-space: nowrap !important; }
+  /* the domain sits beside the wordmark on desktop; on a phone it collides with
+     the first nav link, and it already appears in the footer */
+  header[data-nav] > div:first-child span { display: none !important; }
+
+  /* ---- section rhythm ---- */
+  section, footer { padding-left: 20px !important; padding-right: 20px !important; }
+  section { padding-top: 66px !important; padding-bottom: 66px !important; }
+  div[dir="rtl"] > section:first-of-type { padding-top: 104px !important; }
+
+  /* ---- every multi-column grid becomes a single column ---- */
+  [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 26px !important;
+  }
+  [style*="grid-column: span 2"], [style*="grid-column:span 2"] { grid-column: auto !important; }
+
+  /* ---- type scale ---- */
+  [style*="font-size: 84px"], [style*="font-size: 76px"], [style*="font-size: 72px"],
+  [style*="font-size:84px"],  [style*="font-size:76px"],  [style*="font-size:72px"] {
+    font-size: 33px !important; line-height: 1.5 !important;
+  }
+  [style*="font-size: 64px"], [style*="font-size: 60px"], [style*="font-size: 54px"],
+  [style*="font-size: 52px"], [style*="font-size: 48px"], [style*="font-size: 46px"],
+  [style*="font-size: 44px"],
+  [style*="font-size:64px"],  [style*="font-size:60px"],  [style*="font-size:54px"],
+  [style*="font-size:52px"],  [style*="font-size:48px"],  [style*="font-size:46px"],
+  [style*="font-size:44px"] { font-size: 26px !important; line-height: 1.55 !important; }
+
+  [style*="font-size: 40px"], [style*="font-size: 38px"], [style*="font-size: 34px"],
+  [style*="font-size: 30px"],
+  [style*="font-size:40px"],  [style*="font-size:38px"],  [style*="font-size:34px"],
+  [style*="font-size:30px"] { font-size: 21px !important; line-height: 1.6 !important; }
+
+  [style*="font-size: 28px"], [style*="font-size: 27px"], [style*="font-size: 26px"],
+  [style*="font-size: 25px"],
+  [style*="font-size:28px"],  [style*="font-size:27px"],  [style*="font-size:26px"],
+  [style*="font-size:25px"] { font-size: 18px !important; line-height: 1.9 !important; }
+
+  [style*="font-size: 22px"], [style*="font-size: 21px"], [style*="font-size: 20px"],
+  [style*="font-size: 19px"],
+  [style*="font-size:22px"],  [style*="font-size:21px"],  [style*="font-size:20px"],
+  [style*="font-size:19px"] { font-size: 16.5px !important; }
+
+  [style*="font-size: 17px"], [style*="font-size:17px"] { font-size: 15.5px !important; }
+
+  /* ---- oversized decorative watermarks ---- */
+  [style*="font-size: 340px"], [style*="font-size: 300px"],
+  [style*="font-size: 200px"], [style*="font-size: 120px"],
+  [style*="font-size:340px"],  [style*="font-size:300px"],
+  [style*="font-size:200px"],  [style*="font-size:120px"] { font-size: 92px !important; }
+  .sig-mark { max-width: 74vw !important; }
+
+  /* ---- sticky sub-nav becomes a scroll strip ---- */
+  [data-subnav] > div {
+    gap: 22px !important;
+    padding: 12px 20px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none;
+  }
+  [data-subnav] > div::-webkit-scrollbar { display: none; }
+  [data-subnav] a { white-space: nowrap !important; }
+
+  /* ---- book hero: cover stacks above the title, at a sane size ---- */
+  section > div[style*="aspect-ratio: 3 / 4"],
+  section > div[style*="aspect-ratio:3/4"] {
+    max-width: 230px !important;
+    margin: 0 auto !important;
+  }
+
+  /* ---- the 3D reader ---- */
+  [data-flip-wrap] { height: 430px !important; }
+
+  /* ---- nothing may exceed the viewport ---- */
+  img { max-width: 100% !important; height: auto !important; }
+}
+
+@media (max-width: 420px) {
+  section { padding-left: 16px !important; padding-right: 16px !important; }
+  [style*="font-size: 84px"], [style*="font-size: 76px"], [style*="font-size: 72px"],
+  [style*="font-size:84px"],  [style*="font-size:76px"],  [style*="font-size:72px"] {
+    font-size: 28px !important;
+  }
+  section > div[style*="aspect-ratio: 3 / 4"],
+  section > div[style*="aspect-ratio:3/4"] { max-width: 200px !important; }
+  [data-flip-wrap] { height: 350px !important; }
+}
