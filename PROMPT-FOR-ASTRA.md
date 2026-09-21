@@ -128,7 +128,7 @@ Validate against PRD v1 before finalizing; merge/split as evidence dictates:
 - **PRD-05 Scenes gallery** — المشاهد, image pipeline, lazy loading.
 - **PRD-06 Contact** — تواصل, form + validation + spam protection, Supabase backend.
 - **PRD-07 Motion** — fade-and-rise reveals per Motion Spec, IntersectionObserver, `prefers-reduced-motion`.
-- **PRD-08 Offer site production** — `offer-site-v3` final QA, og:image fix, docx contradiction check (12,500 figure), deploy.
+- **PRD-08 Offer site production** — `offer-site-v3` final QA, og:image fix, docx contradiction check (12,500 figure), deploy. Audit context (2026-09-21, see `_archive/offer-site-v1-v2-audit.md`): v3 is a verified superset of v1/v2 — do not resurrect old copy. The tools sentence at `index.html:1365` (Claude/Codex/Higgsfield one-liner) is a deliberate keep; usage stats and dollar amounts were scrubbed on purpose — restore neither. `og:image` points at the `anasaq-offer.pages.dev` preview deployment; repoint to the canonical domain at deploy.
 - **PRD-09 Perf, SEO, a11y, analytics** — budgets, meta/OG, Arabic SEO, Lighthouse targets.
 - **PRD-10 Deploy** — Cloudflare Pages + R2 + Supabase free tier, domain, redirects, cache headers, smoke test.
 

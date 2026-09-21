@@ -4,7 +4,5 @@
 graft/.cache/
 graft/.graph/
 
-# archived + superseded-in-place (offer-site v1/v2 pending manual move)
+# archived cold storage
 _archive/
-offer-site/
-offer-site-v2/

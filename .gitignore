@@ -6,7 +6,3 @@
 
 # archived superseded versions — cold storage, out of agent context
 /_archive/
-
-# locked by a running preview server; awaiting manual move to _archive/
-/offer-site/
-/offer-site-v2/
