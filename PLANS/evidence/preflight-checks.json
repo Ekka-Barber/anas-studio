@@ -1,0 +1,26 @@
+{
+  "checked_at_utc": "2026-09-21T22:50:11.415Z",
+  "preparation_only": true,
+  "recovery": {
+    "prior_agent": "preflight_worker",
+    "prior_agent_stopped_at_utc": "2026-09-21T21:14:00Z",
+    "stop_time_source": "user resume instruction; tool independently reports usage-limit error",
+    "reason": "usage_limit_exceeded",
+    "prior_lock_started_at_utc": "2026-09-21T21:08:34.063Z",
+    "base_commit": "0e591ae2251a62c938b1f24d8cbd80b668d876d2",
+    "diff_since_lock": "none",
+    "untracked_before_recovery": [
+      ".anasaq-execution.lock"
+    ],
+    "recovered_by": "Codex preparation session",
+    "branch": "main"
+  },
+  "baseline_issue": {
+    "path": "AGENTS.md",
+    "historical_manifest_sha256": "812693210408460b4b696b554f7ba86b28389100ce1278b4b7279bc12b7beec5",
+    "current_sha256": "15f53e4d1cf3a4ff510371e8af2e740d9399c2c2c479309c6c5ff9234b47b825",
+    "other_359_manifest_entries": "previously verified unchanged; final check pending"
+  },
+  "result": "in_progress",
+  "runtime_tested": false
+}
