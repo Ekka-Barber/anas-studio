@@ -33,6 +33,24 @@ Read before writing. Authority when they conflict, highest first:
 
 Audit note (2026-09-21): v3 is the verified superset of all old versions — don't resurrect old copy; the one tools sentence at `index.html:1365` is deliberate; usage stats and dollar amounts were scrubbed on purpose.
 
+## Skills you must load before planning
+
+Read these files first. They are the user's standing working style — the plan and its execution must follow their principles (adapt the mechanics to your environment):
+
+- `C:\Users\alazi\.agents\skills\ponytail\SKILL.md` — laziest solution that actually works; YAGNI ladder; shortest working diff
+- `C:\Users\alazi\.agents\skills\caveman\SKILL.md` — terse conversational output; normal prose in anything persisted
+- `C:\Users\alazi\.agents\skills\cavecrew\SKILL.md` — sub-agent delegation patterns with compressed output contracts
+- `C:\Users\alazi\.agents\skills\planner\SKILL.md` — planning rigor: exact file paths, dependencies, risks, verifiable steps
+- `C:\Users\alazi\.agents\skills\search-first\SKILL.md` — research existing solutions before writing custom code
+- `C:\Users\alazi\.agents\skills\karpathy-guidelines\SKILL.md` — simplicity first, surgical changes, goal-driven execution with success criteria
+
+## The bar
+
+Two standards the plan cannot fall below. How you meet them is your call.
+
+1. **Execution-grade detail.** Every workstream names exact files, concrete steps, dependencies, risks, and acceptance criteria checkable by running or looking. Any sub-agent must be able to execute any part of your plan with zero questions and zero access to this conversation. A plan a senior engineer could hand to a team without flinching.
+2. **Real deep research for open-source choices.** Every component decision comes from actual investigation — searched, compared on maintenance activity, license, bundle size, security posture, and RTL/Arabic fit, with the evidence and the losing candidates recorded in the plan. No invented candidates, no unexamined defaults, no "popular therefore good". Where you choose to build instead of adopt, the research that justified it is in the plan.
+
 ## Hard lines
 
 1. Everything promised in the offer gets built — or escalated to the human. No silent descoping.
