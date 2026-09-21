@@ -16,6 +16,8 @@ kickoff [FIRST-GLM-PROMPT.md](FIRST-GLM-PROMPT.md).
   execution contract; [SKILLS.md](SKILLS.md) locates the six working skills.
 - Node, pnpm, Python, Claude, Graft, and CodeGraph are installed. Docker engine
   29.8.0 was started during the earlier preparation checks.
+- Graft was rebuilt; CodeGraph sync and a live MCP query passed. Its daemon was
+  alive after the query. Normal idle shutdown does not mean the index is stale.
 
 ## Still pending
 

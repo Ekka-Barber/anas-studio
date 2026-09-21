@@ -1,26 +1,123 @@
 {
-  "checked_at_utc": "2026-09-21T22:50:11.415Z",
-  "preparation_only": true,
-  "recovery": {
-    "prior_agent": "preflight_worker",
-    "prior_agent_stopped_at_utc": "2026-09-21T21:14:00Z",
-    "stop_time_source": "user resume instruction; tool independently reports usage-limit error",
-    "reason": "usage_limit_exceeded",
-    "prior_lock_started_at_utc": "2026-09-21T21:08:34.063Z",
-    "base_commit": "0e591ae2251a62c938b1f24d8cbd80b668d876d2",
-    "diff_since_lock": "none",
-    "untracked_before_recovery": [
-      ".anasaq-execution.lock"
-    ],
-    "recovered_by": "Codex preparation session",
-    "branch": "main"
-  },
-  "baseline_issue": {
-    "path": "AGENTS.md",
-    "historical_manifest_sha256": "812693210408460b4b696b554f7ba86b28389100ce1278b4b7279bc12b7beec5",
-    "current_sha256": "15f53e4d1cf3a4ff510371e8af2e740d9399c2c2c479309c6c5ff9234b47b825",
-    "other_359_manifest_entries": "previously verified unchanged; final check pending"
-  },
-  "result": "in_progress",
-  "runtime_tested": false
+    "checked_at_utc":  "2026-09-21T23:02:32.9119617Z",
+    "preparation_only":  true,
+    "recovery":  {
+                     "prior_agent":  "preflight_worker",
+                     "prior_agent_stopped_at_utc":  "2026-09-21T21:14:00Z",
+                     "stop_time_source":  "user resume instruction; tool independently reports usage-limit error",
+                     "reason":  "usage_limit_exceeded",
+                     "prior_lock_started_at_utc":  "2026-09-21T21:08:34.063Z",
+                     "base_commit":  "0e591ae2251a62c938b1f24d8cbd80b668d876d2",
+                     "diff_since_lock":  "none",
+                     "untracked_before_recovery":  [
+                                                       ".anasaq-execution.lock"
+                                                   ],
+                     "recovered_by":  "Codex preparation session",
+                     "branch":  "main"
+                 },
+    "baseline_issue":  {
+                           "path":  "AGENTS.md",
+                           "historical_manifest_sha256":  "812693210408460b4b696b554f7ba86b28389100ce1278b4b7279bc12b7beec5",
+                           "current_sha256":  "15f53e4d1cf3a4ff510371e8af2e740d9399c2c2c479309c6c5ff9234b47b825",
+                           "other_359_manifest_entries":  "previously verified unchanged; final check pending",
+                           "resolution":  "User-approved correction of only AGENTS.md bytes/hash to the unchanged instruction file at D24 commit 0e591ae2251a62c938b1f24d8cbd80b668d876d2; other 359 rows unchanged",
+                           "historical_manifest_bytes":  3443,
+                           "current_bytes":  4824
+                       },
+    "tooling_refresh":  {
+                            "checked_at_utc":  "2026-09-21T23:01:27.565Z",
+                            "graft_build":  {
+                                                "exit_code":  0,
+                                                "files":  5,
+                                                "nodes":  118,
+                                                "edges":  249,
+                                                "mode":  "deterministic; no deep pass or installs"
+                                            },
+                            "codegraph_sync":  {
+                                                   "exit_code":  0,
+                                                   "result":  "already up to date",
+                                                   "files":  8,
+                                                   "nodes":  186,
+                                                   "edges":  366
+                                               },
+                            "codegraph_mcp_query":  {
+                                                        "pass":  true,
+                                                        "daemon_pid_alive":  true,
+                                                        "query":  "nonmatching health probe; no source content inspected"
+                                                    },
+                            "limitations":  "Graphs index supported code, not every planning document; the daemon may stop after its normal idle timeout."
+                        },
+    "result":  "pass",
+    "checked_commit":  "af654c0d804afa99d3a9e73a6dbf368a34f16f1f",
+    "checks":  [
+                   {
+                       "name":  "required_files",
+                       "pass":  true,
+                       "detail":  ""
+                   },
+                   {
+                       "name":  "claude_entry_length",
+                       "pass":  true,
+                       "detail":  "50 lines; maximum 60"
+                   },
+                   {
+                       "name":  "json_and_no_literal_credentials:.claude/settings.json",
+                       "pass":  true,
+                       "detail":  "JSON syntax and credential-field check; no values reported"
+                   },
+                   {
+                       "name":  "json_and_no_literal_credentials:.mcp.json",
+                       "pass":  true,
+                       "detail":  "JSON syntax and credential-field check; no values reported"
+                   },
+                   {
+                       "name":  "blank_env_template",
+                       "pass":  true,
+                       "detail":  "Only blank assignments and comments are permitted"
+                   },
+                   {
+                       "name":  "env_not_tracked",
+                       "pass":  true,
+                       "detail":  "Checks paths only; never opens .env"
+                   },
+                   {
+                       "name":  "env_ignored",
+                       "pass":  true,
+                       "detail":  "Local .env must remain ignored"
+                   },
+                   {
+                       "name":  "tracked_secret_patterns",
+                       "pass":  true,
+                       "detail":  "No known-format candidates in permitted tracked text; not exhaustive"
+                   },
+                   {
+                       "name":  "secret_detector_self_check",
+                       "pass":  true,
+                       "detail":  "Synthetic positive samples and blank-template negative sample; no values emitted"
+                   },
+                   {
+                       "name":  "graft_freshness",
+                       "pass":  true,
+                       "detail":  "Exit 0; code graphs do not index every planning document"
+                   },
+                   {
+                       "name":  "codegraph_freshness",
+                       "pass":  true,
+                       "detail":  "Exit 0; code graphs do not index every planning document"
+                   },
+                   {
+                       "name":  "verify_plan",
+                       "pass":  true,
+                       "detail":  "Exit 0; requires all 360 frozen hashes, scope ownership, links, and PLANS-only dirty paths"
+                   }
+               ],
+    "scan_exclusions":  [
+                            "_archive/",
+                            "deploy/design/",
+                            "BOOK_ASSETS/",
+                            "actual .env files"
+                        ],
+    "env_contents_read":  false,
+    "runtime_tested":  false,
+    "launch_ready":  false
 }
