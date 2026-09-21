@@ -1,0 +1,307 @@
+[
+  {
+    "package": "react-dom",
+    "version": "19.3.0",
+    "vulns": []
+  },
+  {
+    "package": "@types/react",
+    "version": "19.3.0",
+    "vulns": []
+  },
+  {
+    "package": "@types/react-dom",
+    "version": "19.3.0",
+    "vulns": []
+  },
+  {
+    "package": "@types/node",
+    "version": "26.6.2",
+    "vulns": []
+  },
+  {
+    "package": "eslint",
+    "version": "10.11.0",
+    "vulns": []
+  },
+  {
+    "package": "eslint-config-next",
+    "version": "16.3.5",
+    "vulns": []
+  },
+  {
+    "package": "supabase",
+    "version": "2.117.0",
+    "vulns": []
+  },
+  {
+    "package": "pdfjs-dist",
+    "version": "6.3.289",
+    "vulns": []
+  },
+  {
+    "package": "page-flip",
+    "version": "2.0.7",
+    "vulns": []
+  },
+  {
+    "package": "react-pageflip",
+    "version": "2.0.3",
+    "vulns": []
+  },
+  {
+    "package": "three",
+    "version": "0.186.0",
+    "vulns": []
+  },
+  {
+    "package": "@react-three/fiber",
+    "version": "9.7.0",
+    "vulns": []
+  },
+  {
+    "package": "ics",
+    "version": "3.12.0",
+    "vulns": []
+  },
+  {
+    "package": "ical.js",
+    "version": "2.2.1",
+    "vulns": []
+  },
+  {
+    "package": "@medusajs/medusa",
+    "version": "2.21.0",
+    "vulns": []
+  },
+  {
+    "package": "@payloadcms/plugin-ecommerce",
+    "version": "3.90.1",
+    "vulns": []
+  },
+  {
+    "package": "@tiptap/extension-image",
+    "version": "3.31.3",
+    "vulns": []
+  },
+  {
+    "package": "@tiptap/extension-link",
+    "version": "3.31.3",
+    "vulns": []
+  },
+  {
+    "package": "@tiptap/extension-text-align",
+    "version": "3.31.3",
+    "vulns": []
+  },
+  {
+    "package": "sanitize-html",
+    "version": "2.17.7",
+    "vulns": []
+  },
+  {
+    "package": "@types/sanitize-html",
+    "version": "2.16.1",
+    "vulns": []
+  },
+  {
+    "package": "@radix-ui/react-direction",
+    "version": "1.1.4",
+    "vulns": []
+  },
+  {
+    "package": "tsx",
+    "version": "4.23.15",
+    "vulns": []
+  },
+  {
+    "package": "pg",
+    "version": "8.23.0",
+    "vulns": []
+  },
+  {
+    "package": "jose",
+    "version": "6.2.12",
+    "vulns": []
+  },
+  {
+    "package": "next",
+    "version": "16.3.5",
+    "vulns": []
+  },
+  {
+    "package": "react",
+    "version": "19.3.0",
+    "vulns": []
+  },
+  {
+    "package": "typescript",
+    "version": "7.0.2",
+    "vulns": []
+  },
+  {
+    "package": "@opennextjs/cloudflare",
+    "version": "1.20.6",
+    "vulns": []
+  },
+  {
+    "package": "wrangler",
+    "version": "4.135.0",
+    "vulns": []
+  },
+  {
+    "package": "sharp",
+    "version": "0.35.4",
+    "vulns": []
+  },
+  {
+    "package": "resend",
+    "version": "6.28.1",
+    "vulns": []
+  },
+  {
+    "package": "nodemailer",
+    "version": "10.0.10",
+    "vulns": []
+  },
+  {
+    "package": "vitest",
+    "version": "5.0.1",
+    "vulns": []
+  },
+  {
+    "package": "@playwright/test",
+    "version": "1.63.0",
+    "vulns": []
+  },
+  {
+    "package": "@axe-core/playwright",
+    "version": "4.13.0",
+    "vulns": []
+  },
+  {
+    "package": "@lhci/cli",
+    "version": "0.15.1",
+    "vulns": []
+  },
+  {
+    "package": "react-easy-crop",
+    "version": "6.2.3",
+    "vulns": []
+  },
+  {
+    "package": "cropperjs",
+    "version": "2.2.0",
+    "vulns": []
+  },
+  {
+    "package": "@aws-sdk/client-s3",
+    "version": "3.1136.0",
+    "vulns": []
+  },
+  {
+    "package": "@aws-sdk/s3-request-presigner",
+    "version": "3.1136.0",
+    "vulns": []
+  },
+  {
+    "package": "motion",
+    "version": "13.4.0",
+    "vulns": []
+  },
+  {
+    "package": "yet-another-react-lightbox",
+    "version": "3.32.2",
+    "vulns": []
+  },
+  {
+    "package": "payload",
+    "version": "3.90.1",
+    "vulns": []
+  },
+  {
+    "package": "@payloadcms/db-postgres",
+    "version": "3.90.1",
+    "vulns": []
+  },
+  {
+    "package": "@payloadcms/richtext-lexical",
+    "version": "3.90.1",
+    "vulns": []
+  },
+  {
+    "package": "@supabase/supabase-js",
+    "version": "2.116.0",
+    "vulns": []
+  },
+  {
+    "package": "@supabase/ssr",
+    "version": "0.12.7",
+    "vulns": []
+  },
+  {
+    "package": "@tiptap/react",
+    "version": "3.31.3",
+    "vulns": []
+  },
+  {
+    "package": "@tiptap/starter-kit",
+    "version": "3.31.3",
+    "vulns": []
+  },
+  {
+    "package": "lexical",
+    "version": "0.51.0",
+    "vulns": []
+  },
+  {
+    "package": "@lexical/react",
+    "version": "0.51.0",
+    "vulns": []
+  },
+  {
+    "package": "@radix-ui/react-dialog",
+    "version": "1.1.23",
+    "vulns": []
+  },
+  {
+    "package": "react-aria-components",
+    "version": "1.21.1",
+    "vulns": []
+  },
+  {
+    "package": "@base-ui/react",
+    "version": "1.8.0",
+    "vulns": []
+  },
+  {
+    "package": "react-hook-form",
+    "version": "7.88.0",
+    "vulns": []
+  },
+  {
+    "package": "formik",
+    "version": "2.4.9",
+    "vulns": []
+  },
+  {
+    "package": "zod",
+    "version": "4.6.5",
+    "vulns": []
+  },
+  {
+    "package": "valibot",
+    "version": "1.5.0",
+    "vulns": []
+  },
+  {
+    "package": "@strapi/strapi",
+    "version": "5.54.0",
+    "vulns": []
+  },
+  {
+    "package": "@refinedev/core",
+    "version": "5.0.12",
+    "vulns": []
+  }
+]

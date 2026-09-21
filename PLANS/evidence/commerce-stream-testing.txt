@@ -1,0 +1,119 @@
+Source: https://docs.streampay.sa/testing-cards
+Retrieved UTC: 2026-09-21T04:00:45.005275+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Testing Cards
+On this page
+Testing Cards
+Testing Environment​
+
+In order to test your application without having to go live with cards and accounts, you can use Moyasar's testing cards) to simulate different transaction outcomes.
+
+The test cards should be used in a sandbox environment. This is also applicable if you are using the Stream's UI in sandbox mode and want to test the flow without having to use actual cards.
+
+Required Card Fields​
+
+Below are the values that need to be entered for the non-card number fields when testing:
+
+FieldValue
+NameAny name made of two words separated by a space (e.g., John Doe)
+YearAny future year
+MonthAny month (or a future month if using the current year)
+CVCAny 3 digits (4 digits for American Express (AMEX))
+
+List of Test Cards and Expected Outcomes​
+
+Below is the list of test card numbers you can use in your test environment to simulate specific transaction statuses (Success/Failure) according to the card network.
+
+Mada​
+
+Card NumberStatusMessageResponse Code3DS Note
+4201320111111010paidAPPROVED00----
+4201320000013020failedUNSPECIFIED FAILURE99----
+4201320000311101failedINSUFFICIENT FUNDS51----
+4201320131000508failedDECLINED: LOST CARD41----
+4201321234411220failedDECLINED05----
+4201322267774310failedDECLINED: EXPIRED CARD54----
+4201326324640570failedDECLINED: EXCEEDS WITHDRAWAL LIMIT61----
+4201321144311528failedDECLINED: STOLEN CARD43----
+
+Visa​
+
+Card NumberStatusMessageResponse Code3DS Note
+4111114005765430paidAPPROVED00Frictionless Authentication
+4111111111111111paidAPPROVED00----
+4123120000000000failedUNSPECIFIED FAILURE99----
+4123120001090000failedINSUFFICIENT FUNDS51----
+4123450131000508failedDECLINED: LOST CARD41----
+4123120001090109failedDECLINED05----
+4123128518640738failedDECLINED: EXPIRED CARD54----
+4123123033308648failedDECLINED: EXCEEDS WITHDRAWAL LIMIT61----
+4123125276780003failedDECLINED: STOLEN CARD43----
+4111118250252531failed3DS: attempted but not available, please ensure that you have enabled Online Purchase from your bank portal.----ECI 06
+4111113343111067failed3DS service error occurred.----3DS fails during enrollement check
+4111116611600661failedThe card is not enrolled in 3DS service.--------
+4111112205628150failed3DS service error occurred.----3DS fails during authentication attempt
+4111115784228433failedThe authentication attempt was rejected by the issuer bank.--------
+4111115620358287failedThe authentication is unavailable, please try again later or contact issuer bank if problem persisted.--------
+
+Mastercard​
+
+Card NumberStatusMessageResponse Code3DS Note
+5421080101000000paidAPPROVED00----
+5105105105105100failedUNSPECIFIED FAILURE99----
+5457210001000092failedINSUFFICIENT FUNDS51----
+5204010101000000failedDECLINED: LOST CARD41----
+5204730000002514failedDECLINED05----
+5105107550274126failedDECLINED: EXPIRED CARD54----
+5105106475101067failedDECLINED: EXCEEDS WITHDRAWAL LIMIT61----
+5105107304607225failedDECLINED: STOLEN CARD43----
+
+American Express (AMEX)​
+
+Card NumberStatusMessageResponse Code3DS Note
+340000000900000paidAPPROVED00----
+371111111111114failedUNSPECIFIED FAILURE99----
+340033000000000failedINSUFFICIENT FUNDS51----
+340012340501000failedDECLINED: LOST CARD41----
+340033000000133failedDECLINED05----
+340000018441278failedDECLINED: EXPIRED CARD54----
+340000753060788failedDECLINED: EXCEEDS WITHDRAWAL LIMIT61----
+340000418501838failedDECLINED: STOLEN CARD43----
+
+Testing Apple Pay​
+
+Unlike card payments where specific test card numbers are used, testing Apple Pay payments in the Stream's sandbox environment is based on the amount sent to the API (according to Moyassar).
+
+A real card must be added to an Apple Pay Wallet to test the process, but you must be using the sandbox environment to ensure no actual payment is made.
+
+The following amounts will simulate different payment outcomes:
+
+Amount (Minor Unit)Amount (SAR)StatusMessageResponse Code
+20000 to 30000200.00 to 300.00paidAPPROVED00
+100000 to 1100001000.00 to 1100.00failedUNSPECIFIED FAILURE99
+110100 to 1200001101.00 to 1200.00failedINSUFFICIENT FUNDS51
+120100 to 1300001201.00 to 1300.00failedDECLINED: LOST CARD41
+130100 to 1400001301.00 to 1400.00failedDECLINED05
+140100 to 1500001401.00 to 1500.00failedDECLINED: EXPIRED CARD54
+150100 to 1600001501.00 to 1600.00failedDECLINED: EXCEEDS WITHDRAWAL LIMIT61
+160100 to 1700001601.00 to 1700.00failedDECLINED: STOLEN CARD43
+
+Note: Moyasar accepts the payment amount in the minor currency unit (e.g., cents), and the test environment uses this amount to return different results.
+
+Tip: Using any other amount range than the stated above will result in the payment failing.
+
+Previous
+Webhooks
+Next
+Installments
+
+Testing Environment
+Required Card Fields
+List of Test Cards and Expected OutcomesMada
+Visa
+Mastercard
+American Express (AMEX)
+
+Testing Apple Pay
+

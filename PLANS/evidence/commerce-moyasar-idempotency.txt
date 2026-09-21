@@ -1,0 +1,88 @@
+Source: https://docs.moyasar.com/api/idempotency
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Idempotency
+On this page
+Idempotency
+
+Introduction​
+
+Idempotency is a concept that means performing an action multiple times has the same effect as performing it once. In other words, no matter how many times the operation is repeated, the outcome remains unchanged after the first execution.
+
+It is crucial for building reliable and robust systems, especially in distributed environments where requests might be retried automatically due to timeouts or failures.
+
+Moyasar provides a simple solution that you can adapt to ensure your payment creation requests are idempotent. Therefore, in the case of network issues, you can safely retry creating payments without the risk of duplicate charges to your customers.
+
+Common Scenario - No Idempotency​
+
+In the case where idempotency is not supported, suppose you are sending the following payment creation request:
+
+{  "amount": 100,  "callback_url": "http://payments.local",  "description": "card",  "source": {    "type": "creditcard",    "number": "4111111111111111",    "name": "John Doe",    "cvc": "113",    "month": "3",    "year": "2035"  }}
+
+You should receive either:
+
+a 201 response to indicate that the payment has been processed (either initiated, failed, or paid)
+
+a 4xx response to indicate a client-side error.
+
+a 5xx response to indicate that something somewhere went wrong.
+
+The first two responses convey what happened to the payment request. You can decide what to do next.
+
+However, the third one doesn't exactly tell what happened. There are multiple scenarios associated with the payment:
+
+Processed: The amount has been deducted from the customer. If you retry again, the customer will be double charged.
+
+Not Processed: The amount has not been deducted from the customer. If you retry again, the customer will not "feel" the service disturbance.
+
+Overall, you will never know the conclusion in a timely manner to decide what to do next.
+
+Common Scenario - With Idempotency​
+
+Moyasar supports payment creation idempotency by allowing you to provide a given_id key with a value of a uuid (v4 is recommended) in the payment creation request. You will need to generate it from your side.
+
+Request
+
+{  "given_id": "a1168bd1-47a4-4b97-8a50-dd5caaccacf2",  "amount": 100,  "callback_url": "http://payments.local",  "description": "card",  "source": {    "type": "creditcard",    "number": "4111111111111111",    "name": "John Doe",    "cvc": "113",    "month": "3",    "year": "2035"  }}
+
+Response
+
+{    "id": "a1168bd1-47a4-4b97-8a50-dd5caaccacf2",    "status": "initiated",    "amount": 100,    ...    "source": {        ...    }}
+
+The ID of the created payment will be the same one you have provided in the given_id.
+
+This simple yet powerful feature enables you to safely retry creating the payment for multiple times if you get a 5xx response.
+
+If the payment is already processed by the first request, you will get the same successful response you should have gotten before.
+
+If the payment wasn't processed yet, it will be processed as if it has been received for the first time.
+
+Therefore, your customers are shielded from any potential networks issues - No duplicate charges with multiple retries.
+
+info
+If you ever send the same give_id value for different payments, you will receive a 400 response with the error message Payment is already created.
+
+When To Retry Payment Creation​
+
+You should retry creating the payment in the following cases:
+
+When you receive a 5xx response when creating a new payment.
+
+When you have a network error.
+
+When you get a timeout error (open, read, or write).
+
+Last updated on Sep 9, 2026
+
+Previous
+Metadata
+Next
+Payments API
+
+Introduction
+Common Scenario - No Idempotency
+Common Scenario - With Idempotency
+When To Retry Payment Creation
+

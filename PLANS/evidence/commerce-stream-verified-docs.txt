@@ -1,0 +1,488 @@
+Source: https://docs.streampay.sa
+Retrieved UTC: 2026-09-21T04:00:20.601885+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Getting Started
+On this page
+Getting Started with Stream
+
+Welcome to Stream, your partner for seamless and secure online payments.
+This guide walks you through the essentials to integrate our checkout experience into your website or app.
+
+The full payment flow:
+
+Your site → Stream Secure Checkout → Redirect to your success or failure page
+
+Overview: Integration Steps​
+
+Authorization
+
+Create a Customer (Consumer)
+
+Creating a Payment Link
+
+Handling Payment Redirects
+
+Retrieve Payment or Subscription Status
+
+Authorization​
+
+All API calls require authentication using your Stream API Key Pair (api-key + api-secret).
+
+Navigate to Stream API Settings.
+
+Click Create Key Pair and store the keys securely.
+
+To authenticate your requests, encode your API key and secret as a Base64-encoded token. Use the following command (replace api-key and api-secret with your actual values):
+
+echo -n 'api-key:api-secret' | base64
+
+Include this Base64-encoded token in the x-api-key authentication header for all API requests:
+
+x-api-key: <your-base64-token>
+
+Create a Customer (Consumer)​
+
+Before you can generate a payment link for a specific customer, you must first create a customer (consumer) record in Stream. This step registers the customer in your organization and returns a unique identifier that you'll use to tie payment links to that customer.
+
+Why Create a Customer First?​
+
+Personalized checkout: When you attach a customer to a payment link, Stream skips the customer-details form during checkout because the customer's information is already known.
+
+Customer tracking: Every invoice, subscription, and payment is linked back to the customer record, making reconciliation straightforward.
+
+Repeat billing: For recurring products, the customer record is required to manage the subscription lifecycle.
+
+Step 1: Prepare the Customer Data​
+
+Decide which contact fields to include. The only required field is name. All other fields are optional but recommended for a complete integration.
+
+FieldTypeRequiredDescription
+namestringYesFull name of the customer
+phone_numberstringNoPhone number (E.164 format, e.g., +966501234567)
+emailstringNoEmail address
+external_idstringNoYour own system's ID for this customer (useful for cross-referencing)
+ibanstringNoIBAN (max 34 characters) for bank-related operations
+aliasstringNoShort alias or display name
+commentstringNoInternal notes about the customer
+preferred_languagestringNoCustomer's preferred language for communications
+communication_methodsstring[]NoPreferred channels: WHATSAPP, EMAIL, SMS (can include multiple)
+
+Tip: Always include at least phone_number or email so Stream can send payment notifications to the customer.
+
+Step 2: Send the Create Request​
+
+Endpoint: POST /api/v2/consumers
+
+Auth: x-api-key: <base64(api-key:api-secret)>
+
+cURL example:
+
+curl -X POST https://stream-app-service.streampay.sa/api/v2/consumers \
+  -H "x-api-key: <your-base64-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Ahmad Ali",
+    "email": "[email protected]",
+    "phone_number": "+966501234567",
+    "external_id": "cust_12345",
+    "communication_methods": ["EMAIL", "SMS"]
+  }'
+
+Step 3: Handle the Response​
+
+A successful response (200 OK) returns the full customer record. The most important field is id — this is the organization_consumer_id you'll use when creating payment links.
+
+Example response (simplified):
+
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "name": "Ahmad Ali",
+  "email": "[email protected]",
+  "phone_number": "+966501234567",
+  "external_id": "cust_12345",
+  "is_deleted": false,
+  "created_at": "2025-06-15T10:30:00Z",
+  "communication_methods": ["EMAIL", "SMS"],
+  "preferred_language": "ar"
+}
+
+See the full response schema in the Create Consumer API Reference.
+
+Step 4: Handle Errors​
+
+If the request fails validation, the API returns a 422 status with an array of error details:
+
+{
+  "detail": [
+    {
+      "loc": ["body", "name"],
+      "msg": "Field required",
+      "type": "missing"
+    }
+  ]
+}
+
+Each object in the detail array contains type (error kind), loc (field path), and msg (human-readable message). Common error scenarios:
+
+type / Scenariolocmsg (example)Resolution
+missing["body", "name"]"Field required"Include the required name field in the request body
+value_error["body", "phone_number"]"value is not a valid phone number"Use E.164 format: +<country-code><number> (e.g., +966501234567)
+value_error["body", "email"]"value is not a valid email address"Provide a properly formatted email address
+
+The API may also return a non-validation error with a top-level error code instead of a detail array. The most common one:
+
+Error CodeCauseResolution
+DUPLICATE_CONSUMERA consumer with the same phone number or email already existsUse Get All Consumers to find the existing record and use its id instead
+
+Tip: Always check for an existing consumer before creating a new one to avoid DUPLICATE_CONSUMER errors. You can list consumers with GET /api/v2/consumers or match by external_id in your own system.
+
+Step 5: Use the Customer ID in a Payment Link​
+
+Once you have the customer id from the response, pass it as organization_consumer_id when creating a payment link. This ties the payment to the specific customer and skips the customer-details step at checkout.
+
+Note: If you omit organization_consumer_id, the payment link will collect customer details during checkout and create a new customer record automatically. Use this approach for general-purpose links shared with multiple customers.
+
+Managing Existing Customers​
+
+After creating customers, you can manage them with these endpoints. The {consumer_id} path parameter is the id returned by POST /api/v2/consumers — the same value you pass as organization_consumer_id when creating payment links.
+
+ActionMethodEndpointAPI Reference
+List allGET/api/v2/consumersGet All Consumers
+Get oneGET/api/v2/consumers/{consumer_id}Get Consumer
+DeleteDELETE/api/v2/consumers/{consumer_id}Delete Consumer
+
+Before creating a new customer, you can check for an existing record by listing consumers or using your external_id to avoid duplicates.
+
+Creating a Payment Link​
+
+Create a checkout/payment link using the Payment Link API.
+
+Endpoint: POST /api/v2/payment_links
+
+Auth: x-api-key: <base64(api-key:api-secret)>
+
+Payment links redirect customers to Stream's secure checkout page. They support two use cases:
+
+For multiple customers: Create a general-purpose link that anyone can use. Each customer enters their information during checkout. Perfect for events, group purchases, or public product sales.
+
+For one specific customer: Create a link tied to a specific customer by setting organization_consumer_id. The checkout page will skip the customer details collection step since the customer information is already known. Use this when charging a known customer.
+
+When a customer pays through a payment link, the behavior depends on the product types you include:
+
+One-time products: When the payment link is paid, Stream creates an invoice with the products. The payment can be split into multiple installments, but the product itself is a one-time purchase (not recurring).
+
+Recurring products: When the payment link is paid, Stream creates a subscription (with recurring billing) and an initial invoice. The subscription will automatically generate invoices for future billing cycles based on the recurring interval.
+
+Important: You cannot mix one-time and recurring products in the same payment link. All products must be either one-time or all must be recurring.
+
+Strategy: Single Order with Both One-Time + Recurring Items​
+
+If a cart contains both one-time and recurring products, split it into two payment links and guide the customer through a short two-step checkout. This keeps each payment link valid while preserving a single “order” in your system.
+
+General approach
+
+Create one link that contains only one-time items and a separate link that contains only recurring items.
+
+Treat both links as part of the same internal order (e.g., by storing a shared order reference in metadata or your database).
+
+Present the links sequentially (or based on your business preference) so the customer completes both steps.
+
+Confirm both outcomes via your normal status checks or webhooks before marking the order as complete.
+
+Note: You'll need existing products to create payment links. See the Products API for creating products. If you want to link a payment to a specific customer, you'll also need to create a customer first using the Consumers API.
+
+Example: Payment Link for Multiple Customers​
+
+This example creates a payment link that can be used by multiple different customers. Each customer will enter their information when they visit the checkout page.
+
+{
+  "name": "Event Registration",
+  "description": "Annual conference registration",
+  "items": [
+    {
+      "product_id": "your-product-uuid-here",
+      "quantity": 1
+    }
+  ],
+  "contact_information_type": "PHONE",
+  "currency": "SAR",
+  "max_number_of_payments": 100,
+  "success_redirect_url": "https://example.com/success",
+  "failure_redirect_url": "https://example.com/failure",
+  "custom_metadata": {
+    "event_id": "conf_2025",
+    "campaign_source": "email_marketing"
+  }
+}
+
+Code snippet (general-purpose, one-time product):
+
+curl -X POST https://stream-app-service.streampay.sa/api/v2/payment_links \
+  -H "x-api-key: <your-base64-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Event Registration",
+    "description": "Annual conference registration",
+    "items": [
+      { "product_id": "your-product-uuid-here", "quantity": 1 }
+    ],
+    "contact_information_type": "PHONE",
+    "currency": "SAR",
+    "max_number_of_payments": 100,
+    "success_redirect_url": "https://example.com/success",
+    "failure_redirect_url": "https://example.com/failure"
+  }'
+
+Note: organization_consumer_id is not set, so the link will collect customer information from each payer.
+
+Example: Payment Link for One Specific Customer​
+
+This example creates a payment link for a specific customer. When you specify organization_consumer_id, the checkout page will skip the customer details collection step since the customer information is already known.
+
+{
+  "name": "Product Purchase",
+  "description": "One-time payment for product order",
+  "items": [
+    {
+      "product_id": "your-product-uuid-here",
+      "quantity": 1
+    }
+  ],
+  "contact_information_type": "PHONE",
+  "currency": "SAR",
+  "max_number_of_payments": 1,
+  "organization_consumer_id": "your-customer-uuid-here",
+  "success_redirect_url": "https://example.com/success",
+  "failure_redirect_url": "https://example.com/failure",
+  "custom_metadata": {
+    "customer_id": "cust_12345",
+    "order_id": "order_789"
+  }
+}
+
+Note: organization_consumer_id is set, so the checkout page will skip the customer details collection step. The max_number_of_payments is typically set to 1 when targeting a specific customer.
+
+Example: Payment Link for a Recurring Product (New Subscription)​
+
+Use this when you want a customer to start a subscription from checkout. The product itself must be recurring (e.g., monthly), which is configured when you create the product via the Products API. The payment link request is the same endpoint as one-time links:
+
+Endpoint: POST /api/v2/payment_links
+
+Auth: x-api-key: <base64(api-key:api-secret)>
+
+When the customer completes payment, Stream automatically creates a subscription and an initial invoice. Future invoices are generated based on the product's recurring interval. You can retrieve the created subscription via the Subscriptions API.
+
+{
+  "name": "Premium Plan Subscription",
+  "description": "Monthly recurring plan",
+  "items": [
+    {
+      "product_id": "recurring-product-uuid-here",
+      "quantity": 1
+    }
+  ],
+  "contact_information_type": "EMAIL",
+  "currency": "SAR",
+  "max_number_of_payments": 1,
+  "organization_consumer_id": "your-customer-uuid-here",
+  "success_redirect_url": "https://example.com/success",
+  "failure_redirect_url": "https://example.com/failure",
+  "custom_metadata": {
+    "plan": "premium_monthly",
+    "source": "pricing_page"
+  }
+}
+
+cURL example:
+
+curl -X POST https://stream-app-service.streampay.sa/api/v2/payment_links \
+  -H "x-api-key: <your-base64-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Premium Plan Subscription",
+    "description": "Monthly recurring plan",
+    "items": [
+      { "product_id": "recurring-product-uuid-here", "quantity": 1 }
+    ],
+    "contact_information_type": "EMAIL",
+    "currency": "SAR",
+    "max_number_of_payments": 1,
+    "organization_consumer_id": "your-customer-uuid-here",
+    "success_redirect_url": "https://example.com/success",
+    "failure_redirect_url": "https://example.com/failure"
+  }'
+
+Notes:
+
+The recurring behavior is defined on the product, not the payment link.
+
+Do not mix one-time and recurring products in the same payment link.
+
+If organization_consumer_id is omitted, the checkout will collect customer details and the subscription will be created for that newly created customer.
+
+Response​
+
+The API returns a payment link object. The most important field is url, which you'll redirect customers to:
+
+{
+  "url": "https://streampay.sa/s/...",
+  "id": "payment-link-uuid",
+  "status": "ACTIVE",
+  "amount": "2500.00",
+  "currency": "SAR"
+}
+
+Note: This response has been simplified for brevity. The full response includes additional fields like items, custom_metadata, success_redirect_url, and more. See the API Reference for the complete response schema.
+
+Redirect your customer to the url field to complete the payment securely.
+
+Checkout Language​
+
+The checkout page language can be overridden using the language
+query parameter on the payment link URL. By default, the checkout page is displayed to the customer in the language the organization is configured in.
+
+Example:
+
+https://streampay.sa/s/...?...&language=en
+
+Or:
+
+https://streampay.sa/s/...?language=en
+
+Supported values:
+
+ValueLanguage
+arArabic (default)
+enEnglish
+
+Note: This parameter only affects the hosted checkout page UI language. Data is not affected.
+
+Handling Payment Redirects​
+
+After checkout, Stream can redirect the customer to your success_redirect_url or failure_redirect_url (if provided) with payment information as query parameters. If you omit these URLs, Stream will show its hosted success/failure pages instead.
+
+Redirect URL Examples​
+
+Success redirect:
+
+https://example.com/success?id=...&invoice_id=...&status=paid&message=APPROVED
+
+Failure redirect:
+
+https://example.com/failure?payment_link_id=...&id=...&status=failed&message=...
+
+Query Parameters​
+
+All redirects include these parameters:
+
+ParameterDescription
+idPayment gateway payment ID - for internal use only. Useful for debugging when contacting support, but cannot be used in Stream APIs. Use payment_id or invoice_id instead.
+payment_link_idUUID of the payment link that was used
+statusPayment status: paid, pending, failed, or failed_internal_error
+messageStatus message from the gateway (e.g., APPROVED, DECLINED, The customer’s bank has declined.)
+login_methodConsumer's preferred login method: PHONE or EMAIL
+
+info
+
+status=failed: A definite rejection (e.g. insufficient funds, card declined). The payer should retry after addressing the issue.
+
+status=failed_internal_error: Transient or unclear failures (e.g. timeouts). The payer should contact support; money may or may not have been taken.
+
+Additional parameters on success only:
+
+ParameterDescription
+invoice_idUUID of the invoice created from the payment link
+consent_idUUID of the payment consent/authorization
+payment_idUUID of the payment record in Stream's system
+organization_consumer_idUUID of the customer who made the payment (newly created if not set when the payment link was created)
+
+Note: On failure, the additional parameters above are not included since the payment did not complete successfully.
+
+Processing the Redirect​
+
+Parse the query parameters from the redirect URL on your server.
+
+danger
+Important: Always validate the payment server-side before accepting the order or completing any business action. Fetch the invoice using the invoice_id from the redirect with the Invoice API, and verify its status, amount, and currency match your expectations. This server-side verification ensures the payment is legitimate before updating your system state. Never trust redirect parameters alone, always verify through our API.
+
+Retrieve Payment or Subscription Status​
+
+Use the Get Payment and Get Subscription endpoints to fetch the latest status programmatically.
+
+Endpoints
+
+Payment status: GET /api/v2/payments/{payment_id} → Payments API
+
+Subscription status: GET /api/v2/subscriptions/{subscription_id} → Subscriptions API
+
+Authentication
+
+Use the same x-api-key header described in Authorization:
+
+x-api-key: <base64(api-key:api-secret)>
+
+Example: Fetch Payment Status (cURL)​
+
+curl -X GET https://stream-app-service.streampay.sa/api/v2/payments/your-payment-id \
+  -H "x-api-key: <your-base64-token>"
+
+Example: Fetch Subscription Status (cURL)​
+
+curl -X GET https://stream-app-service.streampay.sa/api/v2/subscriptions/your-subscription-id \
+  -H "x-api-key: <your-base64-token>"
+
+Example: Fetch Status in JavaScript (Node.js)​
+
+const API_BASE = "https://stream-app-service.streampay.sa/api/v2";
+const API_KEY = process.env.STREAM_API_KEY_BASE64; // base64(api-key:api-secret)
+
+async function getPaymentStatus(paymentId) {
+  const res = await fetch(`${API_BASE}/payments/${paymentId}`, {
+    headers: { "x-api-key": API_KEY }
+  });
+  if (!res.ok) throw new Error(`Payment fetch failed: ${res.status}`);
+  const payment = await res.json();
+  return payment.status;
+}
+
+async function getSubscriptionStatus(subscriptionId) {
+  const res = await fetch(`${API_BASE}/subscriptions/${subscriptionId}`, {
+    headers: { "x-api-key": API_KEY }
+  });
+  if (!res.ok) throw new Error(`Subscription fetch failed: ${res.status}`);
+  const subscription = await res.json();
+  return subscription.status;
+}
+
+Tip: The status field in each response is the source of truth for the current state. See the full response schema in the linked API reference pages.
+
+Next
+Authentication
+
+Overview: Integration Steps
+Authorization
+Create a Customer (Consumer)Why Create a Customer First?
+Step 1: Prepare the Customer Data
+Step 2: Send the Create Request
+Step 3: Handle the Response
+Step 4: Handle Errors
+Step 5: Use the Customer ID in a Payment Link
+Managing Existing Customers
+
+Creating a Payment LinkStrategy: Single Order with Both One-Time + Recurring Items
+Example: Payment Link for Multiple Customers
+Example: Payment Link for One Specific Customer
+Example: Payment Link for a Recurring Product (New Subscription)
+Response
+Checkout Language
+
+Handling Payment RedirectsRedirect URL Examples
+Query Parameters
+Processing the Redirect
+
+Retrieve Payment or Subscription StatusExample: Fetch Payment Status (cURL)
+Example: Fetch Subscription Status (cURL)
+Example: Fetch Status in JavaScript (Node.js)
+

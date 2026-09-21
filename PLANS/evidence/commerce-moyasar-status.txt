@@ -1,0 +1,26 @@
+Source: https://docs.moyasar.com/api/payments/payment-status-reference
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Payments API
+Payment Status Reference
+Payment Status Reference
+
+StatusDescription
+initiatedFirst status of a payment. It indicates that the payment has been created but the cardholder did not pay yet.
+paidPayment reaches this status when the cardholder pays successfully.
+failedPayment reaches this status when the cardholder or merchant has a certain error that caused the payment to fail (errors are attached to the message attribute).
+authorizedPayment reaches this status when the merchant authorizes it to be manually captured anytime later— the cardholder is not charged yet.
+capturedPayment reaches this status when the cardholder of an authorized payment is charged successfully.
+refundedPayment reaches this status when the merchant refunds a paid or captured payment successfully.
+voidedPayment reaches this status when the merchant cancels a paid, authorized, or captured payment. It works only if the amount is not settled yet in the merchant’s bank account.
+verifiedPayment reaches this status when the cardholder verifies his card in the tokenization process
+
+Last updated on Sep 9, 2026
+
+Previous
+Void Payment
+Next
+Card Authentication API
+

@@ -1,0 +1,206 @@
+[
+  {
+    "full_name": "Nodlik/StPageFlip",
+    "html_url": "https://github.com/Nodlik/StPageFlip",
+    "archived": false,
+    "pushed_at": "2024-01-08T09:10:43Z",
+    "updated_at": "2026-09-20T04:39:20Z",
+    "open_issues_count": 46,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "master",
+    "source": "https://api.github.com/repos/Nodlik/StPageFlip"
+  },
+  {
+    "full_name": "Nodlik/react-pageflip",
+    "html_url": "https://github.com/Nodlik/react-pageflip",
+    "archived": false,
+    "pushed_at": "2023-08-26T14:53:16Z",
+    "updated_at": "2026-09-18T01:45:31Z",
+    "open_issues_count": 54,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "master",
+    "source": "https://api.github.com/repos/Nodlik/react-pageflip"
+  },
+  {
+    "full_name": "mozilla/pdf.js",
+    "html_url": "https://github.com/mozilla/pdf.js",
+    "archived": false,
+    "pushed_at": "2026-09-21T12:04:40Z",
+    "updated_at": "2026-09-21T12:05:10Z",
+    "open_issues_count": 425,
+    "license": {
+      "key": "apache-2.0",
+      "name": "Apache License 2.0",
+      "spdx_id": "Apache-2.0",
+      "url": "https://api.github.com/licenses/apache-2.0",
+      "node_id": "MDc6TGljZW5zZTI="
+    },
+    "default_branch": "master",
+    "source": "https://api.github.com/repos/mozilla/pdf.js"
+  },
+  {
+    "full_name": "mrdoob/three.js",
+    "html_url": "https://github.com/mrdoob/three.js",
+    "archived": false,
+    "pushed_at": "2026-09-21T12:17:18Z",
+    "updated_at": "2026-09-21T11:05:28Z",
+    "open_issues_count": 387,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "dev",
+    "source": "https://api.github.com/repos/mrdoob/three.js"
+  },
+  {
+    "full_name": "pmndrs/react-three-fiber",
+    "html_url": "https://github.com/pmndrs/react-three-fiber",
+    "archived": false,
+    "pushed_at": "2026-09-20T21:59:06Z",
+    "updated_at": "2026-09-21T12:06:26Z",
+    "open_issues_count": 77,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "master",
+    "source": "https://api.github.com/repos/pmndrs/react-three-fiber"
+  },
+  {
+    "full_name": "adamgibbons/ics",
+    "html_url": "https://github.com/adamgibbons/ics",
+    "archived": false,
+    "pushed_at": "2026-09-13T07:13:30Z",
+    "updated_at": "2026-07-10T12:35:35Z",
+    "open_issues_count": 29,
+    "license": {
+      "key": "isc",
+      "name": "ISC License",
+      "spdx_id": "ISC",
+      "url": "https://api.github.com/licenses/isc",
+      "node_id": "MDc6TGljZW5zZTEw"
+    },
+    "default_branch": "master",
+    "source": "https://api.github.com/repos/adamgibbons/ics"
+  },
+  {
+    "full_name": "kewisch/ical.js",
+    "html_url": "https://github.com/kewisch/ical.js",
+    "archived": false,
+    "pushed_at": "2026-09-21T09:03:33Z",
+    "updated_at": "2026-09-17T13:55:49Z",
+    "open_issues_count": 64,
+    "license": {
+      "key": "mpl-2.0",
+      "name": "Mozilla Public License 2.0",
+      "spdx_id": "MPL-2.0",
+      "url": "https://api.github.com/licenses/mpl-2.0",
+      "node_id": "MDc6TGljZW5zZTE0"
+    },
+    "default_branch": "main",
+    "source": "https://api.github.com/repos/kewisch/ical.js"
+  },
+  {
+    "full_name": "medusajs/medusa",
+    "html_url": "https://github.com/medusajs/medusa",
+    "archived": false,
+    "pushed_at": "2026-09-21T11:22:01Z",
+    "updated_at": "2026-09-21T09:37:23Z",
+    "open_issues_count": 196,
+    "license": {
+      "key": "other",
+      "name": "Other",
+      "spdx_id": "NOASSERTION",
+      "url": null,
+      "node_id": "MDc6TGljZW5zZTA="
+    },
+    "default_branch": "develop",
+    "source": "https://api.github.com/repos/medusajs/medusa"
+  },
+  {
+    "full_name": "saleor/saleor",
+    "html_url": "https://github.com/saleor/saleor",
+    "archived": false,
+    "pushed_at": "2026-09-21T11:01:24Z",
+    "updated_at": "2026-09-21T11:16:14Z",
+    "open_issues_count": 277,
+    "license": {
+      "key": "bsd-3-clause",
+      "name": "BSD 3-Clause \"New\" or \"Revised\" License",
+      "spdx_id": "BSD-3-Clause",
+      "url": "https://api.github.com/licenses/bsd-3-clause",
+      "node_id": "MDc6TGljZW5zZTU="
+    },
+    "default_branch": "main",
+    "source": "https://api.github.com/repos/saleor/saleor"
+  },
+  {
+    "full_name": "calcom/cal.diy",
+    "html_url": "https://github.com/calcom/cal.diy",
+    "archived": false,
+    "pushed_at": "2026-09-20T08:42:15Z",
+    "updated_at": "2026-09-21T10:24:22Z",
+    "open_issues_count": 1419,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "main",
+    "source": "https://api.github.com/repositories/350360184"
+  },
+  {
+    "full_name": "vercel/next.js",
+    "html_url": "https://github.com/vercel/next.js",
+    "archived": false,
+    "pushed_at": "2026-09-21T11:24:36Z",
+    "updated_at": "2026-09-21T12:17:21Z",
+    "open_issues_count": 3467,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "canary",
+    "source": "https://api.github.com/repos/vercel/next.js"
+  },
+  {
+    "full_name": "cloudflare/vinext",
+    "html_url": "https://github.com/cloudflare/vinext",
+    "archived": false,
+    "pushed_at": "2026-09-21T12:04:01Z",
+    "updated_at": "2026-09-21T12:16:45Z",
+    "open_issues_count": 519,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit",
+      "node_id": "MDc6TGljZW5zZTEz"
+    },
+    "default_branch": "main",
+    "source": "https://api.github.com/repos/cloudflare/vinext"
+  }
+]

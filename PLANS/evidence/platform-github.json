@@ -1,0 +1,132 @@
+[
+  {
+    "repo": "payloadcms/payload",
+    "archived": false,
+    "pushedAt": "2026-09-21T01:11:57Z",
+    "license": "MIT",
+    "release": "v3.90.1",
+    "releasedAt": "2026-09-18T18:49:51Z",
+    "releaseUrl": "https://github.com/payloadcms/payload/releases/tag/v3.90.1",
+    "source": "https://api.github.com/repos/payloadcms/payload"
+  },
+  {
+    "repo": "supabase/supabase-js",
+    "archived": false,
+    "pushedAt": "2026-09-18T16:36:49Z",
+    "license": "MIT",
+    "release": "v2.116.0",
+    "releasedAt": "2026-09-07T16:24:55Z",
+    "releaseUrl": "https://github.com/supabase/supabase-js/releases/tag/v2.116.0",
+    "source": "https://api.github.com/repos/supabase/supabase-js"
+  },
+  {
+    "repo": "supabase/ssr",
+    "archived": false,
+    "pushedAt": "2026-09-11T15:37:32Z",
+    "license": "MIT",
+    "release": "v0.12.7",
+    "releasedAt": "2026-09-08T08:11:26Z",
+    "releaseUrl": "https://github.com/supabase/ssr/releases/tag/v0.12.7",
+    "source": "https://api.github.com/repos/supabase/ssr"
+  },
+  {
+    "repo": "ueberdosis/tiptap",
+    "archived": false,
+    "pushedAt": "2026-09-17T11:47:38Z",
+    "license": "MIT",
+    "release": "v3.31.3",
+    "releasedAt": "2026-09-04T10:40:17Z",
+    "releaseUrl": "https://github.com/ueberdosis/tiptap/releases/tag/v3.31.3",
+    "source": "https://api.github.com/repos/ueberdosis/tiptap"
+  },
+  {
+    "repo": "facebook/lexical",
+    "archived": false,
+    "pushedAt": "2026-09-21T02:43:51Z",
+    "license": "MIT",
+    "release": "v0.51.0",
+    "releasedAt": "2026-09-17T21:05:11Z",
+    "releaseUrl": "https://github.com/facebook/lexical/releases/tag/v0.51.0",
+    "source": "https://api.github.com/repos/facebook/lexical"
+  },
+  {
+    "repo": "adobe/react-spectrum",
+    "archived": false,
+    "pushedAt": "2026-09-21T00:39:54Z",
+    "license": "Apache-2.0",
+    "release": "react-aria-components@1.21.0",
+    "releasedAt": "2026-09-04T19:44:19Z",
+    "releaseUrl": "https://github.com/adobe/react-spectrum/releases/tag/react-aria-components%401.21.0",
+    "source": "https://api.github.com/repos/adobe/react-spectrum"
+  },
+  {
+    "repo": "mui/base-ui",
+    "archived": false,
+    "pushedAt": "2026-09-21T02:56:04Z",
+    "license": "MIT",
+    "release": "v1.8.0",
+    "releasedAt": "2026-09-04T08:56:56Z",
+    "releaseUrl": "https://github.com/mui/base-ui/releases/tag/v1.8.0",
+    "source": "https://api.github.com/repos/mui/base-ui"
+  },
+  {
+    "repo": "react-hook-form/react-hook-form",
+    "archived": false,
+    "pushedAt": "2026-09-20T21:05:19Z",
+    "license": "MIT",
+    "release": "v7.88.0",
+    "releasedAt": "2026-09-11T22:30:09Z",
+    "releaseUrl": "https://github.com/react-hook-form/react-hook-form/releases/tag/v7.88.0",
+    "source": "https://api.github.com/repos/react-hook-form/react-hook-form"
+  },
+  {
+    "repo": "jaredpalmer/formik",
+    "archived": false,
+    "pushedAt": "2025-11-10T17:02:06Z",
+    "license": "Apache-2.0",
+    "release": "formik@2.4.9",
+    "releasedAt": "2025-11-10T17:02:10Z",
+    "releaseUrl": "https://github.com/jaredpalmer/formik/releases/tag/formik%402.4.9",
+    "source": "https://api.github.com/repos/jaredpalmer/formik"
+  },
+  {
+    "repo": "colinhacks/zod",
+    "archived": false,
+    "pushedAt": "2026-09-19T19:28:33Z",
+    "license": "MIT",
+    "release": "v4.6.5",
+    "releasedAt": "2026-09-13T23:25:34Z",
+    "releaseUrl": "https://github.com/colinhacks/zod/releases/tag/v4.6.5",
+    "source": "https://api.github.com/repos/colinhacks/zod"
+  },
+  {
+    "repo": "fabian-hiller/valibot",
+    "archived": false,
+    "pushedAt": "2026-09-21T03:26:54Z",
+    "license": "MIT",
+    "release": "v1.5.0",
+    "releasedAt": "2026-09-09T05:44:29Z",
+    "releaseUrl": "https://github.com/open-circle/valibot/releases/tag/v1.5.0",
+    "source": "https://api.github.com/repos/fabian-hiller/valibot"
+  },
+  {
+    "repo": "strapi/strapi",
+    "archived": false,
+    "pushedAt": "2026-09-20T22:08:28Z",
+    "license": "NOASSERTION",
+    "release": "v5.54.0",
+    "releasedAt": "2026-09-16T11:11:52Z",
+    "releaseUrl": "https://github.com/strapi/strapi/releases/tag/v5.54.0",
+    "source": "https://api.github.com/repos/strapi/strapi"
+  },
+  {
+    "repo": "refinedev/refine",
+    "archived": false,
+    "pushedAt": "2026-09-10T12:56:35Z",
+    "license": "MIT",
+    "release": "@refinedev/core@5.0.12",
+    "releasedAt": "2026-04-02T16:44:33Z",
+    "releaseUrl": "https://github.com/refinedev/refine/releases/tag/%40refinedev/core%405.0.12",
+    "source": "https://api.github.com/repos/refinedev/refine"
+  }
+]

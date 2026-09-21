@@ -1,0 +1,543 @@
+[
+  {
+    "name": "react-dom",
+    "version": "19.3.0",
+    "published": "2026-09-09T17:17:39.744Z",
+    "license": "MIT",
+    "unpackedSize": 8063782,
+    "integrity": "sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==",
+    "engines": null,
+    "dependencies": {
+      "scheduler": "^0.28.0"
+    },
+    "peerDependencies": {
+      "react": "^19.3.0"
+    },
+    "source": "https://registry.npmjs.org/react-dom",
+    "retrieved": "2026-09-21T12:17:40.891256+00:00"
+  },
+  {
+    "name": "@types/react",
+    "version": "19.3.0",
+    "published": "2026-09-09T18:08:49.750Z",
+    "license": "MIT",
+    "unpackedSize": 408108,
+    "integrity": "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==",
+    "engines": null,
+    "dependencies": {
+      "csstype": "^3.2.2"
+    },
+    "peerDependencies": {},
+    "source": "https://registry.npmjs.org/@types%2freact",
+    "retrieved": "2026-09-21T12:17:21.938138+00:00"
+  },
+  {
+    "name": "@types/react-dom",
+    "version": "19.3.0",
+    "published": "2026-09-09T18:07:51.886Z",
+    "license": "MIT",
+    "unpackedSize": 32862,
+    "integrity": "sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==",
+    "engines": null,
+    "dependencies": {},
+    "peerDependencies": {
+      "@types/react": "^19.3.0"
+    },
+    "source": "https://registry.npmjs.org/@types%2freact-dom",
+    "retrieved": "2026-09-21T12:17:16.363364+00:00"
+  },
+  {
+    "name": "@types/node",
+    "version": "26.6.2",
+    "published": "2026-09-19T00:11:47.344Z",
+    "license": "MIT",
+    "unpackedSize": 2545731,
+    "integrity": "sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==",
+    "engines": null,
+    "dependencies": {
+      "undici-types": "~8.9.0"
+    },
+    "peerDependencies": {},
+    "source": "https://registry.npmjs.org/@types%2fnode",
+    "retrieved": "2026-09-21T12:17:43.067998+00:00"
+  },
+  {
+    "name": "eslint",
+    "version": "10.11.0",
+    "published": "2026-09-18T20:15:36.485Z",
+    "license": "MIT",
+    "unpackedSize": 2946272,
+    "integrity": "sha512-P7a6UEEqb9G95MYAtqkmsTbVXIYyzIfl6NGOIJk162PaahFxFyeGcrlXYFSiagECg4sEm8IseJdZBKR3rx6MsQ==",
+    "engines": {
+      "node": "^20.19.0 || ^22.13.0 || >=24"
+    },
+    "dependencies": {
+      "ajv": "^6.14.0",
+      "debug": "^4.3.2",
+      "espree": "^11.2.0",
+      "ignore": "^5.2.0",
+      "esquery": "^1.7.0",
+      "esutils": "^2.0.2",
+      "find-up": "^5.0.0",
+      "is-glob": "^4.0.0",
+      "minimatch": "^10.2.5",
+      "optionator": "^0.9.3",
+      "cross-spawn": "^7.0.6",
+      "glob-parent": "^6.0.2",
+      "imurmurhash": "^0.1.4",
+      "@eslint/core": "^1.2.1",
+      "eslint-scope": "^9.1.2",
+      "@humanfs/node": "^0.16.6",
+      "@types/estree": "^1.0.6",
+      "fast-deep-equal": "^3.1.3",
+      "natural-compare": "^1.4.0",
+      "file-entry-cache": "11.1.5 || >11.1.6 <12",
+      "@eslint/plugin-kit": "^0.7.3",
+      "eslint-visitor-keys": "^5.0.1",
+      "@eslint/config-array": "^0.23.5",
+      "@humanwhocodes/retry": "^0.4.2",
+      "escape-string-regexp": "^4.0.0",
+      "@eslint/config-helpers": "^0.7.0",
+      "@eslint-community/regexpp": "^4.12.2",
+      "@eslint-community/eslint-utils": "^4.8.0",
+      "@humanwhocodes/module-importer": "^1.0.1",
+      "json-stable-stringify-without-jsonify": "^1.0.1"
+    },
+    "peerDependencies": {
+      "jiti": "*"
+    },
+    "source": "https://registry.npmjs.org/eslint",
+    "retrieved": "2026-09-21T12:17:18.588760+00:00"
+  },
+  {
+    "name": "eslint-config-next",
+    "version": "16.3.5",
+    "published": "2026-09-11T17:15:49.113Z",
+    "license": "MIT",
+    "unpackedSize": 14190,
+    "integrity": "sha512-wPjq9MLQuWykHs8tsm2gH6OJThk6N27L8Te2JatlaGZ7jT1gtgGmJKukygL28xOlWsg5J1a1bGy/PvLyQC8OYA==",
+    "engines": null,
+    "dependencies": {
+      "globals": "16.4.0",
+      "typescript-eslint": "^8.46.0",
+      "eslint-plugin-react": "^7.37.0",
+      "eslint-plugin-import": "^2.32.0",
+      "eslint-plugin-jsx-a11y": "^6.10.0",
+      "@next/eslint-plugin-next": "16.3.5",
+      "eslint-plugin-react-hooks": "^7.0.0",
+      "eslint-import-resolver-node": "^0.3.6",
+      "eslint-import-resolver-typescript": "^3.5.2"
+    },
+    "peerDependencies": {
+      "eslint": ">=9.0.0",
+      "typescript": ">=3.3.1"
+    },
+    "source": "https://registry.npmjs.org/eslint-config-next",
+    "retrieved": "2026-09-21T12:17:28.729534+00:00"
+  },
+  {
+    "name": "supabase",
+    "version": "2.117.0",
+    "published": "2026-09-07T16:47:41.935Z",
+    "license": "MIT",
+    "unpackedSize": 11253,
+    "integrity": "sha512-V4UDf/kgrqllHbc22vs89bL7pdBj3xhVolvDflByS5FuJb+tXpWhHZxYEbBQspxA0fBzaj+lpiedB72xTAZA4w==",
+    "engines": null,
+    "dependencies": {
+      "jose": "^6.2.10",
+      "eciesjs": "^0.5.0"
+    },
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/supabase",
+    "retrieved": "2026-09-21T12:17:25.551510+00:00"
+  },
+  {
+    "name": "pdfjs-dist",
+    "version": "6.3.289",
+    "published": "2026-08-29T12:52:28.054Z",
+    "license": "Apache-2.0",
+    "unpackedSize": 34781083,
+    "integrity": "sha512-ZHjSVpDa3D6izMq8/04lvkhkATUmL9px6ChPaXc1k6nU2Mrhlg1/7F0bdUqCwUjw3NsPTfPZsMDUU6ZIcRaeQw==",
+    "engines": {
+      "node": ">=22.13.0 || >=24"
+    },
+    "dependencies": null,
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/pdfjs-dist",
+    "retrieved": "2026-09-21T12:17:23.834642+00:00"
+  },
+  {
+    "name": "page-flip",
+    "version": "2.0.7",
+    "published": "2021-04-18T15:11:50.277Z",
+    "license": "MIT",
+    "unpackedSize": 9391581,
+    "integrity": "sha512-96lQFUUz7r/LZzEUZJ3yBIMEKU9+m8HMFDzTvTdD6P7Ag/wXINjp9n0W7b4wanwnDbQETo4uNUoL3zMqpFxwGA==",
+    "engines": null,
+    "dependencies": {},
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/page-flip",
+    "retrieved": "2026-09-21T12:17:23.063955+00:00"
+  },
+  {
+    "name": "react-pageflip",
+    "version": "2.0.3",
+    "published": "2021-04-18T16:06:25.783Z",
+    "license": "MIT",
+    "unpackedSize": 37672,
+    "integrity": "sha512-k81mHhRvUM52y8jyzTCh5t4O0lepkLhp+XGSUzq2C3uD+iW99Cv0jfRlqFCjZbD5N3jKkIFr7/3giucoXKDP3Q==",
+    "engines": null,
+    "dependencies": {
+      "page-flip": "latest"
+    },
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/react-pageflip",
+    "retrieved": "2026-09-21T12:17:24.517185+00:00"
+  },
+  {
+    "name": "three",
+    "version": "0.186.0",
+    "published": "2026-09-08T19:25:22.027Z",
+    "license": "MIT",
+    "unpackedSize": 20443175,
+    "integrity": "sha512-cr/fIM2ddMSVbYVgkfD4jLJv7Fh/8ZTjvo+7gQeSVGUZHxpx9FDwoL5iC7hUz/LiRA8wMbqfnb90xKfm1/HHkQ==",
+    "engines": null,
+    "dependencies": null,
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/three",
+    "retrieved": "2026-09-21T12:17:26.563507+00:00"
+  },
+  {
+    "name": "@react-three/fiber",
+    "version": "9.7.0",
+    "published": "2026-07-31T16:20:20.712Z",
+    "license": "MIT",
+    "unpackedSize": 2188429,
+    "integrity": "sha512-EWm9FwcaOZQu/ExFW5rggoCMM1NJet5YbxVxKaOE+KSncrjU0Wx7017qSyGFvupviK89nMYGCWU3BIK4dI1clw==",
+    "engines": null,
+    "dependencies": {
+      "buffer": "^6.0.3",
+      "zustand": "^5.0.3",
+      "its-fine": "^2.0.0",
+      "base64-js": "^1.5.1",
+      "scheduler": "^0.27.0",
+      "@types/webxr": "*",
+      "suspend-react": "^0.1.3",
+      "@babel/runtime": "^7.17.8",
+      "react-use-measure": "^2.1.7",
+      "use-sync-external-store": "^1.4.0"
+    },
+    "peerDependencies": {
+      "expo": ">=43.0",
+      "react": ">=19 <19.3",
+      "three": ">=0.156",
+      "expo-gl": ">=11.0",
+      "react-dom": ">=19 <19.3",
+      "expo-asset": ">=8.4",
+      "react-native": ">=0.78",
+      "expo-file-system": ">=11.0"
+    },
+    "source": "https://registry.npmjs.org/@react-three%2ffiber",
+    "retrieved": "2026-09-21T12:17:29.260256+00:00"
+  },
+  {
+    "name": "ics",
+    "version": "3.12.0",
+    "published": "2026-04-23T16:53:40.790Z",
+    "license": "ISC",
+    "unpackedSize": 71873,
+    "integrity": "sha512-BBPiZ/TbUyZrxui7SHKGOa/n2HUxaW9ucn7cw47NW9OSKe5tItYxIdN7Uczti5nKURmfwVvYi2aLigCJGH1+cA==",
+    "engines": null,
+    "dependencies": {
+      "nanoid": "^3.1.23",
+      "runes2": "^1.1.2",
+      "yup": "^1.2.0"
+    },
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/ics",
+    "retrieved": "2026-09-21T12:17:28.133021+00:00"
+  },
+  {
+    "name": "ical.js",
+    "version": "2.2.1",
+    "published": "2025-08-08T06:10:17.199Z",
+    "license": "MPL-2.0",
+    "unpackedSize": 1200090,
+    "integrity": "sha512-yK/UlPbEs316igb/tjRgbFA8ZV75rCsBJp/hWOatpyaPNlgw0dGDmU+FoicOcwX4xXkeXOkYiOmCqNPFpNPkQg==",
+    "engines": null,
+    "dependencies": null,
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/ical.js",
+    "retrieved": "2026-09-21T12:17:27.776735+00:00"
+  },
+  {
+    "name": "@medusajs/medusa",
+    "version": "2.21.0",
+    "published": "2026-09-11T10:14:29.532Z",
+    "license": "SEE LICENSE IN LICENSE",
+    "unpackedSize": 3564686,
+    "integrity": "sha512-NMQh4U4OQbIt+4u6salN2wofjoGBAMPBBpR/8qWPosjJjW8Na54y6znddAQJ2v39JiCl455KnQtlLyIkwBbWkA==",
+    "engines": {
+      "node": "^20.19.0 || >=22.12.0"
+    },
+    "dependencies": {
+      "qs": "^6.15.2",
+      "uuid": "^11.1.1",
+      "boxen": "^5.0.1",
+      "chalk": "^4.1.2",
+      "multer": "^2.3.0",
+      "express": "^4.21.0",
+      "slugify": "^1.6.6",
+      "chokidar": "^4.0.3",
+      "request-ip": "^3.3.0",
+      "compression": "^1.8.0",
+      "jsonwebtoken": "^9.0.2",
+      "@medusajs/tax": "2.21.0",
+      "node-schedule": "^2.1.1",
+      "@medusajs/auth": "2.21.0",
+      "@medusajs/cart": "2.21.0",
+      "@medusajs/file": "2.21.0",
+      "@medusajs/rbac": "2.21.0",
+      "@medusajs/user": "2.21.0",
+      "@inquirer/input": "^2.2.9",
+      "@medusajs/index": "2.21.0",
+      "@medusajs/order": "2.21.0",
+      "@medusajs/store": "2.21.0",
+      "@medusajs/region": "2.21.0",
+      "@medusajs/search": "2.21.0",
+      "fs-exists-cached": "^1.0.0",
+      "@inquirer/confirm": "^2.0.17",
+      "@medusajs/api-key": "2.21.0",
+      "@medusajs/caching": "2.21.0",
+      "@medusajs/file-s3": "2.21.0",
+      "@medusajs/locking": "2.21.0",
+      "@medusajs/payment": "2.21.0",
+      "@medusajs/pricing": "2.21.0",
+      "@medusajs/product": "2.21.0",
+      "@inquirer/checkbox": "^2.3.11",
+      "@medusajs/currency": "2.21.0",
+      "@medusajs/customer": "2.21.0",
+      "@medusajs/settings": "2.21.0",
+      "@medusajs/analytics": "2.21.0",
+      "@medusajs/auth-oidc": "2.21.0",
+      "@medusajs/inventory": "2.21.0",
+      "@medusajs/promotion": "2.21.0",
+      "@medusajs/telemetry": "2.21.0",
+      "@medusajs/core-flows": "2.21.0",
+      "@medusajs/file-local": "2.21.0",
+      "@medusajs/auth-github": "2.21.0",
+      "@medusajs/auth-google": "2.21.0",
+      "@medusajs/cache-redis": "2.21.0",
+      "@medusajs/draft-order": "2.21.0",
+      "@medusajs/fulfillment": "2.21.0",
+      "@medusajs/translation": "2.21.0",
+      "@medusajs/link-modules": "2.21.0",
+      "@medusajs/notification": "2.21.0",
+      "@medusajs/admin-bundler": "2.21.0",
+      "@medusajs/caching-redis": "2.21.0",
+      "@medusajs/locking-redis": "2.21.0",
+      "@medusajs/sales-channel": "2.21.0",
+      "@medusajs/auth-emailpass": "2.21.0",
+      "@medusajs/cache-inmemory": "2.21.0",
+      "@medusajs/payment-stripe": "2.21.0",
+      "@medusajs/stock-location": "2.21.0",
+      "@medusajs/analytics-local": "2.21.0",
+      "@medusajs/event-bus-local": "2.21.0",
+      "@medusajs/event-bus-redis": "2.21.0",
+      "@medusajs/search-postgres": "2.21.0",
+      "@medusajs/locking-postgres": "2.21.0",
+      "@medusajs/analytics-posthog": "2.21.0",
+      "@medusajs/fulfillment-manual": "2.21.0",
+      "@medusajs/notification-local": "2.21.0",
+      "@medusajs/notification-sendgrid": "2.21.0",
+      "@medusajs/workflow-engine-redis": "2.21.0",
+      "@medusajs/workflow-engine-inmemory": "2.21.0"
+    },
+    "peerDependencies": {
+      "yalc": "^1.0.0-pre.53",
+      "@swc/core": "^1.7.28",
+      "react-dom": "^18.3.1",
+      "posthog-node": "^5.11.0",
+      "@medusajs/framework": "2.21.0"
+    },
+    "source": "https://registry.npmjs.org/@medusajs%2fmedusa",
+    "retrieved": "2026-09-21T12:17:47.677303+00:00"
+  },
+  {
+    "name": "@payloadcms/plugin-ecommerce",
+    "version": "3.90.1",
+    "published": "2026-09-18T18:49:23.959Z",
+    "license": "MIT",
+    "unpackedSize": 1671439,
+    "integrity": "sha512-yLHblWrnYs+M7r8LyoP7bo42nJ38Cb26kL5QMqZVlKLwcgnSTE+qjNSccs8dS4J4kpPDfW8eZDaHqsWYmbIKeA==",
+    "engines": null,
+    "dependencies": {
+      "qs-esm": "8.0.1",
+      "@payloadcms/ui": "3.90.1",
+      "@payloadcms/translations": "3.90.1"
+    },
+    "peerDependencies": {
+      "react": "^19.0.1 || ^19.1.2 || ^19.2.1",
+      "payload": "3.90.1",
+      "react-dom": "^19.0.1 || ^19.1.2 || ^19.2.1"
+    },
+    "source": "https://registry.npmjs.org/@payloadcms%2fplugin-ecommerce",
+    "retrieved": "2026-09-21T12:17:33.253202+00:00"
+  },
+  {
+    "name": "@tiptap/extension-image",
+    "version": "3.31.3",
+    "published": "2026-09-04T10:44:21.099Z",
+    "license": "MIT",
+    "unpackedSize": 50877,
+    "integrity": "sha512-wWNG9BOtx2Cg4vwxPVGDIJ5DGX+ETkldeoaFJLB1NXUL4OPUiVTf8cHZ+hdYgJWP704BEB7jQgjlpvdi6VigTg==",
+    "engines": null,
+    "dependencies": null,
+    "peerDependencies": {
+      "@tiptap/core": "3.31.3"
+    },
+    "source": "https://registry.npmjs.org/@tiptap%2fextension-image",
+    "retrieved": "2026-09-21T12:17:30.873103+00:00"
+  },
+  {
+    "name": "@tiptap/extension-link",
+    "version": "3.31.3",
+    "published": "2026-09-04T10:47:26.327Z",
+    "license": "MIT",
+    "unpackedSize": 174158,
+    "integrity": "sha512-986wOQzTL9Zr5lf84LCLpm+YOms8A0K39/8DVoqRfebqcOe0/eq4bnztmAlfabOd+kJY92g3AgZERFUx/w+dcw==",
+    "engines": null,
+    "dependencies": {
+      "linkifyjs": "^4.3.3"
+    },
+    "peerDependencies": {
+      "@tiptap/pm": "3.31.3",
+      "@tiptap/core": "3.31.3"
+    },
+    "source": "https://registry.npmjs.org/@tiptap%2fextension-link",
+    "retrieved": "2026-09-21T12:17:36.272351+00:00"
+  },
+  {
+    "name": "@tiptap/extension-text-align",
+    "version": "3.31.3",
+    "published": "2026-09-04T10:43:41.522Z",
+    "license": "MIT",
+    "unpackedSize": 24696,
+    "integrity": "sha512-26BJ7c28EyvHzJovNpuenKiIgfRI4KsT/OjBB00y58MyZ0kRXc6dwZVclw8y66clupKTLTWYCDUsy0P/xHj+cA==",
+    "engines": null,
+    "dependencies": null,
+    "peerDependencies": {
+      "@tiptap/core": "3.31.3"
+    },
+    "source": "https://registry.npmjs.org/@tiptap%2fextension-text-align",
+    "retrieved": "2026-09-21T12:17:34.625724+00:00"
+  },
+  {
+    "name": "sanitize-html",
+    "version": "2.17.7",
+    "published": "2026-08-13T15:45:38.054Z",
+    "license": "MIT",
+    "unpackedSize": 75666,
+    "integrity": "sha512-PGtEkc9cbnedU3s9TmzDbpsZ8w086g/0Q8k8/oIO1NLNU3i5k9yn835CrjJSajp1KMmkisbO1qPXxNKO3welAg==",
+    "engines": {
+      "node": ">=22.12.0"
+    },
+    "dependencies": {
+      "launder": "^1.7.1",
+      "postcss": "^8.3.11",
+      "deepmerge": "^4.2.2",
+      "htmlparser2": "^12.0.0",
+      "parse-srcset": "^1.0.2",
+      "is-plain-object": "^5.0.0",
+      "escape-string-regexp": "^4.0.0"
+    },
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/sanitize-html",
+    "retrieved": "2026-09-21T12:17:35.136301+00:00"
+  },
+  {
+    "name": "@types/sanitize-html",
+    "version": "2.16.1",
+    "published": "2026-03-06T14:11:51.052Z",
+    "license": "MIT",
+    "unpackedSize": 8340,
+    "integrity": "sha512-n9wjs8bCOTyN/ynwD8s/nTcTreIHB1vf31vhLMGqUPNHaweKC4/fAl4Dj+hUlCTKYgm4P3k83fmiFfzkZ6sgMA==",
+    "engines": null,
+    "dependencies": {
+      "htmlparser2": "^10.1"
+    },
+    "peerDependencies": {},
+    "source": "https://registry.npmjs.org/@types%2fsanitize-html",
+    "retrieved": "2026-09-21T12:17:35.777727+00:00"
+  },
+  {
+    "name": "@radix-ui/react-direction",
+    "version": "1.1.4",
+    "published": "2026-07-24T23:51:15.678Z",
+    "license": "MIT",
+    "unpackedSize": 9590,
+    "integrity": "sha512-5pzg4FGQNpExhnhT2zlrP1wZFaYCd1K0nYWoFAdcYoYK868IEigqMX3B3f8yIoRlAhAeDWciLI6ZdCKHF9P4Vg==",
+    "engines": null,
+    "dependencies": null,
+    "peerDependencies": {
+      "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+      "@types/react": "*"
+    },
+    "source": "https://registry.npmjs.org/@radix-ui%2freact-direction",
+    "retrieved": "2026-09-21T12:17:36.408877+00:00"
+  },
+  {
+    "name": "tsx",
+    "version": "4.23.15",
+    "published": "2026-09-20T07:22:17.792Z",
+    "license": "MIT",
+    "unpackedSize": 396881,
+    "integrity": "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==",
+    "engines": {
+      "node": ">=18.0.0"
+    },
+    "dependencies": {
+      "esbuild": "~0.28.0"
+    },
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/tsx",
+    "retrieved": "2026-09-21T12:17:36.892952+00:00"
+  },
+  {
+    "name": "pg",
+    "version": "8.23.0",
+    "published": "2026-08-08T19:27:05.108Z",
+    "license": "MIT",
+    "unpackedSize": 100044,
+    "integrity": "sha512-Ip2EQCngowJLGOfCwkFhPXU7/ljlhn6Rxlmy4XYfL2Y+vyRM59+8uR2xqRWKdYmbXmxCFOAmKxBuSUCdF34qLg==",
+    "engines": {
+      "node": ">= 16.0.0"
+    },
+    "dependencies": {
+      "pgpass": "1.0.5",
+      "pg-pool": "^3.14.0",
+      "pg-types": "2.2.0",
+      "pg-protocol": "^1.16.0",
+      "pg-cloudflare": "^1.4.0",
+      "pg-connection-string": "^2.14.0"
+    },
+    "peerDependencies": {
+      "pg-native": ">=3.0.1"
+    },
+    "source": "https://registry.npmjs.org/pg",
+    "retrieved": "2026-09-21T12:17:38.968823+00:00"
+  },
+  {
+    "name": "jose",
+    "version": "6.2.12",
+    "published": "2026-09-05T09:17:12.608Z",
+    "license": "MIT",
+    "unpackedSize": 210660,
+    "integrity": "sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==",
+    "engines": null,
+    "dependencies": null,
+    "peerDependencies": null,
+    "source": "https://registry.npmjs.org/jose",
+    "retrieved": "2026-09-21T12:17:41.774767+00:00"
+  }
+]

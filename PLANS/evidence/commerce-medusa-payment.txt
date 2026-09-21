@@ -1,0 +1,168 @@
+Source: https://docs.medusajs.com/resources/commerce-modules/payment/payment-provider
+Retrieved UTC: 2026-09-21T04:00:45.005275+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+Payment Module Provider - Medusa Documentation
+
+Get Started
+Product
+Framework
+Admin Extensions
+Commerce Modules
+Infrastructure Modules
+
+Build
+Recipes
+How-to & Tutorials
+Integrations
+Storefront
+
+ToolsCLI Tools
+JS SDK
+Admin Components
+Next.js Starter
+Medusa UI
+ESLint Plugin
+
+ReferenceAdmin API
+Store API
+Admin Injection Zones
+Container Resources
+Core Workflows
+Data Model Language
+Data Model Repository
+Events Reference
+Helper Steps
+Service Factory
+Testing Framework
+Workflows SDK
+
+User Guide
+Cloud
+v2.21Help
+Troubleshooting
+Report Issue
+Discord Community
+Contact Sales
+
+Ask BloomHomepage
+Medusa v1
+Changelog
+Hide Sidebar⌘\
+Theme
+Light
+
+Dark
+
+MenuGet Started
+Product
+Build
+Tools
+Reference
+User Guide
+Cloud
+
+Documentation
+Payment Module Provider
+
+In this guide, you’ll learn about the Payment Module Provider and how it's used.
+
+Looking for no-code docs? Refer to this Medusa Admin User Guide to learn how to manage the payment providers available in a region using the dashboard.
+
+What is a Payment Module Provider?#
+
+The Payment Module Provider handles payment processing in the Medusa application. It integrates third-party payment services, such as Stripe.
+
+To authorize a payment amount with a payment provider, a payment session is created and associated with that payment provider. The payment provider is then used to handle the authorization.
+
+After the payment session is authorized, the payment provider is associated with the resulting payment and handles its payment processing, such as to capture or refund payment.
+
+List of Payment Module Providers#
+
+Stripe
+
+Default Payment Provider#
+
+The Payment Module provides a system payment provider that acts as a placeholder payment provider.
+
+It doesn’t handle payment processing and delegates that to the merchant. It acts similarly to a cash-on-delivery (COD) payment method.
+
+Tip: The identifier of the system payment provider is pp_system.
+
+How to Create a Custom Payment Provider?#
+
+A payment provider is a module whose main service extends the AbstractPaymentProvider imported from @medusajs/framework/utils.
+
+The module can have multiple payment provider services, where each is registered as a separate payment provider.
+
+Refer to this guide on how to create a payment provider for the Payment Module.
+
+After you create a payment provider, you can enable it as a payment provider in a region using the Medusa Admin dashboard.
+
+How are Payment Providers Registered?#
+
+Configure Payment Module's Providers#
+
+The Payment Module accepts a providers option that allows you to configure the providers registered in your application.
+
+Learn more about this option in the Module Options guide.
+
+Registration on Application Start#
+
+When the Medusa application starts, it registers the Payment Module Providers defined in the providers option of the Payment Module.
+
+For each Payment Module Provider, the Medusa application finds all payment provider services defined in them to register.
+
+PaymentProvider Data Model#
+
+A registered payment provider is represented by the PaymentProvider data model in the Medusa application.
+
+This data model is used to reference a service in the Payment Module Provider and determine whether it's installed in the application.
+
+The PaymentProvider data model has the following properties:
+
+id: The unique identifier of the Payment Module Provider. The ID's format is pp_{identifier}_{id}, where:
+
+identifier is the value of the identifier property in the Payment Module Provider's service.
+
+id is the value of the id property of the Payment Module Provider in medusa-config.ts.
+
+is_enabled: A boolean indicating whether the payment provider is enabled.
+
+How to Remove a Payment Provider?#
+
+If you remove a payment provider from the providers option, the Medusa application will not remove the associated PaymentProvider data model record.
+
+Instead, the Medusa application will set the is_enabled property of the PaymentProvider's record to false. This allows you to re-enable the payment provider later if needed by adding it back to the providers option.
+
+Was this page helpful?It was helpfulIt wasn't helpfulReport Issue
+
+[On this page]
+Loading...
+
+[Shortcuts]
+View as MarkdownExplain this page
+[What's new]
+
+v2.21 is liveSee new features and improvements
+
+Ask Bloom
+
+For assistance in your development, use Claude Code Plugins or Medusa MCP server in Cursor, VSCode, etc...FAQWhat is Medusa?
+How can I create a module?
+How can I create a data model?
+How do I create a workflow?
+How can I extend a data model in the Product Module?
+RecipesHow do I build a marketplace with Medusa?
+How do I build digital products with Medusa?
+How do I build subscription-based purchases with Medusa?
+What other recipes are available in the Medusa documentation?
+
+Deep Thinking
+
+Chat is cleared on refreshLine break⇧↵
+
+Navigation↑↓
+
+Open Result↵
+

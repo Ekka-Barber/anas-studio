@@ -1,0 +1,130 @@
+{"url": "https://developers.cloudflare.com/turnstile/plans/", "final_url": "https://developers.cloudflare.com/turnstile/plans/", "status": 200, "retrieved_at": "2026-09-21T04:00:54.286940+00:00", "sha256_response": "3cf299b80ff6e9af67408c3f8abdaff686187bed61bfeafc2b99ae65141c47ac"}
+
+Cloudflare Turnstile plans · Cloudflare Turnstile docsSkip to contentDocumentation IndexFetch the complete documentation index at: https://developers.cloudflare.com/turnstile/llms.txtUse this file to discover all available pages before exploring further.DocsDirectoryAPISDKsChangelogSearchCtrlKLog inDashboardTurnstile/
+Overview
+Plans
+Spin
+Concepts
+Turnstile widgets
+Cloudflare Challenges ↗
+Get started
+Overview
+Widget management
+Cloudflare dashboard
+API
+Terraform
+Embed the widget
+Overview
+Widget configurations
+Validate the token
+Mobile implementation
+Additional configurations
+Hostname management
+Overview
+Pre-clearance configuration
+Any Hostname
+Pre-clearance support ↗
+Ephemeral IDs
+Offlabel
+Turnstile Analytics
+Overview
+Challenge outcome
+Token validation
+Migration
+Overview
+Migrate from reCAPTCHA
+Migrate from hCaptcha
+Tutorials
+Troubleshooting
+Testing
+Rotate secret key
+Client-side errors
+Overview
+Error codes
+Challenge solve issues ↗
+Feedback reports
+Extensions
+Pages Plugin ↗
+Google Firebase
+Waiting Room Analytics ↗
+Reference
+Content Security Policy
+Turnstile Privacy Addendum
+Supported languages
+Supported browsers ↗
+Community resources
+Changelog
+Agent resources
+Agent setup ↗
+Cloudflare Skills ↗
+Code Mode MCP Server ↗
+Domain-specific MCP Servers ↗MCP
+Turnstile llms.txt ↗
+Turnstile llms-full.txt ↗
+Cloudflare Docs llms.txt ↗
+Cloudflare Docs llms-full.txt ↗
+Home
+/Turnstile
+/Plans
+PlansLast updated Aug 14, 2026|Copy as Markdown|View as Markdown|Agent setup
+Cloudflare Turnstile is available on the following plans:
+Free plan
+The Free plan is best for:
+Personal websites and blogs
+Small to medium businesses
+Development and testing environments
+Most production applications
+Enterprise plan
+The Enterprise plan is best for:
+Large enterprises with high-volume traffic
+Organizations requiring advanced bot detection and device fingerprinting
+Organizations requiring custom branding, companies with strict compliance
+requirements
+Multi-domain or complex hosting environments
+Free
+Enterprise
+Pricing
+Free
+Contact Sales
+Number of widgets
+Up to 20 widgets
+Unlimited
+All widget types
+Yes
+Yes
+Unlimited challenges (traffic or verification requests)
+Yes
+Yes
+Hostname management
+10 hostnames per widget
+Maximum of 200 hostnames per widget
+Any hostname widget (no preconfigured hostnames)
+No
+Yes
+Analytics lookback
+7 days maximum
+30 days maximum
+Pre-clearance support
+Yes
+Yes
+Ephemeral IDs
+No
+Yes
+Offlabel (remove Cloudflare branding)
+No
+Yes
+WCAG 2.2 AAA compliance
+Yes
+Yes
+Community support
+Yes
+Yes
+Notes
+If you upgrade from Free to Enterprise, your existing widgets and configurations will be preserved during the upgrade process.
+Free users are limited to 20 widgets per account. Customers with Enterprise Bot Management and Enterprise Turnstile can have this limit increased. Contact your account team to discuss your requirements.
+Turnstile can be used independently without requiring other Cloudflare services.
+PreviousOverviewNextSpin
+Was this helpful?YesNoEdit pageReport issue
+On this page
+OverviewEdit pageReport issueGetting startedPlansContact salesPartnersFind a partnerStartupsUnder attack?Domain name searchCompanyAboutCareersInvestorsPressPress kitGlobal networkPublic interestProject GalileoAthenian ProjectCloudflare for CampaignsProject FairshotImpact/ESGComplianceCompliance resourcesTrust HubData ProtectionResponsible AITransparency reportReport abuseResourcesApp innovation reportCloudflare RadarCase studiesStatusSupportEventsBlogDevelopersDocumentationLearning centerCommunitySolutionsSSE and SASE platformCloudflare AI CloudAI SecurityFrontend Development PlatformMulti-Tenant Platform DevelopmentWeb Security PlatformStart BuildingLog In
+© 2026 Cloudflare, Inc.Privacy policy| Report security issues| Terms of use| Trademark|Your privacy choicesDocs

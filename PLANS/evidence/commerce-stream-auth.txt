@@ -1,0 +1,86 @@
+Source: https://docs.streampay.sa/authentication
+Retrieved UTC: 2026-09-21T04:00:45.005275+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Authentication
+On this page
+Authentication
+
+Learn how to authenticate your API requests to the Stream platform.
+
+Overview​
+
+All API calls to Stream require authentication using your API Key Pair. Stream uses a simple but secure authentication method where you encode your credentials and include them in every request.
+
+Getting Your API Keys​
+
+Log in to your Stream dashboard
+
+Navigate to API Settings
+
+Click Create Key Pair
+
+Store your api-key and api-secret securely
+
+Copy x-api-key to use in the APIs or you can gernerate later
+
+Important
+Your API secret should be kept secure and never exposed in client-side code or public repositories. Treat it like a password.
+
+Authentication Methods​
+
+Stream uses HTTP Basic Authentication with Base64 encoding of your API credentials.
+
+Encode your API key and secret as a Base64-encoded token:
+
+echo -n 'api-key:api-secret' | base64
+
+Example:
+
+echo -n '038cb769-9ce3-49da-9d52-17fd49bf07e8:6ea68e79-8756-4be8-9bd2-307314e8d12c' | base64
+# Output: MDM4Y2I3NjktOWNlMy00OWRhLTlkNTItMTdmZDQ5YmYwN2U4OjZlYTY4ZTc5LTg3NTYtNGJlOC05YmQyLTMwNzMxNGU4ZDEyYw==
+
+Using the Token​
+
+Include the Base64-encoded token in the x-api-key header for all API requests:
+
+curl -X POST https://stream-app-service.streampay.sa/api/v2/payment_links \
+  -H "x-api-key: MDM4Y2I3NjktOWNlMy00OWRhLTlkNTItMTdmZDQ5YmYwN2U4OjZlYTY4ZTc5LTg3NTYtNGJlOC05YmQyLTMwNzMxNGU4ZDEyYw==" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Payment",
+    "amount": 100.00
+  }'
+
+Using SDKs​
+
+When using Stream SDKs, authentication is handled automatically. Simply provide your x-api-key during initialization:
+
+TypeScript SDK​
+
+import StreamSDK from "@streamsdk/typescript";
+
+const client = StreamSDK.init(process.env.STREAM_API_KEY!);
+
+Express SDK​
+
+import { Checkout, Webhooks } from "@streamsdk/express";
+
+app.get(
+  "/checkout",
+  Checkout({
+    apiKey: process.env.STREAM_API_KEY!,
+    // ... other config
+  })
+);
+
+Previous
+Getting Started
+Next
+Errors
+
+Overview
+Getting Your API Keys
+Authentication MethodsUsing SDKs
+

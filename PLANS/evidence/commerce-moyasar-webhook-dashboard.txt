@@ -1,0 +1,64 @@
+Source: https://docs.moyasar.com/guides/dashboard/setting-up-webhooks
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Dashboard
+Configure Webhooks
+On this page
+Configure Webhooks
+
+This guide will go through how to setup and manage webhooks on your Moyasar account.
+
+Getting Started​
+
+Go to https://dashboard.moyasar.com/
+
+Log in to your account.
+
+Click on the Settings tab.
+
+Go to the Webhooks tab
+
+Webhooks​
+
+Add Webhook​
+
+To get started, click on add webhook
+
+Required Fields​
+
+TermDescription
+Endpointa URL on your server that will receive the notification (must be HTTPS)
+Secret Tokenis a password you need to validate on your server to make sure the notification is coming from moyasar
+HTTP MethodOur Server will send the notification through this method, make sure it matches the one you're expecting on your server
+EventsThe events that you will be notified about
+
+Payment Events​
+
+Payment EventDescription
+payment_paidGet notified when a payment is successfully processed, indicating that the transaction is complete.
+payment_faildReceive alerts when a payment attempt fails, indicating that the transaction was not successful.
+payment_refundedStay updated when a payment is refunded, indicating that the funds have been returned to the customer.
+payment_voidedBe notified when a payment is voided, indicating that the transaction has been canceled or invalidated.
+payment_authorizedGet notified when a payment is authorized, indicating that the funds have been reserved for the transaction.
+payment_capturedReceive alerts when a payment is captured, indicating that the authorized funds have been successfully collected.
+payment_verifiedStay updated when payment is verified, indicating that the payment details have been successfully validated.
+
+Delete Webhook​
+
+To delete a webhook, click on the delete button (🗑️)
+
+Last updated on Sep 9, 2026
+
+Previous
+IP Whitelist
+Next
+Apple and Samsung Pay Certificates
+
+Getting Started
+Webhooks
+Add WebhookRequired Fields
+Payment Events
+Delete Webhook
+

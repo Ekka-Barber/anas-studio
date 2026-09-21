@@ -6,3 +6,6 @@
 
 # archived superseded versions — cold storage, out of agent context
 /_archive/
+
+# python bytecode
+__pycache__/

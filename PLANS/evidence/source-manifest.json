@@ -1,0 +1,1802 @@
+[
+  {
+    "path": "deploy/design/fonts/lyon/LyonArabicDisplay-Light.otf",
+    "bytes": 311736,
+    "sha256": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef"
+  },
+  {
+    "path": "deploy/design/fonts/lyon/LyonArabicDisplay-Medium.otf",
+    "bytes": 321516,
+    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
+  },
+  {
+    "path": "deploy/design/fonts/lyon/LyonArabicDisplay-Regular.otf",
+    "bytes": 309928,
+    "sha256": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f"
+  },
+  {
+    "path": "deploy/design/fonts/lyon/LyonArabicText-Bold.otf",
+    "bytes": 341540,
+    "sha256": "9159330c539f88aeebaf8ce3a85e531e0de197f5a1bd5cc74687f1063034856b"
+  },
+  {
+    "path": "deploy/design/fonts/lyon/LyonArabicText-Regular.otf",
+    "bytes": 335548,
+    "sha256": "5310f34f6a3ee83b2a220d688044acafd9ea0e57e5aaf771abb3f2c230db911b"
+  },
+  {
+    "path": "deploy/design/fonts/lyon/LyonArabicText-Semibold.otf",
+    "bytes": 349428,
+    "sha256": "f71b791f249c9e79afd70881581b7b93583a5917488f7a307c752322ddaaa7cb"
+  },
+  {
+    "path": "deploy/design/fonts/thmanyah/thmanyahsans-Bold.woff2",
+    "bytes": 79160,
+    "sha256": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7"
+  },
+  {
+    "path": "deploy/design/fonts/thmanyah/thmanyahsans-Light.woff2",
+    "bytes": 72380,
+    "sha256": "79bcb61f004600088363b40c3feea4add5a0883c326d767b0994fe1b76044c72"
+  },
+  {
+    "path": "deploy/design/fonts/thmanyah/thmanyahsans-Medium.woff2",
+    "bytes": 79064,
+    "sha256": "490bf85c58c82b5989a557ed18cd6c6e5a7518b8a440032acf946b5cb7de2850"
+  },
+  {
+    "path": "deploy/design/fonts/thmanyah/thmanyahsans-Regular.woff2",
+    "bytes": 77776,
+    "sha256": "5bb4fa412273ca31d5c7a165191568b099069cb74bf1fc1dfcdc6a3c2a97552e"
+  },
+  {
+    "path": "deploy/design/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2",
+    "bytes": 82552,
+    "sha256": "e21a2ea53f90d8e57560d34e0f7dd613d0ebd3a6a19a9a2af3e258638f5f6259"
+  },
+  {
+    "path": "deploy/design/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2",
+    "bytes": 81136,
+    "sha256": "214a70d9dabcfa18649086841c25ccc67ef6630179837834bcffd3a149131ca6"
+  },
+  {
+    "path": "deploy/design/Home.dc.html",
+    "bytes": 56342,
+    "sha256": "a65103961670d0c6a9b69247937bcaee4bdd4120beff259888738d28ff7608bd"
+  },
+  {
+    "path": "deploy/design/index.html",
+    "bytes": 4364,
+    "sha256": "33a0b6faeb6d91a790e6ca22498d87816ba00f5148104a9bb1123bd323da02e2"
+  },
+  {
+    "path": "deploy/design/Motion Spec-print-11tko18.dc.html",
+    "bytes": 30941,
+    "sha256": "b09113bcba750a33653e64f7a07a64427611e8d1b12e6582fefdc6843af5bd09"
+  },
+  {
+    "path": "deploy/design/Motion Spec.dc.html",
+    "bytes": 12264,
+    "sha256": "3a5f769845a678eb8e839f74cf0fdf8c213e89cbf332aec1c790c3124cb5ff45"
+  },
+  {
+    "path": "deploy/design/Responsive Frames.dc.html",
+    "bytes": 15312,
+    "sha256": "5e1b15dd4f7d4bff46043211ac2dfe73c2e5a90bac08c7718bbcc8c4e2b24534"
+  },
+  {
+    "path": "deploy/design/Style Board.dc.html",
+    "bytes": 16079,
+    "sha256": "2f4491ca7891e6facf6d4eee0f92159cdcf6361d4c1a38dd9b79bfcd4df23b89"
+  },
+  {
+    "path": "deploy/design/support.js",
+    "bytes": 61032,
+    "sha256": "c2dad9138a0ba660b488702a7414e6116ec6e00a88d6ee6ae37728803c202c2b"
+  },
+  {
+    "path": "deploy/design/المشاهد.dc.html",
+    "bytes": 11489,
+    "sha256": "c3a7135831f1b1190dad5c739ba8c74c8e852e05082ebcf817ca2ced7d98e383"
+  },
+  {
+    "path": "deploy/design/بدأت هنا.dc.html",
+    "bytes": 15923,
+    "sha256": "123e1453611c845deea50d15ccd1c3d9a3a23f36bbe3087fa9e584c5dceb0a65"
+  },
+  {
+    "path": "deploy/design/بُنيت هنا.dc.html",
+    "bytes": 17610,
+    "sha256": "89ade2f6c5737dd1b605b082e509f5074fc24a3db7c583e9e377180bae6a784a"
+  },
+  {
+    "path": "deploy/design/تواصل.dc.html",
+    "bytes": 8677,
+    "sha256": "2457c547c3380f1984605d9a31e4239186ad8b57b54f8697ed7f797b198daf39"
+  },
+  {
+    "path": "deploy/design/على الرف.dc.html",
+    "bytes": 15528,
+    "sha256": "2987696bfccef30b4d8c4914ab3b52933dbf90fafefd0d88f21edc835717e2dd"
+  },
+  {
+    "path": "deploy/design/كُتبت هنا.dc.html",
+    "bytes": 57000,
+    "sha256": "28297833030cfb6802150f44b39d865fac327004e831873e214dea3d50cd5890"
+  },
+  {
+    "path": "deploy/design/مرّت من هنا.dc.html",
+    "bytes": 15080,
+    "sha256": "e5c2707a2df8449a759c2cdf9624ed75f08517a160918a3db9354cae5c48f7df"
+  },
+  {
+    "path": "deploy/fonts/lyon/LyonArabicDisplay-Light.otf",
+    "bytes": 311736,
+    "sha256": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef"
+  },
+  {
+    "path": "deploy/fonts/lyon/LyonArabicDisplay-Medium.otf",
+    "bytes": 321516,
+    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
+  },
+  {
+    "path": "deploy/fonts/lyon/LyonArabicDisplay-Regular.otf",
+    "bytes": 309928,
+    "sha256": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f"
+  },
+  {
+    "path": "deploy/fonts/thmanyah/thmanyahsans-Bold.woff2",
+    "bytes": 79160,
+    "sha256": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7"
+  },
+  {
+    "path": "deploy/fonts/thmanyah/thmanyahsans-Light.woff2",
+    "bytes": 72380,
+    "sha256": "79bcb61f004600088363b40c3feea4add5a0883c326d767b0994fe1b76044c72"
+  },
+  {
+    "path": "deploy/fonts/thmanyah/thmanyahsans-Medium.woff2",
+    "bytes": 79064,
+    "sha256": "490bf85c58c82b5989a557ed18cd6c6e5a7518b8a440032acf946b5cb7de2850"
+  },
+  {
+    "path": "deploy/fonts/thmanyah/thmanyahsans-Regular.woff2",
+    "bytes": 77776,
+    "sha256": "5bb4fa412273ca31d5c7a165191568b099069cb74bf1fc1dfcdc6a3c2a97552e"
+  },
+  {
+    "path": "deploy/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2",
+    "bytes": 82552,
+    "sha256": "e21a2ea53f90d8e57560d34e0f7dd613d0ebd3a6a19a9a2af3e258638f5f6259"
+  },
+  {
+    "path": "deploy/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2",
+    "bytes": 81136,
+    "sha256": "214a70d9dabcfa18649086841c25ccc67ef6630179837834bcffd3a149131ca6"
+  },
+  {
+    "path": "deploy/images/char-anas.webp",
+    "bytes": 40768,
+    "sha256": "85b2a62e1201c45d4b12ddade3419b9dd5a82f7f863e7f88022bcc2f1411f86a"
+  },
+  {
+    "path": "deploy/images/char-children.webp",
+    "bytes": 42622,
+    "sha256": "0ce817943af9a1acc39f55867927f1fd6db1c6fe387936bb6b3ee557188b3732"
+  },
+  {
+    "path": "deploy/images/char-mothers.webp",
+    "bytes": 46514,
+    "sha256": "9cc4fbeb26bbe9ca2e5de45bd07963ad725e732ca8d6fa0729a963bc714d003f"
+  },
+  {
+    "path": "deploy/images/ill-closed-door.webp",
+    "bytes": 281656,
+    "sha256": "20814f68a3ae3c8e459a7a9290f6d5f7c90a4cc0a3cf966b48fb4526b9ac414c"
+  },
+  {
+    "path": "deploy/images/ill-majlis.webp",
+    "bytes": 291732,
+    "sha256": "c92cfc0a242e05199eb8f92c3035ffe540b3f5e8bc12a38a44133edcc8311ade"
+  },
+  {
+    "path": "deploy/images/ill-portrait.webp",
+    "bytes": 280814,
+    "sha256": "bd6f6ac70e0f7d081653ff290707a8eb07fc4aa8b5fca000a1e3310c83e48f3d"
+  },
+  {
+    "path": "deploy/images/ill-school-gate.webp",
+    "bytes": 149636,
+    "sha256": "437d7ae6ff5bf86899daec8469bc058784de3169b783b881a8a7539901d29ff1"
+  },
+  {
+    "path": "deploy/images/ill-street-sign.webp",
+    "bytes": 126172,
+    "sha256": "f8f4c006cd74ad814d1c9dd902a91b1a73ba11f923490f7221a610d75e62768a"
+  },
+  {
+    "path": "deploy/images/khous-concept-door.webp",
+    "bytes": 248928,
+    "sha256": "91cd7d5d1d7db79e689ac184e656069c68702767c6c3eb1d3944a680564952d3"
+  },
+  {
+    "path": "deploy/images/khous-concept-engraving.webp",
+    "bytes": 184354,
+    "sha256": "b441b2cfacc3548b4d7416295f286e4d884b61462eb29bb439d8544a71115969"
+  },
+  {
+    "path": "deploy/images/khous-cover.webp",
+    "bytes": 250906,
+    "sha256": "3597a878250706085fe51c24c53b90d056f0688c09d4dbe9ebf7d1ffba9ea40e"
+  },
+  {
+    "path": "deploy/images/khous-divider.webp",
+    "bytes": 163892,
+    "sha256": "5a5101c90f5acd9c484a0971f3e14486e8df9d9e960a61d217e456f92b3c4d50"
+  },
+  {
+    "path": "deploy/images/khous-flat-cover.webp",
+    "bytes": 206834,
+    "sha256": "0162ce203f5cbf01e56e671e92ad531648c5ee560610ee61dd8b2c79969056e1"
+  },
+  {
+    "path": "deploy/images/khous-flatlay.webp",
+    "bytes": 189298,
+    "sha256": "0b234775acdb3791910444a564f5b2015e287d34149c8e563cb564cc6920626a"
+  },
+  {
+    "path": "deploy/images/khous-og.jpg",
+    "bytes": 71349,
+    "sha256": "ffd60f5fb9c5e413f8dfd331e7b6d95f19affa04033563fa3bb001dc55f6f85f"
+  },
+  {
+    "path": "deploy/images/khous-tray.webp",
+    "bytes": 105294,
+    "sha256": "b2f35c3cf252311daa6b1cd039f8ba5367e38637b96d8ccf1caeec8466ee1cfd"
+  },
+  {
+    "path": "deploy/images/signature-anas.svg",
+    "bytes": 13080,
+    "sha256": "d9b80ed969a480b757a17d8cbe44f1cb45ac3eb37f84a84689b8c9e80ea913e9"
+  },
+  {
+    "path": "deploy/images/world-closed-door.webp",
+    "bytes": 267610,
+    "sha256": "3fca5d4f6db7f86be2a2763c4ced03d00779481d3bf1bbd91d16fbdb81da2bc2"
+  },
+  {
+    "path": "deploy/images/world-kindergarten-portrait.webp",
+    "bytes": 68744,
+    "sha256": "3f2c3e838c01e8bf701f5dd376662b2468e194cdd3c83fa9d1724f01cd0fce19"
+  },
+  {
+    "path": "deploy/images/world-majlis.webp",
+    "bytes": 129186,
+    "sha256": "bd23cdcee39e440d333613b40eccc45be65cf3ab5ef2f54f9694abb0da0415cc"
+  },
+  {
+    "path": "deploy/images/world-school-gate.webp",
+    "bytes": 105518,
+    "sha256": "602f87d91c5295cc01c88daadcb825f5be1de88b1f5be75ed8debc5976a3eae8"
+  },
+  {
+    "path": "deploy/images/world-street-sign.webp",
+    "bytes": 96672,
+    "sha256": "585e854b062752794f4e36b93abdaf88b94066286edbb2cebe59bcbef9be2dd3"
+  },
+  {
+    "path": "deploy/index.html",
+    "bytes": 54011,
+    "sha256": "30f4768bf86bdc8b16f6bd1f03b8981cbb4e74bbc0212d18652a7ccdc537ddf1"
+  },
+  {
+    "path": "deploy/mobile-fix.css",
+    "bytes": 5454,
+    "sha256": "7db4220a1bc9919d0aa2a93626ef9a48e9d14f4402efb3810373b3f73b714ab5"
+  },
+  {
+    "path": "offer-site-v3/assets/fonts/LyonArabicDisplay-Medium.otf",
+    "bytes": 321516,
+    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
+  },
+  {
+    "path": "offer-site-v3/assets/fonts/thmanyahsans-Bold.woff2",
+    "bytes": 79160,
+    "sha256": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7"
+  },
+  {
+    "path": "offer-site-v3/assets/fonts/thmanyahsans-Medium.woff2",
+    "bytes": 79064,
+    "sha256": "490bf85c58c82b5989a557ed18cd6c6e5a7518b8a440032acf946b5cb7de2850"
+  },
+  {
+    "path": "offer-site-v3/assets/fonts/thmanyahsans-Regular.woff2",
+    "bytes": 77776,
+    "sha256": "5bb4fa412273ca31d5c7a165191568b099069cb74bf1fc1dfcdc6a3c2a97552e"
+  },
+  {
+    "path": "offer-site-v3/assets/fonts/thmanyahserifdisplay-Medium.woff2",
+    "bytes": 82552,
+    "sha256": "e21a2ea53f90d8e57560d34e0f7dd613d0ebd3a6a19a9a2af3e258638f5f6259"
+  },
+  {
+    "path": "offer-site-v3/assets/images/ill-closed-door.webp",
+    "bytes": 281656,
+    "sha256": "20814f68a3ae3c8e459a7a9290f6d5f7c90a4cc0a3cf966b48fb4526b9ac414c"
+  },
+  {
+    "path": "offer-site-v3/assets/images/ill-street-sign.webp",
+    "bytes": 126172,
+    "sha256": "f8f4c006cd74ad814d1c9dd902a91b1a73ba11f923490f7221a610d75e62768a"
+  },
+  {
+    "path": "offer-site-v3/assets/images/khous-cover.webp",
+    "bytes": 250906,
+    "sha256": "3597a878250706085fe51c24c53b90d056f0688c09d4dbe9ebf7d1ffba9ea40e"
+  },
+  {
+    "path": "offer-site-v3/assets/images/khous-flatlay.webp",
+    "bytes": 189298,
+    "sha256": "0b234775acdb3791910444a564f5b2015e287d34149c8e563cb564cc6920626a"
+  },
+  {
+    "path": "offer-site-v3/assets/images/khous-tray.webp",
+    "bytes": 105294,
+    "sha256": "b2f35c3cf252311daa6b1cd039f8ba5367e38637b96d8ccf1caeec8466ee1cfd"
+  },
+  {
+    "path": "offer-site-v3/index.html",
+    "bytes": 81581,
+    "sha256": "ae962eea809c84037c80f2d771e30b60a3678140fdf8c6e91cdb14ab22a490c5"
+  },
+  {
+    "path": "BOOK_ASSETS/ (11).pdf",
+    "bytes": 180425,
+    "sha256": "801d0f50cd9f0ab9cceda7db366b4a0dddf4a88438fa95a4379cd2c9c12e69e9"
+  },
+  {
+    "path": "BOOK_ASSETS/ (8).pdf",
+    "bytes": 150110,
+    "sha256": "962b19091562e5b0fbdf8cdcb89bd3daff8f1835fcbb1b009b79da3517c345a7"
+  },
+  {
+    "path": "BOOK_ASSETS/ (9).pdf",
+    "bytes": 155611,
+    "sha256": "adcc9f04831b43e1a3db1583d94c9017bd1ae38be0fb08091f09ef6720389b14"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black.ai",
+    "bytes": 177463,
+    "sha256": "f8b101af77661835f672869841c8033691b23546e3eb858e6d8d57505d1a70eb"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black.eps",
+    "bytes": 2549954,
+    "sha256": "7dfe325aefc47b25b331a33a584b8f49108dc9baf591711d9f9f33068c726ca8"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black.pdf",
+    "bytes": 177333,
+    "sha256": "9c2caca8c069bfdacc085af2e44b36660345f8751cd6ad32b61f67cd2f0f73ef"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black.svg",
+    "bytes": 13677,
+    "sha256": "2b003eddb84687682a21f9924dd03ef848542d321f4d72206f8802ae69c2300b"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black_high-res.gif",
+    "bytes": 125074,
+    "sha256": "058735bb6d68a35c6e15707887c7e89dedcd5d10b26fe84eaf845fd63275b47d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black_high-res.jpg",
+    "bytes": 113397,
+    "sha256": "db4333a729b8be56428a161baeb66ad8180aa40e8189187f0f30d513635a167e"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black_low-res.gif",
+    "bytes": 17085,
+    "sha256": "cf6ebbc1998e0b35b451fcd6e580e7b5fd1794812fb77b5cfeabc0809aeb98c1"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_black_low-res.jpg",
+    "bytes": 17924,
+    "sha256": "aa2804311570180c6b1df41b6801c24ad1520d3a8a78b0290b33f4e908b10860"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_white.ai",
+    "bytes": 173604,
+    "sha256": "be02f60cd4caf916a081f4b1a112cddc74983ff8f73681db95b1ae8ae45d95e8"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_white.eps",
+    "bytes": 2543698,
+    "sha256": "8cbc1d90ebe508896a3b291f55e22261ace975feebd433d913fd1d08976c0617"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_white.svg",
+    "bytes": 13765,
+    "sha256": "634f73f78a21b204c678c238ff52fb0371acacde20877d2f94fb549ee4087ce0"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_white_high-res.gif",
+    "bytes": 133157,
+    "sha256": "905369338c456c02d5d84d6b074a9060d2428812fffb78ed6f38764e28653e55"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/All Formats Pack/ANAS-ALQARNI_white_low-res.gif",
+    "bytes": 18360,
+    "sha256": "8a998ef6b427e9ce24f4fbec5b99e15845b69b19f0962fd200a0ce0f1f63b4c5"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/ANAS-ALQARNI_black_high-res.png",
+    "bytes": 125074,
+    "sha256": "058735bb6d68a35c6e15707887c7e89dedcd5d10b26fe84eaf845fd63275b47d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/ANAS-ALQARNI_black_low-res.png",
+    "bytes": 17085,
+    "sha256": "cf6ebbc1998e0b35b451fcd6e580e7b5fd1794812fb77b5cfeabc0809aeb98c1"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/ANAS-ALQARNI_white_high-res.png",
+    "bytes": 133157,
+    "sha256": "905369338c456c02d5d84d6b074a9060d2428812fffb78ed6f38764e28653e55"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/ANAS-ALQARNI_white_low-res.png",
+    "bytes": 18360,
+    "sha256": "8a998ef6b427e9ce24f4fbec5b99e15845b69b19f0962fd200a0ce0f1f63b4c5"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI - signture/Preview.jpg",
+    "bytes": 984319,
+    "sha256": "638c36be12498953c2581061ccfde6213cadaa27225a5cb918ee129344443792"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS ALQARNI .pdf",
+    "bytes": 497128,
+    "sha256": "218b630f0906e5669e45018629dfda0801001174f161dece8dcd463fae76be03"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/Artboard 9.pdf",
+    "bytes": 68533,
+    "sha256": "4c90b8593a02ec91a7bc043e2c2a7fe2a9bcc572a4200cb2875ff6f16fb6e97c"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20251210-WA0249.jpg",
+    "bytes": 26845,
+    "sha256": "6882e327c64d632c7fc828fbc01ca8e23351fc3f25967232b7570619a6c9c513"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20251210-WA0250.jpg",
+    "bytes": 102059,
+    "sha256": "6530776ee35dbc21430fbb3ee45d5dd43c76b9617ab636d3dc14f36632d08c3d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20251211-WA0145.jpg",
+    "bytes": 111177,
+    "sha256": "1d30d2a41346455b38b1e6dbd458654c4ba22545f06e6d14a525abaf304a7099"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20251211-WA0146.jpg",
+    "bytes": 660488,
+    "sha256": "aac365c826607eebfb58566bbe594f195548bc8b244752718c6daa7d6bffcd3a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260121-WA0029.jpg",
+    "bytes": 90835,
+    "sha256": "ee079dfe7519a82f04d0b7ffb7c6a0ebc4f5a1f464a204b133ffdc8d72dc52a3"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0000.jpg",
+    "bytes": 448710,
+    "sha256": "a6d17b5ec5bc3b9c0f1896de02ded8d9003b47f06a5b683750d0f9079bb71152"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0001.jpg",
+    "bytes": 449811,
+    "sha256": "9e1050925c3bcb47016bbaf36b388e7fe850d3d61ec7dcccb0db856719601d7d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0002.jpg",
+    "bytes": 538446,
+    "sha256": "7ecee8d578fb36e1385c5483da8824743bca9ab87465d4dfb2ca42254e6e8747"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0003.jpg",
+    "bytes": 316473,
+    "sha256": "8ff4c7a1b153a814bd066461c1275f3acb02f44b2fe5dcf56ab1070bb4a2bc41"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0004.jpg",
+    "bytes": 446086,
+    "sha256": "dc5931202f5e2128f8b9fc874597ae276550bca09a9f3cd9ef5116f33eea118c"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0005.jpg",
+    "bytes": 597484,
+    "sha256": "e11f6589b9d46ea9723ab54734c11abc8a7122df8e38ef81920433be599dbf76"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0006.jpg",
+    "bytes": 399679,
+    "sha256": "64ed5f9a208412482c2c7e371825a49175015d3f45fd82eb4950e77271e72bab"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0007.jpg",
+    "bytes": 323724,
+    "sha256": "2c741ed32d265d4f46fd031cf45d4b004e742279a81d965b6f51f42740bee4be"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0008.jpg",
+    "bytes": 423402,
+    "sha256": "bdeaeccb1d469a3fc8e4a48f40805c7ac66f3dc43012436a2bec6d7f53427488"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0009.jpg",
+    "bytes": 375103,
+    "sha256": "3fd5e48683bfd80b50dd36523e896af390dab4b91cf2175e2d6981d5a488e873"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0010.jpg",
+    "bytes": 337823,
+    "sha256": "9569445729c49134bf0691599a74b51349c847fa45b8e6eeb4a9f0dec4e5637d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0011.jpg",
+    "bytes": 348437,
+    "sha256": "c6cb09168ca696f92965935cab705221a0f70f10c0acac12a9ebc0e77f096d28"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0012.jpg",
+    "bytes": 530928,
+    "sha256": "5d77e6282a38f23755c4f27bee8822ab61af8664f5ff93ebc35e55025cb7d405"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0013.jpg",
+    "bytes": 363254,
+    "sha256": "ba0f1eec0fc4308abfcae7b88a4b739a1e227df0ee18d767711a3061eb7fdd7a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0014.jpg",
+    "bytes": 320593,
+    "sha256": "1e777a8d3061f9c90c4bc1841d0fd19f1e62b1d21fe343b474db414b10d8dd5c"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0015.jpg",
+    "bytes": 330343,
+    "sha256": "a6462eac01745943fd68e9d9d9d228a9f44ad9ae53d9609376df1c09e9dee461"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0016.jpg",
+    "bytes": 215776,
+    "sha256": "770bfdbba27f2687d2e7284b880c44a75736c8721b57b39104646c70d0405d8b"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0017.jpg",
+    "bytes": 188954,
+    "sha256": "522ebe34bb973e45b3e136b15082bfde5b2639859c28332ff17bd954b75b9cd2"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0018.jpg",
+    "bytes": 267965,
+    "sha256": "58d3eaf9371d87760919c557017373934f756fe4775a932b3ac325b276754a9d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0019.jpg",
+    "bytes": 263250,
+    "sha256": "2cc980994c62db37c905bec856f211bbd6717b1f9d0b97f1b1b8e8ce6a1b9014"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0020.jpg",
+    "bytes": 285347,
+    "sha256": "9d92840b8dc1978ee430dd8dab34600262870426eb997b7fcbafe92c7710a6f4"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0021.jpg",
+    "bytes": 217070,
+    "sha256": "7515118ae7f5af5ed5bda796d689cfa886e368f6e5bb2c6f73f7b2e0fc1ef55c"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0022.jpg",
+    "bytes": 214898,
+    "sha256": "1286021579dc1b0fd5eaf9890bfcb5201965b282ff82373bb866c407928571a5"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0023.jpg",
+    "bytes": 164224,
+    "sha256": "3e87ccc36e95b34710024e2b759597d66c12889cfab336353784dfd52940d547"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0024.jpg",
+    "bytes": 241196,
+    "sha256": "92ead0eb1e9c5df7a92e27ab9dc6fac4f673d3dcdf7d8daa66e66758d2841718"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0025.jpg",
+    "bytes": 198655,
+    "sha256": "396882763cb19eaac93a3fe4a836b0865519a3101188f17d628f44b807a9a218"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0026.jpg",
+    "bytes": 164690,
+    "sha256": "87144f5b8c7692300fad9f16b10b385ec6893e6f644834be702654228e79a131"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0027.jpg",
+    "bytes": 246749,
+    "sha256": "499fc9b424060a72f2d15cc82a60290dffad6735b8844cceba92ed7d81fa712f"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0028.jpg",
+    "bytes": 214066,
+    "sha256": "8b7f4a245ee33eb8f799c2a0991dc05ed4dbc1f98553426f63dc4b25d032a4a6"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0029.jpg",
+    "bytes": 265844,
+    "sha256": "249627916de491fe38e737a92e67cb4a9d2bc2869448173723758eff59a3e206"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0040.jpg",
+    "bytes": 216217,
+    "sha256": "1cb86c66d73b35f2a6a2ab35d4bba65df599a71f4e2a2881cc67c32082193342"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0045.jpg",
+    "bytes": 46140,
+    "sha256": "115363a5f26e90d6f6152a2974f6583e1ea9d1f7f182c7e750cc29666b821b8a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260628-WA0047.jpg",
+    "bytes": 127684,
+    "sha256": "b9853a42024eed2b776f2dc328c3806ccf5becce75c2e825493e9a8d60440a8f"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260706-WA0012.jpg",
+    "bytes": 207361,
+    "sha256": "3c4a7e82c7bf70330126246c5d681720447633b2f4208d9e8fb48d6b1cb074ef"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0013.jpg",
+    "bytes": 315654,
+    "sha256": "210c05806667fa7525f35cb0097b7399d88a7a744a3e127dcb07ac99a63f8b98"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0015.jpg",
+    "bytes": 600724,
+    "sha256": "e6de37aa78af51d07236d2a6093fa581844868ef525c84352cba85e9c969d603"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0017.jpg",
+    "bytes": 889288,
+    "sha256": "0031babd5e575ea68dd9ddb1947b895a33951887b51bf54b803e8b85d45a09bd"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0018.jpg",
+    "bytes": 146474,
+    "sha256": "19795a11fd401679c08211b63f59a892edf75b29c637b984fb1d53adb5ac000a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0020.jpg",
+    "bytes": 2493768,
+    "sha256": "d101cd4cb55cddc64fc7a83d1b19548419ca40fcc1f227c6bc414240b46ef82b"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0021.jpg",
+    "bytes": 97605,
+    "sha256": "24481b8dc2d20367e6758d41944c4dde32b980977c1603f320810311443a270a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0022.jpg",
+    "bytes": 178472,
+    "sha256": "8441155c9405133159da98fb093ce6332d0b56b211e3f84714a143890feedc8d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0024.jpg",
+    "bytes": 1509872,
+    "sha256": "c6e70e9b0c14dd3d552960a5a67f9758c3893e1f655dd211eb7c06afdbb4b1c7"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0025.jpg",
+    "bytes": 105523,
+    "sha256": "c51606b9c02792f58285f27df25bbbf9b1a197c687c9ca9900284440801e32a8"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0029.jpg",
+    "bytes": 54185,
+    "sha256": "fabe9b222078f273f6ec8ac1ea0eff6be624f5b6336aa2e155fcf5f3e1e972cd"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0030.jpg",
+    "bytes": 51629,
+    "sha256": "65e05a8ad419400ba13dd55e03da12daef19a6efec4cf0e33f747463e7c2bbd2"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0031.jpg",
+    "bytes": 58840,
+    "sha256": "f12de4927758b66c4d49957aec969710f6c3c3bb015e9503adab7ab33f66b8c4"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0032.jpg",
+    "bytes": 253529,
+    "sha256": "6322b1e10a9085bdaaca1f8da8a7365de6993a2eea90cd7c179ff018a015be96"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0033.jpg",
+    "bytes": 250008,
+    "sha256": "3db9e41c81544ca3ad88a70f6d86e587da8aca5e7b4070cdd43fca36ea41a08b"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0034.jpg",
+    "bytes": 285090,
+    "sha256": "84fbb4582fc1c2ced19a114298664e44e9c027811d258ee68e66006b41bcdc3c"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0036.jpg",
+    "bytes": 72038,
+    "sha256": "e0b0dc2fe16e71ef454a6f324a30c6d4fdcdaa7dbbd842dfd2895d95065cdc31"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0037.jpg",
+    "bytes": 356771,
+    "sha256": "eafcb7a84f581ef2cce14a9e5356bfc122ef934f684746f418ea9216f35f41b6"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0044.jpg",
+    "bytes": 59708,
+    "sha256": "aa755345816c3683dd6e08ea882baf3e5af3b099a96ceca475c9dda3547491e1"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0045.jpg",
+    "bytes": 64970,
+    "sha256": "16667dfdd61a3ce8fe753e9c3cdecd19d3235c12da3bae6de027da86486c7b39"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0046.jpg",
+    "bytes": 94338,
+    "sha256": "5d779c14494aabfa9fa1bdd0148f8f3ab473fc7516b46305cf36b958dd3720db"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0047.jpg",
+    "bytes": 59070,
+    "sha256": "a4b3b2a58786d5d7346fef8f9e5f05be4239397519d795033b554a718e20bb76"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0048.jpg",
+    "bytes": 412147,
+    "sha256": "0eee980373b11075ca5735e9bfa00fd2bcebd769cfd62cad405e94f6109f6d54"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0049.jpg",
+    "bytes": 540372,
+    "sha256": "7d9797dd36909b6637977322a76a8cd53363ffc5799cdb09a491df9abdc95810"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0050.jpg",
+    "bytes": 330229,
+    "sha256": "ebabe99d2e08c19909adeebb0fcdb4700a9d56c4f1d732b2bb217806e424b629"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0051.jpg",
+    "bytes": 348833,
+    "sha256": "796a6913af2f65c4d1620703e68892d434a04d97ad515ddd6b85cb21d68d1484"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0052.jpg",
+    "bytes": 526182,
+    "sha256": "1e4675263de25240c5990af36a1c380670ed5eb98600c9c8d7bb8336a441396e"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0060.jpg",
+    "bytes": 58658,
+    "sha256": "c3d442f952c32b070386564ea925b4f962873e0cd13c9ee868b018d861abdef6"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0062.jpg",
+    "bytes": 4825,
+    "sha256": "262a9c7af46f7e37a6721cb6a60030702dc71a8d24d1a59e05b1eb9d9afaa46a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0063.jpg",
+    "bytes": 47741,
+    "sha256": "c9cbc4f0e3fed8a72e031c4613bfa6d7f9336815abb99627b4a791153b61ef0f"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0067.jpg",
+    "bytes": 20054,
+    "sha256": "60bd2039bb64df2a1a36f73a2bda89dc82b5f6685e99a6362629039c5f9702f0"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0072.jpg",
+    "bytes": 426098,
+    "sha256": "490f980cb70487f0226b2c81d1acf401fe37998d2f9f11b83a85e84952040665"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0074.jpg",
+    "bytes": 230052,
+    "sha256": "12d1c1e681a97a60392af96a31b4d7fec1f4d086b31e874fc884c68863636875"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0077.jpg",
+    "bytes": 74943,
+    "sha256": "239beb26fff413ce54585cddf325d8beb631ccf1fbc9c9021a8f5b11c57dfa9e"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/IMG-20260918-WA0079.jpg",
+    "bytes": 237188,
+    "sha256": "77fea2f399df4435912ac14e069b6a22eff20115c3cbdb67b325d0013af61eb4"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20251120-WA0156.opus",
+    "bytes": 134537,
+    "sha256": "4bba7fcec65cf187238baafe637d1a45e7adc2c60162b4a3eb160abca75b190a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20251123-WA0098.opus",
+    "bytes": 18915,
+    "sha256": "97cb1b96fdc06a810ef47514ec1a4e69b67dddab577c3ee02ab3510f1ae1df4a"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20251123-WA0111.opus",
+    "bytes": 10589,
+    "sha256": "8e4b34fce56c8eb6d808ce6e434261b69715a98741cd3f4637f797bfc635b5fb"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20251211-WA0142.opus",
+    "bytes": 47448,
+    "sha256": "594430f0dffa981fa47923c6f801c3f09f5b27210e69bd545e8aaec242274373"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260415-WA0035.opus",
+    "bytes": 78752,
+    "sha256": "d749301d0f23797447974c5fdc2ea94be9d559e5e230683e9fd9827c7d8ba329"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260415-WA0039.opus",
+    "bytes": 31130,
+    "sha256": "df6fc485a4eae988d27fd3422351e46ea086734c90f56f9e32470ef503426d51"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260415-WA0040.opus",
+    "bytes": 27304,
+    "sha256": "630884c9495ba3d5e9e5080ef557ad5c9d66da7c7202640534f4db2fb243f85c"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260415-WA0041.opus",
+    "bytes": 24140,
+    "sha256": "0e81d42ed9f942db720b786c6880b1238fa42a4422289ce36112aa5a2a64dce6"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260415-WA0042.opus",
+    "bytes": 105836,
+    "sha256": "472376e7104d2564633c0c548d84d629244ecb047e8df88b87b68a23e05dd603"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260421-WA0012.opus",
+    "bytes": 109458,
+    "sha256": "c4c86e18f4e979f01d504ad5a5614f94e673f6e7da299daab3f9116119a43efa"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260421-WA0013.opus",
+    "bytes": 35456,
+    "sha256": "cd77fad50cda48a59c15c4dbec2ab09d9ac265a002c2eea29c97d23d8224f4b5"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260626-WA0046.opus",
+    "bytes": 67995,
+    "sha256": "f340d1dd47e0a7b4afbd24b694c734ee0aafda02b4449dae277f028f0fa4d52e"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260626-WA0054.opus",
+    "bytes": 26604,
+    "sha256": "41c67f9d8e083022a894fe1a8c5cad90d9ba751dd7fe73c835e31d807c2260e8"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260706-WA0025.opus",
+    "bytes": 50961,
+    "sha256": "08f1c1472c61a45dbd12419b7da03c0c036cc89e14a912923cc08a07e02c52de"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260706-WA0026.opus",
+    "bytes": 221858,
+    "sha256": "a5160a5bef61756b74cbdca3b47c70bb333145692b5ab05f08bb735ff7940078"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260706-WA0027.opus",
+    "bytes": 114910,
+    "sha256": "0612f6236c1197ed56673f658e9d09243fa9e154673da3a9f31696b93b9eb201"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260706-WA0031.opus",
+    "bytes": 113258,
+    "sha256": "bbd11f7b9dae87b846dbe2699b89e668287a05d94e97fdb794d5983d15529e2d"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260706-WA0066.opus",
+    "bytes": 48258,
+    "sha256": "0e3084f010e56122c9d23a1718988717ca69715c06421f8a82b866a3ae6fc13f"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0038.opus",
+    "bytes": 165030,
+    "sha256": "b60f9f22d57b17640663f4290858aef403a0625fc5e8b3cf539693a92da19498"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0069.opus",
+    "bytes": 50084,
+    "sha256": "75de7b33e5c780d6a516c0f46211d9eea70ad7cfac69fc45c60798b378fed334"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0070.opus",
+    "bytes": 173649,
+    "sha256": "20abe39fdc139c112ad94c5b66435279ebbcc28754ed24d8eea200f20328fe44"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0073.opus",
+    "bytes": 78201,
+    "sha256": "9ae91f4f1805187f284dbdaafabd587622bb3d193dee0745d3a1d20a97883254"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0075.opus",
+    "bytes": 181283,
+    "sha256": "7d62af2d7092c75e8f146ab33cc520085f025dc91cdfbdcbc538200b4461868b"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0076.opus",
+    "bytes": 149277,
+    "sha256": "b4e5f24ec77b4e32b213da2cb149ae2fce5c9edfecb895c83b14c2c178059dce"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/PTT-20260918-WA0080.opus",
+    "bytes": 93521,
+    "sha256": "9b32cc5e094e39bed66278a3b38dd478c9ccbf931993c5cefe71bbb9e23675e5"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/VID-20251120-WA0133.mp4",
+    "bytes": 1323022,
+    "sha256": "9dec82b76f734bb40a0f0866006252c7ff481561c1639791ae3ef25e697eb1a5"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/VID-20260918-WA0064.mp4",
+    "bytes": 377689,
+    "sha256": "4b147e4fa2d10792ab85077a86cbf6a75944da92b2d97734c020ad03719967d4"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/VID-20260918-WA0065.mp4",
+    "bytes": 637829,
+    "sha256": "51fca8126e79c4f14fc7f15bf0e0223b4f0e14ce770ffadc196a276823f93dfc"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/WhatsApp Chat with انس القرني.txt",
+    "bytes": 32807,
+    "sha256": "4cffe81d4ddcff39b13b5562d10071aeae26411fa883e4b270700f111cb38082"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/المستند (11).pdf",
+    "bytes": 180425,
+    "sha256": "801d0f50cd9f0ab9cceda7db366b4a0dddf4a88438fa95a4379cd2c9c12e69e9"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/المستند (8).pdf",
+    "bytes": 150110,
+    "sha256": "962b19091562e5b0fbdf8cdcb89bd3daff8f1835fcbb1b009b79da3517c345a7"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/المستند (9).pdf",
+    "bytes": 155611,
+    "sha256": "adcc9f04831b43e1a3db1583d94c9017bd1ae38be0fb08091f09ef6720389b14"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/رضوان  دهان رحى .vcf",
+    "bytes": 162,
+    "sha256": "f5f542af0bddaf08d5ca63acd76555d11854038db03f8f63734a4b6333e2ca45"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/علم  حداد رحى 2 .vcf",
+    "bytes": 209,
+    "sha256": "3da90e1ff5a3c3283badc2882a244cfaf8cf10eaa2667e9f0f1ba33a7045b6e0"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/علي مطبوعات  رحى.vcf",
+    "bytes": 164,
+    "sha256": "34493a178b7a8cbdbd3115fcbacd656017cc69731b9975aadd089a460caab3fd"
+  },
+  {
+    "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/كميرات محمود.vcf",
+    "bytes": 173,
+    "sha256": "229a9a1d6dea6184978d0c36851da6b461fcb8800db667b03522598c093f7217"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-c1.png",
+    "bytes": 7548238,
+    "sha256": "99296a876a3131a28f1e7ed2ab78e2999e2490ac984dacfc75ebd78ab5aadb08"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-c2.png",
+    "bytes": 7922860,
+    "sha256": "42804d404728604391ddd14a388196bb1af602692a062f233f4f3a4d1e569200"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-c3.png",
+    "bytes": 6575768,
+    "sha256": "b3fdfa02571ead882e808f6dce991f89fb96438e5cddadd63c12f90185602203"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-p1-cloth-flatlay.png",
+    "bytes": 8133851,
+    "sha256": "30af239ccf3384aabf57be8196fb5a79b2fc370c6ed09236f64a0d410da92714"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-p2-cloth-standing.png",
+    "bytes": 7114911,
+    "sha256": "d45580ec216b957d8b2b45a68155f5ac968471acc3069f6058942f0bd616592a"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-r1-door-real.png",
+    "bytes": 14207971,
+    "sha256": "ca6d1521d1e0b6d10f2cd09ef07e9bc13cad049ac1c88b658e3e63191f4be724"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-r2-street-sign.png",
+    "bytes": 12005011,
+    "sha256": "6d8ec9cd80aa3e2b4b90f25ab253feb476c31b52a18c557c7d69602d9b79d168"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-r3-portrait.png",
+    "bytes": 12455922,
+    "sha256": "b87fe4a57e5da519e5e65051ff4cac73c8b39663bd8eae8abd5ba88ababc0dbd"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-r4-majlis.png",
+    "bytes": 13419679,
+    "sha256": "7f52d79270ae3e23268327034c3c3daf6e2819eaa59bea04779207b6eb2fbda8"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-s1-ink-door.png",
+    "bytes": 8285141,
+    "sha256": "2ec0a6694fa3b73dfed550ee04b3b9e96b93aa6869c67d5569b15b2fce34ef75"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-s2-charcoal-majlis.png",
+    "bytes": 7904209,
+    "sha256": "2e52eaf7ca509a52042fdc0eb6bd1df6663df474fabf239fdbe3a72846095858"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-s3-riso-street.png",
+    "bytes": 7795930,
+    "sha256": "294a54d3fd617c83dcc05b9180514827dce5073391152b9330d22219f287a2e9"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-s4-engraving-hands.png",
+    "bytes": 8005634,
+    "sha256": "bc521c18764d11ec7759c061084ed21a429a721e20145d0bdb34f0ef5cc43fe9"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v1-tray.png",
+    "bytes": 14101770,
+    "sha256": "2efc80473f573f0c760b26e2ce62e2670e887f2693293f05e6e644811fce45c5"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v2-door.png",
+    "bytes": 13687390,
+    "sha256": "8c9ca06bc1a6def93a462b337ac4c3bcfe5c326fe98f15b53adf519c348c63c6"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v2b-door-fixed.png",
+    "bytes": 14086858,
+    "sha256": "4d73496ab2c2a22571b096f7bb2375e18c590f922ce7bfa38846e3403dd6cee6"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v3-weave.png",
+    "bytes": 14984403,
+    "sha256": "eef4f864a1b378c97e1241d3cc6c33cc1b538b54db4367ee8f68177c83a89799"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v3b-weave-fixed.png",
+    "bytes": 15671645,
+    "sha256": "f526ab807bbcd48f869144365d398bd7f1cd995886eff41b3195f5dc5bec4ce8"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v4-hero.png",
+    "bytes": 11128681,
+    "sha256": "0b83dc5249e05f25a5e771780f8908049c391bcb8d8325899951aca520ab1c03"
+  },
+  {
+    "path": "BOOK_ASSETS/covers/khous-v5-blank-plate.png",
+    "bytes": 17421609,
+    "sha256": "3591ed8b153f3c7b0d52835e327b97044b62a4d16e5bbb677f276998561a0a81"
+  },
+  {
+    "path": "BOOK_ASSETS/final/khous-flat-cover-comp.png",
+    "bytes": 17406583,
+    "sha256": "85e8acee5a6e7d838bce65a08377ca78af75a2ac10570b3485e7444992b9b40f"
+  },
+  {
+    "path": "BOOK_ASSETS/final/khous-og-1200x630.png",
+    "bytes": 892454,
+    "sha256": "ed3263c749172d20d4fc4fa735f1659ede3120f903a5fbc1175c30752dd8b97b"
+  },
+  {
+    "path": "BOOK_ASSETS/final/khous-transparent.png",
+    "bytes": 7365675,
+    "sha256": "0e94ebb102ed40dea9158ce173fd357a0c1745c262ee72eb50781861225f2755"
+  },
+  {
+    "path": "BOOK_ASSETS/final/khous-white-retail.png",
+    "bytes": 11810107,
+    "sha256": "27413eac537120d8ed18267eb53af8556a55141804fe2b53d2cc99ae74e68a47"
+  },
+  {
+    "path": "BOOK_ASSETS/final/README.md",
+    "bytes": 2241,
+    "sha256": "9faf4de82b353ee18f57ee122f9eff1aace73aacda142b29be600c36736d7e06"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/char-anas.png",
+    "bytes": 8602999,
+    "sha256": "e17367cfea418a019925425fe22403f63c24063aa196e478272d8d8ab7f04596"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/char-children.png",
+    "bytes": 7723575,
+    "sha256": "a7f7b466eb25d3b6631124c037b52dd442b8d9fe5f08d9125c1a064b993e189c"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/char-mothers.png",
+    "bytes": 8956900,
+    "sha256": "caa98902bd810dd789fff8cdb2e48a2caad3b4d90ccc8f24fda21763f9a7a33b"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/ill-closed-door.png",
+    "bytes": 9153792,
+    "sha256": "819b936d38cd1746a4d5b193ed72f445fc0822082ea8c94112414a0527d15f63"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/ill-majlis.png",
+    "bytes": 6138218,
+    "sha256": "ed800fabdb51d1fb392905700703e73e0b3a6df9b53bcabd30e405a1f19401a8"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/ill-portrait.png",
+    "bytes": 6535262,
+    "sha256": "3aa51a285c2e511c5137c73308f70b452f1dba5e768c42e0f2cd47a75dc2a8ad"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/ill-school-gate.png",
+    "bytes": 7204638,
+    "sha256": "f09c8f2d2bbb55ba627048a9c7c979af022fdf4e1e98fafc2a60a9f23bc72975"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/ill-street-sign.png",
+    "bytes": 6852716,
+    "sha256": "d6ae2f230ff3b824a2776fe53c5e0483ba71c7b95d164c03b6fd4094a3e6782d"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/khous-divider.png",
+    "bytes": 5959893,
+    "sha256": "341048742de01f6d491b83816da1c5d2b680cf0ff2174ab03de74a92413f69ab"
+  },
+  {
+    "path": "BOOK_ASSETS/illustrations/khous-tray.png",
+    "bytes": 9044434,
+    "sha256": "d2dc1eeeffb78d7c8e6d755bbd4a3e76157251eb87217a593fa99e001f17b2c4"
+  },
+  {
+    "path": "BOOK_ASSETS/refs/ref-khous-bookmark.png",
+    "bytes": 185965,
+    "sha256": "4600117508760534c358ce7d3d417f4fff214ccd162c1083294d543b671909a2"
+  },
+  {
+    "path": "BOOK_ASSETS/refs/ref-material-cloth-hardcover.jpg",
+    "bytes": 58658,
+    "sha256": "c3d442f952c32b070386564ea925b4f962873e0cd13c9ee868b018d861abdef6"
+  },
+  {
+    "path": "BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33 (1).jpeg",
+    "bytes": 105523,
+    "sha256": "c51606b9c02792f58285f27df25bbbf9b1a197c687c9ca9900284440801e32a8"
+  },
+  {
+    "path": "BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33 (2).jpeg",
+    "bytes": 97605,
+    "sha256": "24481b8dc2d20367e6758d41944c4dde32b980977c1603f320810311443a270a"
+  },
+  {
+    "path": "BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33 (3).jpeg",
+    "bytes": 178472,
+    "sha256": "8441155c9405133159da98fb093ce6332d0b56b211e3f84714a143890feedc8d"
+  },
+  {
+    "path": "BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33.jpeg",
+    "bytes": 315654,
+    "sha256": "210c05806667fa7525f35cb0097b7399d88a7a744a3e127dcb07ac99a63f8b98"
+  },
+  {
+    "path": "BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.331.jpeg",
+    "bytes": 146474,
+    "sha256": "19795a11fd401679c08211b63f59a892edf75b29c637b984fb1d53adb5ac000a"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Black.otf",
+    "bytes": 313376,
+    "sha256": "3d4b574c9a797be736d9f9f271fe4de78cd028cdb85fe75050e7966e456bb4ee"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Bold.otf",
+    "bytes": 317328,
+    "sha256": "5e32e18cc349bbfdde967555abfdc277aae7d35b89a45dfe7b2b4943553302a4"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Light.otf",
+    "bytes": 311736,
+    "sha256": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Medium.otf",
+    "bytes": 321516,
+    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Regular.otf",
+    "bytes": 309928,
+    "sha256": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Black.otf",
+    "bytes": 388460,
+    "sha256": "441a95fc58088fc211946a01c7c441fed8cc592231fd716206e7253a2cf966e1"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Bold.otf",
+    "bytes": 406056,
+    "sha256": "2883932b8e5c8a55db9ee66add69201b2f8ffb252488b94a3992711fc19353f5"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Light.otf",
+    "bytes": 398472,
+    "sha256": "b9f6456507a05f383bdaca78b9f4fabeffeb948a41b8a1b4e64e7428ade25c38"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Medium.otf",
+    "bytes": 411848,
+    "sha256": "ea6f5224c5a48690643b2aa5f7e6e098bd44314406f11a97153fde101c6858fb"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Regular.otf",
+    "bytes": 396380,
+    "sha256": "c05522a075e29fa44e660940d9b9ef7c470202a390a167b044df0609b0d5a74b"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Black.otf",
+    "bytes": 364820,
+    "sha256": "f2b508b3f790aabb3fd4771d1833cad5f5ec5ebc55a107e246b81dcfb7bd4f74"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Bold.otf",
+    "bytes": 373384,
+    "sha256": "f4823ba0a94aff0caf770d570a37244c8b6bf2ff9ef98898f1fad1cc2fc7af04"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Regular.otf",
+    "bytes": 364104,
+    "sha256": "e72ba5ed4b4cac402ac42834d4a381d70a0c4620c06a05c8d5644ad2c45beb75"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text RegularNo2.otf",
+    "bytes": 373788,
+    "sha256": "d37a772b82b6129a04aa1baed0bc25274f5f6eb38a0869175600c8859c4d1778"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Semibold.otf",
+    "bytes": 379188,
+    "sha256": "f7717e67bcf78ad7f7be294dc197a387dc91265833ba37786eba166f6e7ce54e"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Black.otf",
+    "bytes": 338500,
+    "sha256": "9470a8a1d816b9400598a7ed1880708762fd26187aba69e1d31e894960f8622f"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Bold.otf",
+    "bytes": 341540,
+    "sha256": "9159330c539f88aeebaf8ce3a85e531e0de197f5a1bd5cc74687f1063034856b"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Regular.otf",
+    "bytes": 335548,
+    "sha256": "5310f34f6a3ee83b2a220d688044acafd9ea0e57e5aaf771abb3f2c230db911b"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text RegularNo2.otf",
+    "bytes": 342320,
+    "sha256": "49be2ce537d7252d916b5defb8b5f1e1ba4e5f55967f1296235512f6834eaecd"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Semibold.otf",
+    "bytes": 349428,
+    "sha256": "f71b791f249c9e79afd70881581b7b93583a5917488f7a307c752322ddaaa7cb"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/HELP/Dafont File - Download Free Fonts.url",
+    "bytes": 49,
+    "sha256": "a5b7a38b35e58b0853420729959b5335ebf23971d0d8ada2918103614abb5137"
+  },
+  {
+    "path": "Lyon_Arabic_FONT/HELP/Read Me.txt",
+    "bytes": 60,
+    "sha256": "7e6ccd9a4a198d523984de1c3cdc52bd11c3bee91d8e7727014e77325b84214f"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/._LICENSE.pdf",
+    "bytes": 868,
+    "sha256": "f3d51f5cd334708b9e5ded48af22083262ee912b4de66d8103863c0ca2255b7f"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/._thmanyah typeface",
+    "bytes": 170,
+    "sha256": "24e6a3d8be9e8743e95af7a3453dd710a2fca42436b0d2c45040ca8ce961c9e0"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/._╪¬╪▒╪«┘è╪╡ ╪«╪╖ ╪½┘à╪º┘å┘è╪⌐.pdf",
+    "bytes": 1065,
+    "sha256": "076c0444f741e1621e5835ef1402afc187b875317ebc5baad16e1593ea01bb69"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/._╪»┘ä┘è┘ä ╪¼┘à╪º┘ä┘è╪º╪¬ ╪«╪╖ ╪½┘à╪º┘å┘è╪⌐.pdf",
+    "bytes": 1163,
+    "sha256": "42acf8a7997f02a44d72f0426b570e7b1c63c07dfcf5c36d48a1ef66e324cb86"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._thmanyahsans",
+    "bytes": 313,
+    "sha256": "91831e6d13fa259dde0e8d0ccb0d6334f459b70c14860a94180f052720741016"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._thmanyahserifdisplay",
+    "bytes": 313,
+    "sha256": "91831e6d13fa259dde0e8d0ccb0d6334f459b70c14860a94180f052720741016"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._thmanyahseriftext",
+    "bytes": 313,
+    "sha256": "91831e6d13fa259dde0e8d0ccb0d6334f459b70c14860a94180f052720741016"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Black.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Bold.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Light.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Medium.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Regular.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Black.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Bold.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Light.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Medium.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Regular.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Black.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Bold.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Light.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Medium.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Regular.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Black.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Bold.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Light.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Medium.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Regular.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Black.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Bold.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Light.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Medium.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Regular.otf",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._.DS_Store",
+    "bytes": 120,
+    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Black.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Bold.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Light.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Medium.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Regular.woff2",
+    "bytes": 221,
+    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
+  },
+  {
+    "path": "Thmanyah-Font-Family/LICENSE.pdf",
+    "bytes": 92927,
+    "sha256": "07bbb2321bd2b944333c25f4d55140ca22625666132394d7399a365bd8b79a10"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/.DS_Store",
+    "bytes": 14340,
+    "sha256": "43c3aee2558b08ce5310e263d4c9a7c345db7598a36db6a77e98c9acb5608f2f"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/.DS_Store",
+    "bytes": 10244,
+    "sha256": "2ad581d9f4e913bdf4dd7f21fae0105efa1fffb08bcfa093487dd48380fd09d2"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/.DS_Store",
+    "bytes": 6148,
+    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/thmanyahsans-Black.otf",
+    "bytes": 242168,
+    "sha256": "e846f6087a4fcf7d2eeff4bd4d1d74cf9c37c2eb92c9a14ebbbbfcb851c26b43"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/thmanyahsans-Bold.otf",
+    "bytes": 242808,
+    "sha256": "72cc27021cc1a503e5c03b072df8b16d55c78983e5fd73a4cdf92b5a600af2f7"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/thmanyahsans-Light.otf",
+    "bytes": 234588,
+    "sha256": "c4286938c04ea60eb1953919cddce7b268270a825a04823a0642a044ebc7fd34"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/thmanyahsans-Medium.otf",
+    "bytes": 242116,
+    "sha256": "f2762ffbe17351193e3d630dd10f0c3a965e6c873998dfdeda2bd0dcad7985c6"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/thmanyahsans-Regular.otf",
+    "bytes": 241292,
+    "sha256": "f45a420632384b42a37ec9b24298ddc6502faa52d55d973144779262ebc023dc"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/.DS_Store",
+    "bytes": 6148,
+    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Black.woff2",
+    "bytes": 77112,
+    "sha256": "77e81ed0e4a199c29b22fe59b05ee5efb21c09775e5127abdcb2dd7938c82b3a"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Bold.woff2",
+    "bytes": 79160,
+    "sha256": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Light.woff2",
+    "bytes": 72380,
+    "sha256": "79bcb61f004600088363b40c3feea4add5a0883c326d767b0994fe1b76044c72"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Medium.woff2",
+    "bytes": 79064,
+    "sha256": "490bf85c58c82b5989a557ed18cd6c6e5a7518b8a440032acf946b5cb7de2850"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Regular.woff2",
+    "bytes": 77776,
+    "sha256": "5bb4fa412273ca31d5c7a165191568b099069cb74bf1fc1dfcdc6a3c2a97552e"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/.DS_Store",
+    "bytes": 10244,
+    "sha256": "2ad581d9f4e913bdf4dd7f21fae0105efa1fffb08bcfa093487dd48380fd09d2"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/.DS_Store",
+    "bytes": 6148,
+    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/thmanyahserifdisplay-Black.otf",
+    "bytes": 247992,
+    "sha256": "696b78342a499a82421ae25c1db86b73730108ea38d8be216669c243dfea1557"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/thmanyahserifdisplay-Bold.otf",
+    "bytes": 247296,
+    "sha256": "ac2f056441891276792ab6d828d8ad9169ef44ecea60d6ccf126b25361f0ee9d"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/thmanyahserifdisplay-Light.otf",
+    "bytes": 240436,
+    "sha256": "14a2781ab9101f32587e90126115dcbac70e13f980b4a3a508df2b076b6bdcc4"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/thmanyahserifdisplay-Medium.otf",
+    "bytes": 249124,
+    "sha256": "5086a7e446fb8a14986aef9c81c01696455c2660eaeda1aa2b8f37696efc0af6"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/thmanyahserifdisplay-Regular.otf",
+    "bytes": 246668,
+    "sha256": "1f5c735a6c05cce9fe9b2459d5aedb1d039541d50b726304bd617a69587bf112"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/.DS_Store",
+    "bytes": 6148,
+    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Black.woff2",
+    "bytes": 79212,
+    "sha256": "a057be61138a74a590b9d4d0dce6f6b2926e1c443577ad30eb1d86f11efa0a0b"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Bold.woff2",
+    "bytes": 81988,
+    "sha256": "d36da84ee5423145415425bdd9c10dc27f57a66afec031bd7b78e662572846ce"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Light.woff2",
+    "bytes": 75732,
+    "sha256": "3db143f2c1fda859c07d68a3cd2f3c669f0229db5a190f9c33d9aecc8cee886a"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Medium.woff2",
+    "bytes": 82552,
+    "sha256": "e21a2ea53f90d8e57560d34e0f7dd613d0ebd3a6a19a9a2af3e258638f5f6259"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Regular.woff2",
+    "bytes": 81136,
+    "sha256": "214a70d9dabcfa18649086841c25ccc67ef6630179837834bcffd3a149131ca6"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/.DS_Store",
+    "bytes": 10244,
+    "sha256": "2ad581d9f4e913bdf4dd7f21fae0105efa1fffb08bcfa093487dd48380fd09d2"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/.DS_Store",
+    "bytes": 6148,
+    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Black.otf",
+    "bytes": 243332,
+    "sha256": "dca14597277eade6ca471ca897070054aa64a55646299c466b22f6f0fb110e4a"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Bold.otf",
+    "bytes": 244892,
+    "sha256": "001cc1586b6920139780b8ea05f3df399a4c11dc5a86d96102ff356c727a0a35"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Light.otf",
+    "bytes": 240480,
+    "sha256": "3de4b21b07d5e3e2ac420919fe4b96f38aebb2931fe8799fd61c434bd29c56ce"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Medium.otf",
+    "bytes": 246908,
+    "sha256": "f1b25193017b2edf9a4b4e4b4c531336435f31a86028132a8a25f288f4465d77"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Regular.otf",
+    "bytes": 242952,
+    "sha256": "db7294cfea2b2a537c028305dc142fb3b743da1c4738f0fac3a7dd31c0c47b5f"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/.DS_Store",
+    "bytes": 6148,
+    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/thmanyahseriftext-Black.woff2",
+    "bytes": 77444,
+    "sha256": "c0c86cdb20091a5caf6c0e0c797c98fe0435cc2d5f18de06565d6b30a9144af6"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/thmanyahseriftext-Bold.woff2",
+    "bytes": 80672,
+    "sha256": "7c9a5d2a2cfec459fc4efdc15d8adde0ea09537ee58cde6dc86abfaa5a4e8bcf"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/thmanyahseriftext-Light.woff2",
+    "bytes": 75680,
+    "sha256": "4e64e4218e6fdd98285c274dc86e21dd948054b12430a301e7a52e59132b3f63"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/thmanyahseriftext-Medium.woff2",
+    "bytes": 80920,
+    "sha256": "954d68fcb61a262e68313c3e9f1a467ace2e3f51d9b5cd2ccb7dc56be7eb57b4"
+  },
+  {
+    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/thmanyahseriftext-Regular.woff2",
+    "bytes": 80208,
+    "sha256": "8825115531d7a72369105c7fbcbf730d986bae56875db950fcb91316deebead2"
+  },
+  {
+    "path": "Thmanyah-Font-Family/╪¬╪▒╪«┘è╪╡ ╪«╪╖ ╪½┘à╪º┘å┘è╪⌐.pdf",
+    "bytes": 111072,
+    "sha256": "1a4ab3594864f4f7f5e31f2681792209501caf841319875fe8e73d2fc471ecf5"
+  },
+  {
+    "path": "Thmanyah-Font-Family/╪»┘ä┘è┘ä ╪¼┘à╪º┘ä┘è╪º╪¬ ╪«╪╖ ╪½┘à╪º┘å┘è╪⌐.pdf",
+    "bytes": 18682772,
+    "sha256": "e0275306ab4225c1c3bb9ed20d86d3d0c17bb17e8f57b18aeda969ba93e89d30"
+  },
+  {
+    "path": "PROMPT-FOR-ASTRA.md",
+    "bytes": 6306,
+    "sha256": "b7ddbdd28e81f4a102a3ed26ac54b6e05cf3ecb79b687b63549abc8ec5316b6b"
+  },
+  {
+    "path": "AGENTS.md",
+    "bytes": 3443,
+    "sha256": "812693210408460b4b696b554f7ba86b28389100ce1278b4b7279bc12b7beec5"
+  },
+  {
+    "path": "anasaq-me-prd-v1.md",
+    "bytes": 35393,
+    "sha256": "cfd75694ca7d0ea95ede73256f46fd81c43293cf1b83c445bb989f511eb4329b"
+  },
+  {
+    "path": "anasaq-me-full-package.md",
+    "bytes": 45846,
+    "sha256": "e509061c5da2e17d9561c138090c8612669ddda9c51999453f9995bb22f053b6"
+  }
+]

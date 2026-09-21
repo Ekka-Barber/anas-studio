@@ -1,0 +1,134 @@
+Source: https://github.com/mozilla/pdf.js/security/advisories/GHSA-wgrm-67xf-hhpq
+Retrieved UTC: 2026-09-21T04:00:45.005275+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+
+        mozilla
+
+    /
+
+      pdf.js
+
+    Public
+
+Notifications
+    You must be signed in to change notification settings
+
+Fork
+    10.7k
+
+          Star
+          53.9k
+
+        Code
+
+        Issues
+          370
+
+        Pull requests
+          60
+
+        Discussions
+
+        Actions
+
+        Projects
+
+        Wiki
+
+        Security and quality
+          2
+
+        Insights
+
+Additional navigation options
+
+          Code
+
+          Issues
+
+          Pull requests
+
+          Discussions
+
+          Actions
+
+          Projects
+
+          Wiki
+
+          Security and quality
+
+          Insights
+
+      pdf.js
+
+      Security
+
+      Advisories
+
+      GHSA-wgrm-67xf-hhpq
+
+        Arbitrary JavaScript execution upon opening a malicious PDF
+
+  High
+
+          calixteman
+          published
+          GHSA-wgrm-67xf-hhpq
+          May 6, 2024
+
+      Package
+
+          npm
+
+      pdfjs-dist        
+            (npm)
+
+      Affected versions
+
+      <= 4.1.392
+
+      Patched versions
+
+      4.2.67
+
+  Description
+
+    Impact
+
+If pdf.js is used to load a malicious PDF, and PDF.js is configured with isEvalSupported set to true (which is the default value), unrestricted attacker-controlled JavaScript will be executed in the context of the hosting domain.
+
+Patches
+
+The patch removes the use of eval:
+#18015
+
+Workarounds
+
+Set the option isEvalSupported to false.
+
+References
+
+https://bugzilla.mozilla.org/show_bug.cgi?id=1893645
+
+  Severity
+
+  High
+
+  CVE ID
+
+    CVE-2024-4367
+
+  Weaknesses
+
+    No CWEs
+
+    Credits
+
+      ThomasRinsma  
+
+  Finder
+
+      

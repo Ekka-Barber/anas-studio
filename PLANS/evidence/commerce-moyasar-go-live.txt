@@ -1,0 +1,39 @@
+Source: https://docs.moyasar.com/getting-started/go-live-checklist
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Go-Live Checklist
+On this page
+Go-Live Checklist
+
+Use this checklist before enabling real customer traffic.
+
+Keys and environment​
+
+Switch to pk_live_* and sk_live_*
+
+Remove any test keys from production config
+
+Store keys in secure environment variables
+
+Security and correctness​
+
+Enforce HTTPS across all payment pages
+
+Verify payment server-side before order fulfillment
+
+Validate status, amount, and currency
+
+Confirm callback and webhook endpoints are reachable
+
+Last updated on Sep 9, 2026
+
+Previous
+SDK and Libraries
+Next
+LLM-Friendly Docs
+
+Keys and environment
+Security and correctness
+

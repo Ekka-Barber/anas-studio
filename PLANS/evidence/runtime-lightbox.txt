@@ -1,0 +1,301 @@
+{"url": "https://yet-another-react-lightbox.com/documentation", "final_url": "https://yet-another-react-lightbox.com/documentation", "status": 200, "retrieved_at": "2026-09-21T12:17:50.784072+00:00", "sha256_response": "2f2ca652a823120db3a28d78eb729fae7feebde259f2e00fdb917df97faf57d7"}
+
+Documentation | Yet Another React LightboxYet Another React LightboxIntroductionDocumentationCustomizationAdvanced APIExamplesBasic ExamplesPlaygroundPhoto GalleryCarouselCustom SlidesNext.jsPluginsCaptionsCounterDownloadFullscreenInlineShareSlideshowThumbnailsVideoZoom
+Documentation
+Yet Another React Lightbox allows you to add a lightbox component to your
+React project in minutes. To get started, follow the
+Installation and
+Minimal Setup Example guides, or feel free to explore
+the collection of StackBlitz demos.
+Yet Another React Lightbox provides all components and types as named
+exports. Lightbox is exported as both default and named export.
+The documentation below covers the Yet Another React Lightbox API. For
+advanced features, please see the Advanced API documentation.
+Parameters marked with an asterisk () are required.
+Styles
+Yet Another React Lightbox comes with a CSS stylesheet that needs to be
+imported once in your project. All examples across this site include CSS import,
+but you can omit the import statement if you already imported lightbox styles in
+your application.
+import "yet-another-react-lightbox/styles.css";
+Lightbox
+PropertyTypeDescription
+openbooleanIf true, the lightbox is open.
+close() => voidA callback to close the lightbox.
+indexnumber
+Slide index.
+The lightbox reads this property when it opens (in this case, the index prop determines the starting slide
+index) and when either slides or index props change (in this case, the index prop determines the
+current slide index). In most cases, you do not need to provide this prop at all, as the lightbox maintains
+its state internally. However, you may need to provide the index prop when you modify or completely
+replace the slides array. To keep track of the current slide index, you can use the on.view callback
+(see Tracking Slide Index example).
+Default value: 0
+slidesSlide[]
+Slides to display in the lightbox. See Slide for details.
+Please note that updating the slides array (or just changing the array reference) forces the lightbox
+to update its state based on the current slides and index values. You can safely use a non-stable array
+reference (i.e., slides={[{ ... }]} or slides={items.map((item) => ({ ... }))}) as long as the component
+holding the lightbox does not re-render while the lightbox is open. However, if your component may
+re-render, be sure to either provide the slides prop as a stable array reference (i.e., const in static
+scope, or wrapped with React.useState or React.useMemo), or specify the current slide index in the
+index prop (see Tracking Slide Index example).
+Default value: []
+renderRenderCustom render functions. See Render for details.
+pluginsPlugin[]
+Enabled plugins.
+Example: plugins={[Fullscreen, Video]}
+labelsobject
+Custom UI labels / translations.
+Example: labels={{ Next: "Next slide" }}
+toolbar
+{
+buttons: (React.ReactNode | "close")[];
+}
+Toolbar settings.
+buttons - buttons to render in the toolbar
+Default value: { buttons: ["close"] }
+carousel
+{
+finite?: boolean;
+preload?: number;
+padding?: `${number}px` | `${number}%` | number;
+spacing?: `${number}px` | `${number}%` | number;
+imageFit?: "contain" | "cover"
+imageProps?: ComponentProps<"img"> | ((slide: Slide) => ComponentProps<"img">)
+}
+Carousel settings.
+finite - if true, the lightbox carousel doesn't wrap around
+preload - the lightbox preloads (2 * preload + 1) slides
+padding - padding around each slide
+spacing - spacing between slides
+imageFit - object-fit setting for image slides
+imageProps - custom image attributes
+Default value: { finite: false, preload: 2, padding: "16px", spacing: "30%",
+imageFit: "contain" }
+animation
+{
+fade?: number;
+swipe?: number;
+navigation?: number;
+easing?: {
+fade?: string;
+swipe?: string;
+navigation?: string;
+}
+}
+Animation settings.
+fade - fade-in / fade-out animation duration
+swipe - swipe animation duration
+navigation - override for swipe animation duration when using keyboard navigation or navigation buttons
+easing - animation timing function settings
+fade - fade-in / fade-out animation timing function
+swipe - slide swipe animation timing function
+navigation - slide navigation animation timing function (when using keyboard navigation or navigation buttons)
+Default value: { fade: 250, swipe: 500, easing: { fade: "ease",
+swipe: "ease-out", navigation: "ease-in-out" } }
+controller
+{
+ref?: React.ForwardedRef​<ControllerRef>;
+focus?: boolean;
+aria?: boolean;
+touchAction?: "none" | "pan-y";
+closeOnPullUp?: boolean;
+closeOnPullDown?: boolean;
+closeOnBackdropClick?: boolean;
+closeOnEscape?: boolean;
+disableSwipeNavigation?: boolean;
+}
+Controller settings.
+ref - lightbox controller ref (see Controller Ref for details)
+focus - deprecated, for internal use only
+aria - if true, set ARIA attributes on the controller div
+touchAction - deprecated, for internal use only
+closeOnPullUp - if true, close the lightbox on pull-up gesture
+closeOnPullDown - if true, close the lightbox on pull-down gesture
+closeOnBackdropClick - if true, close the lightbox when the backdrop is clicked
+closeOnEscape - if true, close the lightbox on Escape key press (default: true)
+disableSwipeNavigation - if true, disable slide change on pointer swipe / drag
+Default value: { ref: null, focus: true, aria: false, touchAction: "none",
+closeOnPullUp: false, closeOnPullDown: false, closeOnBackdropClick: false, closeOnEscape: true,
+disableSwipeNavigation: false }
+portal
+{
+root?: (() => DocumentFragment | Element | null) | DocumentFragment | Element | null;
+container?: React.HTMLAttributes<HTMLDivElement>;
+}
+Portal settings.
+root - custom portal mount point. By default, the portal is mounted as a child of the document body.
+Can also be a function that returns the mount point - useful when targeting an element managed by a React
+ref (e.g. root: () => portalRootRef.current).
+container - HTML attributes for the portal container element (e.g., { dir: "rtl" }).
+noScroll
+{
+disabled?: boolean;
+}
+NoScroll module settings.
+The NoScroll module is responsible for hiding the vertical scrollbar and
+preventing document <body/> from scrolling underneath the lightbox.
+However, in some cases, this functionality may cause undesired side effects,
+so you may want to disable this feature.
+disabled - if true, the NoScroll module functionality is disabled
+Additionally, the NoScroll module adds extra padding to the
+fixed-positioned elements to avoid visual layout shifts. The primary
+use case for this feature is a fixed-position page header / appbar.
+However, if this behavior causes undesired side effects, you can
+deactivate it for specific elements by marking them with the
+yarl__no_scroll_padding CSS class.
+on
+{
+view?: ({ index }: { index: number }) => void;
+click?: ({ index }: { index: number }) => void;
+entering?: () => void;
+entered?: () => void;
+exiting?: () => void;
+exited?: () => void;
+}
+Lifecycle callbacks.
+view - a callback called when a slide becomes active
+click - a callback called when a slide is clicked
+entering - a callback called when the portal starts opening
+entered - a callback called when the portal opens
+exiting - a callback called when the portal starts closing
+exited - a callback called when the portal closes
+styles
+{
+root?: CSSProperties;
+container?: CSSProperties;
+slide?: CSSProperties;
+button?: CSSProperties;
+icon?: CSSProperties;
+}
+Customization styles.
+root - lightbox root customization slot
+container - lightbox container customization slot
+slide - lightbox slide customization slot
+button - lightbox button customization slot
+icon - lightbox icon customization slot
+Note that some plugins extend this list with their own customization slots.
+classNamestringCSS class of the lightbox root element
+Slide
+Image slides are supported by default. Additional slide types can be added via
+plugins or a custom render function. Please see the
+Custom Slides example for details.
+PropertyTypeDescription
+type"image"Image slide type
+srcstringImage URL
+altstringImage alt attribute
+widthnumberImage width in pixels
+heightnumberImage height in pixels
+imageFit"contain" | "cover"Image object-fit setting
+srcSet
+{
+src: string;
+width: number;
+height: number;
+}[]Alternative images to be included in the srcset
+As a bare minimum, you need to provide src attribute for each image slide.
+const slides = [
+{ src: "/image1.jpg" },
+{ src: "/image2.jpg" },
+{ src: "/image3.jpg" },
+// ...
+];
+However, the recommended configuration is to provide multiple files of different
+resolution for each slide. Yet Another React Lightbox uses all supplied
+images to populate srcset and sizes attributes on the fly. Please note that
+width and height attributes are required in this case.
+const slides = [
+{
+src: "/image1x3840.jpg",
+alt: "image 1",
+width: 3840,
+height: 2560,
+srcSet: [
+{ src: "/image1x320.jpg", width: 320, height: 213 },
+{ src: "/image1x640.jpg", width: 640, height: 427 },
+{ src: "/image1x1200.jpg", width: 1200, height: 800 },
+{ src: "/image1x2048.jpg", width: 2048, height: 1365 },
+{ src: "/image1x3840.jpg", width: 3840, height: 2560 },
+],
+},
+// ...
+];
+Yet Another React Lightbox is optimized to preload and display only a
+limited number of slides at a time, so there are no performance penalties or UX
+impact in supplying a large number of slides.
+Render
+Custom render functions can be passed via render prop.
+// render function usage example
+<Lightbox
+render={{
+slide: ({ slide, offset, rect }) => {
+// ...
+},
+}}
+// ...
+/>
+PropertyTypeDescription
+slide
+({ slide, offset, rect }: { slide: Slide; offset: number; rect: ContainerRect }) =>
+React.ReactNodeRender custom slide type, or override the default image slide.
+slideHeader
+({ slide }: { slide: Slide }) => React.ReactNodeRender custom slide elements into the DOM right before the slide. Use absolute or fixed positioning.
+slideFooter
+({ slide }: { slide: Slide }) => React.ReactNodeRender custom slide elements into the DOM right after the slide. Use absolute or fixed positioning.
+slideContainer
+({ slide, children }: { slide: Slide; children: React.ReactNode }) => React.ReactNodeRender custom slide container.
+controls() => React.ReactNodeRender custom controls or additional elements in the lightbox. Use absolute or fixed positioning.
+iconPrev() => React.ReactNodeRender custom Prev icon.
+iconNext() => React.ReactNodeRender custom Next icon.
+iconClose() => React.ReactNodeRender custom Close icon.
+iconLoading() => React.ReactNodeRender custom Loading icon.
+iconError() => React.ReactNodeRender custom Error icon.
+buttonPrev() => React.ReactNodeRender custom Prev button. Return null if you want to hide the button.
+buttonNext() => React.ReactNodeRender custom Next button. Return null if you want to hide the button.
+buttonClose() => React.ReactNodeRender custom Close button.
+Controller Ref
+Controller ref provides external controls for the lightbox.
+// Controller ref usage example
+const ref = React.useRef(null);
+// ...
+return (
+<Lightbox
+controller={{ ref }}
+on={{ click: () => ref.current?.close() }}
+// ...
+/>
+);
+PropertyTypeDescription
+prev({ count }: { count: number }) => void | () => voidNavigate to the previous slide.
+next({ count }: { count: number }) => void | () => voidNavigate to the next slide.
+close() => voidClose the lightbox.
+focus() => voidTransfer focus to the lightbox controller.
+getLightboxProps() => ComponentPropsGet lightbox props (see type definitions for more details).
+getLightboxState() => LightboxStateGet lightbox state (see type definitions for more details).
+Tracking Slide Index
+While the lightbox maintains the slide index state internally, some use cases
+may require you to keep track of the slide index in a local state variable. You
+can easily accomplish this using the following approach:
+const [index, setIndex] = React.useState(0);
+// ...
+return (
+<Lightbox
+index={index}
+on={{ view: ({ index: currentIndex }) => setIndex(currentIndex) }}
+// ...
+/>
+);
+RTL
+The lightbox automatically detects the reading direction from its root element
+using the computed CSS direction property. This means it inherits dir from
+any ancestor, including the <html> tag.
+<html lang="fa" dir="rtl">
+<!-- ... -->
+</html>
+You can also set the direction per-instance.
+For the default portal-based lightbox, use the portal.container prop:
+<Lightbox portal={{ container: { dir: "rtl" } }} />
+For the carousel mode with Inline plugin, pass dir via the inline prop:
+<Lightbox plugins={[Inline]} inline={{ dir: "rtl" }} />
+«IntroductionCustomization»

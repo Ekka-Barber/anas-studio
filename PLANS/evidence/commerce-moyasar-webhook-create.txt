@@ -1,0 +1,30 @@
+Source: https://docs.moyasar.com/api/other/webhooks/create-webhook
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Other APIs
+Webhooks
+Create Webhook
+On this page
+Create Webhook
+
+This API endpoint enables you register webhooks and the events you would like to listen to. You can create a global event listener by omitting the event key, this will enable you listen to all of the currently available events and all the events to be added in the future. 
+
+Curl Request
+curl -X POST https://api.moyasar.com/v1/webhooks \     -u sk_yourkey: \     -H 'Content-Type: application/json'     -d '{           "http_method": "post",            "url": "https://example.com/updatepayments",            "shared_secret": "123"            "events": [              "payment_paid",              "payment_failed"            ]         }'
+
+Responses​
+
+Success Response
+{  "id": "c4bc247d-5288-4673-9b40-39c082ac7fbb",  "http_method": "post",  "url": "https://example.com/updatepayments",  "created_at": "2022-12-07T08:24:23.097Z",  "events": ["payment_paid", "payment_failed"]}
+
+Last updated on Sep 9, 2026
+
+Previous
+List all Webhook Attempts
+Next
+Fetch Webhook
+
+Responses
+

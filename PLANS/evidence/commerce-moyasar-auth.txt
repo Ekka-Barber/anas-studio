@@ -1,0 +1,112 @@
+Source: https://docs.moyasar.com/api/authentication
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Authentication
+On this page
+Authentication
+
+Introduction​
+
+Moyasar's API uses API Keys to authenticate requests.
+
+You can view and manage your API keys in the Moyasar Dashboard.
+
+Publishable Key ​
+
+Sending cardholder data to the merchant backend is prohibited and will result in canceling the agreement between Moyasar and the merchant in addition to the immediate termination of the service.
+
+To address this issue, Moyasar has implemented a publishable API key, enabling merchants to initiate payments directly from the frontend or to tokenize card payments for later use in the merchant's backend.
+
+The publishable API key is restricted to a single operation only:
+
+Create Payment
+
+With this restriction, this API key is safe to be shipped into client code like browsers and mobile apps.
+
+Secret Key​
+
+The secret API key allows you to perform all operations related to your account.
+
+Unlike the publishable API key, the secret API key must be secret and only used from the merchant backend code.
+
+If for any reason this key is leaked, the merchant is advised to immediately regenerate their API keys through the settings page in Moyasar Dashboard.
+
+info
+For improved security, secret keys are now only partially visible in the dashboard. If you lose a key, you’ll need to regenerate it and store it securely. New keys are shown only once. Only secret key ID (which starts with sk_test_ or sk_live_) will remain visible and copyable.
+
+Sandbox Environment
+
+Moyasar provides a sandbox environment for testing purposes. Using the test mode doesn't affect your live data or interact with the banking networks. This allows you to test your integration and ensure everything is working correctly before going live with actual payments.
+
+Test API keys are prefixed with the following keywords:
+
+pk_test_
+
+sk_test_
+
+Live API keys on the other hand are prefixed with the following keywords:
+
+pk_live_
+
+sk_live_
+
+Basic Auth
+
+Authentication to the API is performed via HTTP Basic Auth.
+
+You should send the Basic authentication scheme with the following fields:
+
+Username: <your_api_key>
+
+Password: <EMPTY>
+
+Important
+The password must be kept empty
+
+HTTPS​
+
+All API calls must be made over HTTPS; any API call made over HTTP will be rejected.
+
+Example​
+
+Here is an example of the List Payments endpoint in different programming languages
+
+PHP
+Ruby
+Java
+Python
+Node.js
+Curl
+C#
+require 'vendor/autoload.php'; // Make sure Guzzle is installed via Composeruse GuzzleHttp\Client;$client = new Client();$response = $client->get('https://api.moyasar.com/v1/payments', ['auth' => ['sk_test_123', ''],]);echo $response->getBody()->getContents();
+
+# frozen_string_literal: truerequire 'http'HTTP.basic_auth(user: 'sk_test_123', pass: '').get('https://api.moyasar.com/v1/payments')
+
+String url = "https://api.moyasar.com/v1/payments";String username = "sk_test_123";String password = "";String credentials = username + ":" + password;String encodedCredentials = java.util.Base64.getEncoder().encodeToString(credentials.getBytes());HttpClient client = HttpClient.newHttpClient();HttpRequest request = HttpRequest.newBuilder()        .uri(URI.create(url))        .header("Authorization", "Basic " + encodedCredentials)        .build();HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());System.out.println(response.body());
+
+import requestsurl = 'https://api.moyasar.com/v1/payments'response = requests.get(url, auth=('sk_test_123', ''))print(response.text)
+
+const axios = require('axios');let config = {method: 'get',url: 'https://api.moyasar.com/v1/payments',auth: { username: "sk_test_123", password: ""}};axios.request(config)    .then((response) => {      console.log(response.data);    })    .catch((error) => {      console.log(error);   });
+
+curl https://api.moyasar.com/v1/payments -u sk_test_123:
+
+using (var client = new HttpClient()){    string url = "https://api.moyasar.com/v1/payments";    string username = "sk_test_123";    string password = "";    var byteArray = Encoding.ASCII.GetBytes($"{username}:{password}");    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", Convert.ToBase64String(byteArray));    var response = await client.GetStringAsync(url);    Console.WriteLine(response);}
+
+tip
+You must replace sk_test_123 with your API key.
+
+Last updated on Sep 9, 2026
+
+Previous
+API Introduction
+Next
+Pagination
+
+Introduction
+Publishable Key 
+Secret Key
+HTTPS
+Example
+

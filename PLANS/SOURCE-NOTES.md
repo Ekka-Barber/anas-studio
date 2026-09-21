@@ -1,0 +1,25 @@
+# Source findings and precedence
+
+Inspected 2026-09-21. `evidence/source-manifest.json` records SHA-256/bytes for 360 source files across deploy, offer v3, book assets and original fonts, plus mission/AGENTS/PRD/brand documents. It is a read-only baseline, not permission to ship every asset. `_archive/` was not inspected or changed.
+
+## Product and visual sources
+
+- `offer-site-v3/index.html:1547` commits React/TypeScript/Next.js; 1551–1557 lists Payload/PostgreSQL/R2/Moyasar-or-Stream; 1574–1633 defines admin domains; 1665–1678 defines complete commerce; 1698–1721 sets delivery order and approval; 1931 and 1936 repeat scope and gates in the print offer. Full visible text with original lines is saved in `evidence/offer-v3-text.txt`.
+- `anasaq-me-prd-v1.md:1–21` describes a literary Arabic digital home organized around started/built/passed identity. Its no-CMS/commerce-V2 and Astro decisions are superseded. Compatible specifics retained: route map (85–94), tokens/type, home/room detail, static shelf, gallery categories, responsive breakpoints, accessible motion, SEO and performance targets. Old prices, no-database-live content, blind heartbeat and assumed free managed backups are not adopted.
+- `deploy/design/Style Board.dc.html`, `Motion Spec.dc.html`, `Responsive Frames.dc.html` are developer boards. `Home.dc.html` and seven room `.dc.html` files are visual inputs. `deploy/index.html` is the assembled responsive showcase with public-style controls and internal prototype styling tools, not production code.
+- `deploy/design/كُتبت هنا.dc.html:37` loads page-flip 2.0.7; the existing reader implementation starts at line 382 and the prototype cart at 509. The next implementation uses the same physical reading concept with real PDF pages in separate production files. Preserve the rest of the book's finished composition.
+- Browser inspection opened local showcase and its actual book link, then clicked reader anchor. The responsive showcase renders its intended typography/cover; the original book reference shows the right-bound cover and reader controls. The fixed reference may overflow a narrow browser. No full cross-device production test is claimed, because no production application exists yet.
+
+## Brand package and documents
+
+`anasaq-me-full-package.md` is a historical brand/design package: craftsman-storyteller, engineer plus memory-keeper, restrained Saudi hospitality, the greatest pride in unsigned contributions. Name stays modest; ideas/places/stories carry attention. It rejects hype, neon, generic corporate English and exclamation marks. Early Google-font and palette prompts are superseded by its later locked design notes and the delivered Lyon/Thmanyah system. Do not execute old image-generation/build prompts in that document or add their tool vocabulary to the site.
+
+The two Word documents were read through their XML parts for content, not visually re-exported. Extracts and document hashes are in `evidence/offer-docx-1.txt` and `offer-docx-2.txt`. One discusses integrated CMS choices; the older launch offer has a fixed fee, shorter timeline and limited launch scope. These do not override v3's client-set fee, full CMS/commerce/services or four phases. No old price/timeline is copied into product or commercial promises.
+
+## Book and rights
+
+`evidence/book-pdf-inventory.json` records all 9 PDFs under BOOK_ASSETS, source hashes and first-page metadata. Top-level ` (11).pdf` is a 2-page introduction, ` (8).pdf` a 1-page dedication, and ` (9).pdf` a 2-page photo/memory fragment. Corresponding WhatsApp PDFs repeat that fragment class. `ANAS ALQARNI .pdf` has 7 pages and opens as a services presentation, not the manuscript. Signature PDF and an artboard/color PDF are single-page artwork. There is no evidence here of a complete final sale manuscript. This corrects the temptation to assume that every PDF named Anas is the book.
+
+`BOOK_ASSETS/final/README.md` identifies four coherent web/retail cover assets. `khous-flat-cover-comp.png` is explicitly an approval comp, not a print file. Trim/spine/paper/CMYK/bleed need a print designer; physical production belongs to Anas. Prices mentioned in that asset note are historical and cannot seed store data. Use existing optimized `deploy/images/` web derivatives, not multi-megabyte source comps as hero payloads.
+
+Self-hosted Lyon Arabic OTF and Thmanyah WOFF2 files exist. The PRD states web licenses are held, and Thmanyah contains license PDFs; asset presence alone does not prove the precise web/subsetting/distribution permissions. E06 requires a private rights register. Do not publish license PDFs, `.DS_Store`, `__MACOSX` resource forks, original commercial font packs or private book chat material.

@@ -1,0 +1,416 @@
+{"url": "https://supabase.com/pricing", "final_url": "https://supabase.com/pricing", "status": 200, "retrieved_at": "2026-09-21T04:00:52.881863+00:00", "sha256_response": "431adbb9c803c2909810fe120267015227db6bcde9ebb9560ba20a3a17e2cf1c"}
+
+Pricing & Fees | SupabaseSkip to content
+Product
+Developers
+Solutions
+Pricing
+Docs
+Blog110.4KSign inStart your projectOpen main menu
+Predictable pricing, designed to scale
+Start building for free, collaborate with your team, then scale to millions of usersCopy as MarkdownAsk ChatGPTAsk Claude
+Free
+Perfect for passion projects & simple websites.Start for Free
+$0
+/ month
+Get started with:
+Unlimited API requests
+50,000 monthly active users
+500 MB database size
+Shared CPU • 500 MB RAM
+5 GB egress
+5 GB cached egress
+1 GB file storage
+Community support
+Free projects are paused after 1 week of inactivity. Limit of 2 active projects.
+ProMost Popular
+For production applications with the power to scale.Get Started
+From
+$25
+/ monthFirst project included. Additional projects from $10/mo.See how pricing scales
+Everything in the Free Plan, plus:
+100,000 monthly active users
+then $0.00325 per MAU
+8 GB disk size per project
+then $0.125 per GB
+250 GB egress
+then $0.09 per GB
+250 GB cached egress
+then $0.03 per GB
+100 GB file storage
+then $0.0213 per GB
+Email support
+Daily backups stored for 7 days
+7-day log retention
+Add Log Drains
+additional $60 per drain, per project
+Team
+Add features such as SSO, control over backups, and industry certifications.Get Started
+From
+$599
+/ monthFirst project included. Additional projects from $10/mo.See how pricing scales
+Everything in the Pro Plan, plus:
+SOC2 & ISO 27001
+Project-scoped and read-only access
+HIPAA available as paid add-on
+SSO for Supabase Dashboard
+Priority email support & SLAs
+Daily backups stored for 14 days
+28-day log retention
+Enterprise
+For large-scale applications running Internet scale workloads.Contact Us
+Custom
+Designated Support manager
+Uptime SLAs
+Supports AWS PrivateLink
+24×7×365 premium enterprise support
+Private Slack channel
+Custom Security Questionnaires Compare Plans
+How compute pricing works
+Choose a plan, add projects, and see your total costWhat is “compute”?About compute
+1. Choose your planProTeam
+Pro
+$25/month
+Everything in the Free Plan, plus:
+100K monthly active users
+8 GB disk size per project
+250 GB bandwidth
+Daily backups (7 day retention)
+Email support
+Paid plans include $10/mo in compute credits, enough to cover one Micro instance.
+2. Configure compute for your projects
+Add projects and adjust compute to estimate your monthly cost.
+Monthly estimate:Plan subscription$25Total Compute$10Compute Credits- $10TotalAbout this estimate$25Micro
+Project 1$10Drag to adjust1 GB RAM / Shared compute / Connections: Direct 60, Pooler 200 Add Project
+Starts from $10/month
+Scale compute up to 64 vCPUs and 256 GB RAMLearn about Compute add-ons
+Compute SizePrice USDComputeMemoryConnections: DirectConnections: Pooler
+First instance is free on paid plans
+Micro$10Shared compute1 GB60200
+Small$15Shared compute2 GB90400
+Medium$60Shared compute4 GB120600
+Large$110Dedicated · 2 vCPUs8 GB160800
+XL$210Dedicated · 4 vCPUs16 GB2401,000
+2XL$410Dedicated · 8 vCPUs32 GB3801,500
+4XL$960Dedicated · 16 vCPUs64 GB4803,000
+8XL$1,870Dedicated · 32 vCPUs128 GB4906,000
+12XL$2,800Dedicated · 48 vCPUs192 GB5009,000
+16XL$3,730Dedicated · 64 vCPUs256 GB50012,000
+>16XLContact UsCustomCustomCustomCustom
+Compute SizeMicro
+Price USD$10
+ComputeShared compute
+Memory1 GB
+Connections: Direct60
+Connections: Pooler200
+PlanSmall
+Price USD$15
+ComputeShared compute
+Memory2 GB
+Connections: Direct (recommended)90
+Connections: Pooler (recommended)400
+PlanMedium
+Price USD$60
+ComputeShared compute
+Memory4 GB
+Connections: Direct (recommended)120
+Connections: Pooler (recommended)600
+PlanLarge
+Price USD$110
+ComputeDedicated · 2 vCPUs
+Memory8 GB
+Connections: Direct (recommended)160
+Connections: Pooler (recommended)800
+PlanXL
+Price USD$210
+ComputeDedicated · 4 vCPUs
+Memory16 GB
+Connections: Direct (recommended)240
+Connections: Pooler (recommended)1,000
+Plan2XL
+Price USD$410
+ComputeDedicated · 8 vCPUs
+Memory32 GB
+Connections: Direct (recommended)380
+Connections: Pooler (recommended)1,500
+Plan4XL
+Price USD$960
+ComputeDedicated · 16 vCPUs
+Memory64 GB
+Connections: Direct (recommended)480
+Connections: Pooler (recommended)3,000
+Plan8XL
+Price USD$1,870
+ComputeDedicated · 32 vCPUs
+Memory128 GB
+Connections: Direct (recommended)490
+Connections: Pooler (recommended)6,000
+Plan12XL
+Price USD$2,800
+ComputeDedicated · 48 vCPUs
+Memory192 GB
+Connections: Direct (recommended)500
+Connections: Pooler (recommended)9,000
+Plan16XL
+Price USD$3,730
+ComputeDedicated · 64 vCPUs
+Memory256 GB
+Connections: Direct (recommended)500
+Connections: Pooler (recommended)12,000
+Plan>16XL
+Price USDContact Us
+ComputeCustom
+MemoryCustom
+Connections: Direct (recommended)Custom
+Connections: Pooler (recommended)CustomChoose the best compute size for you
+Every project on the Supabase Platform comes with its own dedicated Postgres instance. Select the compute size that fits your needs.
+Compute instances are billed hourly and you can scale up or down at any time. Paid Plans come with $10/month in compute credits to cover one Micro instance or offset the cost of any other instance.
+Read more on usage-based billing for compute or Compute Add-ons.Expand Pricing breakdown
+Advanced disk configurations
+Scale database storage up to 60 TB and 80,000 IOPS.
+Max SizeSizeIOPSThroughputDurability
+General PurposeBalance between price and performance16 TB8 GB included
+then $0.125 per GB3,000 IOPS included
+then $0.024 per IOPS125 MB/s included
+then $0.095 per MB/s99.9%
+High PerformanceFor mission critical applications60 TB$0.195 per GB$0.119 per IOPSScales automatically with IOPS99.999%
+Disk TypeGeneral Purpose
+Max Size16 TB
+Size8 GB included
+then $0.125 per GB
+IOPS3,000 IOPS included
+then $0.024 per IOPS
+Throughput125 MB/s included
+then $0.095 per MB/s
+Durability99.9%
+Disk TypeHigh Performance
+Max Size60 TB
+Size$0.195 per GB
+IOPS$0.119 per IOPS
+ThroughputScales automatically with IOPS
+Durability99.999%Learn about advanced disk config
+Fine-tune your project
+Go beyond your Plan limits and level up your Supabase experienceSpend Cap On
+Available on Pro Plan
+Cost Control
+The Pro Plan has a spend cap enabled by default to keep costs under control. If you want to scale beyond the plan's included quota, simply switch off the spend cap to pay for additional resources.Learn about Cost Control
+Flat fee $10/month
+Custom Domain
+Use your own domain for your Supabase project to present a branded experience to your users.
+Starts from $100/month
+Point in Time Recovery
+Roll back to any specific point in time, down to the second.Change plan
+Free$0
+/month
+Perfect for hobby projects and experimentsStart for FreeDatabase
+FeatureIncluded
+Dedicated Postgres DatabaseIncluded in free
+Unlimited API requestsIncluded in free
+Database size500 MB database size per project included
+Advanced disk configNot included in free
+Automatic backupsNot included in free
+Point in time recoveryNot included in free
+PausingAfter 1 week of inactivity
+BranchingNot included in free
+Egress5 GB included
+PipelinesNot included in freeAuth
+FeatureIncluded
+Total UsersUnlimited
+MAUs50,000 included
+User data ownershipIncluded in free
+Anonymous Sign-insIncluded in free
+Social OAuth providersIncluded in free
+OAuth 2.1 ServerIncluded in free
+Custom SMTP serverIncluded in free
+Remove Supabase branding from emailsNot included in free
+Auth Audit Logs1 hour
+Basic Multi-Factor AuthIncluded in free
+Advanced Multi-Factor Auth - PhoneNot included in free
+Third-Party MAUs50,000 included
+Single Sign-On (SAML 2.0)Not included in free
+Leaked password protectionNot included in free
+Single session per userNot included in free
+Session timeoutsNot included in free
+Auth HooksCustom Access Token (JWT), Send custom email/SMS
+Advanced security featuresNot included in freeStorage
+FeatureIncluded
+Storage1 GB included
+Cached Egress5 GB included
+Custom access controlsIncluded in free
+Max file upload size50 MB
+Content Delivery NetworkBasic CDN
+Image TransformationsNot included in freeRealtime
+FeatureIncluded
+Postgres ChangesIncluded in free
+Concurrent Peak Connections200 included
+Messages Per Month2 Million included
+Max Message Size256 KBEdge Functions
+FeatureIncluded
+Invocations500,000 includedDashboard
+FeatureIncluded
+Team membersUnlimitedPlatform Security and Compliance
+FeatureIncluded
+Log retention (API & Database)1 day
+Log DrainNot included in free
+Platform Audit LogsNot included in free
+Metrics endpointNot included in free
+SOC2Not included in free
+ISO 27001Not included in free
+HIPAANot included in free
+AWS PrivateLinkNot included in free
+SSONot included in free
+Uptime SLAsNot included in free
+Access RolesOwner, Admin, Developer
+Vanity URLsNot included in free
+Custom DomainsNot included in freeSupport
+FeatureIncluded
+Community SupportIncluded in free
+Email SupportNot included in free
+Email Support SLANot included in free
+Designated supportNot included in free
+On Boarding SupportNot included in free
+Designated Customer Success TeamNot included in free
+Security Questionnaire HelpNot included in freePricing plan comparison
+Feature by
+Free
+$0/ monthStart for Free
+Pro
+$25/ monthGet Started
+Team
+$599/ monthGet Started
+Enterprise
+CustomContact Us
+Database
+Dedicated Postgres DatabaseAbout Dedicated Postgres DatabaseIncluded in Included in Included in Included in
+Unlimited API requestsIncluded in Included in Included in Included in
+Database sizeAbout Database size500 MB database size per project included8 GB disk size per project includedthen $0.125 per GB8 GB disk size per project includedthen $0.125 per GBCustom
+Advanced disk configAbout Advanced disk configNot included in Included in Included in Included in
+Automatic backupsAbout Automatic backupsNot included in About Automatic backups on the pro plan7 daysAbout Automatic backups on the team plan14 daysCustom
+Point in time recoveryAbout Point in time recoveryNot included in $100 per month per 7 days retention$100 per month per 7 days retention$100 per month per 7 days retention, >28 days retention available
+PausingAbout PausingAfter 1 week of inactivityNeverNeverNever
+BranchingNot included in $0.01344 per branch, per hour$0.01344 per branch, per hourCustom
+EgressAbout Egress5 GB included250 GB includedthen $0.09 per GB250 GB includedthen $0.09 per GBCustom
+PipelinesAbout PipelinesNot included in $0.053 per pipeline per hour$3.00 per GB processed during ongoing replication$0.60 per GB processed during initial sync$0.053 per pipeline per hour$3.00 per GB processed during ongoing replication$0.60 per GB processed during initial syncCustom
+Auth
+Total UsersAbout Total UsersUnlimitedUnlimitedUnlimitedUnlimited
+MAUsAbout MAUs50,000 included100,000 includedthen $0.00325 per MAU100,000 includedthen $0.00325 per MAUCustom
+User data ownershipAbout User data ownershipIncluded in Included in Included in Included in
+Anonymous Sign-insAbout Anonymous Sign-insIncluded in Included in Included in Included in
+Social OAuth providersIncluded in Included in Included in Included in
+OAuth 2.1 ServerAbout OAuth 2.1 ServerIncluded in Included in Included in Included in
+Custom SMTP serverIncluded in Included in Included in Included in
+Remove Supabase branding from emailsNot included in Included in Included in Included in
+Auth Audit LogsAbout Auth Audit Logs1 hour7 days28 daysIncluded in
+Basic Multi-Factor AuthAbout Basic Multi-Factor AuthIncluded in Included in Included in Included in
+Advanced Multi-Factor Auth - PhoneAbout Advanced Multi-Factor Auth - PhoneNot included in $75 per month for first projectthen $10 per month per additional projects$75 per month for first projectthen $10 per month per additional projectsCustom
+Third-Party MAUsAbout Third-Party MAUs50,000 included100,000 includedthen $0.00325 per MAU100,000 includedthen $0.00325 per MAUCustom
+Single Sign-On (SAML 2.0)Not included in 50 includedthen $0.015 per MAU50 includedthen $0.015 per MAUContact Us
+Leaked password protectionNot included in Included in Included in Included in
+Single session per userNot included in Included in Included in Included in
+Session timeoutsNot included in Included in Included in Included in
+Auth HooksCustom Access Token (JWT), Send custom email/SMSCustom Access Token (JWT), Send custom email/SMSAllAll
+Advanced security featuresNot included in Not included in Not included in Contact Us
+Storage
+StorageAbout Storage1 GB included100 GB includedthen $0.0213 per GB100 GB includedthen $0.0213 per GBCustom
+Cached EgressAbout Cached Egress5 GB included250 GB includedthen $0.03 per GB250 GB includedthen $0.03 per GBCustom
+Custom access controlsIncluded in Included in Included in Included in
+Max file upload sizeAbout Max file upload size50 MB500 GB500 GBCustom
+Content Delivery NetworkAbout Content Delivery NetworkBasic CDNSmart CDNSmart CDNSmart CDN
+Image TransformationsAbout Image TransformationsNot included in 100 origin images includedthen $5 per 1000 origin images100 origin images includedthen $5 per 1000 origin imagesCustom
+Realtime
+Postgres ChangesIncluded in Included in Included in Included in
+Concurrent Peak ConnectionsAbout Concurrent Peak Connections200 included500 includedthen $10 per 1000500 includedthen $10 per 1000Custom concurrent connections and volume discount
+Messages Per MonthAbout Messages Per Month2 Million included5 Million includedthen $2.50 per Million5 Million includedthen $2.50 per MillionVolume discounts on messages
+Max Message Size256 KB3 MB3 MBCustom
+Edge Functions
+InvocationsAbout Invocations500,000 included2 Million includedthen $2 per 1 Million2 Million includedthen $2 per 1 MillionCustom
+Dashboard
+Team membersUnlimitedUnlimitedUnlimitedUnlimited
+Platform Security and Compliance
+Log retention (API & Database)1 day7 days28 days90 days
+Log DrainAbout Log DrainNot included in $60 per drain per month+ $0.20 per million events+ $0.09 per GB egress$60 per drain per month+ $0.20 per million events+ $0.09 per GB egressCustom
+Platform Audit LogsAbout Platform Audit LogsNot included in Not included in Included in Included in
+Metrics endpointNot included in Included in Included in Included in
+SOC2Not included in Not included in Included in Included in
+ISO 27001Not included in Not included in Included in Included in
+HIPAAAbout HIPAANot included in Not included in Available as paid add-onAvailable as paid add-on
+AWS PrivateLinkAbout AWS PrivateLinkNot included in Not included in Included in Included in
+SSONot included in Not included in Contact UsContact Us
+Uptime SLAsNot included in Not included in Not included in Included in
+Access RolesAbout Access RolesOwner, Admin, DeveloperOwner, Admin, DeveloperOwner, Admin, Developer, Read-only, Predefined project scoped rolesCustom project scoped roles
+Vanity URLsNot included in Included in Included in Included in
+Custom DomainsNot included in $10 per domain per month per project add on$10 per domain per month per project add onAbout Custom Domains on the enterprise plan1, additional $10/domain/month
+Support
+Community SupportIncluded in Included in Included in Included in
+Email SupportNot included in Included in Included in Included in
+Email Support SLANot included in Not included in Included in Included in
+Designated supportNot included in Not included in Not included in Included in
+On Boarding SupportNot included in Not included in Not included in Included in
+Designated Customer Success TeamNot included in Not included in Not included in Included in
+Security Questionnaire HelpNot included in Not included in Included in Included in
+Frequently asked questionsCan I cap my usage so my bill doesn't run over?I'm worried I could end up with a huge bill at the end of the month.When will I be billed?Does Supabase charge sales tax, VAT or GST?Are you going to change your pricing in the future?What happens if I cancel my subscription?How can I track my usage?What if I need one project for development and one for production?Can I self-host Supabase for free?Can I pause a free project?
+Can't find the answer to your question? Open a support ticket to receive help from our team.
+Build in a weekend, scale to millionsStart your projectRequest a demo
+FooterWe protect your data.More on Security
+SOC2 Type 2 Certified
+HIPAA Compliant
+ISO 27001 CertifiedTwitterGitHubDiscordYoutubeTikTokInstagram
+Get product updates and news from Supabase. Subscribe Product
+Pricing
+Database
+Auth
+Functions
+Realtime
+Storage
+Vector
+Cron
+Feature Catalog
+Launch WeekSolutions
+AI Builders
+No Code
+Beginners
+Developers
+Postgres Devs
+Vibe Coders
+Hackathon Contestants
+Startups
+Agencies
+Enterprise
+Innovation Teams
+Hosted Postgres
+B2B SaaS
+FinServ
+Healthcare
+Agents
+Switch from Firebase
+Switch from NeonResources
+Blog
+Support
+System Status
+Become a Partner
+Partner Catalog
+Brand Assets
+Security & Compliance
+Regions
+SOC2
+HIPAADevelopers
+Documentation
+Supabase Library
+Changelog
+RSSCommunity
+Events & Webinars
+SupaSquad
+Contributing
+Open Source
+DevToCompany
+Company
+Careers
+General Availability
+Legal Hub
+Privacy Policy
+Privacy Settings
+Acceptable Use Policy
+Humans.txt
+Lawyers.txt
+Security.txt
+Contact Us© Supabase Inc

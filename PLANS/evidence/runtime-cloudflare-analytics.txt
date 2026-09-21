@@ -1,0 +1,63 @@
+{"url": "https://developers.cloudflare.com/web-analytics/", "final_url": "https://developers.cloudflare.com/web-analytics/", "status": 200, "retrieved_at": "2026-09-21T04:00:51.867141+00:00", "sha256_response": "527afcb63cb97031c4f8385d018703ab64c2a9502856f377b707a6232ffbb9b4"}
+
+Overview · Cloudflare Web Analytics docsSkip to contentDocumentation IndexFetch the complete documentation index at: https://developers.cloudflare.com/web-analytics/llms.txtUse this file to discover all available pages before exploring further.DocsDirectoryAPISDKsChangelogSearchCtrlKLog inDashboardCloudflare Web Analytics/
+Overview
+About
+Get started
+Overview
+Web Analytics for SPAs
+Notifications
+RUM beacon for Web Analytics ↗
+Configuration options
+Overview
+Filters
+Rules
+Data and metrics
+Overview
+High-level metrics
+Page load time
+Core Web Vitals
+Dimensions
+Data origin and collection
+Limits
+FAQs
+Changelog
+Agent resources
+Agent setup ↗
+Cloudflare Skills ↗
+Code Mode MCP Server ↗
+Domain-specific MCP Servers ↗MCP
+Cloudflare Web Analytics llms.txt ↗
+Cloudflare Web Analytics llms-full.txt ↗
+Cloudflare Docs llms.txt ↗
+Cloudflare Docs llms-full.txt ↗
+Home
+/Cloudflare Web Analytics
+Cloudflare Web AnalyticsLast updated Apr 16, 2026|Copy as Markdown|View as Markdown|Agent setupOverviewFeaturesRelated productsMore resources
+Get vital web analytics for your website without compromising user privacy.
+Available on all plans
+Cloudflare Web Analytics helps you understand the performance of your web pages as experienced by your site visitors.
+Features
+Filters
+Use filters to refine the data displayed in Web Analytics.Use Filters
+Rules
+Use rules to configure tracking of Web Analytics for specific websites or paths.Use Rules
+Dimensions
+Use dimensions to categorize and organize various metrics or data types effectively.Use Dimensions
+Related products
+Analytics
+Cloudflare visualizes the metadata collected by our products in the Cloudflare dashboard.
+Speed
+Speed allows you to assess the performance of your website and get recommendations of Cloudflare products to enhance the website performance.
+More resources
+Resource hub
+Refer to our latest resources to learn more about security, performance and reliability.
+Cloudflare blog
+Read articles about the latest updates about Web Analytics.NextAbout
+Was this helpful?YesNoEdit pageReport issue
+On this page
+Overview
+Features
+Related products
+More resourcesEdit pageReport issueGetting startedPlansContact salesPartnersFind a partnerStartupsUnder attack?Domain name searchCompanyAboutCareersInvestorsPressPress kitGlobal networkPublic interestProject GalileoAthenian ProjectCloudflare for CampaignsProject FairshotImpact/ESGComplianceCompliance resourcesTrust HubData ProtectionResponsible AITransparency reportReport abuseResourcesApp innovation reportCloudflare RadarCase studiesStatusSupportEventsBlogDevelopersDocumentationLearning centerCommunitySolutionsSSE and SASE platformCloudflare AI CloudAI SecurityFrontend Development PlatformMulti-Tenant Platform DevelopmentWeb Security PlatformStart BuildingLog In
+© 2026 Cloudflare, Inc.Privacy policy| Report security issues| Terms of use| Trademark|Your privacy choicesDocs

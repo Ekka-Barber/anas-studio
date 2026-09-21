@@ -1,0 +1,378 @@
+Source: https://docs.moyasar.com/guides/references/form-configuration
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+References
+Form Configuration
+On this page
+Overview
+
+Here is a list of acceptable configuration values/options for the form.
+
+Element (required)​
+
+The element must be a valid CSS selector for the target element to mount the form. Or it can be an instance of a DOM element . Here is an example:
+
+element: '.payment-form', // Using a classelement: '#payment-form', // Using an IDelement: document.querySelector('.payment-form'), // or just providing an Element instance
+
+Language (optional)​
+
+This option can be used to set the display language for the form. If left empty,
+language will be inferred from <html> element then fallback to en if it can't
+be inferred. Here is an example:
+
+language: 'en', // Displaying the form in Englishlanguage: 'ar', // Displaying the form in Arabiclanguage: 'fr', // Displaying the form in French (You need to provide your own translations)
+
+Translations (optional)​
+
+This option is used to add more translations to the form. Here is an example:
+
+translations: {    fr: {        "validation.should_be_english_letters_only": "Le nom ne peut avoir que l'alphabet anglais et des espaces",        "validation.first_and_last_name_required": "Le prénom et le nom de famille sont obligatoires",    }},
+
+Publishable API Key (required)​
+
+The publishable API key is required in order to communicate with Moyasar's API
+and complete the payment request. Here is an example:
+
+// Live key is used in production environemnt and will require a valid SSL certificatepublishable_api_key: 'pk_live_AQpxBV31a29qhkhUYFYUFjhwllaDVrxSq5ydVNui',// This will put the form in testing mode and allow you to test without an SSL certificatepublishable_api_key: 'pk_test_AQpxBV31a29qhkhUYFYUFjhwllaDVrxSq5ydVNui',
+
+Invoice ID (optional)​
+
+This field enables you to pay an invoice that is already created but not paid.
+
+The amount of the invoice should match the amount that the form is initialized with.
+
+invoice_id: '410d6b75-a210-41fb-b6cc-743bc90c7esd';
+
+Payment Methods (optional)​
+
+This is used to enable and disable payment methods on the form. Supported methods are:
+
+Credit Card (creditcard)
+
+Apple Pay (applepay)
+
+Samsung Pay (samsungpay)
+
+STC Pay (stcpay)
+
+// Enabling only Credit Card and Apple Paymethods: ['creditcard', 'applepay'];
+
+Amount (required)​
+
+This sets the amount the user must pay. The amount must be in a minor unit of the selected currency, e.g. if we want to receive a payment of $10, we must represent the amount in cents 1000.
+
+amount: 1000;
+
+Currency (required)​
+
+This sets which currency is used for the amount to be paid.
+
+currency: 'USD', // Get payment in US Dollarscurrency: 'SAR', // Get payment in Saudi Riyalscurrency: 'JPY', // Get Payment in Japanese Yen
+
+The currency must be in ISO 4217 3-letter currency code format.
+
+Description (required)​
+
+This option is used to set a description to be sent along with other payment information
+to Moyasar's API.
+
+description: 'Payment for Order #34321';
+
+The description can be any string you want.
+
+Callback URL (required)​
+
+This URL is used by Moyasar to redirect the user back after the payment is either
+successful, or the user has completed the 3D Secure stage.
+
+callback_url: 'https://example.com/payment/return';
+
+Metadata (optional)​
+
+Adds searchable key/value pairs to the payments.
+
+metadata: {    'order_id': '10039'}
+
+Supported Networks (optional)​
+
+This optional configuration option is used to set accepted card networks in the form. 
+
+The default value is all networks except amex.
+
+Supported Networks:
+
+Mada (mada)
+
+Visa (visa)
+
+Mastercard (mastercard)
+
+American Express (amex)
+
+UnionPay (unionpay)
+
+supported_networks: ['mada', 'visa', 'mastercard', 'amex', 'unionpay'];
+
+Fixed Width (optional)​
+
+This option is used to limit the form width to only 360px and it is enabled by default. 
+
+To disable this just set it to false.
+
+fixed_width: false;
+
+Apply Coupon (optional)​
+
+Controls coupon application; the coupon is applied by default if available, and this option is only needed when you want to disable it.
+
+apply_coupon: false;
+
+On Initiating (optional)​
+
+This callback is used to handle the event when a user starts a payment method
+and before any information is sent to Moyasar's API. You can use this to perform
+any last-second validations or to prepare something.
+
+When you handle this event, you can return a false to stop the payment process,
+or a dictionary that is either empty or contains a description, callback_url, amount, or metadata
+values to update the form configurations if you need to.
+
+If you need to do a long-running process, you can return a Promise that returns
+either of the mentioned values before.
+
+Here is an example to stop the form from submitting:
+
+on_initiating: async function() {    if (somethingIsWrong) {        return false;    }}
+
+Make the form proceed:
+
+on_initiating: async function() {    return true;}
+
+Make the form proceed with overriding any of these values:
+
+on_initiating: async function() {    return {        amount: 20000,        description: 'VIP customer',        callback_url: 'https://vip.bookstore.com/moyasar-callback'        metadata: {            customerType: 'VIP',        }    };}
+
+On Completed (optional)​
+
+This event is fired when a payment is created by Moyasar's API. You can intercept the payment to save it or do any other processing.
+
+on_completed: async function(payment) {    // Do stuff with payment object}
+
+On Failure (optional)​
+
+This event is used to handle payment failure, you will get a string if there is an error.
+
+on_failure: async function(error) {    // Handle error}
+
+On Redirect (optional)​
+
+When the form finishes its work and is about to redirect the user, you can intercept this action and handle redirection manually. Here is an example:
+
+on_redirect: async function(url) {    // Handle redirection manually}
+
+Tokenize (Save) Credit Card (optional)​
+
+This option allows you to tokenize credit card information after successfully completing the transaction.
+
+credit_card: {    save_card: true,}
+
+Manual Payments (optional)​
+
+This option allows you to only authorize payments without capturing them. To capture the payment, you need to make an API call to the capture endpoint later on. Please review the API section for more details.
+
+credit_card: {    manual: true,}
+
+apple_pay: {    manual: true,}
+
+samsung_pay: {    manual: true,}
+
+apple_pay: {    manual: true,}
+
+samsung_pay: {    manual: true,}
+
+Sender and Recipient (optional)​
+
+Passing both sender and recipient turns the payment into an Account Funding Transaction (AFT), used for wallet top-ups, remittances, and similar transfers. The two keys must be provided together, and AFT is only available for creditcard, applepay, and samsungpay. See the Account Funding Transactions guide for the full list of keys and validation rules.
+
+sender: {    first_name: 'Mohammed',    last_name: 'Ali',    address: 'King Fahd Road',    id_type: 'NTID',    id: '1234567890',    phone_number: '+966500000000',},recipient: {    first_name: 'Ahmed',    last_name: 'Ali',    address: 'Olaya Street',},
+
+Statement Descriptor​
+
+Allows the merchant to add a statement descriptor for the payment that will show in the card statement.
+
+{  statement_descriptor: 'Merchant Name';}
+
+Apple Pay Configurations (Required)​
+
+tip
+Only required if apple pay is enabled. 
+
+This is an object that contains Apple Pay specific configurations. Here is an example:
+
+apple_pay: {  // Apple Pay Configurations}
+
+Version (optional)​
+
+This is used to specify the Apple Pay JS version. The default is 6. Here is an example:
+
+apple_pay: {  version: 7;}
+
+Country (required)​
+
+Apple Pay merchant country.
+
+apple_pay: {  country: 'SA';}
+
+Merchant Capabilities (optional)​
+
+Merchant capabilities to activate this Apple Pay session. Default is:
+
+apple_pay: {    merchant_capabilities: [        'supports3DS',        'supportsCredit',        'supportsDebit'    ],},
+
+Label (required)​
+
+Label to be displayed in the payment modal.
+
+apple_pay: {  label: 'Ali Hardware Store';}
+
+Merchant Validation URL (required)​
+
+This URL is used to initiate the Apple Pay session. A POST request will be made
+to the specified endpoint with a JSON object containing the URL. 
+
+Here is the JSONsnippet:
+
+{  "validation_url": "https://apple-pay-gateway.apple.com/paymentservices/paymentSession"}
+
+The endpoint must return a response with the header Content-Type: application/json and the session object obtained from Apple.
+
+Here is the configuration example:
+
+apple_pay: {  validate_merchant_url: 'https://mystore.test/applepay/validate-merchant';}
+
+In order to perform merchant validation, you need to register for an apple developer account and sign up for the Apple Developer program.
+
+Now you must use the provided URL to perform the merchant validation.
+
+Supported Countries (Optional)​
+
+An array of countries that cards are allowed from.
+
+Default: ['SA']. Only Saudi Arabia is enabled by default to prevent fraudulent transactions, you may enable more countries at your own risk.
+
+apple_pay: {  supported_countries: ['SA', 'US'];}
+
+Tokenize (Save) Apple Pay (optional)​
+
+This option allows you to tokenize credit card information after successfully completing the transaction.
+
+apple_pay: {    save_card: true,}
+
+Samsung Pay Configurations (Required)​
+
+tip
+Only required if Samsung Pay is enabled. 
+
+This is an object that contains Samsung Pay specific configurations. Here is an example:
+
+samsung_pay: {  // Samsung Pay Configurations}
+
+Service ID (required)​
+
+This is used to specify the Samsung Pay service ID. Here is an example:
+
+samsung_pay: {  service_id: 'your_service_id';}
+
+Order Number (required)​
+
+This is used to specify the Samsung Pay order number. Here is an example:
+
+samsung_pay: {  order_number: 'unique_order_number';}
+
+Label (required)​
+
+Label to be displayed in the Samsung Pay payment sheet.
+
+samsung_pay: {  label: 'Store Name';}
+
+Country (required)​
+
+Samsung Pay merchant country.
+
+samsung_pay: {  country: 'SA';}
+
+Environment (required)​
+
+This is used to specify the Samsung Pay environment. Options are PRODUCTION and STAGE.
+
+tip
+We recommend always setting this option to PRODUCTION.
+If you are testing, you can use the Moyasar API key along with the Samsung Pay CSR from the testing environment.
+STAGE should only be used when testing with a Samsung Pay staging wallet APK and Service ID.
+
+samsung_pay: {  environment: 'PRODUCTION';}
+
+Tokenize (Save) Samsung pay (optional)​
+
+This option allows you to tokenize credit card information after successfully completing the transaction.
+
+samsung_pay: {    save_card: true,}
+
+Tokenize (Save) Samsung pay (optional)​
+
+This option allows you to tokenize credit card information after successfully completing the transaction.
+
+samsung_pay: {    save_card: true,}
+
+Advanced Integration
+
+If the form does not satisfy your needs, you can always build your own integration solution, and try the custom UI approach.
+
+Last updated on Sep 9, 2026
+
+Previous
+Payment Errors
+Next
+Translations
+
+Element (required)
+Language (optional)
+Translations (optional)
+Publishable API Key (required)
+Invoice ID (optional)
+Payment Methods (optional)
+Amount (required)
+Currency (required)
+Description (required)
+Callback URL (required)
+Metadata (optional)
+Supported Networks (optional)
+Fixed Width (optional)
+Apply Coupon (optional)
+On Initiating (optional)
+On Completed (optional)
+On Failure (optional)
+On Redirect (optional)
+Tokenize (Save) Credit Card (optional)
+Manual Payments (optional)
+Sender and Recipient (optional)
+Statement Descriptor
+Apple Pay Configurations (Required)
+Version (optional)
+Country (required)
+Merchant Capabilities (optional)
+Label (required)
+Merchant Validation URL (required)
+Supported Countries (Optional)
+Tokenize (Save) Apple Pay (optional)
+Samsung Pay Configurations (Required)
+Service ID (required)
+Order Number (required)
+Label (required)
+Country (required)
+Environment (required)
+Tokenize (Save) Samsung pay (optional)
+Tokenize (Save) Samsung pay (optional)
+

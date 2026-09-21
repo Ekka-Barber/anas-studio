@@ -1,0 +1,82 @@
+Source: https://docs.moyasar.com/guides/apple-pay/web-registration
+Retrieved UTC: 2026-09-21T03:59:20.466898+00:00
+Method: public HTTP GET; HTML tags removed, no authenticated access.
+
+
+Apple Pay
+Web Registration
+On this page
+Web Registration
+
+Web Registration is a feature provided by Moyasar that allows merchants to enable Apple Pay on the web without
+the need for an Apple Developer account.
+
+The merchant will register their domain name with Moyasar and use the
+Request Apple Pay Session to initialize the payment session.
+
+note
+This feature is for Web implementations only. For mobile you must have an active Apple Developer
+Account and setup the payment processing certificate by following the guide
+Apple Developer Account.
+
+Login Into Dashboard​
+
+Login into your account on Moyasar Dashboard then navigate through Settings
+to the Apple Pay Domains page.
+
+Add Domain Name​
+
+Adding the domain name is an easy task, but you must first get the correct hostname that your Apple Pay payment
+will start from.
+
+Note that if your website is hosted on a sub-domain name, you must use that name. For example, if your store
+is hosted on store.company.com then you must register this domain name instead of company.com.
+
+Upload Verification File​
+
+Once you have added your domain name, please download the verification file by clicking on the
+Download Association button.
+
+This file contains a special text that Apple will use for validating that you actually own and operate the domain just
+added.
+
+You must upload this file on your server on the path /.well-known/apple-developer-merchantid-domain-association
+without any extension.
+
+warning
+Adding extensions like .txt or .data to the file name will result in failure when trying to
+validate the domain name.
+
+tip
+The .well-known directory is not enabled or prohibited by some web servers, please refer to your web server
+operation manual to allow public access to .well-known for the validation process.
+
+If you have uploaded the file on your web server correctly, try to visit it using your favorate web browser:
+
+.
+
+Validate + Register the Domain​
+
+Once you have uploaded file correctly, you need now to do the following steps:
+
+Click on Validate: this will allow us to validate that you have uploaded the file correctly.
+
+Click on Register: we will ask Apple to validate again and register the domain name to be used with Apple Pay.
+
+Register the Domain​
+
+Once you have registered the domain name, your screen should look like something like this:
+
+Last updated on Sep 9, 2026
+
+Previous
+Apple Pay iOS
+Next
+Apple Developer Account
+
+Login Into Dashboard
+Add Domain Name
+Upload Verification File
+Validate + Register the Domain
+Register the Domain
+

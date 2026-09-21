@@ -1,0 +1,585 @@
+[
+  {
+    "package": "payload",
+    "version": "3.90.1",
+    "released": "2026-09-18T18:40:41.024Z",
+    "license": "MIT",
+    "unpackedSize": 8335126,
+    "dependencies": {
+      "ws": "^8.16.0",
+      "ajv": "8.18.0",
+      "sax": "1.6.1",
+      "tsx": "4.22.4",
+      "jose": "5.10.0",
+      "pino": "9.14.0",
+      "uuid": "13.0.2",
+      "busboy": "^1.6.0",
+      "croner": "10.0.1",
+      "qs-esm": "8.0.1",
+      "undici": "7.29.0",
+      "ci-info": "^4.1.0",
+      "minimist": "1.2.8",
+      "@next/env": "^15.1.5",
+      "deepmerge": "4.3.1",
+      "file-type": "21.3.4",
+      "ipaddr.js": "2.2.0",
+      "pluralize": "8.0.0",
+      "dataloader": "2.2.3",
+      "http-status": "2.1.0",
+      "pino-pretty": "13.1.2",
+      "get-tsconfig": "4.8.1",
+      "range-parser": "1.2.1",
+      "@types/busboy": "1.5.4",
+      "bson-objectid": "2.0.4",
+      "ts-essentials": "10.0.3",
+      "path-to-regexp": "6.3.0",
+      "image-dimensions": "2.5.1",
+      "sanitize-filename": "1.6.3",
+      "console-table-printer": "2.12.1",
+      "@payloadcms/translations": "3.90.1",
+      "json-schema-to-typescript": "15.0.3"
+    },
+    "peerDependencies": {
+      "graphql": "^16.8.1"
+    },
+    "repository": {
+      "url": "https://github.com/payloadcms/payload.git",
+      "type": "git",
+      "directory": "packages/payload"
+    },
+    "source": "https://registry.npmjs.org/payload",
+    "integrity": "sha512-72lVmcihjE7fqIqelLx9GhxpgFEYjlVKkMq1W0XCfXo52CAafUUF3qjhAq97MZNMRvXDc8M812kwiiREQM7/6A=="
+  },
+  {
+    "package": "@payloadcms/db-postgres",
+    "version": "3.90.1",
+    "released": "2026-09-18T18:48:37.954Z",
+    "license": "MIT",
+    "unpackedSize": 58556,
+    "dependencies": {
+      "pg": "8.20.0",
+      "uuid": "13.0.2",
+      "prompts": "2.4.2",
+      "@types/pg": "8.20.0",
+      "drizzle-kit": "0.31.7",
+      "drizzle-orm": "0.45.2",
+      "to-snake-case": "1.0.0",
+      "@payloadcms/drizzle": "3.90.1",
+      "console-table-printer": "2.12.1"
+    },
+    "peerDependencies": {
+      "payload": "3.90.1"
+    },
+    "repository": {
+      "url": "https://github.com/payloadcms/payload.git",
+      "type": "git",
+      "directory": "packages/db-postgres"
+    },
+    "source": "https://registry.npmjs.org/%40payloadcms%2Fdb-postgres",
+    "integrity": "sha512-n0TD+UgJ5fVanvK3sti1gPzrHLnvuMqxf2+IgChQsWYI975mBc407Ev7tWXHx0YsoCOw5vXSGNQT44ttHISx0A=="
+  },
+  {
+    "package": "@payloadcms/richtext-lexical",
+    "version": "3.90.1",
+    "released": "2026-09-18T18:56:41.484Z",
+    "license": "MIT",
+    "unpackedSize": 6225893,
+    "dependencies": {
+      "jsox": "1.2.121",
+      "uuid": "13.0.2",
+      "acorn": "8.16.0",
+      "dequal": "2.0.3",
+      "qs-esm": "8.0.1",
+      "csstype": "3.1.3",
+      "lexical": "0.50.0",
+      "escape-html": "1.0.3",
+      "@lexical/html": "0.50.0",
+      "@lexical/link": "0.50.0",
+      "@lexical/list": "0.50.0",
+      "@lexical/mark": "0.50.0",
+      "bson-objectid": "2.0.4",
+      "ts-essentials": "10.0.3",
+      "@lexical/react": "0.50.0",
+      "@lexical/table": "0.50.0",
+      "@lexical/utils": "0.50.0",
+      "@payloadcms/ui": "3.90.1",
+      "@lexical/headless": "0.50.0",
+      "@lexical/clipboard": "0.50.0",
+      "@lexical/rich-text": "0.50.0",
+      "@lexical/selection": "0.50.0",
+      "mdast-util-mdx-jsx": "3.1.3",
+      "react-error-boundary": "4.1.2",
+      "@payloadcms/translations": "3.90.1",
+      "mdast-util-from-markdown": "2.0.2",
+      "micromark-extension-mdx-jsx": "3.0.1"
+    },
+    "peerDependencies": {
+      "react": "^19.0.1 || ^19.1.2 || ^19.2.1",
+      "payload": "3.90.1",
+      "react-dom": "^19.0.1 || ^19.1.2 || ^19.2.1",
+      "@payloadcms/next": "3.90.1",
+      "@faceless-ui/modal": "3.0.0",
+      "@faceless-ui/scroll-info": "2.0.0"
+    },
+    "repository": {
+      "url": "https://github.com/payloadcms/payload.git",
+      "type": "git",
+      "directory": "packages/richtext-lexical"
+    },
+    "source": "https://registry.npmjs.org/%40payloadcms%2Frichtext-lexical",
+    "integrity": "sha512-j7jVEFk9eEt79xi6YA3RtCFitr4asSxe4Yv/nbBXQKWDFfZSMzF95AzC2heWDQLmmSFYOVw41lib91uZI79exw=="
+  },
+  {
+    "package": "@supabase/supabase-js",
+    "version": "2.116.0",
+    "released": "2026-09-07T16:26:56.729Z",
+    "license": "MIT",
+    "unpackedSize": 647930,
+    "dependencies": {
+      "@supabase/auth-js": "2.116.0",
+      "@supabase/storage-js": "2.116.0",
+      "@supabase/realtime-js": "2.116.0",
+      "@supabase/functions-js": "2.116.0",
+      "@supabase/postgrest-js": "2.116.0"
+    },
+    "peerDependencies": {
+      "@opentelemetry/api": ">=1.0.0"
+    },
+    "repository": {
+      "url": "https://github.com/supabase/supabase-js.git",
+      "type": "git",
+      "directory": "packages/core/supabase-js"
+    },
+    "source": "https://registry.npmjs.org/%40supabase%2Fsupabase-js",
+    "integrity": "sha512-YyWmKXt2NspV9iO8FPnlswUFJIRnrLd3oTCb+3ZyYRuKZtBH0xCUDgnUqoyA0fGUxpM/UhfwDjYf/dht/9bp7g=="
+  },
+  {
+    "package": "@supabase/ssr",
+    "version": "0.12.7",
+    "released": "2026-09-08T08:14:27.765Z",
+    "license": "MIT",
+    "unpackedSize": 332748,
+    "dependencies": {
+      "cookie": "^1.0.2"
+    },
+    "peerDependencies": {
+      "@supabase/supabase-js": "^2.114.0"
+    },
+    "repository": {
+      "url": "git+https://github.com/supabase/ssr.git",
+      "type": "git"
+    },
+    "source": "https://registry.npmjs.org/%40supabase%2Fssr",
+    "integrity": "sha512-wiBtEie1KkRJi9RrZWY3R2imRhX1JY7qMyUCH2z9AUk15gQebNEplM+urbCKamdxaTJLXUU6LlpkJsaxhojCEg=="
+  },
+  {
+    "package": "@tiptap/react",
+    "version": "3.31.3",
+    "released": "2026-09-04T10:43:25.667Z",
+    "license": "MIT",
+    "unpackedSize": 566604,
+    "dependencies": {
+      "fast-equals": "^5.3.3",
+      "use-sync-external-store": "^1.4.0",
+      "@types/use-sync-external-store": "^0.0.6"
+    },
+    "peerDependencies": {
+      "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+      "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0",
+      "@tiptap/pm": "3.31.3",
+      "@tiptap/core": "3.31.3",
+      "@types/react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+      "@types/react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0"
+    },
+    "repository": {
+      "url": "https://github.com/ueberdosis/tiptap",
+      "type": "git",
+      "directory": "packages/react"
+    },
+    "source": "https://registry.npmjs.org/%40tiptap%2Freact",
+    "integrity": "sha512-QiwQqvaLFLm5EMFu5tg7nAgXJxCUiUTLD8EsK+TqVV5P4bqOoMOCM39khbhXTJyahCuYpiFWx5YOSDtC/JiPtg=="
+  },
+  {
+    "package": "@tiptap/starter-kit",
+    "version": "3.31.3",
+    "released": "2026-09-04T10:45:08.868Z",
+    "license": "MIT",
+    "unpackedSize": 54007,
+    "dependencies": {
+      "@tiptap/pm": "3.31.3",
+      "@tiptap/core": "3.31.3",
+      "@tiptap/extensions": "3.31.3",
+      "@tiptap/extension-bold": "3.31.3",
+      "@tiptap/extension-code": "3.31.3",
+      "@tiptap/extension-link": "3.31.3",
+      "@tiptap/extension-list": "3.31.3",
+      "@tiptap/extension-text": "3.31.3",
+      "@tiptap/extension-italic": "3.31.3",
+      "@tiptap/extension-strike": "3.31.3",
+      "@tiptap/extension-heading": "3.31.3",
+      "@tiptap/extension-document": "3.31.3",
+      "@tiptap/extension-gapcursor": "3.31.3",
+      "@tiptap/extension-list-item": "3.31.3",
+      "@tiptap/extension-paragraph": "3.31.3",
+      "@tiptap/extension-underline": "3.31.3",
+      "@tiptap/extension-blockquote": "3.31.3",
+      "@tiptap/extension-code-block": "3.31.3",
+      "@tiptap/extension-dropcursor": "3.31.3",
+      "@tiptap/extension-hard-break": "3.31.3",
+      "@tiptap/extension-bullet-list": "3.31.3",
+      "@tiptap/extension-list-keymap": "3.31.3",
+      "@tiptap/extension-ordered-list": "3.31.3",
+      "@tiptap/extension-horizontal-rule": "3.31.3"
+    },
+    "peerDependencies": null,
+    "repository": {
+      "url": "https://github.com/ueberdosis/tiptap",
+      "type": "git",
+      "directory": "packages/starter-kit"
+    },
+    "source": "https://registry.npmjs.org/%40tiptap%2Fstarter-kit",
+    "integrity": "sha512-WKof9RewdmGHvWJ1wn0/HVNG2mV+HOgVRyJkKekuM9fgr6BZAAH/xZsWE1eon+94JnQ+KtK2ThydXQM/qc6b2A=="
+  },
+  {
+    "package": "lexical",
+    "version": "0.51.0",
+    "released": "2026-09-17T21:06:05.4Z",
+    "license": "MIT",
+    "unpackedSize": 3190949,
+    "dependencies": {
+      "@lexical/internal": "0.51.0"
+    },
+    "peerDependencies": {
+      "typescript": ">=5.2"
+    },
+    "repository": {
+      "url": "git+https://github.com/facebook/lexical.git",
+      "type": "git",
+      "directory": "packages/lexical"
+    },
+    "source": "https://registry.npmjs.org/lexical",
+    "integrity": "sha512-uwThveE7nnR3ewETt9q7KBgbXVwtx7ZntJXWbonI/IrrdF7VtIbAGgqJcYxPchkQVjIppIzNoWaFolDd9Yph0g=="
+  },
+  {
+    "package": "@lexical/react",
+    "version": "0.51.0",
+    "released": "2026-09-17T21:08:24.308Z",
+    "license": "MIT",
+    "unpackedSize": 919566,
+    "dependencies": {
+      "lexical": "0.51.0",
+      "@lexical/yjs": "0.51.0",
+      "@lexical/a11y": "0.51.0",
+      "@lexical/link": "0.51.0",
+      "@lexical/list": "0.51.0",
+      "@lexical/mark": "0.51.0",
+      "@lexical/text": "0.51.0",
+      "@lexical/table": "0.51.0",
+      "@lexical/utils": "0.51.0",
+      "@lexical/dragon": "0.51.0",
+      "@lexical/hashtag": "0.51.0",
+      "@lexical/history": "0.51.0",
+      "@lexical/internal": "0.51.0",
+      "@lexical/markdown": "0.51.0",
+      "@lexical/overflow": "0.51.0",
+      "@floating-ui/react": "^0.27.19",
+      "@lexical/extension": "0.51.0",
+      "@lexical/rich-text": "0.51.0",
+      "@lexical/plain-text": "0.51.0",
+      "@lexical/devtools-core": "0.51.0"
+    },
+    "peerDependencies": {
+      "yjs": ">=13.5.37",
+      "react": ">=18.x",
+      "react-dom": ">=18.x",
+      "typescript": ">=5.2"
+    },
+    "repository": {
+      "url": "git+https://github.com/facebook/lexical.git",
+      "type": "git",
+      "directory": "packages/lexical-react"
+    },
+    "source": "https://registry.npmjs.org/%40lexical%2Freact",
+    "integrity": "sha512-ykHRrtUVQ845ym8N6vvjqhwokHFEDDmremLhHpaOe/mUR+GhJg8dDD5JEJcwOCWQWkkW+Df4Lx6cOt2TgZmjRg=="
+  },
+  {
+    "package": "@radix-ui/react-dialog",
+    "version": "1.1.23",
+    "released": "2026-07-24T23:51:17.929Z",
+    "license": "MIT",
+    "unpackedSize": 99377,
+    "dependencies": {
+      "aria-hidden": "^1.2.4",
+      "@radix-ui/react-id": "1.1.4",
+      "@radix-ui/primitive": "1.1.7",
+      "react-remove-scroll": "^2.7.2",
+      "@radix-ui/react-slot": "1.3.3",
+      "@radix-ui/react-portal": "1.1.17",
+      "@radix-ui/react-context": "1.2.2",
+      "@radix-ui/react-presence": "1.1.10",
+      "@radix-ui/react-primitive": "2.1.10",
+      "@radix-ui/react-focus-scope": "1.1.16",
+      "@radix-ui/react-compose-refs": "1.1.5",
+      "@radix-ui/react-focus-guards": "1.1.6",
+      "@radix-ui/react-dismissable-layer": "1.1.19",
+      "@radix-ui/react-use-layout-effect": "1.1.4",
+      "@radix-ui/react-use-controllable-state": "1.2.6"
+    },
+    "peerDependencies": {
+      "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+      "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
+      "@types/react": "*",
+      "@types/react-dom": "*"
+    },
+    "repository": {
+      "url": "git+https://github.com/radix-ui/primitives.git",
+      "type": "git",
+      "directory": "packages/react/dialog"
+    },
+    "source": "https://registry.npmjs.org/%40radix-ui%2Freact-dialog",
+    "integrity": "sha512-Ksw4WeROkO4rC9k/onilX/Ao2Cr1ku1unMNH+XSCcP4jSXYu7HDsg9n4ojMjVb22XpYjAQ9qfrFlVbru1vXDUA=="
+  },
+  {
+    "package": "react-aria-components",
+    "version": "1.21.1",
+    "released": "2026-09-04T19:21:09.575Z",
+    "license": "Apache-2.0",
+    "unpackedSize": 6586272,
+    "dependencies": {
+      "react-aria": "3.52.1",
+      "client-only": "^0.0.1",
+      "@swc/helpers": "^0.5.0",
+      "react-stately": "3.50.0",
+      "@react-types/shared": "^3.36.1",
+      "@internationalized/date": "^3.12.4",
+      "@internationalized/string": "^3.2.10"
+    },
+    "peerDependencies": {
+      "react": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1",
+      "react-dom": "^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1"
+    },
+    "repository": {
+      "url": "git+https://github.com/adobe/react-spectrum.git",
+      "type": "git"
+    },
+    "source": "https://registry.npmjs.org/react-aria-components",
+    "integrity": "sha512-J88WflYY0z+EhLX0ce+GjFlQ3ag3ubIgfUTjpKSrBQBu92Xtl4Ub9o118HItUddtbk1Ido0jzyPy94/klZy1hg=="
+  },
+  {
+    "package": "@base-ui/react",
+    "version": "1.8.0",
+    "released": "2026-09-04T08:52:51.986Z",
+    "license": "MIT",
+    "unpackedSize": 9628362,
+    "dependencies": {
+      "@babel/runtime": "^7.29.7",
+      "@base-ui/utils": "0.4.0",
+      "@floating-ui/utils": "^0.2.12",
+      "@floating-ui/react-dom": "^2.1.9",
+      "use-sync-external-store": "^1.6.0"
+    },
+    "peerDependencies": {
+      "react": "^17 || ^18 || ^19",
+      "date-fns": "^4.0.0",
+      "react-dom": "^17 || ^18 || ^19",
+      "@date-fns/tz": "^1.2.0",
+      "@types/react": "^17 || ^18 || ^19"
+    },
+    "repository": {
+      "url": "git+https://github.com/mui/base-ui.git",
+      "type": "git",
+      "directory": "packages/react"
+    },
+    "source": "https://registry.npmjs.org/%40base-ui%2Freact",
+    "integrity": "sha512-P0/1sxo6SBVZOklKMIedvTWqw2s2IQzi9x5bIVsXu980cuSOD4NeuRSs+/L7LZQfDkZP/uRZyGPyfFl/B1oH+Q=="
+  },
+  {
+    "package": "react-hook-form",
+    "version": "7.88.0",
+    "released": "2026-09-11T22:51:23.453Z",
+    "license": "MIT",
+    "unpackedSize": 1493477,
+    "dependencies": null,
+    "peerDependencies": {
+      "react": "^16.8.0 || ^17 || ^18 || ^19"
+    },
+    "repository": {
+      "url": "git+https://github.com/react-hook-form/react-hook-form.git",
+      "type": "git"
+    },
+    "source": "https://registry.npmjs.org/react-hook-form",
+    "integrity": "sha512-QRaLOWhX93YCnMiRfnOFRSwWXZNt8qhm2JTZwypoDvKpSffTJHmpzMXt8U6PV5UThvL3IiiLDUWe2nHMtz6Mmw=="
+  },
+  {
+    "package": "formik",
+    "version": "2.4.9",
+    "released": "2025-11-10T17:02:05.434Z",
+    "license": "Apache-2.0",
+    "unpackedSize": 585028,
+    "dependencies": {
+      "@types/hoist-non-react-statics": "^3.3.1",
+      "deepmerge": "^2.1.1",
+      "hoist-non-react-statics": "^3.3.0",
+      "lodash": "^4.17.21",
+      "lodash-es": "^4.17.21",
+      "react-fast-compare": "^2.0.1",
+      "tiny-warning": "^1.0.2",
+      "tslib": "^2.0.0"
+    },
+    "peerDependencies": {
+      "react": ">=16.8.0"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/jaredpalmer/formik.git"
+    },
+    "source": "https://registry.npmjs.org/formik",
+    "integrity": "sha512-5nI94BMnlFDdQRBY4Sz39WkhxajZJ57Fzs8wVbtsQlm5ScKIR1QLYqv/ultBnobObtlUyxpxoLodpixrsf36Og=="
+  },
+  {
+    "package": "zod",
+    "version": "4.6.5",
+    "released": "2026-09-13T23:25:14.644Z",
+    "license": "MIT",
+    "unpackedSize": 6140311,
+    "dependencies": null,
+    "peerDependencies": null,
+    "repository": {
+      "url": "git+https://github.com/colinhacks/zod.git",
+      "type": "git"
+    },
+    "source": "https://registry.npmjs.org/zod",
+    "integrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q=="
+  },
+  {
+    "package": "valibot",
+    "version": "1.5.0",
+    "released": "2026-09-09T12:58:23.503Z",
+    "license": "MIT",
+    "unpackedSize": 1865457,
+    "dependencies": null,
+    "peerDependencies": {
+      "typescript": ">=5"
+    },
+    "repository": {
+      "url": "git+https://github.com/open-circle/valibot.git",
+      "type": "git"
+    },
+    "source": "https://registry.npmjs.org/valibot",
+    "integrity": "sha512-nil6AkP2TChWL43Z5uJ6GTxX01CUA+g8LWUM+N/rB9NBbkUMaUsi9PUNzlUPgoKASgmx9f7eGOYpJ04/fSa6FQ=="
+  },
+  {
+    "package": "@strapi/strapi",
+    "version": "5.54.0",
+    "released": "2026-09-16T11:14:18.508Z",
+    "license": "SEE LICENSE IN LICENSE",
+    "unpackedSize": 1560519,
+    "dependencies": {
+      "ora": "5.4.1",
+      "yup": "0.32.9",
+      "vite": "5.4.21",
+      "boxen": "5.1.2",
+      "chalk": "4.1.2",
+      "execa": "5.1.1",
+      "dotenv": "16.6.1",
+      "lodash": "4.18.1",
+      "pkg-up": "3.1.0",
+      "semver": "7.7.4",
+      "ci-info": "4.0.0",
+      "outdent": "0.8.0",
+      "webpack": "5.109.2",
+      "chokidar": "3.6.0",
+      "fs-extra": "11.3.4",
+      "inquirer": "9.3.8",
+      "prettier": "3.6.2",
+      "commander": "8.3.0",
+      "cli-table3": "0.6.5",
+      "css-loader": "6.11.0",
+      "typescript": "5.9.3",
+      "read-pkg-up": "7.0.1",
+      "@strapi/core": "5.54.0",
+      "@strapi/i18n": "5.54.0",
+      "browserslist": "^4.23.0",
+      "cli-progress": "3.12.0",
+      "concurrently": "8.2.2",
+      "resolve-from": "5.0.0",
+      "style-loader": "3.3.4",
+      "@strapi/admin": "5.54.0",
+      "@strapi/email": "5.54.0",
+      "@strapi/types": "5.54.0",
+      "@strapi/utils": "5.54.0",
+      "git-url-parse": "14.0.0",
+      "react-refresh": "0.14.0",
+      "@strapi/logger": "5.54.0",
+      "@strapi/upload": "5.54.0",
+      "esbuild-loader": "4.5.0",
+      "@strapi/openapi": "5.54.0",
+      "@strapi/database": "5.54.0",
+      "esbuild-register": "3.6.0",
+      "@strapi/cloud-cli": "5.54.0",
+      "@strapi/generators": "5.54.0",
+      "get-latest-version": "5.1.0",
+      "@strapi/permissions": "5.54.0",
+      "html-webpack-plugin": "5.6.7",
+      "@strapi/data-transfer": "5.54.0",
+      "webpack-dev-middleware": "6.1.3",
+      "webpack-hot-middleware": "2.26.1",
+      "@strapi/content-manager": "5.54.0",
+      "browserslist-to-esbuild": "2.1.1",
+      "mini-css-extract-plugin": "2.10.2",
+      "webpack-bundle-analyzer": "5.3.0",
+      "@strapi/content-releases": "5.54.0",
+      "@strapi/review-workflows": "5.54.0",
+      "@strapi/typescript-utils": "5.54.0",
+      "@vitejs/plugin-react-swc": "3.11.0",
+      "@strapi/content-type-builder": "5.54.0",
+      "fork-ts-checker-webpack-plugin": "8.0.0",
+      "@pmmmwh/react-refresh-webpack-plugin": "0.5.17"
+    },
+    "peerDependencies": {
+      "react": "^17.0.0 || ^18.0.0",
+      "react-dom": "^17.0.0 || ^18.0.0",
+      "react-router-dom": "^6.30.3",
+      "styled-components": "^6.0.0"
+    },
+    "repository": {
+      "url": "git+https://github.com/strapi/strapi.git",
+      "type": "git",
+      "directory": "packages/core/strapi"
+    },
+    "source": "https://registry.npmjs.org/%40strapi%2Fstrapi",
+    "integrity": "sha512-eXapzl60o3EdiXT8dCtdDTNpn+QmEIzndusSTw1Qp7/HDpGGuoaUejrnQLVJtTB6jCPa3dQ3236z43YGv4OjtA=="
+  },
+  {
+    "package": "@refinedev/core",
+    "version": "5.0.12",
+    "released": "2026-04-02T16:44:30.884Z",
+    "license": "MIT",
+    "unpackedSize": 3771967,
+    "dependencies": {
+      "qs": "^6.10.1",
+      "tslib": "^2.6.2",
+      "lodash": "^4.17.21",
+      "lodash-es": "^4.17.21",
+      "papaparse": "^5.3.0",
+      "pluralize": "^8.0.0",
+      "warn-once": "^0.1.0",
+      "@tanstack/react-query": "^5.81.5",
+      "@refinedev/devtools-internal": "2.0.2"
+    },
+    "peerDependencies": {
+      "react": "^18.0.0 || ^19.0.0",
+      "react-dom": "^18.0.0 || ^19.0.0",
+      "@types/react": "^18.0.0 || ^19.0.0",
+      "@types/react-dom": "^18.0.0 || ^19.0.0",
+      "@tanstack/react-query": "^5.81.5"
+    },
+    "repository": {
+      "url": "git+https://github.com/refinedev/refine.git",
+      "type": "git",
+      "directory": "packages/core"
+    },
+    "source": "https://registry.npmjs.org/%40refinedev%2Fcore",
+    "integrity": "sha512-9y5Bi9Lb7XyJmM55b8rCeBTDRCBU41p47OymJldasLfrtpUm2EwI+27DjjNpHTOugymiZsIbLlPtHCPQIXBHcg=="
+  }
+]
