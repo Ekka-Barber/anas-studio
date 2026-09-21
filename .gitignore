@@ -14,3 +14,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Local single-writer coordination, never a committed package artifact.
+/.anasaq-execution.lock
