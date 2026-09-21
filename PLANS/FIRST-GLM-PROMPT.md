@@ -1,0 +1,17 @@
+Work in the ANASAQ.ME repository. Execute P00 only, then stop with evidence. Preserve Payload and the existing architecture. Do not begin P01 or implement optional feature suggestions.
+
+Read AGENTS.md, PLANS/README.md, DECISIONS.md, SECOND-PASS-AUDIT.md, the P00 section of WORK-PACKAGES.md, and the runtime/auth/storage sections of ARCHITECTURE.md and VERIFICATION.md. Consult research-final.md and its existing evidence for exact dependencies; do not repeat broad research. Read additional documents only when needed for a concrete decision.
+
+1. Run `graft map` for orientation and inspect Git status. Do not inspect `_archive/` or edit frozen sources. Preserve all pre-existing edits; record the current commit, dirty paths and hashes of the supplied planning documents. Run `PLANS/verify-plan.ps1` before application changes. Its PLANS-only assertion is a planning check, not a post-scaffold runtime test.
+
+2. Work as the sole writer on a `codex/` branch. Follow the exclusive lock protocol in README. Enumerate exact P00 paths, including `src/app/api/health/route.ts` for route-precedence proof, execution status/issues and acceptance artifacts. Do not overwrite an existing lock or include unrelated pre-existing edits in implementation commits.
+
+3. Build the smallest exact-runtime spike: supported pinned Payload/Next/OpenNext on Workers, PostgreSQL through Hyperdrive to the Supabase pooler, native R2 binding, separate migration credentials, no Sharp or filesystem persistence. Use synthetic data only. Prove native admin login/logout, collection CRUD, one versioned Lexical record, private R2 upload/read with unauthorized denial, and a bounded scheduled native job. Prove custom API routes coexist with Payload routes.
+
+4. Record pooler mode, driver/prepared-statement behavior and connection limits; disable Hyperdrive caching. Test rollback and read-after-write without pooled session leakage. Measure cold and warm admin/API behavior, Worker CPU and compressed bundle against current provider limits. Record exact versions, commands, exit codes and redacted evidence. Verify local Docker/development and the actual Worker artifact. Hosted-Free acceptance requires a real hosted test; do not substitute local preview for it.
+
+5. Use existing authorized free test resources only. No paid provisioning, production deployment, real customer data or live charges. If credentials, resource authorization or runtime compatibility block hosted proof, finish independent local work, record the exact blocker and stop dependent work. Never silently replace Payload, change database/provider, relax limits or claim success from official compatibility articles.
+
+6. Independently inspect the diff, run applicable lint/type/build/runtime checks, click the native admin controls and verify persistence/private boundaries. Record applicable design/accessibility checks; this is a runtime spike, not a public redesign. Recheck frozen hashes. Commit only accepted P00 changes; keep failures and external blockers explicit.
+
+Return a short P00 pass/blocked verdict, measured limits, exact evidence paths, changed files, remaining blockers, updated remaining-effort estimate and the next safe action. Do not change the commercial commitment. Update PLANS/EXECUTION-STATUS.md and PLANS/ISSUES.md truthfully. Stop before P01. The seven audit findings are already assigned in the main plans; do not turn this run into another planning rewrite.

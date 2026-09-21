@@ -1,0 +1,28 @@
+{
+  "retrievedAt": "2026-09-21",
+  "method": "npm registry package metadata; GitHub repository API; exact-version OSV querybatch",
+  "securityCaveat": "An empty OSV result is a point-in-time exact-version check, not a dependency-tree audit or proof of safety. Re-run lockfile audit and review transitive dependencies at P00 and every release.",
+  "packages": [
+    {"name":"payload","version":"3.90.1","license":"MIT","unpackedBytes":8335126,"published":"2026-09-18","repository":"payloadcms/payload","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@payloadcms/next","version":"3.90.1","license":"MIT","unpackedBytes":2313164,"published":"2026-09-18","repository":"payloadcms/payload","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@payloadcms/db-postgres","version":"3.90.1","license":"MIT","unpackedBytes":58556,"published":"2026-09-18","repository":"payloadcms/payload","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@payloadcms/richtext-lexical","version":"3.90.1","license":"MIT","unpackedBytes":6225893,"published":"2026-09-18","repository":"payloadcms/payload","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@payloadcms/storage-r2","version":"3.90.1","license":"MIT","unpackedBytes":93931,"published":"2026-09-18","repository":"payloadcms/payload","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@opennextjs/cloudflare","version":"1.20.6","license":"MIT","unpackedBytes":472302,"published":"2026-09-02","repository":"opennextjs/opennextjs-cloudflare","repoPushed":"2026-09-14","osv":[]},
+    {"name":"react-easy-crop","version":"6.2.3","license":"MIT","unpackedBytes":281101,"published":"2026-07-24","repository":"ValentinH/react-easy-crop","repoPushed":"2026-09-10","osv":[]},
+    {"name":"file-type","version":"22.1.1","license":"MIT","unpackedBytes":138897,"published":"2026-09-17","repository":"sindresorhus/file-type","repoPushed":"2026-09-17","osv":[]},
+    {"name":"image-size","version":"2.0.4","license":"MIT","unpackedBytes":95510,"published":"2026-09-14","repository":"https://codeberg.org/image-size/image-size","repoPushed":null,"osv":[]},
+    {"name":"otpauth","version":"9.5.2","license":"MIT","unpackedBytes":997251,"published":"2026-09-03","repository":"hectorm/otpauth","repoPushed":"2026-09-18","osv":[]},
+    {"name":"@dnd-kit/core","version":"6.3.1","license":"MIT","unpackedBytes":1066148,"published":"2024-12-05","repository":"clauderic/dnd-kit","repoPushed":"2026-09-12","osv":[]},
+    {"name":"@dnd-kit/sortable","version":"10.0.0","license":"MIT","unpackedBytes":234022,"published":"2024-12-04","repository":"clauderic/dnd-kit","repoPushed":"2026-09-12","osv":[]},
+    {"name":"react-aria-components","version":"1.21.1","license":"Apache-2.0","unpackedBytes":6586272,"published":"2026-09-04","repository":"adobe/react-spectrum","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@radix-ui/react-dialog","version":"1.1.23","license":"MIT","unpackedBytes":99377,"published":"2026-07-24","repository":"radix-ui/primitives","repoPushed":"2026-09-20","osv":[]},
+    {"name":"pdfjs-dist","version":"6.3.289","license":"Apache-2.0","unpackedBytes":34781083,"published":"2026-08-29","repository":"mozilla/pdf.js","repoPushed":"2026-09-21","osv":[]},
+    {"name":"page-flip","version":"2.0.7","license":"MIT","unpackedBytes":9391581,"published":"2021-04-18","repository":"Nodlik/StPageFlip","repoPushed":"2024-01-08","osv":[]},
+    {"name":"ics","version":"3.12.0","license":"ISC","unpackedBytes":71873,"published":"2026-04-23","repository":"adamgibbons/ics","repoPushed":"2026-09-13","osv":[]},
+    {"name":"resend","version":"6.28.1","license":"MIT","unpackedBytes":282178,"published":"2026-09-15","repository":"resend/resend-node","repoPushed":"2026-09-20","osv":[]},
+    {"name":"vitest","version":"5.0.1","license":"MIT","unpackedBytes":2736905,"published":"2026-09-15","repository":"vitest-dev/vitest","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@playwright/test","version":"1.63.0","license":"Apache-2.0","unpackedBytes":28544,"published":"2026-09-04","repository":"microsoft/playwright","repoPushed":"2026-09-21","osv":[]},
+    {"name":"@sentry/nextjs","version":"10.75.1","license":"MIT","unpackedBytes":1967109,"published":"2026-09-21","repository":"getsentry/sentry-javascript","repoPushed":"2026-09-21","osv":[]}
+  ]
+}
