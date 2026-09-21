@@ -1,12 +1,12 @@
-# GLM verification gates
+# Orchestrator verification gates
 
-After EVERY package GLM inspects the integrated diff, independently runs checks and operates affected UI. Builder claims/screenshots are inputs, not approval. Record commit/environment/command/exit code/role/viewport/evidence. Unrun tests are not passed. External gate is blocked, not waived.
+After EVERY package the orchestrator inspects the integrated diff, independently runs checks and operates affected UI. Builder claims/screenshots are inputs, not approval. Record commit/environment/command/exit code/role/viewport/evidence. Unrun tests are not passed. External gate is blocked, not waived.
 
 ## Shared acceptance routine
 
 1. git status/diff path check against exclusive lock, frozen hashes, dependency/license changes. No source/archive changes.
 2. pnpm install --frozen-lockfile; pnpm lint; pnpm typecheck; package tests; pnpm build; pnpm check:frozen; pnpm check:copy. From P03 add real DB authorization/transaction tests. No masked nonzero exits.
-3. GLM launches integrated app, clicks EVERY new control with real pointer, reloads to prove persistence/public change, tests keyboard/reduced-motion and phone+desktop, inspects console/network errors. No toast-only evidence.
+3. The orchestrator launches integrated app, clicks EVERY new control with real pointer, reloads to prove persistence/public change, tests keyboard/reduced-motion and phone+desktop, inspects console/network errors. No toast-only evidence.
 4. Test invalid/empty/loading/error/success, fix defects, rerun affected tests. Commit only accepted package; record result then release lock.
 
 Execution evidence: artifacts/acceptance/Pxx/<commit>/commands.txt, review.md, redacted logs/screenshots/traces. No real customer data/private manuscript/secrets in shared artifacts. Source comparisons stay client-private with hash/location references.

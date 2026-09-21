@@ -1,10 +1,12 @@
-Work in the ANASAQ.ME repository. Execute P00 only, then stop with evidence. Preserve Payload and the existing architecture. Do not begin P01 or implement optional feature suggestions.
+Work in the ANASAQ.ME repository. You are the orchestrator (Fable on Claude Max, per D24); builders are Opus 5 sub-agents defined in repo `.claude/agents/` (`opus-worker` rigorous brief, `opus-worker-lite` mechanical). Execute P00 only, then stop with evidence. Preserve Payload and the existing architecture. Do not begin P01 or implement optional feature suggestions.
 
 Read AGENTS.md, PLANS/README.md, DECISIONS.md, SECOND-PASS-AUDIT.md, the P00 section of WORK-PACKAGES.md, and the runtime/auth/storage sections of ARCHITECTURE.md and VERIFICATION.md. Consult research-final.md and its existing evidence for exact dependencies; do not repeat broad research. Read additional documents only when needed for a concrete decision.
 
+0. Bounded execution-gap audit first: read the canonical plans and flag ONLY missing paths, authority ambiguities or contradictions that would block dispatch. Gaps become new numbered decisions (D26+) and never edits to settled D01–D25; no planning rewrite, no re-litigation. If any plan file changed, re-run PLANS/verify-plan.ps1 and record the result. Then proceed.
+
 1. Run `graft map` for orientation and inspect Git status. Do not inspect `_archive/` or edit frozen sources. Preserve all pre-existing edits; record the current commit, dirty paths and hashes of the supplied planning documents. Run `PLANS/verify-plan.ps1` before application changes. Its PLANS-only assertion is a planning check, not a post-scaffold runtime test.
 
-2. Work as the sole writer on a `codex/` branch. Follow the exclusive lock protocol in README. Enumerate exact P00 paths, including `src/app/api/health/route.ts` for route-precedence proof, execution status/issues and acceptance artifacts. Do not overwrite an existing lock or include unrelated pre-existing edits in implementation commits.
+2. Work as the sole writer on an `agent/` branch. Follow the exclusive lock protocol in README. Enumerate exact P00 paths, including `src/app/api/health/route.ts` for route-precedence proof, execution status/issues and acceptance artifacts. Do not overwrite an existing lock or include unrelated pre-existing edits in implementation commits.
 
 3. Build the smallest exact-runtime spike: supported pinned Payload/Next/OpenNext on Workers, PostgreSQL through Hyperdrive to the Supabase pooler, native R2 binding, separate migration credentials, no Sharp or filesystem persistence. Use synthetic data only. Prove native admin login/logout, collection CRUD, one versioned Lexical record, private R2 upload/read with unauthorized denial, and a bounded scheduled native job. Prove custom API routes coexist with Payload routes.
 

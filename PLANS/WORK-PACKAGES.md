@@ -1,8 +1,8 @@
 # Execution PRDs: final Payload architecture
 
-Every package includes ARCHITECTURE.md, DATA-AND-SECURITY.md, DECISIONS.md and VERIFICATION.md by reference. Exact directory shorthand expands relative to its named parent; GLM writes the full expanded allowlist to the exclusive lock before dispatch. Only one writer runs. Shared config/types/lockfiles are changed by that writer and audited. No edits to frozen/source paths or _archive/.
+Every package includes ARCHITECTURE.md, DATA-AND-SECURITY.md, DECISIONS.md and VERIFICATION.md by reference. Exact directory shorthand expands relative to its named parent; the orchestrator writes the full expanded allowlist to the exclusive lock before dispatch. Only one writer runs. Shared config/types/lockfiles are changed by that writer and audited. No edits to frozen/source paths or _archive/.
 
-Phases: P00–P02 foundation, P03–P06 administration, P07–P09 store/payment, P10–P11 launch. P12 is separately accepted BONUS SCOPE and does not change the offered 7–9-week timeline. Run sequentially; GLM personally runs and looks after EVERY package. External inputs remain open gates, not excuses to omit implementation.
+Phases: P00–P02 foundation, P03–P06 administration, P07–P09 store/payment, P10–P11 launch. P12 is separately accepted BONUS SCOPE and does not change the offered 7–9-week timeline. Run sequentially; the orchestrator (Fable) personally runs and looks after EVERY package. External inputs remain open gates, not excuses to omit implementation.
 
 ## P00: Exact runtime spike, then foundation
 
@@ -83,7 +83,7 @@ Native team/settings/inbox interfaces, not custom CRUD. Editable nav/footer/SEO/
 
 Owner home: actual pending tasks and compact real DB order/paid/refund/net-collected/customer counts; payment tables arrive P07/P08, so initial state says not configured. Visits/top pages use server-side existing account Analytics API, verified dataset definition/range/freshness; missing permission/data says unavailable, not invented zero. SQL stats test after financial schema arrives in P08/P10. Owner-only 5-minute cache. Bonus board tasks attach in P12.
 
-Backup native/custom view reports actual encrypted off-site database+binary manifest/restore. Nightly 7 daily/4 weekly/3 monthly retention, disposable restore first, manual owner confirmation for production restore. Proof: save/reload settings, real inbox despite email outage, dedupe/retry, unauthorized stats denied, analytics fixture reconciles response, restore includes assets/roles. Phase 2 gate: GLM owner adds/crops image, writes/publishes post, edits/reorders section without code, directly inspects native admin; no blank CRUD screens.
+Backup native/custom view reports actual encrypted off-site database+binary manifest/restore. Nightly 7 daily/4 weekly/3 monthly retention, disposable restore first, manual owner confirmation for production restore. Proof: save/reload settings, real inbox despite email outage, dedupe/retry, unauthorized stats denied, analytics fixture reconciles response, restore includes assets/roles. Phase 2 gate: the orchestrator, acting as owner, adds/crops image, writes/publishes post, edits/reorders section without code, directly inspects native admin; no blank CRUD screens.
 
 ## P07: Native catalog plus transactional cart/checkout
 
@@ -127,7 +127,7 @@ Required audit additions: repeat affected hosted Worker CPU/bundle/connection/sc
 
 Depends P09. Complexity high; risk partial audit claimed complete. Owner C10/C11/C31/C34.
 
-Files: `src/app/{sitemap,robots}.ts`, `src/lib/seo.ts`, `src/instrumentation.ts`, `sentry.server.config.ts`, `src/instrumentation-client.ts`, `tests/e2e/{accessibility,security,journeys,visual}.spec.ts`, `tests/integration/retention.test.ts`, `scripts/check-{copy,budgets}.mjs`, `lighthouserc.cjs`, CI config, `docs/{security,qa-report,monitoring}.md`; bug-fix production paths enumerated by GLM before dispatch.
+Files: `src/app/{sitemap,robots}.ts`, `src/lib/seo.ts`, `src/instrumentation.ts`, `sentry.server.config.ts`, `src/instrumentation-client.ts`, `tests/e2e/{accessibility,security,journeys,visual}.spec.ts`, `tests/integration/retention.test.ts`, `scripts/check-{copy,budgets}.mjs`, `lighthouserc.cjs`, CI config, `docs/{security,qa-report,monitoring}.md`; bug-fix production paths enumerated by the orchestrator before dispatch.
 
 Arabic per-route metadata/canonical/OG/Person/Book/Product/Article truthful from approved data. Private/draft/admin/board/token routes excluded. Cloudflare public cookieless analytics disclosed, no PII. Native/admin/custom complete empty/loading/validation/error/success flows. Sentry free checkout/webhook/scheduler errors with beforeSend redaction and no replay; one external free monitor (researched choice) checks coarse health, alert test to owner only on activation authorization. No paid operational dependency. Design audit every item; book outside reader faithful. Full unit/integration/real DB/e2e/axe/Worker performance/dependency/license/restore gates; real-device limitations labelled.
 
