@@ -46,13 +46,16 @@
   // Non-secret configuration only. PAYLOAD_SECRET and JOBS_SECRET are Worker
   // secrets and are never written into this file.
   //
-  // P00 spike origin: `https://anas.studio` does not point at this Worker, and
-  // the `scheduled` handler fetches `new URL('/api/payload-jobs/run',
-  // env.SITE_URL)` over the public internet, so cron must be pointed at the
-  // real deployed origin or it fetches a host that isn't us. Worker name
-  // `anas-studio`, account subdomain `anas-studio`, both confirmed via the
-  // Cloudflare API. The production value (`https://anas.studio`) returns once
-  // the custom domain is attached.
+  // P00 spike origin: `https://anas.studio` does not point at this Worker.
+  // The `scheduled` handler does NOT fetch over the public internet — it
+  // builds a synthetic `Request` with `new URL('/api/payload-jobs/run',
+  // env.SITE_URL)` for its path and origin, then passes it straight to
+  // `openNextWorker.fetch()` in-process, the same way `fetch` does for a
+  // real inbound request. `SITE_URL` only has to be *some* absolute origin
+  // the adapter can build a URL from; it does not have to be reachable.
+  // Worker name `anas-studio`, account subdomain `anas-studio`, both
+  // confirmed via the Cloudflare API. The production value
+  // (`https://anas.studio`) is used once the custom domain is attached.
   "vars": {
     "SITE_URL": "https://anas-studio.anas-studio.workers.dev"
   },

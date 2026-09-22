@@ -81,7 +81,7 @@ Full probe output: `artifacts/acceptance/P00/pooler-probe.txt`.
 | Named prepared statement on the pooler | **rejected** (`prepared statement "..." already exists`) |
 | Unnamed parameterised query on the pooler | accepted |
 | Named prepared statement on the 5432 session endpoint | accepted |
-| `SET` outside a transaction | does not survive across the pool |
+| `SET` outside a transaction | survived on the same pooled connection (`pooler-probe.txt:13`); the operative rule is unchanged — never rely on session state across requests, since a later request can land on a different backend |
 | `SET LOCAL` inside a transaction | honoured inside, gone after commit |
 | Transaction rollback | effective (`relation ... does not exist` after rollback) |
 | Read-after-write across pooled connections | visible immediately |
@@ -97,9 +97,11 @@ What this forces, and where it is enforced:
    runs over `DATABASE_URL`, a separate non-pooled connection, and never over the
    Hyperdrive path. `resolveMigrationConnectionString()` exists so this cannot be
    done accidentally.
-3. **No session state may be assumed between requests.** `SET` does not survive
-   the pool, so anything session-scoped has to be `SET LOCAL` inside the
-   transaction that needs it.
+3. **No session state may be assumed between requests.** `SET` survived on the
+   connection that issued it (see the table above), but a transaction-mode
+   pooler does not guarantee the same backend across separate requests, so
+   anything session-scoped still has to be `SET LOCAL` inside the transaction
+   that needs it.
 4. **The isolate holds no meaningful pool.** `maxUses: 1` retires a client after
    one checkout and `max: 5` caps the isolate; the pool that matters is
    Hyperdrive's. Hyperdrive query caching is disabled on the configuration so

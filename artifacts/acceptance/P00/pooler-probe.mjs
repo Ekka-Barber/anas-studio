@@ -43,7 +43,10 @@ function endpoint(port) {
   return url.toString()
 }
 
-const TRANSACTION_POOLER_PORT = parsed.port || '6543'
+// Explicit, not derived from DATABASE_URL: if DATABASE_URL itself points at
+// the session endpoint (port 5432), deriving the pooler port from it would
+// make both branches probe the same endpoint.
+const TRANSACTION_POOLER_PORT = '6543'
 const SESSION_PORT = '5432'
 
 const results = []

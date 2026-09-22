@@ -1,0 +1,265 @@
+P00 task 4 — cache interception experiment
+============================================
+
+Source consulted (fetched live in this task, not recalled):
+  https://opennext.js.org/cloudflare/caching
+  Fetched via `curl -sL` into the scratchpad, tags stripped with node, read in
+  full. Relevant quotes:
+
+  "Everything in this page only concerns SSG/ISR and the data cache, SSR route
+  will work out of the box without any caching config."
+
+  "You can also enable cache interception, to avoid calling the NextServer and
+  thus loading the javascript associated with the page. It can slightly improve
+  cold start performance for ISR/SSG route on cached routes. As of now, cache
+  interception does not work with PPR and is not enabled by default."
+
+  "SSG site — If your site is static, you do not need a Queue nor a Tag Cache.
+  You can use a read-only Workers Static Assets-based incremental cache for the
+  prerendered routes":
+
+    import { defineCloudflareConfig } from "@opennextjs/cloudflare";
+    import staticAssetsIncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/static-assets-incremental-cache";
+
+    export default defineCloudflareConfig({
+      incrementalCache: staticAssetsIncrementalCache,
+      enableCacheInterception: true,
+    });
+
+  "Workers Static Assets: A read-only store for the incremental cache, serving
+  build-time values from Workers Static Assets. Revalidation is not supported
+  with this cache."
+
+  Both the `enableCacheInterception` option and the
+  `@opennextjs/cloudflare/overrides/incremental-cache/static-assets-incremental-cache`
+  module were cross-checked against the installed package
+  (@opennextjs/cloudflare 1.20.6, node_modules/@opennextjs/cloudflare/dist/api/
+  config.d.ts and .../overrides/incremental-cache/static-assets-incremental-cache.d.ts)
+  before use — the doc's names match the installed version exactly.
+
+What changed
+------------
+`open-next.config.ts`: replaced bare `defineCloudflareConfig()` with the doc's
+"SSG site" recipe — `incrementalCache: staticAssetsIncrementalCache` and
+`enableCacheInterception: true` — plus a rewritten comment. The prior comment
+conflated public-page caching with database query caching; the new one states,
+citing the doc verbatim, that this is SSG/ISR-only and that SSR routes
+(admin, /api/health, and any authorization/inventory read) are unaffected and
+keep hitting the database on every request.
+
+No change to `wrangler.jsonc` bindings — no R2/D1/Durable Object queue or tag
+cache was added, because nothing in this repo currently calls `revalidateTag`,
+`revalidatePath`, or uses time-based ISR. That is out of scope for this task
+and left to P01/P04.
+
+Commands run and real output
+-----------------------------
+
+1. `docker exec anasaq-bundle sh -lc "cd /app && set -a; . ./.env; set +a; pnpm build:worker"`
+   (host build fails on Windows per ISSUES I05 — see docs/runtime-spike.md; ran
+   in the running `anasaq-bundle` container instead, which mounts nothing —
+   files were `docker cp`'d in first: open-next.config.ts, worker-entry.ts,
+   wrangler.jsonc, docs/runtime-spike.md, artifacts/acceptance/P00/pooler-probe.mjs.
+   `.env` was copied in with `docker cp` (not read or echoed by the agent),
+   sourced with `set -a; . ./.env; set +a` inside the container shell only, and
+   deleted from the container afterward.)
+
+   Exit: 0. Route table from `next build` (Turbopack, Next 16.3.5):
+
+     Route (app)
+     ┌ ○ /
+     ├ ○ /_not-found
+     ├ ƒ /admin/[[...segments]]
+     ├ ƒ /api/[...slug]
+     ├ ƒ /api/graphql
+     ├ ƒ /api/graphql-playground
+     └ ƒ /api/health
+
+     ○  (Static)   prerendered as static content
+     ƒ  (Dynamic)  server-rendered on demand
+
+   Only `/` and `/_not-found` are static. `/admin/[[...segments]]` and every
+   `/api/*` route are dynamic — exactly the routes cache interception must not
+   touch, and per the doc's own statement ("SSR route will work out of the box
+   without any caching config") they are not touched by this config at all.
+
+   OpenNext then wrote `.open-next/worker.js`. One pre-existing esbuild warning
+   unrelated to this change (`typeof x === "null"` inside a vendored chunk).
+
+2. `docker exec anasaq-bundle sh -lc "cd /app && set -a; . ./.env; set +a; npx wrangler deploy --dry-run"`
+   Exit: 0 (ended with "--dry-run: exiting now.").
+
+     Total Upload: 25338.49 KiB / gzip: 5611.17 KiB
+
+   Bindings listed: env.HYPERDRIVE (Hyperdrive Config), env.R2 (R2 Bucket),
+   env.ASSETS (Assets), env.SITE_URL (Environment Variable). No secrets printed.
+
+   `Worker Startup Time` was NOT produced by this command. Checked
+   `npx wrangler deploy --help` (wrangler 4.136.1) for a flag that would surface
+   it under `--dry-run` — none exists. The existing `deploy-spike.sh` in this
+   session's scratchpad already documents that `startup_time_ms` is only visible
+   on a real `wrangler deploy`, which this task does not run. This number
+   remains unmeasured until the owner deploys.
+
+3. Local preview, run without deploying, to check the actual runtime behaviour:
+   - Started a disposable `postgres:17-alpine` container (`anasaq-p00-pg`,
+     172.17.0.3:5432, matching docs/development.md's local-database recipe) on
+     the same Docker bridge network as `anasaq-bundle`.
+   - `docker exec anasaq-bundle sh -lc "cd /app && DATABASE_URL='postgres://anasaq:anasaq@172.17.0.3:5432/anasaq_p00' pnpm migrate"`
+     Exit: 0 — `Migrated: 20260922_031113_initial (250ms)`.
+   - Wrote a throwaway `.dev.vars` (PAYLOAD_SECRET, JOBS_SECRET, SITE_URL) only
+     inside the container, per docs/development.md's local-preview instructions.
+     Not the same value as any real secret; deleted after the run.
+   - `docker exec -d -e CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE='postgres://anasaq:anasaq@172.17.0.3:5432/anasaq_p00' anasaq-bundle sh -lc "cd /app && pnpm preview:worker -- --ip 0.0.0.0"`
+     Log: "Populating Workers static assets... Successfully populated static
+     assets cache", then "Ready on http://0.0.0.0:8787".
+   - Hit the three routes from inside the container with `node -e` `fetch()`
+     (no `curl` in the `node:24-bookworm-slim` image):
+
+     GET /           -> 200, cache-control: s-maxage=31536000,
+                        stale-while-revalidate=2592000
+                        x-opennext-cache: HIT (both attempts)
+                        body: the static Arabic placeholder home page.
+
+     GET /api/health -> 200, cache-control: no-store
+                        body: {"ok":true,"data":{"status":"ok",
+                        "database":{"ok":true,"latencyMs":23},
+                        "jobs":{"lastCompletedAt":null}}}
+                        Reached the real local PostgreSQL container, not a
+                        cached value — the latency and timestamp are live.
+
+     GET /admin      -> 200, cache-control: private, no-cache, no-store,
+                        max-age=0, must-revalidate
+                        x-opennext-cache: (not present / null)
+                        body: the Payload admin shell HTML.
+
+   `/admin` shows no `x-opennext-cache` header at all and an explicit
+   `private, no-store` cache-control — it is not intercepted and not cached.
+   `/` shows `x-opennext-cache: HIT` on every request — cache interception is
+   active and serving it before the Next server runs. `/api/health` still
+   executes a live database round trip. No security regression observed.
+
+   Cleanup after the check: `pkill -f 'wrangler dev'`/`workerd` inside the
+   container (confirmed no process left running), `docker rm -f anasaq-p00-pg`,
+   and `.env`/`.dev.vars` deleted from `/app` inside `anasaq-bundle` (confirmed
+   with `ls` returning "No such file or directory" for both).
+
+What is still unproven
+-----------------------
+This is a local Miniflare/workerd preview, not a Cloudflare deployment. It
+shows that cache interception activates for the one static route and does not
+touch dynamic routes, and that the bundle still builds and dry-run-bundles
+cleanly. It does NOT show:
+  - the real cold-start / warm CPU time on Cloudflare's edge,
+  - whether cache interception actually pulls the public route's *measured*
+    CPU time under the Workers Free 10 ms limit (the P00 baseline measured
+    20.5 ms p50 against calling the Next server; interception skips that
+    server call entirely for a cache hit, which plausibly helps, but the
+    magnitude is not measured here),
+  - `Worker Startup Time`, which wrangler only reports on a real deploy.
+
+These remain open until the owner runs the deploy script below and the
+orchestrator measures the deployed Worker.
+
+## Public JS budget, corrected measurement
+
+Command run (inside the already-running container, matching the repo's own
+scripts/check-budgets.mjs, copied into the container since /app is not a
+bind mount — `docker cp scripts/check-budgets.mjs anasaq-bundle:/app/scripts/check-budgets.mjs`):
+
+    docker exec anasaq-bundle sh -lc "cd /app && node scripts/check-budgets.mjs"
+
+Old figure (before this fix): 980.4 KiB gzip, summing all 63 files under
+`.next/static/chunks` including the Payload admin bundle — a false red,
+never downloaded by a public visitor.
+
+New figure: the script now parses `.next/server/app/index.html`, extracts
+the `<script src="/_next/static/chunks/*.js">` tags it actually contains,
+and gzips only those files on disk.
+
+  - Homepage script count: 7 total `<script src>` tags referencing
+    `/_next/static/chunks/*.js`. One of them (`0cz1d0mv5g_q7.js`, 112,594
+    bytes raw / 39,496 bytes gzip) carries a `noModule` attribute — the
+    legacy pre-ES-module fallback bundle modern browsers never fetch.
+  - Polyfill: EXCLUDED. The script detects `noModule=""` on the tag and
+    skips that chunk, per the task's instruction to distinguish it.
+  - Sum of the remaining 6 modern-path scripts: 134,843 bytes gzip =
+    131.6 KiB, computed by the script (`gzipSync` via Node's zlib).
+  - Cross-check: independently gzipped each of the 7 referenced chunks with
+    `gzip -c | wc -c` inside the container. The 6 non-polyfill scripts sum
+    to 134,843 bytes (131.6 KiB), matching the script's own figure. Adding
+    the polyfill's 39,496 bytes gives 174,339 bytes = 170.3 KiB — this
+    matches the task's own prior manual estimate of "170.3 KiB / 7 scripts"
+    exactly, confirming that estimate included the polyfill.
+
+Actual output:
+
+    check:budgets
+      worker upload:        25338.5 KiB  (limit 65536.0 KiB)
+      worker gzip (info):    5611.2 KiB  (no Cloudflare limit; informational)
+      public JS gzip:        131.6 KiB  (budget 150.0 KiB, 6 homepage scripts, 1 nomodule polyfill excluded)
+    EXIT: 0
+
+Result: PASS (131.6 KiB against the 150 KiB budget), not the FAIL the task
+predicted. This is a genuine result, not a forced pass — the budget constant
+(`PUBLIC_JS_GZIP_BUDGET_BYTES`) was not touched, and the polyfill exclusion
+was explicitly permitted by the task ("skip the nomodule legacy polyfill if
+you can distinguish it"). The task's predicted ~170 KiB / FAIL figure was
+itself the 7-script sum with the polyfill still counted; once the polyfill
+correctly drops out (as modern browsers never fetch it), the measurement
+comes in under budget. Flagging this explicitly since it contradicts the
+task's stated expectation — reporting the real measured number, not the
+predicted one.
+
+## Hosted CPU measurement after cache interception, 2026-09-22
+
+Deployed by the owner from the container (the agent Bash classifier refuses
+`wrangler deploy`). Version ID 6b30cdee-944f-405c-b654-b99e39988ca3.
+Worker Startup Time: 22 ms (limit 1000 ms). Total Upload 25338.49 KiB.
+
+Live header verification on the deployed Worker:
+
+  /             200  x-opennext-cache: HIT
+                     Cache-Control: s-maxage=31536000, stale-while-revalidate=2592000
+  /admin        200  Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+                     (no x-opennext-cache header present)
+  /api/health   200  Cache-Control: no-store
+
+Authenticated and dynamic routes are not intercepted or cached on the real
+edge, not only in local preview.
+
+CPU, from Cloudflare `workersInvocationsAdaptive`. Two clean runs of 40
+sequential requests to the public route only, no admin or health traffic in
+the window. 80 requests sent, 80 x HTTP 200, 76 recorded by adaptive sampling.
+Raw quantile values are microseconds.
+
+  window 2026-09-22T18:05:00Z .. 18:07:30Z
+  requests=76 errors=0
+  cpuTimeP50 = 2425 us   = 2.4 ms
+  cpuTimeP75 = 4265 us   = 4.3 ms
+  cpuTimeP99 = 31112 us  = 31.1 ms
+
+Before / after, public route only, same method and same limit:
+
+  metric   before    after    Workers Free limit
+  p50      20.5 ms   2.4 ms   10 ms
+  p75      25.4 ms   4.3 ms   10 ms
+  p99      453 ms    31.1 ms  10 ms
+
+Commands:
+  bash scratchpad/deploy-spike-cache-interception.sh      (owner ran)
+  curl -s -D - -o /dev/null <origin>/ ; /admin ; /api/health
+  for i in $(seq 1 40); do curl -s -o /dev/null -w '%{http_code}' <origin>/; done
+  node scratchpad/cpu-measure.mjs   (GraphQL workersInvocationsAdaptive)
+
+NOT PROVEN BY THIS MEASUREMENT
+- p99 31.1 ms still exceeds the 10 ms limit. The typical request now fits with
+  margin; roughly one request in a hundred does not. Cloudflare documents
+  tolerance for a Worker that infrequently runs over, which is a materially
+  different position from the earlier p50 being over, but it is tolerance, not
+  compliance.
+- The scheduled path is untouched. Cache interception cannot help it: a real
+  cron delivery measured 91 ms CPU and runs the full Next pipeline.
+- The 600.692 second scheduled invocation found in raw logs is still unexplained.
+- R2 round trip with unauthorized denial, real cron content write, and
+  authenticated hosted CRUD remain unrun.

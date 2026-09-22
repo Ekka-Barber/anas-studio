@@ -216,6 +216,311 @@ native `POST /api/users/first-register` instead. Not fixed — `src/` was outsid
 the task allowlist, and the workaround uses a native endpoint rather than adding
 a script.
 
+## I11 — P00 FINDING: Hyperdrive never connects to the Supabase transaction pooler
+
+**Status:** open, needs an owner decision. **Package:** P00. **Raised:** 2026-09-22.
+
+The Worker deployed and runs. Every route that does **not** touch the database
+is healthy; every route that does hangs until the client gives up.
+
+| Route | Result |
+|---|---|
+| `/` | 200 in 0.58 s |
+| `/admin` | 200 in 0.47 s, 55 KiB |
+| `/api/health` | no response, client timeout at 45 s |
+| `/admin/create-first-user` | no response, client timeout at 45 s |
+
+So the bundle, the isolate, the assets and the admin render are all fine. The
+database path is not.
+
+**What was ruled out, by measurement rather than reasoning.** The Hyperdrive
+origin username is correct: `postgres.amqcphsmnopandhoxzsr`, byte-compared
+against the expected `postgres.<project-ref>`. The credentials themselves work —
+connecting to the same host and port 6543 from the workstation with the same
+username and password succeeds and sees all 14 `cms` tables. The Worker emits no
+log through `wrangler tail`, because the invocation never completes. And during
+an in-flight request, `pg_stat_activity` shows only the workstation's own
+Supavisor backends: **no Hyperdrive connection ever arrives at Supabase.**
+
+**Most likely cause, with vendor support.** Cloudflare's Supabase guidance says
+to use the **Direct connection** as the Hyperdrive origin rather than a pooled
+connection string, because Hyperdrive performs connection pooling itself. This
+configuration points Hyperdrive at Supabase's **transaction pooler on 6543**, so
+a pooler is stacked underneath a pooler. This is stated as a strong hypothesis,
+not a proven root cause: proving it requires changing the origin, which is a
+shared-resource change the owner must authorize.
+
+**This is a plan-level finding, not an implementation slip.** ARCHITECTURE.md:40
+assigns P00 the job of verifying "transaction/pooler compatibility", and D26
+states that runtime traffic uses "the Hyperdrive binding aimed at the transaction
+pooler". P00 has now tested that topology and it does not work. That is the spike
+doing its job.
+
+**Proposed fix, requiring owner approval.** Repoint the Hyperdrive origin to the
+Supabase **session pooler on 5432** — the endpoint migrations already use
+successfully. Consequence for D26: the runtime and migration paths would then
+share a host and port, so the separation D26 asked for would rest on distinct
+roles and credentials, which is P03's work, rather than on distinct endpoints.
+D26 should be amended deliberately rather than quietly eroded.
+
+Not attempted: purchasing anything, switching provider, or disabling Hyperdrive
+and connecting the Worker straight to Supabase.
+
+## I12 — P00 VERDICT: the application exceeds the Workers Free CPU limit
+
+**Status:** open, escalated to the owner. **Package:** P00. **Raised:** 2026-09-22.
+
+This is the failure mode ARCHITECTURE and DECISIONS named as the primary
+expected one, and it is now measured rather than predicted.
+
+**Measured on the deployed Worker, Free account, from Cloudflare's own
+`workersInvocationsAdaptive` analytics.** A run of 40 sequential requests to the
+**public route only** — not the admin — produced:
+
+| Metric | Value | Free limit |
+|---|---|---|
+| CPU p50 | **20.5 ms** | 10 ms |
+| CPU p75 | 25.4 ms | 10 ms |
+| CPU p99 | 453 ms | 10 ms |
+| HTTP results | 40 × 200, zero 1102 | — |
+
+Mixed traffic including the admin measured worse: p50 54.5 ms, p99 645 ms.
+
+**Why nothing failed despite being over the limit.** Cloudflare documents burst
+tolerance: an isolate allows a Worker that "infrequently runs over" its limit,
+and terminates one that "starts hitting the limit consistently". Forty requests
+is infrequent. The 200s are the grace window, not a pass. Under sustained
+traffic this returns error 1102 / `exceededCpu`.
+
+**The cost is structural, not content.** The public route is P00's near-empty
+placeholder page, and the Next build marks it `○ (Static) prerendered`. It still
+costs 20.5 ms, because OpenNext routes requests through the Next.js server
+pipeline inside the Worker. Real public pages with real content and data will
+cost more, not less. No trimming of *our* code addresses a floor set by the
+adapter's request path.
+
+**Account state, verified.** No Workers Paid subscription exists. The only
+subscription on the account is `r2_paid` at **0 USD**, the free-tier R2
+entitlement created when R2 was enabled. The Worker's `usage_model` is
+`standard`, which is the current naming and does not imply a paid plan.
+
+**What passed, so the scope of the failure is clear.** Deployment succeeded.
+Worker startup time is **20 ms against a 1 second limit**. Upload is 24.73 MiB
+against 64 MiB. Hyperdrive reaches Supabase after I11 with 218 ms database
+latency. Public route, admin shell, `/api/health` and the Payload catch-all all
+return 200. `POST /api/users/first-register` is refused 403 and
+`GET /api/payload-jobs/run` without a bearer is refused 401. The only thing
+standing between this architecture and a working Free deployment is CPU.
+
+**Decision required from the owner.** Per DECISIONS.md:65 a failed free-tier
+spike blocks dependent work and is escalated, never bypassed by silently buying
+a plan, switching provider or downgrading the runtime. Nothing has been
+purchased. The options, with the orchestrator's assessment:
+
+1. **Workers Paid, ~$5/month.** Raises CPU to 30 s by default. Measured p99 of
+   453 ms fits with three orders of magnitude to spare. Solves it outright and
+   changes no architecture. This is E07, arriving earlier than planned.
+2. **Cut the per-request CPU floor.** Requires serving public pages as genuine
+   static assets that bypass the Worker pipeline entirely, rather than through
+   OpenNext's server handler. This is real engineering against an adapter
+   default, with an unproven outcome, and P01's public pages would be built
+   twice if it fails.
+3. **Reopen D01/D02.** Contradicts the printed offer's Payload requirement.
+
+Option 1 is recommended. Option 2 is worth measuring *only* if the owner wants
+to stay on Free as a hard constraint, and it should be its own bounded spike
+with its own pass criterion, not folded silently into P01.
+
+## I12 AMENDMENT — the recommendation is withdrawn; Free is a hard requirement
+
+**Raised:** 2026-09-22, same day, after an independent external audit and a
+direct statement of the owner's budget constraint.
+
+Two things changed the ruling above.
+
+**The owner's constraint is $0, not "prefer free".** Hosting must cost nothing
+through development and through the first three to six months of production.
+That is an acceptance requirement, not a preference. Option 1 above is therefore
+withdrawn as a recommendation. Nothing was purchased.
+
+**The "structural floor" claim was not established.** An independent audit
+(OpenAI Codex, thread 01a0c995) re-ran the measurement on the unchanged
+deployment and recorded **14 ms median, 23 ms maximum** across its own 40
+requests, against the 20.5 ms p50 recorded above. 20.5 ms is an observation, not
+a floor. More importantly the audit found a documented adapter feature this
+spike never tried: OpenNext supports **cache interception**, which short-circuits
+a request before it reaches the Next.js server — precisely the cost measured.
+`open-next.config.ts` enables neither it nor an incremental cache, and its
+comment declining them conflates public-page caching with database query
+caching. Those are different concerns: serving a build-time placeholder from
+cache does not cache an authorization check or an inventory read.
+
+The orchestrator verified the measurement and asserted the interpretation. That
+is the same failure as I01, in a different costume, and it is now the second
+time in one package that a conclusion outran its evidence.
+
+**Two further facts the audit surfaced that this ledger did not have.** A real
+cron delivery consumed **91 ms CPU** and completed. Raw invocation logs also
+contain a historical scheduled invocation lasting **600.692 seconds**, ending in
+a socket exception; that is unexplained and must be explained before acceptance.
+Scheduled work will not be fixed by any amount of public-route caching.
+
+**Revised position.** Option 2 is now the active path and is dispatched as a
+bounded task: enable cache interception and the static-assets incremental cache,
+redeploy, re-measure. The pass criterion is the public route under 10 ms CPU
+with `/admin` and `/api/health` provably not served from cache. If it fails,
+the finding is that this deployment arrangement — Payload and Next.js in one
+Worker — cannot meet the constraint, which reopens *where Payload runs*, not
+whether the owner pays.
+
+## I13 — external audit findings against P00 evidence and code
+
+**Status:** open, dispatched to a worker. **Package:** P00. **Raised:** 2026-09-22.
+
+Independent audit findings, each re-verified against source by the orchestrator
+before being recorded here. None was found by the orchestrator's own audit.
+
+| # | Finding | State |
+|---|---|---|
+| a | `scripts/check-budgets.mjs:81` excludes any absolute path containing `/app/`. The container's repo root **is** `/app`, so every chunk is excluded and the gate reports **0.0 KiB** against a real ~131.6 KiB gzip. A green gate measuring nothing. | dispatched |
+| b | `docs/runtime-spike.md:84` states `SET` outside a transaction does not survive the pool. Its own transcript, `pooler-probe.txt:13`, records that it **did**. The doc contradicts its evidence. | dispatched |
+| c | `pooler-probe.mjs:46` derives the transaction-pooler port from `DATABASE_URL`, now 5432, so both branches test the same endpoint. A rerun proves nothing. | dispatched |
+| d | `worker-entry.ts:58` calls `openNextWorker.fetch` **in-process**. The scheduled handler never crosses the public internet, so the `SITE_URL` comment in `wrangler.jsonc` — and the claim in commit `ed18fca` — are wrong. | dispatched |
+| e | `worker-entry.ts` checks only `response.ok`. Payload returns 200 while individual jobs fail, so a "successful" cron run does not mean successful work. | dispatched |
+| f | `mayRunJobs` (`src/payload/jobs.ts`) falls through to `Boolean(req.user)`: any authenticated user may run the job sweep, with no role check. Role separation is P03's, but this must be recorded as deliberately open until then, not assumed closed. | open, P03 |
+| g | `resolveMigrationConnectionString()` has no callers in product code. It documents an intention; it enforces nothing. D26's separation rests on operator discipline alone. | open |
+| h | `EXECUTION-STATUS.md` said `blocked_local` while I12 described a live deployment. The ledger contradicted itself. | fixed below |
+
+Items f and g are not defects to fix inside P00; they are corrections to what
+P00 may claim to have proven. Recorded so acceptance does not overstate them.
+
+## I14 — the public JavaScript budget measured the wrong thing twice
+
+**Status:** RESOLVED, audited. **Package:** P00. **Raised and closed:** 2026-09-22.
+
+`scripts/check-budgets.mjs` has now produced a wrong number in both directions,
+and each time it looked authoritative.
+
+| Version | Reported | Reality |
+|---|---|---|
+| Original | **0.0 KiB** | every chunk excluded — the absolute path always contained `/app/`, the container's repo root |
+| First fix | **980.4 KiB** | sums all 63 chunks, including the 1.19 MB Payload admin bundle a public visitor never downloads |
+| Truth, measured | **170.3 KiB** | the 7 scripts `.next/server/app/index.html` actually references |
+
+**Resolution.** The gate now parses `.next/server/app/index.html` and gzips only
+the chunks the homepage actually references. It exits non-zero if that file is
+missing or if a referenced chunk is absent, rather than falling back to any
+default. Measured, and reproduced independently by the orchestrator:
+
+```
+public JS gzip:        131.6 KiB  (budget 150.0 KiB, 6 homepage scripts, 1 nomodule polyfill excluded)
+```
+
+**This passes.** The orchestrator's brief predicted a fail at ~170 KiB and was
+wrong: 170.3 KiB counted the `nomodule` legacy polyfill, which no modern browser
+fetches. The worker excluded it, said so in its log line, cross-checked every
+chunk with `gzip -c | wc -c`, and reported plainly that the result contradicted
+the brief's expectation instead of bending to it. That is the correct behaviour
+and it is recorded here because the opposite behaviour is what produced I01.
+
+The lesson is not about a path filter. A check that cannot fail is not a check,
+and neither is one that fails on a quantity nobody experiences. Both earlier
+versions would have been reported as evidence.
+
+**Carried to P01 as a risk, not a defect.** 131.6 KiB of a 150 KiB budget is
+spent on a page with no content. About 18 KiB of margin remains for the real
+homepage, its fonts, its interactivity and any client component P01 adds. The
+budget will be hit early. P01 must either plan for it or revisit the number
+deliberately — not discover it as a surprise CI failure.
+
+**Trivial follow-up:** `readdirSync` is now an unused import in
+`scripts/check-budgets.mjs`. ESLint does not flag it and CI is unaffected; fold
+the removal into the next worker task rather than spending a dispatch on it.
+
+## I13 audit result — worker diff reviewed, 2026-09-22
+
+Reviewed independently rather than accepted on report. The safety classifier
+timed out on this subagent, so this audit is the only review its diff received.
+
+- **(a) budget gate** — fix directionally right, measurement still wrong. See I14.
+- **(b) doc contradiction** — corrected properly. `docs/runtime-spike.md` now
+  matches `pooler-probe.txt:13` and cites it, and the same wrong claim repeated
+  further down the file was also caught and fixed. The operative rule is
+  preserved with its real justification: a later request may land on a different
+  backend, which is why `SET LOCAL` is still required.
+- **(c) probe port** — hardcoded to 6543 with the reason in a comment. Correct.
+- **(d) `SITE_URL` comment** — rewritten to describe the in-process call. Verified
+  against `worker-entry.ts:58`. The false claim in commit `ed18fca` stands in
+  history and is corrected here rather than rewritten.
+- **(e) silent job failures** — accepted, and **verified at the source**. The
+  worker read `payload/dist/queues/operations/runJobs/index.js:442` rather than
+  recalling the field's meaning; `remainingJobsFromQueried` does increment only
+  when a job's task result is `status: 'error'`. The throw is correct.
+- **(f, g)** — unchanged, correctly left as P03/open.
+- **task 4, cache interception** — `open-next.config.ts` now uses the documented
+  SSG recipe. The worker fetched the OpenNext caching page live and cross-checked
+  both `enableCacheInterception` and the `static-assets-incremental-cache` module
+  against the installed 1.20.6 package before using them. Local preview shows
+  `/` returning `x-opennext-cache: HIT`, `/api/health` still reaching the
+  database (`latencyMs: 23`, `cache-control: no-store`), and `/admin` carrying
+  `private, no-cache, no-store` with **no** `x-opennext-cache` header at all.
+  No authenticated content is cached.
+
+**What this does not prove.** Miniflare does not model Cloudflare's CPU
+accounting. A local cache HIT is not a CPU measurement. The pass criterion —
+public route under 10 ms CPU on the real edge — is untested until the owner
+deploys and the orchestrator re-measures. The worker said so plainly rather
+than implying success, which is the behaviour the brief asked for.
+
+## I15 — cache interception cuts public-route CPU by 8.5x; the public route now fits Free
+
+**Status:** measured. **Package:** P00. **Raised:** 2026-09-22.
+
+Deployed with `enableCacheInterception: true` and the static-assets incremental
+cache. Two clean runs of 40 requests each to the public route only, no admin or
+health traffic in the window. 80 sent, 80 × 200, 76 recorded by adaptive
+sampling. Same method, same dataset and same limit as the I12 measurement.
+
+| Metric | Before (I12) | After | Free limit |
+|---|---|---|---|
+| CPU p50 | 20.5 ms | **2.4 ms** | 10 ms |
+| CPU p75 | 25.4 ms | **4.3 ms** | 10 ms |
+| CPU p99 | 453 ms | **31.1 ms** | 10 ms |
+| Startup | 20 ms | 22 ms | 1000 ms |
+
+**I12's core claim is now disproven by measurement.** There was no structural
+OpenNext CPU floor. The 20.5 ms was the cost of routing a prerendered page
+through the Next.js server, and a documented adapter option removes it. The
+orchestrator asserted a floor from a single observation and escalated a purchase
+on it. That is the third time in this package a conclusion outran its evidence —
+I01, I12, and the budget-gate prediction in I14 — and the pattern is identical
+each time: the measurement was verified, the interpretation was not.
+
+**No security regression, verified on the real edge and not only in preview.**
+`/` returns `x-opennext-cache: HIT`. `/admin` carries
+`private, no-cache, no-store, must-revalidate` and **no** cache header at all.
+`/api/health` is `no-store` and still reaches the database.
+
+**What this does not settle.**
+
+- **p99 is still 31.1 ms, over the limit.** The typical request now fits with
+  margin; roughly one in a hundred does not. Cloudflare's documented tolerance
+  for a Worker that infrequently runs over plausibly covers that, which is a
+  materially different position from p50 being over — but it is tolerance, not
+  compliance, and it must not be written up as a pass.
+- **The scheduled path is untouched and is now the binding constraint.** A real
+  cron delivery measured **91 ms**. Cache interception cannot help it: the job
+  sweep runs the full Next pipeline by design. Every 15 minutes, indefinitely,
+  is not "infrequently over".
+- The 600.692 second scheduled invocation in the raw logs is still unexplained.
+
+**Consequence for the owner's $0 constraint.** The public website — the part
+real visitors touch — now fits Workers Free. The remaining exposure is the
+background job sweep, which is a much smaller problem with more options
+(reduce its work, move it off the Worker, or lengthen its interval) than
+"the whole architecture is too expensive". P00 is not accepted; the question
+has narrowed from the product to one cron handler.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the

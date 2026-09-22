@@ -70,20 +70,40 @@ if (!totalMatch) {
 const workerRawBytes =
   parseFloat(totalMatch[1]) * (totalMatch[2].toLowerCase() === 'mib' ? 1024 * 1024 : 1024)
 
-// Initial public JavaScript: gzip of the Next client chunks that every page loads.
+// Initial public JavaScript: gzip of only the chunks the built public homepage
+// (.next/server/app/index.html) actually <script src> references — not every
+// chunk under .next/static/chunks (that sum includes bundles like the Payload
+// admin panel that a public visitor never downloads). The legacy `nomodule`
+// polyfill script, if present, is excluded: modern browsers never fetch it.
+const homepagePath = path.join(repoRoot, '.next', 'server', 'app', 'index.html')
+if (!existsSync(homepagePath)) {
+  console.error(
+    `No built homepage found at ${path.relative(repoRoot, homepagePath)}. Cannot measure public JS — run the build first.`,
+  )
+  process.exit(1)
+}
+const homepageHtml = readFileSync(homepagePath, 'utf8')
+const scriptTagRe = /<script\b[^>]*\bsrc="([^"]+)"[^>]*>/gi
 let publicJsGzipBytes = 0
+let scriptCount = 0
+let polyfillSkipped = 0
 const chunkDir = path.join(repoRoot, '.next', 'static', 'chunks')
-if (existsSync(chunkDir)) {
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) walk(full)
-      else if (entry.isFile() && entry.name.endsWith('.js') && !full.includes(path.sep + 'app' + path.sep)) {
-        publicJsGzipBytes += gzipSync(readFileSync(full)).length
-      }
-    }
+let match
+while ((match = scriptTagRe.exec(homepageHtml))) {
+  const [tag, src] = match
+  const chunkMatch = src.match(/\/_next\/static\/chunks\/(.+\.js)$/)
+  if (!chunkMatch) continue
+  if (/\bnoModule=/i.test(tag)) {
+    polyfillSkipped += 1
+    continue // legacy fallback bundle, never fetched by modern browsers
   }
-  walk(chunkDir)
+  const chunkFile = path.join(chunkDir, chunkMatch[1])
+  if (!existsSync(chunkFile)) {
+    console.error(`Homepage references chunk ${chunkMatch[1]} but it is missing on disk at ${chunkFile}.`)
+    process.exit(1)
+  }
+  publicJsGzipBytes += gzipSync(readFileSync(chunkFile)).length
+  scriptCount += 1
 }
 
 const failures = []
@@ -102,7 +122,7 @@ console.log('check:budgets')
 console.log(`  worker upload:        ${kib(workerRawBytes)}  (limit ${kib(WORKER_UPLOAD_LIMIT_BYTES)})`)
 console.log(`  worker gzip (info):    ${kib(workerGzipBytes)}  (no Cloudflare limit; informational)`)
 console.log(
-  `  shared public JS gzip: ${kib(publicJsGzipBytes)}  (budget ${kib(PUBLIC_JS_GZIP_BUDGET_BYTES)})`,
+  `  public JS gzip:        ${kib(publicJsGzipBytes)}  (budget ${kib(PUBLIC_JS_GZIP_BUDGET_BYTES)}, ${scriptCount} homepage scripts, ${polyfillSkipped} nomodule polyfill excluded)`,
 )
 
 if (failures.length > 0) {

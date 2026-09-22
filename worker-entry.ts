@@ -63,6 +63,18 @@ const handler: ExportedHandler<WorkerEnv> = {
         `Scheduled job run failed with status ${response.status} at ${event.scheduledTime}.`,
       )
     }
+
+    // Payload's /api/payload-jobs/run endpoint (payload/dist/queues/endpoints/run.js)
+    // returns HTTP 200 even when individual jobs error — the body's
+    // `remainingJobsFromQueried` counts jobs whose task result was
+    // `status: 'error'` in this run. A 200 with failed jobs must not read as a
+    // successful cron run.
+    const body = (await response.json()) as { remainingJobsFromQueried?: number }
+    if ((body.remainingJobsFromQueried ?? 0) > 0) {
+      throw new Error(
+        `Scheduled job run reported ${body.remainingJobsFromQueried} failed job(s) at ${event.scheduledTime}.`,
+      )
+    }
   },
 }
 
