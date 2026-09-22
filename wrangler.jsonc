@@ -1,0 +1,55 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "anas-studio",
+
+  // `worker-entry.ts` wraps the generated OpenNext handler and adds the
+  // `scheduled` handler. The generated bundle is reached through the `alias`
+  // below so that `pnpm typecheck` does not depend on build output existing.
+  "main": "worker-entry.ts",
+  "alias": {
+    "open-next-worker": "./.open-next/worker.js"
+  },
+
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // Supabase PostgreSQL through Hyperdrive. Query caching is disabled on the
+  // Hyperdrive configuration itself so authorization, publication and inventory
+  // reads always reach the database.
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "f93334ce5f554313b81ed0afdb003461"
+    }
+  ],
+
+  // Private bucket: r2.dev public access is disabled and originals are served
+  // only through Payload's access-controlled file route.
+  "r2_buckets": [
+    {
+      "binding": "R2",
+      "bucket_name": "anas-studio-media-test"
+    }
+  ],
+
+  // One scheduled entry for the whole deployment. It invokes Payload's native
+  // job queue; there is no second worker and no in-memory timer.
+  "triggers": {
+    "crons": ["*/15 * * * *"]
+  },
+
+  // Non-secret configuration only. PAYLOAD_SECRET and JOBS_SECRET are Worker
+  // secrets and are never written into this file.
+  "vars": {
+    "SITE_URL": "https://anas.studio"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@payload-config": [
+        "./src/payload.config.ts"
+      ],
+      // The generated Worker bundle. `wrangler.jsonc` aliases this specifier to
+      // `.open-next/worker.js` at bundle time; for type checking it resolves to
+      // the adapter's own template declaration, which is the exact file the
+      // build copies. That keeps `pnpm typecheck` independent of build output.
+      "open-next-worker": [
+        "./node_modules/@opennextjs/cloudflare/dist/cli/templates/worker.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "cloudflare-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".next",
+    ".open-next",
+    "artifacts",
+    "_archive",
+    "deploy"
+  ]
+}

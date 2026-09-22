@@ -1,0 +1,86 @@
+name: CI
+
+# Linux CI for the P00 runtime spike foundation. Every step is a real check:
+# no step is allowed to fail silently, nothing is wrapped in `continue-on-error`
+# and no exit code is masked. A red job means the commit is not acceptable.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: install, lint, typecheck, test, build, worker bundle
+    # Pinned image, not `ubuntu-latest`: the runner is part of the build inputs.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      # Actions are pinned to commit SHAs, not tags: a tag can be moved to point
+      # at different code, a commit SHA cannot. The comment records which
+      # release each SHA was resolved from, on 2026-09-22.
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install pnpm
+        # Version comes from the `packageManager` field in package.json, which is
+        # the single source of truth for the package manager version.
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        # `--frozen-lockfile` fails rather than silently resolving a different
+        # dependency graph than the committed lockfile.
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Frozen design sources unchanged
+        run: pnpm check:frozen
+
+      - name: Copy rules
+        run: pnpm check:copy
+
+      - name: Build-only Payload secret
+        # `next build` evaluates the Payload config while collecting page data,
+        # and the config refuses to load without PAYLOAD_SECRET — unconfigured
+        # means unavailable, with no fallback. CI builds against no database and
+        # signs nothing, so a throwaway value generated per run is the honest
+        # input. It is never a deployment secret: the deployed Worker reads its
+        # real secret from `wrangler secret`, which is not in this repository.
+        run: echo "PAYLOAD_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Build the Next.js application
+        run: pnpm build
+
+      - name: Build the OpenNext Cloudflare Worker artifact
+        # The real artifact that ships, not a stub: this is what P00 measures.
+        run: pnpm build:worker
+
+# Not run here, and deliberately so: `pnpm preview:worker` and `pnpm test:e2e`.
+# `wrangler dev` refuses to start the HYPERDRIVE binding without a local
+# connection string, and the end-to-end spec needs a migrated PostgreSQL
+# database, Payload secrets and a browser. That proof runs locally against the
+# disposable Docker database (see docs/development.md) and on the hosted
+# deployment; a CI job that started the preview without a database would prove
+# nothing about the runtime and would report a green check for an untested path.

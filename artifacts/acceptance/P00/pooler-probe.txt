@@ -1,0 +1,25 @@
+probe_started_utc: 2026-09-22T04:23:04.569Z
+transaction_pooler_port: 6543
+session_endpoint_port: 5432
+hostname_shape: pooler.supabase.com (subdomain redacted)
+username_shape: postgres.<project-ref>
+sslmode_in_url: (not set)
+pooler_server_version: 17.6
+pooler_reported_settings: {"default_transaction_read_only":"off","max_connections":"60"}
+pooler_application_name: Supavisor
+pooler_unnamed_parameterised_query: ok
+pooler_named_prepared_statement: rejected: prepared statement "p00_named_stmt" already exists
+pooler_backend_pid_stable_between_statements: true
+pooler_set_survives_outside_transaction: set-outside-transaction
+pooler_backend_pid_stable_inside_transaction: true
+pooler_set_local_inside_transaction: set-inside-transaction
+pooler_set_local_after_commit: 
+pooler_transaction_rollback: {"rowsInsideTransaction":1,"afterRollback":"relation gone (relation \"p00_rollback_probe\" does not exist)"}
+session_endpoint_server_version: 17.6
+session_named_prepared_statement: accepted
+session_backend_pid_visible: true
+pooler_concurrent_connections_opened: 20
+pooler_concurrent_first_failure: none within 20 attempts
+pooler_read_after_write_across_connections: visible immediately
+pooler_probe_table_dropped: p00_read_after_write_muc65aq8
+probe_finished_utc: 2026-09-22T04:23:20.475Z

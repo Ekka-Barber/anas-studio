@@ -17,3 +17,17 @@ __pycache__/
 
 # Local single-writer coordination, never a committed package artifact.
 /.anasaq-execution.lock
+
+# Node and build output (P00).
+/node_modules/
+/.next/
+/.open-next/
+/.wrangler/
+*.tsbuildinfo
+
+# Local Worker secrets consumed by `wrangler dev`. Never committed.
+.dev.vars
+.dev.vars.*
+
+# Playwright transient run output; kept evidence lives under artifacts/.
+/test-results/

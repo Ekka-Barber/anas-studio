@@ -1,0 +1,30 @@
+import { defineConfig } from 'vitest/config'
+
+import { assertLocalTestDatabase } from './src/lib/env'
+
+/**
+ * Two run modes:
+ *
+ * - default (`pnpm test`): unit tests, no database.
+ * - `--mode db` (`pnpm test:db`): integration tests that touch a real
+ *   PostgreSQL instance. The guard below runs before any test file is
+ *   collected, so a run pointed at anything other than a disposable local
+ *   database fails immediately with a non-zero exit.
+ */
+export default defineConfig(({ mode }) => {
+  if (mode === 'db') {
+    assertLocalTestDatabase()
+  }
+
+  return {
+    test: {
+      environment: 'node',
+      include:
+        mode === 'db'
+          ? ['tests/integration/**/*.test.ts']
+          : ['tests/unit/**/*.test.ts'],
+      // Playwright owns end-to-end specs.
+      exclude: ['tests/e2e/**', 'node_modules/**'],
+    },
+  }
+})

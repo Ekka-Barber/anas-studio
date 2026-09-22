@@ -1,0 +1,117 @@
+# P00 Worker bundle measurement and no-Sharp proof
+# Measured from the built artifact, not from package.json.
+# Build: pnpm build && pnpm build:worker (Linux container, node v24.21.0, pnpm 10.33.0).
+
+recorded_utc: 2026-09-22T07:35Z
+artifact_root: .open-next
+open_next_worker_entry_bytes: 2278            # .open-next/worker.js (thin entry)
+open_next_directory_bytes: 57819480           # whole directory, including assets; NOT the upload size
+
+## Compressed bundle size (the number that counts against the Workers script limit)
+
+Static assets under `.open-next/assets` are uploaded as Workers Assets and do not
+count against the script size limit, so a directory size is meaningless here. The
+number that matters is the compressed size of the Worker script plus its modules.
+
+Cloudflare reports the authoritative figure at upload time. That upload is the
+hosted half of P00 and was NOT performed here, so this is a local reproduction of
+the same measurement: the deployed entry (`worker-entry.ts`, with the
+`open-next-worker` alias that `wrangler.jsonc` declares) is bundled with the
+esbuild version this project already depends on, then gzipped.
+
+command (run inside the Linux build container, from the repository root):
+  pnpm exec esbuild worker-entry.ts --bundle --format=esm --platform=node \
+    --target=es2022 --external:cloudflare:* \
+    --alias:open-next-worker=./.open-next/worker.js \
+    --outdir=/tmp/wb --loader:.wasm=file --loader:.bin=file
+  for f in /tmp/wb/*; do gzip -9 -c "$f" | wc -c; done
+
+result:
+  worker-entry.js                  raw=23239104  gzip=4906222
+  resvg-44H4AH4Q.wasm              raw= 1378357  gzip= 528670
+  Geist-Regular.ttf-IVENJMK3.bin   raw=  125956  gzip=  58844
+  yoga-CUISJQQD.wasm               raw=   71736  gzip=  28540
+  TOTAL                            raw=24815153  gzip=5522276   (5.27 MiB gzip)
+
+  Repeating the bundle with --conditions=workerd,worker,browser (the export
+  conditions wrangler resolves under) produced byte-identical totals:
+  raw=24815153 gzip=5522276.
+
+  JavaScript alone, excluding the three @vercel/og binary modules: 4906222 bytes
+  = 4.68 MiB gzip.
+
+interpretation (recorded, not resolved here):
+  Cloudflare's Worker script size limit is 3 MiB compressed on the Free plan and
+  10 MiB compressed on the paid Workers plan. Every variant of this measurement
+  is above 3 MiB. The local figure is an estimate produced by this project's own
+  esbuild rather than by Cloudflare's upload pipeline — wrangler applies its own
+  plugins and module rules — so the exact deployed number can differ. It cannot
+  plausibly differ by the ~2.3 MiB that would be needed to fit the Free limit.
+  This is the single most important open risk from the local half of the spike
+  and it is deliberately left as a recorded blocker candidate: it is resolved by
+  the hosted upload, which reports the real size, not by anything measurable here.
+
+## No Sharp, no native image resize — proved from the artifact
+
+  $ find .open-next -name "*.node"
+  (no output: the artifact contains no compiled native module of any kind)
+
+  $ find .open-next -type d -name "sharp*"
+  .open-next/server-functions/default/node_modules/.pnpm/sharp@0.35.4_@types+node@24.13.6
+  $ find ".open-next/server-functions/default/node_modules/.pnpm/sharp@0.35.4_@types+node@24.13.6" -type f | wc -l
+  0
+  (the path exists only as empty directories left by Next's file tracer; it holds
+  no JavaScript and no binary. `sharp` is an optional transitive dependency of
+  next@16.3.5 and is not declared by this project.)
+
+  $ grep -c -o "sharp" /tmp/wb/worker-entry.js
+  49
+  $ grep -o -E '.{60}require\("sharp"\).{60}' /tmp/wb/worker-entry.js
+  (no output: nothing in the deployed script requires or imports sharp)
+
+  The 49 textual occurrences are inert references, each verified by reading its
+  surrounding bytes in the bundle:
+   - Next's own config echo `serverExternalPackages:[...,"sharp",...]`, which is
+     the instruction never to bundle it;
+   - `@vercel/og`'s renderer, whose signature is
+     `render(satori, resvg, sharp, opts, ...)` and whose body is guarded by
+     `if (sharp) pngBuffer = await sharp(...)` — the argument is never supplied;
+   - Payload's own config key list and `aw({ file, sharp: req.payload.config.sharp })`.
+     `src/payload.config.ts` passes no `sharp` key at all (D15), so
+     `config.sharp` is `undefined` and every Payload resize and dimension-probe
+     path is skipped.
+
+  Next's image optimizer is the only other code that would reach a native
+  resizer; `next.config.ts` sets `images: { unoptimized: true }`, so it is off at
+  the configuration level rather than merely unused.
+
+## Correction, 2026-09-22 (supersedes the `interpretation` block above)
+
+The interpretation above compared this measurement to a 3 MiB / 10 MiB
+compressed Workers script limit. That limit is superseded and the comparison
+was wrong; nothing above it — the recorded byte counts, commands, and results
+— is disputed or altered.
+
+Cloudflare's current, live-verified limit
+(`developers.cloudflare.com/workers/platform/limits/`, fetched 2026-09-22):
+Worker size is **64 MiB, measured on the uncompressed bundle, identical on
+Workers Free and Workers Paid**. The docs state plainly: "There is no
+compressed size limit. Only the uncompressed bundle size counts," and "The
+`Total Upload` value is your uncompressed bundle size." The gzip figure
+wrangler prints beside it is informational only.
+
+Independently reproduced from this exact build with `pnpm exec wrangler
+deploy --dry-run` (Linux container, `anasaq-bundle`):
+  Total Upload: 25320.88 KiB / gzip: 5607.12 KiB
+
+That is **24.73 MiB against the 64 MiB limit — about 39% of budget**.
+Wrangler raised no size error and no size warning; the deployment fits on the
+Free plan. The gzip figures recorded earlier in this file (4.68-5.27 MiB) were
+always accurate as gzip measurements; they were simply compared against a
+limit dimension (compressed) and a limit value (3 MiB) that Cloudflare does
+not enforce.
+
+The surviving Free-plan risks are unrelated to bundle size: **Worker startup
+time (1 second, error 10021 at deploy time)** and **CPU time (10 ms per
+invocation on Free)**. Both require an actual deploy to measure, not a dry
+run.

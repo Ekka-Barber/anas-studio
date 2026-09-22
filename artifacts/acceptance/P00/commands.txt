@@ -1,0 +1,149 @@
+# P00 — every command run for the local half of the runtime spike, with exit codes
+#
+# Two execution hosts, both recorded:
+#   HOST      Windows 11, Node 24.19.0, pnpm 10.33.0, repository working tree
+#   CONTAINER Docker `anasaq-build` (node:24-bookworm-slim, Node 24.21.0), a copy
+#             of the same tree; used because `pnpm build:worker` cannot run on
+#             Windows (see below). Database: Docker `anasaq-p00-pg`
+#             (postgres:17-alpine), reached through the HYPERDRIVE binding.
+#
+# No exit code below is masked, retried into a pass, or reinterpreted.
+# Every timestamp is UTC. No credential appears in this file.
+
+recorded_utc: 2026-09-22T07:47Z
+branch: agent/p00-runtime-spike
+lock_base_commit: 09f7de17689361b79c7f207b99d475ea44ae3156
+
+## Local gate, re-run in full against the final tree
+
+HOST  pnpm install --frozen-lockfile   exit=0  07:45:24Z-07:45:26Z  lockfile satisfied, no resolution drift
+HOST  pnpm lint                        exit=0  07:45:26Z-07:45:30Z  eslint clean
+HOST  pnpm typecheck                   exit=0  07:45:30Z-07:45:40Z  tsc --noEmit clean
+HOST  pnpm test                        exit=0  07:45:41Z-07:45:42Z  vitest: "No test files found" — passes vacuously, see NOTE 1
+HOST  pnpm check:frozen                exit=0  07:45:42Z-07:45:43Z  59 files under deploy/ unchanged
+HOST  pnpm check:copy                  exit=0  07:45:43Z-07:45:44Z  19 source files, Latin digits only, no placeholders
+HOST  pnpm build                       exit=0  07:45:44Z-07:46:12Z  routes: / , /_not-found, /admin/[[...segments]], /api/[...slug], /api/graphql, /api/graphql-playground, /api/health
+HOST  pnpm build:worker                exit=1  07:46:13Z-07:46:42Z  FAILS ON WINDOWS — see NOTE 2
+CONT  pnpm build                       exit=0  07:25Z               same tree, Linux
+CONT  pnpm build:worker                exit=0  07:25Z-07:26Z        real OpenNext artifact written: ".open-next/worker.js"
+HOST  PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 pnpm test:e2e
+                                       exit=0  07:40:31Z-07:45:01Z  6 passed (4.5m), 0 failed, 0 skipped
+
+NOTE 1 — `pnpm test` currently has no unit tests at all; `--passWithNoTests`
+  makes it exit 0. It is recorded as green because the command genuinely exits 0,
+  not because anything was verified by it. `tests/unit/` was outside this task's
+  file allowlist; adding tests for `isLocalDatabaseUrl`/`assertLocalTestDatabase`
+  and for the constant-time `secretsMatch` is an open item.
+
+NOTE 2 — `pnpm build:worker` on the Windows host fails with:
+    WARN OpenNext is not fully compatible with Windows.
+    Error: EPERM: operation not permitted, symlink
+      'node_modules\.pnpm\@next+env@16.3.5\node_modules\@next\env'
+      -> '.open-next\server-functions\default\node_modules\.pnpm\next@16.3.5_...\node_modules\@next\env'
+      errno: -4048, code: 'EPERM', syscall: 'symlink'
+  Windows refuses symlink creation without Developer Mode or elevation. The same
+  command exits 0 on Linux, which is where CI runs it. This is an environment
+  limitation, recorded rather than worked around, and it is why the Worker
+  artifact measured here was built in the Linux container.
+
+## End-to-end detail (Playwright 1.63.0, chromium, 1 worker, serial)
+
+  1 public route renders Arabic right-to-left                                   pass   712ms
+  2 custom /api/health answers beside the Payload REST catch-all                pass   149ms
+  3 native Payload auth bootstraps one owner, logs in and logs out              pass   5.6s
+  4 collection row: create, read, update, and a second Lexical version restores pass   607ms
+  5 R2 object round-trips and is denied to an anonymous reader                  pass   429ms
+  6 bounded scheduled task runs through the Worker scheduled handler            pass   4.3m
+
+  Test 6 was failing before this task and is the one defect the spike found. It
+  is now green for the right reason, proved in the database afterwards:
+
+    cms.payload_jobs
+      probeHeartbeat  wait_until=2026-09-22 07:45:00+00  completed_at=2026-09-22 07:45:01.12+00   has_error=f  total_tried=1
+      probeHeartbeat  wait_until=2026-09-22 04:30:00+00  completed_at=2026-09-22 07:31:17.453+00  has_error=f  total_tried=1
+    cms.runtime_probe
+      last_scheduled_run_at=2026-09-22 07:45:01.053+00  (row created 07:40:41.985+00, during this run)
+
+  The first tick of the run queued the task for the next */15 slot (07:45:00);
+  a later tick ran it one second after that slot; the handler wrote to a probe
+  row created by this same run. The test requires a completion newer than the
+  one present when it started, so the earlier 07:31 completion could not satisfy
+  it.
+
+## Diagnosis and verification of the scheduled-job failure
+
+  MSYS_NO_PATHCONV=1 docker exec anasaq-p00-pg sh -c \
+    'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select ... from cms.payload_jobs ..."'
+                                                        exit=0  showed 1 queued job, 0 completed rows
+  grep -n -i -E "error|fail|schedul|job" /app/preview.log  exit=0  "INFO: Running 1 jobs." at 04:15:10
+  grep -rn "deleteJobOnComplete" node_modules/payload/dist/config/defaults.js
+                                                        exit=0  defaults.js:64 `deleteJobOnComplete: true`
+  (root cause: Payload deletes a job row on success by default, so the health
+   endpoint's "last completed job" query could never return anything; the job had
+   in fact run — cms.runtime_probe.last_scheduled_run_at was 04:15:10.846+00)
+
+  After the fix, before running the suite:
+  curl "http://127.0.0.1:8787/cdn-cgi/handler/scheduled?cron=*/15+*+*+*+*"  status=200  body "ok"
+  curl http://127.0.0.1:8787/api/health   status=200
+        {"ok":true,"data":{"status":"ok","database":{"ok":true,"latencyMs":11},
+         "jobs":{"lastCompletedAt":"2026-09-22T07:31:17.453Z"}}}
+
+## Route precedence and public route — actual requests
+
+  curl -sS -i http://127.0.0.1:8787/api/health        200  application/json; charset=utf-8, cache-control: no-store, x-robots-tag: noindex
+  curl -sS -i http://127.0.0.1:8787/api/users/me      200  {"user":null,"message":"الحساب"}  (Payload REST catch-all)
+  curl -sS    http://127.0.0.1:8787/api/runtime-probe 403  anonymous caller refused
+  curl -sS    http://127.0.0.1:8787/admin             200  native Payload admin
+  curl -sS    http://127.0.0.1:8787/                  200  <html lang="ar" dir="rtl">
+  Full transcript: artifacts/acceptance/P00/runtime-requests.txt
+
+## Worker bundle size and no-Sharp proof
+
+  pnpm exec esbuild worker-entry.ts --bundle --format=esm --platform=node \
+    --target=es2022 --external:cloudflare:* \
+    --alias:open-next-worker=./.open-next/worker.js \
+    --outdir=/tmp/wb --loader:.wasm=file --loader:.bin=file      exit=0
+  gzip -9 of every emitted file                                  exit=0
+      TOTAL raw=24815153  gzip=5522276  (5.27 MiB compressed)
+      JavaScript only:    gzip=4906222  (4.68 MiB compressed)
+      identical totals with --conditions=workerd,worker,browser
+  Cloudflare's compressed script limit is 3 MiB (Free) / 10 MiB (paid).
+  The measurement is above the Free limit. `wrangler deploy` was NOT run; the
+  authoritative size comes from the hosted half.
+
+  find .open-next -name "*.node"                                 exit=0  no output — no native module in the artifact
+  find .open-next -type d -name "sharp*"                         exit=0  one path, containing 0 files
+  grep -o -E '.{60}require\("sharp"\).{60}' /tmp/wb/worker-entry.js
+                                                                 exit=1  no match — nothing requires sharp
+  Detail: artifacts/acceptance/P00/worker-bundle.txt
+
+## Preview server used for the runtime evidence
+
+  docker restart anasaq-build                                    exit=0
+  docker exec -d -e CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=<local container URL> \
+    anasaq-build sh -c 'cd /app && pnpm preview:worker -- --ip 0.0.0.0'
+                                                                 exit=0  "Ready on http://0.0.0.0:8787"
+  (wrangler binds to localhost without `--ip 0.0.0.0`, which a container port
+   mapping cannot reach; the first attempt without it produced connection
+   refusals and is recorded here rather than hidden.)
+
+## Not run, deliberately
+
+  wrangler deploy            — not run. Deployment is the hosted half of P00.
+  wrangler deploy --dry-run  — not run either; it is deploy-family and reserved.
+  pnpm check:budgets         — not part of this task's gate list.
+
+## Guard proof: `pnpm test:db` refuses a database that is not local
+
+  Run against the configured environment, whose DATABASE_URL is a hosted
+  endpoint. A non-zero exit with no test executed is the correct outcome.
+
+  HOST  pnpm test:db                     exit=1
+        Error: Refusing to run database tests: TEST_ENV must be exactly "local".
+  HOST  TEST_ENV=local pnpm test:db      exit=1
+        Error: Refusing to run database tests: DATABASE_URL does not point at a
+        local PostgreSQL host.
+
+  The guard runs in `vitest.config.ts` before a single test file is collected, so
+  no test can bypass it, and the refusal never prints the URL, which carries
+  credentials.

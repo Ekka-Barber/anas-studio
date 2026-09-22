@@ -1,0 +1,40 @@
+# P00 runtime request transcript
+# Recorded against the real OpenNext Worker artifact served by wrangler dev
+# (pnpm preview:worker) with HYPERDRIVE bound to the disposable local
+# PostgreSQL container and R2 bound to wrangler's local object store.
+# Synthetic data only. No credential appears in this file.
+recorded_utc: 2026-09-22T07:36:44Z
+base_url: http://127.0.0.1:8787
+
+## Route precedence: a literal /api/health segment wins over Payload's /api/[...slug] catch-all
+$ curl -sS -i http://127.0.0.1:8787/api/health
+HTTP/1.1 200 OK
+Transfer-Encoding: chunked
+Content-Type: application/json; charset=utf-8
+Cache-Control: no-store
+Vary: Sec-CH-Prefers-Color-Scheme
+accept-ch: Sec-CH-Prefers-Color-Scheme
+critical-ch: Sec-CH-Prefers-Color-Scheme
+x-robots-tag: noindex
+
+{"ok":true,"data":{"status":"ok","checkedAt":"2026-09-22T07:36:44.341Z","database":{"ok":true,"latencyMs":13},"jobs":{"lastCompletedAt":"2026-09-22T07:31:17.453Z"}}}
+$ curl -sS -i http://127.0.0.1:8787/api/users/me   # handled by the Payload REST catch-all
+HTTP/1.1 200 OK
+Transfer-Encoding: chunked
+Content-Type: application/json
+Vary: Sec-CH-Prefers-Color-Scheme
+accept-ch: Sec-CH-Prefers-Color-Scheme
+access-control-allow-headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Encoding, x-apollo-tracing, X-Payload-HTTP-Method-Override
+access-control-allow-methods: PUT, PATCH, POST, GET, DELETE, OPTIONS
+critical-ch: Sec-CH-Prefers-Color-Scheme
+
+{"user":null,"message":"الحساب"}
+$ curl -sS -o /dev/null -w 'status=%{http_code}' http://127.0.0.1:8787/api/runtime-probe   # collection that requires a session
+status=403
+
+$ curl -sS -o /dev/null -w 'status=%{http_code} redirect=%{redirect_url}' http://127.0.0.1:8787/admin
+status=200 redirect=
+
+## Public route: Arabic root, right-to-left
+$ curl -sS http://127.0.0.1:8787/ | grep -o '<html[^>]*>'
+<html lang="ar" dir="rtl">
