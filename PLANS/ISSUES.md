@@ -591,6 +591,45 @@ hosted CRUD including delete, and the real cron content write — all three need
 an authenticated session. These are P00 acceptance criteria and none of them
 has been proven.
 
+## I18 — the cron CPU fix is blocked by a bundling failure, not by design
+
+**Status:** open. **Package:** P00. **Raised:** 2026-09-22.
+
+The architecturally correct fix for the cron's CPU cost (I16, 52.2 ms against a
+10 ms limit) is to stop routing the job sweep through the Next.js pipeline and
+call Payload's Local API directly — `handleSchedules()` then `jobs.run()`,
+mirroring `payload/dist/queues/endpoints/run.js`. A worker implemented it;
+`pnpm typecheck`, `pnpm lint` and `pnpm build:worker` all passed.
+
+`wrangler deploy --dry-run` then failed with three real esbuild errors:
+
+```
+No matching export in ".../file-type/core.js" for import "fileTypeFromFile"
+```
+
+from Payload's own upload endpoints (`checkFileRestrictions.js`, `getFile.js`),
+which are unconditionally reachable because `RuntimeProbeMedia` declares
+`upload: {...}`. Next.js and Turbopack tolerate the import; wrangler's esbuild
+pass over `worker-entry.ts` is a separate bundle and does not.
+
+The fix needs a build alias in `wrangler.jsonc`, for which there is precedent —
+`next.config.ts` already aliases `drizzle-kit/api` for the same class of
+problem. That was outside the worker's write scope, so it correctly reverted
+both files (`worker-entry.ts`, `src/lib/db.ts`) rather than half-landing a
+change, and re-verified the tree clean.
+
+**This is a tractable build problem, not evidence that the cron cost is
+irreducible.** Whoever picks it up should add the alias and re-measure, not
+conclude from I16 that the sweep must stay expensive.
+
+**Related, unfixed:** `src/lib/db.ts` sets `connectionTimeoutMillis` and
+`idleTimeoutMillis` but no `statement_timeout`. That is the best explanation for
+the 600.692 second scheduled invocation in the raw logs — a hung query on a
+stale pooled socket, which Supabase's own documentation names as a failure mode
+for serverless runtimes. Cloudflare's scheduled ceiling is 15 minutes, so its
+limit did not fire. The exact terminating limit was not confirmed and is
+recorded as an open gap rather than asserted.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the
