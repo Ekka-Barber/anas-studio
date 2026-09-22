@@ -2,11 +2,35 @@
   "mcpServers": {
     "graft": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@nanonets/graft",
-        "mcp"
-      ]
+      "args": ["-y", "@nanonets/graft", "mcp"]
+    },
+
+    "cloudflare-docs": {
+      "type": "http",
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    },
+
+    "cloudflare-api": {
+      "type": "http",
+      "url": "https://mcp.cloudflare.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CLOUDFLARE_API_TOKEN}"
+      }
+    },
+
+    "cloudflare-observability": {
+      "type": "http",
+      "url": "https://observability.mcp.cloudflare.com/mcp"
+    },
+
+    "cloudflare-bindings": {
+      "type": "http",
+      "url": "https://bindings.mcp.cloudflare.com/mcp"
+    },
+
+    "cloudflare-graphql": {
+      "type": "http",
+      "url": "https://graphql.mcp.cloudflare.com/mcp"
     }
   }
 }
