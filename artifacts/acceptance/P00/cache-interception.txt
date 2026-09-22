@@ -263,3 +263,46 @@ NOT PROVEN BY THIS MEASUREMENT
 - The 600.692 second scheduled invocation found in raw logs is still unexplained.
 - R2 round trip with unauthorized denial, real cron content write, and
   authenticated hosted CRUD remain unrun.
+
+## Authentication CPU, measured 2026-09-22
+
+Isolated windows from `workersInvocationsAdaptive`, values in microseconds.
+
+  window 18:30:00Z .. 18:30:30Z  (one organic cron delivery, no other traffic)
+    requests=1  cpuTimeP50 = 52213 us  = 52.2 ms
+
+  window 18:32:00Z .. 18:33:30Z  (login attempts, no other traffic)
+    requests=10 cpuTimeP50 = 614677 us = 614.7 ms
+
+Root cause, read from the installed package rather than recalled:
+node_modules/payload/dist/auth/strategies/local/generatePasswordSaltHash.js
+  const currentPasswordHashPrefix = 'pbkdf2-sha256-v1:'
+  const currentPasswordHashIterations = 600000
+  const currentPasswordHashKeyLength = 32
+and node_modules/payload/dist/auth/strategies/local/authenticate.js runs
+`crypto.pbkdf2(password, salt, iterations, keyLength, 'sha256', ...)` on every
+login. 600,000 iterations is the OWASP recommendation for PBKDF2-SHA256; it is
+a deliberate Payload security constant, not a defect.
+
+Consequence: every password login costs about 615 ms CPU, roughly 61x the
+Workers Free 10 ms limit. The invocations were recorded `status=success` with
+zero errors, so Cloudflare did not terminate them — this is burst tolerance
+again, not compliance.
+
+Scope, stated precisely so this is not over-read:
+  - Only password login pays this. Session validation is JWT and is cheap.
+  - Public visitors never trigger it. Only an admin signing in does.
+  - The site has one owner, so real-world frequency is a handful per day.
+
+Not a finding about our code, and not fixable by trimming our code. Lowering
+the iteration count would weaken password hashing below the OWASP
+recommendation and is a security decision for the owner, not a tuning knob for
+an agent.
+
+Separately: the live login returns HTTP 401 with Payload's generic
+"invalid email or password" message. The 614.7 ms CPU proves PBKDF2 ran to
+completion and the comparison failed, so this is a genuine credential
+mismatch, NOT a swallowed runtime error. The seeded password is unresolved and
+`cms.users` could not be inspected — direct database reads are refused by the
+agent tooling boundary `[Production Reads]`, for the orchestrator and the
+worker alike. Neither worked around it.

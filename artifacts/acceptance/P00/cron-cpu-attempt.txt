@@ -1,0 +1,111 @@
+=== TASK 4: reduce the cron handler's measured 91ms CPU (Free limit 10ms) ===
+Date: 2026-09-22
+
+STARTING POINT (from PLANS/ISSUES.md I15, not re-measured this session):
+  Real cron delivery CPU = 91ms. Cache interception (the public-route fix) does
+  not help: "the job sweep runs the full Next pipeline by design."
+
+HYPOTHESIS TESTED: bypass the Next.js/OpenNext request pipeline entirely for
+the scheduled() handler by calling Payload's Local API directly
+(payload.jobs.handleSchedules() + payload.jobs.run()) instead of building a
+synthetic Request and routing it through openNextWorker.fetch(). This mirrors
+exactly what payload/dist/queues/endpoints/run.js's HTTP handler does
+internally (confirmed by reading that file):
+  if (shouldHandleSchedules && jobsConfig.scheduling) {
+    await req.payload.jobs.handleSchedules({...})
+  }
+  const result = await runJobs({ limit, overrideAccess: true, ... })
+  // result.remainingJobsFromQueried > 0 => treat as a failed run
+
+IMPLEMENTATION (worker-entry.ts + src/lib/db.ts, since reverted — see below):
+  - src/lib/db.ts: added setScheduledHyperdriveConnectionString(value), a
+    module-level override consulted by resolveCmsConnectionString() only after
+    getCloudflareContext() throws (i.e. only in the scheduled handler, never a
+    real fetch()-driven request — verified getCloudflareContext() only resolves
+    inside the AsyncLocalStorage scope runWithCloudflareRequestContext() enters,
+    read directly from a real build artifact at
+    .open-next/cloudflare/init.js:1-14).
+  - worker-entry.ts: scheduled() set process.env.PAYLOAD_SECRET from env
+    (needed because @payload-config's buildConfig() calls
+    requireEnv('PAYLOAD_SECRET') synchronously at module-eval time, and
+    process.env is otherwise only populated by OpenNext's own
+    populateProcessEnv() inside the fetch-only ALS scope — confirmed by reading
+    .open-next/cloudflare/init.js's populateProcessEnv()), called
+    setScheduledHyperdriveConnectionString(env.HYPERDRIVE?.connectionString),
+    then dynamically imported 'payload' and './src/payload.config' (dynamic,
+    not static — a static import would evaluate buildConfig() before
+    PAYLOAD_SECRET is set) and called handleSchedules() + jobs.run().
+  - JOBS_SECRET guard preserved unchanged (still required, still throws before
+    any Payload/DB call if absent).
+
+CHECKS RUN ON THE IMPLEMENTATION (before the blocker below):
+  $ pnpm typecheck            -> exit 0, no errors
+  $ pnpm lint                 -> exit 0 (eslint .), no errors
+
+BUILD VERIFICATION (Docker container anasaq-bundle, node v24.21.0, the only
+working Linux build environment — Windows pnpm build:worker fails with EPERM
+on symlink creation):
+  docker cp worker-entry.ts / src/lib/db.ts / scripts/check-budgets.mjs into
+  the container, then (with .env copied in, sourced for this command only, and
+  deleted immediately after):
+  $ pnpm build:worker
+  -> SUCCEEDED. next build compiled, TypeScript passed, OpenNext produced
+     .open-next/worker.js.
+
+  $ npx wrangler deploy --dry-run --outdir .wrangler/task4-dry-run
+  -> FAILED, exit non-zero, real esbuild output:
+
+    ✘ [ERROR] Build failed with 3 errors:
+    ✘ [ERROR] No matching export in
+      "node_modules/.pnpm/file-type@21.3.4/node_modules/file-type/core.js"
+      for import "fileTypeFromFile"
+        node_modules/.pnpm/payload@3.90.1_.../payload/dist/uploads/checkFileRestrictions.js:1:29
+        import { fileTypeFromBuffer, fileTypeFromFile } from 'file-type';
+    ✘ [ERROR] (same) node_modules/.../payload/dist/uploads/endpoints/getFile.js:1:9
+    ✘ [ERROR] (same, third occurrence)
+
+ROOT CAUSE (confirmed by reading source, not assumed):
+  Any import of @payload-config triggers buildConfig(), which processes every
+  collection with `upload: {...}` (RuntimeProbeMedia) and unconditionally
+  registers Payload's own default upload REST endpoints
+  (payload/dist/uploads/endpoints/getFile.js,
+  payload/dist/uploads/checkFileRestrictions.js) regardless of the custom
+  storage-r2 adapter. Those files statically import fileTypeFromFile from
+  file-type's edge-safe core.js export, which does not provide that
+  (Node-fs-only) function. Next.js's own bundler (Turbopack, used by the
+  successful `next build` above) tolerates the unresolved named export;
+  wrangler's esbuild pass over worker-entry.ts (a separate, second bundling
+  pass — worker-entry.ts is wrangler's own "main" entry, not part of the
+  Next.js app graph) does not, and errors hard. This is not specific to my
+  code's logic: any module that imports @payload-config from outside the
+  Next.js/OpenNext build graph hits this, because RuntimeProbeMedia declares
+  `upload: {...}` at all.
+
+  Precedent for this exact class of problem already exists in the repo:
+  next.config.ts's turbopack.resolveAlias aliases drizzle-kit/api to a Node
+  builtin for an analogous esbuild/Turbopack resolution mismatch. The
+  equivalent fix here would be a wrangler.jsonc build alias for 'file-type' (or
+  disabling Payload's default upload endpoints), which are, respectively, a
+  shared build manifest and a product-behavior change — both outside this
+  package's write scope for this task.
+
+DECISION: reverted both files (git checkout -- worker-entry.ts src/lib/db.ts).
+  $ pnpm typecheck  -> exit 0
+  $ pnpm lint       -> exit 0
+  $ git status --short -- worker-entry.ts src/lib/db.ts  -> no output (clean)
+
+RESULT: CPU could NOT be reduced within this task's write scope. The
+architecturally-correct fix (Local API instead of the full Next.js pipeline)
+is real and verified sound in isolation (typechecks, lints, and the idea
+matches Payload's own internal implementation of /api/payload-jobs/run
+exactly) but is blocked by a genuine wrangler/esbuild dependency-resolution
+error that requires touching wrangler.jsonc (or Payload's upload-endpoint
+registration), neither of which is in this task's allowed file set. The
+81ms-over-budget cron CPU figure from I15 (91ms measured, 10ms Free limit)
+stands unchanged and unverified further this session — no new measurement was
+taken, because no code change survived to deploy.
+
+WHAT REMAINS UNPROVEN: whether a wrangler.jsonc build-alias for 'file-type'
+(or an equivalent fix) actually resolves the bundling error and, if so,
+whether the resulting scheduled-handler CPU is under 10ms — neither was
+tested, because it requires editing a file outside this task's scope.

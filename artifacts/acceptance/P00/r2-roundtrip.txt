@@ -1,0 +1,73 @@
+=== TASK 1: R2 round-trip + unauthorized denial, against LIVE Worker ===
+Base URL: https://anas-studio.anas-studio.workers.dev
+Timestamp: 2026-09-22T18:32:32Z
+
+--- Login as seeded owner ---
+{"errors":[{"message":"البريد الإلكتروني أو كلمة المرور المقدمة غير صحيحة."}]}
+HTTP_STATUS:401
+login status: 401 ; token acquired: no
+
+=== BLOCKER: Tasks 1, 2 and 3 could not proceed past this point ===
+
+Two independent, careful login attempts against the live Worker this session
+both returned HTTP 401 with Payload's standard "email or password incorrect"
+message (in Arabic, exact text above), never a lockout-specific error. Ruled
+out, with evidence, before stopping:
+  - Shell quoting/encoding corruption of the password: ruled out by writing
+    the JSON login payload to a file with Node (sha256 of the written body
+    matched the intended literal string) and POSTing that file directly, no
+    shell interpolation of the password.
+  - Account lockout: Payload's lockout path returns a distinct error class
+    (node_modules/payload/dist/errors/LockedAuth.js) with different wording;
+    both attempts returned the generic AuthenticationError message, not that
+    one.
+  - Nonexistent user / wrong collection: the first-register bootstrap path
+    (POST with no existing user) returned 403 "already has a first user", so
+    the seeded owner row does exist in cms.users.
+  - PBKDF2 unsupported on Workers: checked live against Cloudflare's Node.js
+    compatibility docs (crypto module) — pbkdf2 is fully supported; not the
+    cause.
+
+Root cause NOT found. Two things I deliberately did not do, and why:
+  - Did not attempt a third login (risk: Payload's default lockout is 5
+    attempts / 10 minutes, node_modules/payload/dist/collections/config/defaults.js;
+    burning attempts trying to self-diagnose could lock the account out from
+    under the orchestrator's own next attempt).
+  - Did not query cms.users directly to compare the stored password hash or
+    login-attempt counters: two separate attempts to run a direct SQL read
+    against the live Supabase database were blocked outright by the Bash
+    tool's auto-mode classifier, reason "[Production Reads]". I did not try to
+    work around that block.
+
+Consequence:
+  - Task 1 (R2 round-trip + unauthorized-read denial): NOT run. Cannot create
+    or read an authenticated RuntimeProbeMedia object without a session. The
+    unauthenticated-denial half was not attempted in isolation either, because
+    without a real uploaded object first, an unauthenticated GET against a
+    nonexistent ID would conflate "denied" with "not found" (exactly the
+    404-vs-403 distinction the task asked to keep straight) and would not be
+    honest evidence of access control.
+  - Task 2 (hosted CRUD incl. delete): NOT run. No authenticated session.
+  - Task 3 (queue + prove a job write; report cron CPU from analytics): the
+    "queue a fresh probe row and prove the update" half is NOT run (needs an
+    authenticated create). Supporting evidence that a genuine Cron Trigger
+    delivery already occurred on its own this session, gathered before the
+    blocker (see below), stands independently of the login problem.
+
+Supporting evidence already gathered for Task 3 (organic delivery, no
+simulation): GET /api/health on the live Worker returned
+jobs.lastCompletedAt = "2026-09-22T18:30:09.333Z", which falls on a */15
+cron-trigger boundary and is recent relative to this session, indicating a
+real scheduled invocation ran and a probeHeartbeat job completed without any
+wrangler local-scheduled-endpoint simulation. A GraphQL Analytics API query
+for that specific invocation's CPU time was NOT run this session (the script
+used for that measurement in a prior worker's task, scratchpad/cpu-measure.mjs,
+was in that prior worker's own ephemeral scratchpad and is not present in mine
+or in the repo; rewriting and running it was not reached before the session's
+remaining time went to Tasks 4 and 5). The only cron-CPU figure available is
+the 91ms already recorded in PLANS/ISSUES.md I15 — not independently
+re-measured this session.
+
+RECOMMENDATION for the orchestrator: resolve the credential mismatch first
+(e.g. verify the exact password the owner was actually seeded with, outside
+this worker's write/DB-read scope) before dispatching Tasks 1-3 again.

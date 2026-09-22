@@ -521,6 +521,76 @@ background job sweep, which is a much smaller problem with more options
 "the whole architecture is too expensive". P00 is not accepted; the question
 has narrowed from the product to one cron handler.
 
+## I16 — Payload password login costs 615 ms CPU, 61x the Workers Free limit
+
+**Status:** open, owner decision. **Package:** P00. **Raised:** 2026-09-22.
+
+Measured from `workersInvocationsAdaptive` on isolated windows with no other
+traffic. Values converted from microseconds.
+
+| Path | CPU | Free limit | Over by |
+|---|---|---|---|
+| Public route (after cache interception) | 2.4 ms | 10 ms | fits |
+| Cron delivery | **52.2 ms** | 10 ms | 5x |
+| **Password login** | **614.7 ms** | 10 ms | **61x** |
+
+**Root cause, read from the installed package, not recalled.**
+`payload/dist/auth/strategies/local/generatePasswordSaltHash.js` hardcodes
+`currentPasswordHashIterations = 600000`, and `authenticate.js` runs
+`crypto.pbkdf2(password, salt, 600000, 32, 'sha256')` on every login. That is
+the OWASP recommendation for PBKDF2-SHA256. It is a deliberate Payload security
+constant, not a defect, and not something our code can trim.
+
+**Scope, stated precisely so it is not over-read.** Only password login pays
+this. Session validation is JWT and cheap. Public visitors never trigger it.
+The site has one owner, so real frequency is a handful of invocations per day.
+Cloudflare recorded all ten attempts as `status=success` with zero errors — the
+burst tolerance again, not compliance.
+
+**This is the owner's decision, not an agent's tuning knob.** Lowering the
+iteration count would weaken password hashing below the OWASP recommendation.
+No agent should do that silently to make a CPU number look better. The honest
+options are: rely on burst tolerance for genuinely rare admin logins; move
+authentication off the Worker; or accept the iteration count as the security
+floor it is and revisit where the admin runs.
+
+**Correction to I15.** The cron figure recorded there as 91 ms measures 52.2 ms
+on an isolated organic delivery. Both exceed the limit; the earlier number was
+taken from a window that was not isolated. Recorded rather than quietly
+replaced.
+
+## I17 — the seeded owner cannot log in, and the cause is not reachable
+
+**Status:** open, blocked on the owner. **Package:** P00. **Raised:** 2026-09-22.
+
+Login to the live Worker as `p00-owner@example.invalid` returns HTTP 401 with
+Payload's generic "invalid email or password". Three careful attempts across
+two agents; Payload's default lockout is 5 attempts per 10 minutes, so no
+further attempts were made.
+
+**It is a real credential mismatch, not a swallowed runtime error.** The 614.7 ms
+CPU in I16 proves PBKDF2 ran to completion and the comparison failed.
+`authenticate.js` ends in `catch (ignore) { return null }`, which would have
+turned a thrown error into the same generic 401 — that possibility is excluded
+by the measurement, not by assumption.
+
+Also excluded, with evidence: shell quoting corruption of the password (the
+payload was written to a file by Node and its sha256 checked); lockout (Payload
+returns a distinct `LockedAuth` error); a missing user (`first-register` returns
+403, so the row exists); and `PAYLOAD_SECRET` mismatch (verification uses only
+the per-user `salt` and `hash`, never the secret — read from `authenticate.js`).
+
+**Why it is unresolved.** Confirming it needs a read of `cms.users` to compare
+the stored hash parameters and the login counters. Direct database reads are
+refused by the agent tooling boundary `[Production Reads]`, for the worker and
+the orchestrator alike. Neither worked around it, which is correct behaviour.
+The owner must run the query, or grant the permission.
+
+**Blocks:** the private R2 round trip with unauthorized denial, authenticated
+hosted CRUD including delete, and the real cron content write — all three need
+an authenticated session. These are P00 acceptance criteria and none of them
+has been proven.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the

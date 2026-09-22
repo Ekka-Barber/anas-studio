@@ -1,0 +1,81 @@
+=== TASK 5: explain the 600.692-second scheduled invocation (socket exception) ===
+Date: 2026-09-22
+
+CODE FACT (direct inspection of src/lib/db.ts, current HEAD, not edited this
+session):
+  cmsPoolOptions = {
+    connectionTimeoutMillis: 10_000,  // bounds only the initial handshake
+    idleTimeoutMillis: 10_000,        // closes an IDLE client in our own pool
+    maxUses: 1,
+    ...
+  }
+  No statement_timeout, no query_timeout, anywhere in the pool config or the
+  connection string. Confirmed: neither key exists in this file or in
+  payload.config.ts's postgresAdapter() call.
+
+  Consequence: once a query is actually in flight (not idle), node-postgres
+  has nothing that bounds how long it will wait for a response. A connection
+  that hangs mid-query — e.g. because a Workers isolate was frozen and resumed
+  with a stale pooled TCP socket — will wait indefinitely from our side.
+
+LIVE-FETCHED EXTERNAL FACTS (Cloudflare Workers docs, fetched this session,
+https://developers.cloudflare.com/workers/platform/limits/):
+  "Scheduled Workers have a maximum wall time of 15 minutes per invocation."
+  (900,000 ms). 600.692s = 600,692 ms is UNDER that cap, so Cloudflare's own
+  platform ceiling for a scheduled() invocation did not terminate it — whatever
+  ended the invocation at ~600s did so before Cloudflare's own limit would
+  have fired.
+
+  "CPU time measures how long the CPU spends executing your Worker code.
+  Waiting on network requests... does not count toward CPU time." — so a
+  10-minute stall waiting on a stuck socket would NOT show as CPU time; it is
+  consistent with a wall-time hang, not a CPU-limit violation.
+
+  No documented per-TCP-socket duration limit was found on that page (the
+  "Simultaneous open connections" limit is a count, not a duration).
+
+LIVE-FETCHED EXTERNAL FACT (Supabase docs, fetched this session,
+https://supabase.com/docs/guides/database/connecting-to-postgres):
+  "Serverless runtimes freeze a function between requests, which can leave a
+  pooled TCP socket stale. If you see CONNECT_TIMEOUT errors or queries that
+  hang until the execution limit, see Troubleshooting CONNECT_TIMEOUT or
+  hanging queries in Serverless Functions." — this names exactly this failure
+  class (serverless runtime + pooled Postgres socket + a query that hangs
+  until *something else's* limit fires), for the same Supabase pooling
+  architecture this project uses (Hyperdrive -> Supabase session pooler,
+  D26/R01).
+
+  I looked for a specific, numeric Supavisor/Supabase-side idle or statement
+  timeout to confirm 600s against a documented figure and did NOT find one on
+  the pages I fetched (supabase.com/docs/guides/database/supavisor's
+  troubleshooting page lists error types, not timeout durations). This is an
+  open gap, not a claimed fact — I am not asserting Supabase enforces exactly
+  a 600s cutoff; I could not confirm that number from a live source in the
+  time available.
+
+BEST EXPLANATION (grounded in the above, not fully confirmed):
+  Most likely a stuck/hanging query on a Hyperdrive/Supabase connection with
+  no client-side statement_timeout to bound it. Cloudflare's own 900s
+  scheduled-invocation ceiling did not fire (600.692s < 900s), so something
+  else — most plausibly a server-side idle/query timeout enforced by
+  Supabase's Supavisor pooler, or a network intermediary between Hyperdrive
+  and Supabase — closed the TCP socket first, which node-postgres surfaced to
+  our code as a socket exception. 600.692s sitting close to a round 10-minute
+  boundary is suggestive of a fixed server-side timeout, but I did not find a
+  documented number to confirm which component owns that specific cutoff.
+
+CAN IT RECUR: yes, as long as no statement_timeout is set anywhere in the
+stack. Any query that hangs (lock wait, a stale pooled connection resumed
+after a Workers isolate freeze, a network partition between Hyperdrive and
+Supabase) has nothing bounding it on our side; it will occupy a scheduled
+invocation's wall time until the platform's 900s cap or a downstream
+infrastructure timeout ends it, whichever comes first — non-deterministically,
+depending on which limit is smaller for that particular hang.
+
+FIX NOT IMPLEMENTED THIS SESSION: adding statement_timeout (and/or
+node-postgres's own query_timeout / a client-side AbortSignal) to
+cmsPoolOptions was in scope conceptually, but this task asked to *explain* the
+invocation, not fix it, and no dispatch instruction authorized changing pool
+behavior for this task. Flagging it as the concrete, actionable follow-up: a
+statement_timeout on cmsPoolOptions would turn an indefinite hang into a
+bounded, loud failure instead of a multi-hundred-second stall.
