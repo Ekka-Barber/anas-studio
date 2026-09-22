@@ -256,6 +256,84 @@ prints the URL.
 `wrangler deploy` was not run, and neither was `wrangler deploy --dry-run`:
 anything deploy-shaped belongs to the hosted half of P00.
 
+## Hosted half — partial, blocked before any real deploy
+
+Attempted 2026-09-22, task 2 of 2. Full commands and exit codes:
+`artifacts/acceptance/P00/commands-hosted.txt`. Summary:
+
+**Done, in order, before the Worker was ever public:**
+
+1. `pnpm migrate` ran from the Windows host against the Supabase session
+   endpoint on 5432 (D26, `DATABASE_URL`), exit 0. Confirmed directly with a
+   `pg` query afterwards: the `cms` schema and all fourteen expected tables
+   exist; `cms.users` had 0 rows immediately after.
+2. The single owner (`p00-owner@example.invalid`, synthetic password matching
+   this test suite's existing fallback) was created through Payload's native
+   `POST /api/users/first-register` endpoint, reached by running `pnpm dev`
+   against the same hosted database from `localhost:3000` — never from a
+   public URL. A second `first-register` call for a different address was
+   refused with `403`, confirming the bootstrap window closes correctly
+   against this exact database before the Worker ever goes up. The local dev
+   server was stopped immediately after.
+3. `wrangler.jsonc`'s `SITE_URL` was repointed at the spike origin
+   `https://anas-studio.anas-studio.workers.dev`, with a comment recording why
+   and that the production value returns with the custom domain.
+4. `pnpm build:worker` succeeded in the `anasaq-bundle` container against the
+   synced, edited working tree (not the container's stale pre-existing copy).
+   `wrangler deploy --dry-run` against that exact build reported
+   `Total Upload: 25320.88 KiB / gzip: 5607.14 KiB` — the same uncompressed
+   figure as the local half's `worker-bundle.txt`, confirming this is the same
+   build.
+5. `PAYLOAD_SECRET` and `JOBS_SECRET` were set as Worker secrets via
+   `wrangler secret put`, values piped from the environment, never typed,
+   echoed, or written to a file.
+
+**Blocked: the real `wrangler deploy` was never run.** The Bash tool's own
+auto-mode permission classifier refused the call with reason
+"[Production Deploy]" and stated explicitly that only a Bash permission rule
+in the user's own settings — not an instruction inside the dispatched task —
+can allow it. No attempt was made to reach the same outcome by another route;
+the task's own guidance is explicit that doing so is out of bounds regardless
+of how the deploy is authorized in writing. This is reported as a blocker for
+the orchestrator/owner to act on directly, not worked around.
+
+**A side effect worth flagging.** `wrangler secret put` against a Worker name
+that does not exist yet silently creates and deploys an empty stub to hold the
+secrets, and that action was *not* intercepted by the same classifier. The
+account is therefore no longer in the "no Workers currently deployed" state
+this task started from: a stub named `anas-studio` is live at
+`https://anas-studio.anas-studio.workers.dev` right now, holding both secrets
+and no Payload code. Verified it exposes nothing: `GET /` returns `404`
+(`error code: 1042`) and `GET /admin/create-first-user` returns `404` — there
+is no admin surface to reach because there is no application code deployed,
+only the secrets. It still means the "no Workers deployed" precondition this
+task's dispatch recorded is now stale, and the eventual real deploy will be an
+update to this stub rather than a first deployment.
+
+**Consequently still unproven, and not backfilled from anything:**
+`startup_time_ms`, cold/warm CPU per invocation (normal and scheduled),
+cold/warm wall-clock latency for the public route/admin/`/api/health`,
+Hyperdrive reached from an actually-deployed Worker, a real R2 round trip and
+denial against `anas-studio-media-test` through the live Worker, and a real
+Cron Trigger delivery. `tests/e2e/runtime.spec.ts` was left unmodified —
+pointing it at a deployed origin that was never reachable would have been an
+unverified guess, which contradicts the instruction that a test change here
+must get stricter, never looser.
+
+`pnpm migrate` also surfaced one genuine defect in this repository's own
+tooling, unrelated to the runtime: `payload run <script>` with the script
+dynamically `import()`-ing `src/payload.config.ts` (the same pattern `payload
+migrate` uses internally) silently calls `process.exit(0)` mid-import with no
+thrown error, `unhandledRejection`, or `uncaughtException` — confirmed with
+explicit listeners on all three. This is why the owner was seeded through
+`pnpm dev` and a real HTTP call instead. Root cause not fully isolated; the
+symptom is consistent with `@opennextjs/cloudflare`'s `getCloudflareContext()`
+raising an unhandled rejection during a nested dynamic import outside a
+request or dev-server context, which a bare `payload run` process does not
+survive the way `next dev`'s long-lived server does. Not fixed here — `src/`
+was out of this task's allowlist, and it is a `payload run` composition
+problem, not a defect the runtime spike itself needs to resolve.
+
 ## Still unproven — everything hosted
 
 None of the following is established by anything in this document, and none of
@@ -265,6 +343,11 @@ it may be treated as passing because the local half passed:
    run on Cloudflare. (A `wrangler deploy --dry-run` has since been run against
    this build — see item 2 — but a dry run performs no upload and proves
    nothing about cold start, warm latency, or CPU time.)
+   **Update, 2026-09-22 (hosted-half attempt):** a real `wrangler deploy` was
+   attempted and refused, not merely skipped — see "Hosted half — partial,
+   blocked before any real deploy" above. Everything this item and item 3
+   describe is still unproven for that reason, now confirmed rather than
+   assumed.
 2. ~~The real bundle size, as reported by Cloudflare at upload.~~ Resolved
    since this document was first written: `wrangler deploy --dry-run` against
    this exact build reports `Total Upload: 25320.88 KiB` uncompressed, against
@@ -281,8 +364,12 @@ it may be treated as passing because the local half passed:
    been proved against r2.dev.
 6. **Real cron delivery.** The `scheduled` handler was invoked through
    `wrangler dev`'s local endpoint, never by Cloudflare's Cron Trigger.
-7. **Migrations against the hosted database** with the separate non-pooled
-   migration credential, including rollback.
+7. ~~Migrations against the hosted database~~ Resolved 2026-09-22: `pnpm
+   migrate` ran against the Supabase session endpoint on 5432 (`DATABASE_URL`,
+   D26), exit 0, and the `cms` schema plus all fourteen expected tables were
+   confirmed to exist directly afterward — see "Hosted half" above and
+   `artifacts/acceptance/P00/commands-hosted.txt`. Rollback (`migrate:down`)
+   was **not** exercised against the hosted database and remains unproven.
 8. **Everything gated on credentials this run did not have.** Missing hosted
    credentials or authorization is an external blocker, never a local pass.
 

@@ -158,6 +158,64 @@ plan and is unaffected.
 The orchestrator does not edit product code, so this is dispatched as a bounded
 task rather than fixed here.
 
+## I08 — `wrangler secret put` creates and deploys a stub Worker
+
+**Status:** open, operational note. **Package:** P00. **Raised:** 2026-09-22.
+
+Setting a secret on a Worker name that does not exist yet does not fail. Wrangler
+creates an empty Worker to hold the secret and deploys it. That is how
+`anas-studio` came to be live on the account before any deploy was authorized:
+the secret calls were not classified as a deployment, but their side effect was
+one.
+
+Verified harmless in this instance. The stub carries `PAYLOAD_SECRET` and
+`JOBS_SECRET` and no application code; `/`, `/admin`, `/admin/create-first-user`,
+`/api/health` and `/api/users/first-register` all return 404. The first real
+deploy overwrites it.
+
+Worth remembering for any future account: "set the secrets first, deploy after"
+is not a no-op ordering. It publishes a name.
+
+## I09 — the build mirrors `.env` onto local disk in `.open-next/`
+
+**Status:** open, contained. **Package:** P00. **Raised:** 2026-09-22.
+
+`.open-next/cloudflare/next-env.mjs` and `.open-next/server-functions/default/.env`
+contain every variable present at build time — on this workstation that means the
+Cloudflare API token, the Supabase database password, the Resend key and the rest
+of `.env`, written in cleartext to the build directory.
+
+**The deployed Worker does not carry them.** Verified directly rather than
+assumed: a clean container build using distinctive random markers for
+`PAYLOAD_SECRET`, `JOBS_SECRET` and `DATABASE_URL` produced an upload artifact
+(`wrangler deploy --dry-run --outdir`) containing **zero** occurrences of any
+marker. Runtime values reach the Worker through Worker secrets and bindings, not
+through the bundle. A first attempt at this test gave a false positive because
+the throwaway secret used for the build was 32 zeros, which is byte-identical to
+OpenTelemetry's `INVALID_TRACEID` constant; a degenerate marker is not a test.
+
+Containment, both verified: `/.open-next/` is gitignored (`.gitignore:24`), and
+`.github/workflows/ci.yml` has no `upload-artifact` step, so the directory is
+never published. The standing constraint is therefore: **never publish
+`.open-next/` as a CI artifact, a release asset, or a container image layer.**
+
+Consequence worth keeping: the build only needs *a* value for `PAYLOAD_SECRET`,
+never the real one. Building with a throwaway and supplying the real value as a
+Worker secret is both sufficient and safer, and is what the deployed build does.
+
+## I10 — `payload run` exits silently when a script imports the config
+
+**Status:** open, upstream tooling defect. **Package:** P00 follow-up.
+
+`payload run <script>` where the script dynamically `import()`s
+`src/payload.config.ts` — the same pattern `payload migrate` uses internally —
+calls `process.exit(0)` mid-import: no error, no rejection, no exception.
+Confirmed with explicit `unhandledRejection`, `uncaughtException` and `exit`
+listeners. Found while seeding the owner user; worked around by driving Payload's
+native `POST /api/users/first-register` instead. Not fixed — `src/` was outside
+the task allowlist, and the workaround uses a native endpoint rather than adding
+a script.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the

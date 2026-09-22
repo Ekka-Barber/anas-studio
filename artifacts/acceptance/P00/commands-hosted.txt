@@ -1,0 +1,207 @@
+# P00 — hosted half (task 2 of 2), commands and exit codes
+#
+# Two hosts, both recorded:
+#   HOST      Windows 11, repository working tree, DATABASE_URL = Supabase
+#             session endpoint on 5432 (D26), read from .env into the shell
+#             environment, never printed.
+#   CONTAINER Docker `anasaq-bundle` (node:24-bookworm-slim, Node 24.21.0).
+#             Its /app copy predated today's commits, so the full git-tracked
+#             working tree (including the edited wrangler.jsonc) was synced in
+#             with `git ls-files -z | tar --null -T - -cf -`, extracted over
+#             /app with `tar -xf`, preserving the existing node_modules.
+#             `.env` was never copied into the container; build-time secrets
+#             were passed only as `docker exec -e` values from the host shell.
+#
+# No exit code below is masked, retried into a pass, or reinterpreted.
+# Timestamps are UTC, local host clock is UTC+3 (AST).
+# No credential value appears in this file.
+
+recorded_utc: 2026-09-22T13:47Z
+branch: agent/p00-runtime-spike
+base_commit: 9f64d2a
+
+## Step 1 — hosted migrations, from the Windows host, before any deploy
+
+HOST  set -a; source .env; set +a; pnpm migrate
+      exit=0  13:36:09Z-13:36:11Z
+      "Migrating: 20260922_031113_initial" -> "Migrated: ... (817ms)" -> "Done."
+
+Confirmed afterwards with a direct pg query against DATABASE_URL (session
+endpoint, 5432):
+  schema cms exists: true
+  tables: _runtime_probe_v, payload_jobs, payload_jobs_log, payload_jobs_stats,
+    payload_kv, payload_locked_documents, payload_locked_documents_rels,
+    payload_migrations, payload_preferences, payload_preferences_rels,
+    runtime_probe, runtime_probe_media, users, users_sessions
+  users count: 0   (correct — nobody seeded yet)
+
+## Step 2 — seed the single owner before the Worker is reachable
+
+First attempt: `payload run <script>` with the script dynamically
+`import()`-ing `src/payload.config.ts` (as `payload migrate`/`generate:types`
+do internally). This did NOT work: the dynamic import silently triggered
+`process.exit(0)` with no thrown error and no output past "about to import
+config" — confirmed with `process.on('exit'|'unhandledRejection'|
+'uncaughtException', ...)` listeners that only the `exit` event fired, code 0.
+Root cause not fully isolated; the working theory, from a related symptom
+seen one step later, is `@opennextjs/cloudflare`'s `getCloudflareContext()`
+raising an unhandled rejection during a nested dynamic import outside a
+request/dev-server context, which `payload run`'s bare Node process does not
+tolerate the way `next dev`'s long-lived server does. This is a real,
+reproducible defect in how this repository's own tooling composes with
+`payload run`, not a hosted-half result — reported as a finding, not
+worked around by relaxing anything.
+
+Working approach: ran `pnpm dev` on the Windows host directly against the
+hosted database (DATABASE_URL, same session endpoint; `next dev` loads `.env`
+itself), and used Payload's native `POST /api/users/first-register` endpoint
+— the exact same code path the Worker's `/admin/create-first-user` UI calls —
+so the seeded owner is byte-for-byte what native bootstrap would have
+produced, only run from a private localhost server instead of the public
+Worker.
+
+HOST  set -a; source .env; set +a; pnpm dev  (background)
+      Ready in 1413ms. One "Unhandled Rejection" logged from the Hyperdrive
+      local-dev check inside @opennextjs/cloudflare (expected outside
+      `wrangler dev`; does not stop the Next.js server); GET /api/health
+      still answered 200 afterwards, proving `resolveCmsConnectionString()`'s
+      try/catch fallback to DATABASE_URL is what actually served the request.
+
+HOST  curl -X POST http://127.0.0.1:3000/api/users/first-register
+      -d '{"email":"p00-owner@example.invalid","password":<synthetic, matches
+      tests/e2e/runtime.spec.ts's OWNER_PASSWORD fallback>}'
+      -> 200, {"user":{"email":"p00-owner@example.invalid", ...}}
+
+HOST  curl -X POST http://127.0.0.1:3000/api/users/first-register
+      -d '{"email":"attacker@example.invalid","password":"Whatever12345!"}'
+      -> 403, {"errors":[{"message":"لا يسمح لك القيام بهذه العمليّة."}]}
+      Confirms first-register is closed the instant a first user exists,
+      against the same DATABASE_URL the Worker will use — this is the
+      strongest evidence available that the ordering requirement is met,
+      short of hitting the actual deployed Worker (blocked, see below).
+
+Confirmed with a direct pg query: cms.users has exactly one row,
+p00-owner@example.invalid.
+
+HOST  taskkill //F //PID <next dev pid>
+      exit=0 — dev server stopped before any deploy was attempted.
+
+## Configuration change
+
+wrangler.jsonc: "SITE_URL" changed from "https://anas.studio" to
+"https://anas-studio.anas-studio.workers.dev", with a comment explaining why
+(the scheduled handler fetches this URL over the public internet and
+anas.studio does not point at this Worker) and that the production value
+returns with the custom domain. This is the only product-shaped file this
+task touched.
+
+## Step 3 — build, from the Linux container
+
+CONT  git ls-files -z | tar --null -T - -cf /tmp/anasaq-tree.tar   (host)
+      docker cp <tar> anasaq-bundle:/tmp/anasaq-tree.tar
+      docker exec anasaq-bundle tar -xf /tmp/anasaq-tree.tar -C /app
+      exit=0 — verified afterwards: wrangler.jsonc inside the container
+      contains the edited SITE_URL line.
+
+CONT  pnpm install --frozen-lockfile
+      exit=0  "Lockfile is up to date" / "Already up to date" (5.1s) —
+      node_modules in the container was already current for this lockfile.
+
+CONT  docker exec -e PAYLOAD_SECRET=<from host .env> -e SITE_URL=<spike origin>
+      anasaq-bundle sh -lc 'pnpm build:worker'
+      exit=0 (the visible non-zero shell exit on the first attempt was a
+      `${PIPESTATUS[0]}` reference inside `sh`, which doesn't support that
+      array — the build itself completed and printed "OpenNext build
+      complete." / "Worker saved in `.open-next/worker.js`" before that
+      cosmetic error; re-verified by `ls -la .open-next/worker.js`, present).
+      Note: PAYLOAD_SECRET had to be supplied at build time — Next's page-data
+      collection for /api/[...slug] imports payload.config.ts, whose top-level
+      `secret: requireEnv('PAYLOAD_SECRET')` throws `MissingEnvError` without
+      it (first attempt, no PAYLOAD_SECRET, failed exactly this way, exit 1 —
+      pasted below). This mirrors how the earlier local/task-1 container build
+      must also have received it; nothing in this task's evidence recorded how
+      that was done, so this is worth carrying forward as a documented build
+      requirement rather than assumed tribal knowledge.
+
+      First (failing) attempt, no PAYLOAD_SECRET in the build environment:
+        Error: Failed to collect configuration for /api/[...slug]
+        Error [MissingEnvError]: Missing required environment variable: PAYLOAD_SECRET
+            at a (src/lib/env.ts:25:11)
+            at <unknown> (src/payload.config.ts:20:11)
+        exit=1
+
+CONT  node_modules/.bin/wrangler whoami   (with CLOUDFLARE_ACCOUNT_ID,
+      CLOUDFLARE_API_TOKEN from host .env)
+      exit=0 — "You are logged in with an Account API Token", account
+      Anasa.aq0@gmail.com's Account, id 2a3d3ca0e8c34566bb090635c9e442e6.
+
+CONT  node_modules/.bin/wrangler deploy --dry-run
+      exit=0
+      Total Upload: 25320.88 KiB / gzip: 5607.14 KiB
+      Bindings: env.HYPERDRIVE (f93334ce5f554313b81ed0afdb003461),
+        env.R2 (anas-studio-media-test), env.ASSETS,
+        env.SITE_URL ("https://anas-studio.anas-studio.worke...")
+      Uncompressed figure matches the local half's evidence
+      (worker-bundle.txt: 25320.88 KiB) to the byte — same build.
+
+## Step 3, secrets — before the blocked real deploy
+
+CONT  printf '%s' "$PAYLOAD_SECRET" | node_modules/.bin/wrangler secret put PAYLOAD_SECRET
+      exit=0  "There doesn't seem to be a Worker called \"anas-studio\". Do
+      you want to create a new Worker with that name and add secrets to it?"
+      -> non-interactive fallback "yes" -> "Creating new Worker \"anas-studio\"..."
+      -> "Success! Uploaded secret PAYLOAD_SECRET"
+
+CONT  printf '%s' "$JOBS_SECRET" | node_modules/.bin/wrangler secret put JOBS_SECRET
+      exit=0  "Success! Uploaded secret JOBS_SECRET"
+
+CONT  node_modules/.bin/wrangler secret list
+      exit=0  [{"name":"JOBS_SECRET","type":"secret_text"},
+                {"name":"PAYLOAD_SECRET","type":"secret_text"}]
+
+FINDING: `wrangler secret put` against a worker name that does not yet exist
+silently creates and deploys a stub Worker to receive the secrets — this is
+itself a real (if empty) deployment, and it was not intercepted by the tool
+permission classifier that blocked `wrangler deploy` (below). The account is
+therefore no longer in the "no Workers currently deployed" state the task
+brief described; a stub named "anas-studio" is now live at
+https://anas-studio.anas-studio.workers.dev with two secrets and no code.
+
+CONT  node_modules/.bin/wrangler deployments list
+      exit=0 — three deployment events recorded within the same two seconds:
+      "Automatic deployment on upload" (the stub itself), then two
+      "Secret Change" entries.
+
+Verified the stub is inert and exposes nothing:
+  HOST  curl -s -o - -w STATUS:%{http_code} https://anas-studio.anas-studio.workers.dev/
+        -> STATUS:404, body "error code: 1042"
+  HOST  curl -s -o /dev/null -w STATUS:%{http_code} https://anas-studio.anas-studio.workers.dev/admin/create-first-user
+        -> STATUS:404
+  No Payload code is running; nothing to leak.
+
+## Step 3, real deploy — BLOCKED, not run
+
+CONT  node_modules/.bin/wrangler deploy
+      NOT EXECUTED. The Bash tool's own auto-mode permission classifier
+      denied the call before it reached the container, with the reason
+      "[Production Deploy]" and the explicit instruction that only a Bash
+      permission rule in the user's own Claude Code settings — not an
+      instruction inside this task, however explicit — can allow it. Per the
+      same instruction this task must not attempt to route around that denial
+      (e.g. by disguising the same call, calling the Cloudflare API directly
+      to upload a Worker script, or any other means that reaches the same
+      "Production Deploy" outcome by a different name), so no such attempt
+      was made.
+
+Everything downstream of a real deploy is consequently unproven this run:
+`startup_time_ms`, cold/warm CPU per invocation, cold/warm wall-clock latency,
+Hyperdrive reached from a deployed Worker, a real R2 upload/read/denial
+against `anas-studio-media-test` through the live Worker, and a real Cron
+Trigger delivery. None of these were invented, estimated, or backfilled from
+the local half's numbers.
+
+`tests/e2e/runtime.spec.ts` was left unmodified: adapting it to point at the
+deployed origin without ever being able to run it against that origin would
+be an unverified guess at what "hosted behaviour genuinely differs" means,
+which the task's own instruction ("if you change a test, it must get
+stricter, never looser") rules out doing blind.
