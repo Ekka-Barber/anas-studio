@@ -31,6 +31,7 @@ Authoritative revision: 2026-09-21, incorporating the user's resume attachment. 
 | D23 | Sentry free for checkout/webhook/scheduler errors and one UptimeRobot Free HTTPS health monitor at 5-minute intervals. | Strip PII/tokens/payment payloads; no session replay. Record real alert test. WhatsApp is editable wa.me link only. |
 | D24 | Execution platform (2026-09-21): Claude Max subscription — Fable orchestrates/audits, Opus 5 sub-agents build at xhigh effort, one active writer under the exclusive lock. | Worker definitions live in repo `.claude/agents/` (`opus-worker`, `opus-worker-lite`); orchestrator contract in AGENTS.md. FIRST-GLM-PROMPT.md keeps its filename so verify-plan.ps1 stays green; its wording is orchestrator-neutral. |
 | D25 | Canonical production domain (2026-09-21): anas.studio, purchased in the client-owned Cloudflare account. anasaq.me remains the legacy V1 identity; redirect disposition is Anas's launch decision. | SITE_URL, Resend sender domain, Turnstile hostname and E01 evidence target anas.studio. |
+| D26 | P00's "separate migration credentials" means a distinct non-pooled connection and credential, not the restricted database roles that P03 owns. | The spike applies DDL over the Supabase session/direct endpoint while runtime traffic uses the Hyperdrive binding aimed at the transaction pooler, and records both endpoints. Creating `payload_runtime`, `finance_runtime` and `migration_owner` with their grants and RLS stays in P03; P00 neither pre-empts nor weakens that design. |
 
 ## Recorded assumptions
 

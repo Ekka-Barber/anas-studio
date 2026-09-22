@@ -1,5 +1,5 @@
 {
-    "checked_at_utc":  "2026-09-21T23:02:32.9119617Z",
+    "checked_at_utc":  "2026-09-22T02:14:25.3887842Z",
     "preparation_only":  true,
     "recovery":  {
                      "prior_agent":  "preflight_worker",
@@ -48,7 +48,7 @@
                             "limitations":  "Graphs index supported code, not every planning document; the daemon may stop after its normal idle timeout."
                         },
     "result":  "pass",
-    "checked_commit":  "af654c0d804afa99d3a9e73a6dbf368a34f16f1f",
+    "checked_commit":  "64c71f7cbf9903f33abd41faba3d9df251cf2453",
     "checks":  [
                    {
                        "name":  "required_files",
