@@ -11,7 +11,7 @@ training or support gate.
 | Field | Value |
 |---|---|
 | Package | P00 — exact runtime spike |
-| Status | `blocked_on_owner` — task 1 accepted and committed. The Worker **is deployed and serving** (the owner ran the deploy; the classifier refuses it from inside the agent, which is a tooling boundary, not a defect). Hosted measurement is done and P00 **failed its CPU criterion** (I12). A free-tier remedy is dispatched to a worker; acceptance waits on its result. |
+| Status | `in_progress` — the CPU blocker is resolved. Cache interception cut public-route CPU from 20.5 ms p50 to 2.4 ms against a 10 ms Free limit (I15). Remaining exposure is the cron path at 91 ms, plus unrun R2, cron-write and authenticated-CRUD proofs. Not accepted. |
 | Branch | `agent/p00-runtime-spike` |
 | Planning baseline commit | `64c71f7` |
 | Lock base commit | `ed18fca` (was `09f7de1`; P00 work is now committed as `07cbc49`, `9f64d2a`, `ed18fca`) |
@@ -154,7 +154,29 @@ P00 is the only package started. Within it:
 | Task 2 — authenticated hosted CRUD | **not run** |
 | Evidence corrections (I13 a–e) | dispatched |
 
-P00 is roughly **70% executed and 0% accepted**. Acceptance is binary and it has
-not been earned. Against the whole thirteen-package plan this is **about 5%**:
-one package, unaccepted, of thirteen — and the spike exists precisely to find
-out whether the other twelve rest on solid ground. Right now they do not.
+P00 is roughly **80% executed and 0% accepted**. Acceptance is binary and has
+not been earned. Against the whole thirteen-package plan this is **about 6%**.
+
+The number moved little; what moved is the risk. Before the cache-interception
+measurement the spike's central question — can this architecture run free —
+was answered "no", which put all twelve dependent packages in doubt. It is now
+answered "yes for the website, unresolved for one cron handler". That is the
+outcome a spike exists to produce.
+
+### P00 CPU resolution, 2026-09-22
+
+Deployed with cache interception (version `6b30cdee`). Public route only, two
+clean runs of 40 requests, 80 x 200, measured from `workersInvocationsAdaptive`.
+
+| Metric | Before | After | Free limit |
+|---|---|---|---|
+| CPU p50 | 20.5 ms | **2.4 ms** | 10 ms |
+| CPU p75 | 25.4 ms | **4.3 ms** | 10 ms |
+| CPU p99 | 453 ms | **31.1 ms** | 10 ms |
+| Startup | 20 ms | 22 ms | 1000 ms |
+
+I12's "structural floor" was disproven by measurement. Recorded as I15, with
+the orchestrator's error stated plainly rather than quietly superseded.
+
+The cron path is untouched at 91 ms per delivery and is now the only CPU
+exposure. Public visitors are no longer the problem.
