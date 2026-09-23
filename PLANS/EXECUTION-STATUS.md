@@ -11,7 +11,7 @@ training or support gate.
 | Field | Value |
 |---|---|
 | Package | P00 — exact runtime spike |
-| Status | `in_progress`. The owner chose the I19 direction on 2026-09-23: the admin and job runner go on an Oracle Always Free VM behind Cloudflare Tunnel. Waiting on the owner to provision (Oracle account, VM, domain) and approve the plan amendment. Production Workers refuses PBKDF2 above 100,000 iterations and Payload hashes at 600,000, so native password auth (login, first registration, reset) fails on production (I17, confirmed 2026-09-23 by a live probe). The public route fits the Free CPU limit at 2.4 ms (I15). Still open: cron at 52.2 ms (I16, I18), unprofiled cold Payload API CPU up to 725 ms (I16 correction), and the unrun R2, cron-write and authenticated-CRUD proofs, which all need a working login. Not accepted. |
+| Status | `in_progress`, not accepted. Updated 2026-09-23. **Public Worker:** proven on hosted Free (version `ef6809b5`). It serves on-demand R2/D1 cached pages at 2–5 ms warm; an edit is visible 5 s after revalidation; the admin redirects; the Payload API is refused; there is no cron (I20). The first request on a fresh isolate costs 19–46 ms; the owner chose to monitor it until launch (I21, option A). **Admin:** production Workers cannot run Payload password auth (PBKDF2 cap, I17), so the admin and job runner move to an Oracle Always Free VM (I19). The Node target is built and proven locally (`e0d6464`). **Blocked on the owner:** the Oracle VM, the domain, and D27 approval (read I22 first). Four P00 proofs still need the VM: login, CRUD with delete, R2 round trip with denial, and a scheduled content write. |
 | Branch | `agent/p00-runtime-spike` |
 | Planning baseline commit | `64c71f7` |
 | Lock base commit | `ed18fca` (was `09f7de1`; P00 work is now committed as `07cbc49`, `9f64d2a`, `ed18fca`) |
@@ -198,29 +198,36 @@ the real constraint. That constraint is now recorded as binding:
 Every package from here is measured against it. No paid provisioning is implied
 or authorized by any plan document.
 
-### Progress, honest accounting
+### Progress, honest accounting (revised 2026-09-23)
 
-P00 is the only package started. Within it:
+P00 is the only package started.
 
-| P00 task | State |
+| P00 item | State |
 |---|---|
-| Task 1 — local runtime proof | accepted, committed `07cbc49` |
-| Task 2 — hosted prerequisites | accepted, committed `ed18fca` |
-| Task 2 — deploy and measure | done; **failed on CPU** |
-| Task 2 — free-tier remedy | dispatched, unproven |
-| Task 2 — private R2 round-trip + denial | **not run** |
-| Task 2 — real cron content write | **not proven** (a delivery ran, wrote nothing) |
-| Task 2 — authenticated hosted CRUD | **not run** |
-| Evidence corrections (I13 a–e) | dispatched |
+| Local runtime proof | accepted, `07cbc49` |
+| Hosted prerequisites | accepted, `ed18fca` |
+| Public route CPU on hosted Free | proven for cached pages (I20); per-isolate floor monitored (I21 option A) |
+| Content invalidation within 60 s | **proven hosted, 5 s** (I20) |
+| Worker admin/API surface closed | proven hosted (I20) |
+| Admin + auth + jobs off the Worker | built and proven locally (I19 part 1); **needs the VM** |
+| Login, CRUD with delete, R2 round trip with denial, scheduled write | **not run; needs the VM** |
+| D27 plan amendment | drafted in I19; awaiting owner approval (read I22) |
 
-P00 is roughly **80% executed and 0% accepted**. Acceptance is binary and has
-not been earned. Against the whole thirteen-package plan this is **about 6%**.
+**Revised remaining effort.** WORK-PACKAGES asks for this after the proof.
 
-The number moved little; what moved is the risk. Before the cache-interception
-measurement the spike's central question — can this architecture run free —
-was answered "no", which put all twelve dependent packages in doubt. It is now
-answered "yes for the website, unresolved for one cron handler". That is the
-outcome a spike exists to produce.
+- Once the owner provisions the VM, the rest of P00 is about one working
+  session:
+  - run `setup.sh` and `deploy.sh`;
+  - create the Tunnel;
+  - run the four proofs;
+  - right-size the VM memory against Oracle's idle rule;
+  - retire the probe collection.
+- The spike moved about three sessions of work into P00: the PBKDF2 cap, the
+  Node target and the cache layer. That work is infrastructure P02, P03 and P06
+  would otherwise have had to build.
+- The offered scope and timeline are unchanged.
+- One design question now sits ahead of P06 and P08: where the customer-facing
+  dynamic routes run (I22).
 
 ### P00 CPU resolution, 2026-09-22
 
