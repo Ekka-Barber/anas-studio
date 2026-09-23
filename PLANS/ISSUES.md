@@ -659,7 +659,15 @@ has been proven.
 
 ## I18 — the cron CPU fix is blocked by a bundling failure, not by design
 
-**Status:** open. **Package:** P00. **Raised:** 2026-09-22.
+**Status:** superseded 2026-09-23. The Worker no longer has a Cron Trigger or
+a `scheduled` handler (commit `6885f79`). Jobs run on the Node admin target
+through Payload `autoRun` (commit `e0d6464`), where there is no per-run CPU
+limit, so the alias fix below is no longer needed. The related gap is closed
+for the Node target: `cmsNodePoolOptions` sets `query_timeout` and
+`connectionTimeoutMillis`, so a stale pooled socket fails instead of hanging.
+The Worker pool has no `query_timeout`. It now serves only cache misses and
+revalidation renders, and that path is recorded under I20. **Package:** P00.
+**Raised:** 2026-09-22.
 
 The architecturally correct fix for the cron's CPU cost (I16, 52.2 ms against a
 10 ms limit) is to stop routing the job sweep through the Next.js pipeline and
@@ -728,6 +736,23 @@ only after approval.
 > the admin origin. Public-route CPU stays proven on the Worker. At E07 (Workers
 > Paid before live orders), moving the admin back is a separate decision,
 > because nobody has verified whether the PBKDF2 cap still applies on Paid.
+>
+> D27 also amends three ARCHITECTURE rules, for the Node target only:
+>
+> - "do not substitute the S3 adapter". The VM has no R2 binding, so it uses
+>   `@payloadcms/storage-s3` against the same bucket.
+> - "no cron-in-memory timer". The rule protected Worker isolates, which do not
+>   live long enough to host a timer. The VM process is long-lived, so Payload's
+>   native `autoRun` is the scheduler there.
+> - "one scheduled Worker entry … no second deployed worker". The Worker has no
+>   scheduled entry now; there is one scheduler, on the VM.
+>
+> Customer-facing dynamic routes are not placed by D27. That covers forms,
+> checkout, payment webhooks, token downloads and bookings. They are decided at
+> P06 and P08 design time under one binding constraint: **no customer request
+> may boot Payload on the Worker per request** (I19, I20). See I22.
+
+**D27 impact on later packages (I22).** Read this before approving.
 
 Region: India West (Mumbai), `ap-mumbai-1`. The Supabase database is in AWS
 `ap-south-1` (Mumbai), and every admin request makes several database round
@@ -1027,7 +1052,14 @@ What it means:
 
 ## I21 — at this site's traffic, most cache hits land on a fresh isolate and cost 19–46 ms
 
-**Status:** open. **Package:** P00. **Raised:** 2026-09-23.
+**Status:** owner decision 2026-09-23: **option A, wait and measure.** No
+spend and no architectural change now. The site has no public traffic until
+the domain is attached. Launch gate, which cannot be waived by an agent:
+before public launch, and again after the first week of real traffic, read the
+Worker's invocation outcomes (`exceededCpu` / `exceededResources`) from
+Cloudflare analytics. If any appear on public routes, the owner chooses between
+static pages (B) and Workers Paid (C) using that data. **Package:** P00.
+**Raised:** 2026-09-23.
 
 The I20 publish proof ran after the Worker had been idle for about four hours.
 Every request in it was served from cache, and every one cost more than the
@@ -1107,6 +1139,55 @@ infrequent overruns until real traffic data exists. Its risk is Error 1102 on
 public pages if Cloudflare judges the overruns to be consistent. Part 2's
 Dockerfile uses the same slim base, but it runs `next start` rather than
 workerd; any image that runs wrangler remote mode needs the package.
+
+## I22 — what D27 changes for P01–P12, for the owner to read before approving it
+
+**Status:** open, analysis. **Package:** P00. **Raised:** 2026-09-23.
+
+These facts come from the measurements in I19 and I20, applied to
+`PLANS/ARCHITECTURE.md`'s route map.
+
+1. **Public pages (P01, P02, P04, P10).** These fit. They are served from the
+   on-demand cache, with edits visible in 5 s (I20). Two things carry into
+   P01: route parameters are validated before Payload is touched, and misses
+   are attacker-choosable at about 500 ms each (I20). The per-isolate
+   first-request floor is monitored under I21 option A.
+2. **Admin views (P03 MFA, P06 operations, P08 order/refund/reconciliation,
+   P12 board).** These run on the VM with no CPU limit, which helps. The owner
+   edits from anywhere through `admin.anas.studio`.
+3. **Customer-facing dynamic routes.** This is the open design question.
+   - The routes: `contact`, `notify*`, `checkout*`,
+     `payments/moyasar/{webhook,return}`, `orders/*`, `download/[token]`,
+     `services/[id]/slots`, `bookings`, `calendar/[token]`.
+   - On the Worker, any of these that boots Payload costs about 300–500 ms of
+     CPU cold.
+   - There are two viable homes:
+     - **(a) The VM**, on a customer-facing hostname through the same Tunnel.
+       This is simple, and it is the same code. The cost is that the VM
+       becomes **customer-critical**: it has no SLA, it is a single instance,
+       and Oracle can reclaim it. A down VM would mean no checkout and missed
+       webhooks, which Moyasar retries.
+     - **(b) The Worker, without Payload.** Plain SQL through Hyperdrive to
+       the finance functions the plan already requires ("EXECUTE-only on named
+       functions"). This keeps customers off the VM. The cost is a second data
+       access style for these routes, and its first-request CPU is unmeasured.
+   - Recommendation: decide per route at P06 and P08 design, measured. The
+     payment webhook and the token download are the most important to keep
+     off the single VM.
+4. **Operations (P06).** The VM joins the list of things that must be
+   monitored and restorable:
+   - an uptime check on `admin.anas.studio/api/health`;
+   - the Oracle reclamation rule;
+   - the image rollback already in `deploy.sh`;
+   - a written rebuild-from-scratch runbook, because Always Free capacity can
+     be unavailable.
+
+   These go into `docs/operations.md` and `docs/costs.md`.
+5. **E07 and the $0 window.** The plan's E07 budgets Workers Paid ($5/month)
+   and Supabase Pro ($25/month) before live orders. The owner's rule is $0
+   through dev and the first three to six months of production. These
+   conflict, and the owner must reconcile them before live orders. They are
+   recorded here, not resolved by an agent.
 
 ## Resolved
 
