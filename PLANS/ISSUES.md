@@ -958,6 +958,120 @@ The Worker side of D27 lands in the same change:
 - Refuse the Payload REST and GraphQL surface on the Worker, so its broken login
   path cannot be reached or used to lock the owner out.
 
+The first hosted deploy attempts on 2026-09-23 failed before anything shipped.
+The live Worker was left unchanged. There were two causes, both on the operator
+side.
+
+1. The orchestrator's deploy script cut the output off at 30 lines with `head`.
+   That closed the pipe and would have killed a real deploy partway through.
+2. `opennextjs-cloudflare populateCache remote` writes through a helper Worker
+   that runs under workerd in remote mode. Every write returned 500, and the
+   wrangler log gave the reason: `TLS peer's certificate is not trusted;
+   unable to get local issuer certificate`. The `node:24-bookworm-slim` build
+   container had no `ca-certificates` package. Node ships its own CA bundle,
+   which is why plain wrangler API calls worked; workerd uses the system store.
+
+Fixed by installing `ca-certificates` (20250419~deb12u1) in the container and
+by running populate and deploy as separate steps with full logs.
+
+**Hosted result, 2026-09-23.**
+
+- Deployed Worker version `ef6809b5`.
+  - Total Upload: 29616.49 KiB.
+  - Cache population wrote 3 entries, and the D1 `revalidations` table was
+    created.
+  - The synthetic probe document is `629e1159-…`.
+- CPU per request, read from Workers Observability grouped by cf-ray:
+
+| Request | CPU |
+|---|---|
+| Cache hit on a warm isolate (probe page, `/`) | **2–5 ms** (8 of 12 hits) |
+| Cache hit, first request on a new isolate | 17–22 ms (4 of 12 hits) |
+| First render of the probe page (cache miss, cold Payload) | 503 ms |
+| Unknown probe id (cache miss, not-found render) | 496 ms |
+| `/api/health` (uncached by design) | 308 ms |
+| `POST /api/revalidate` without secret (401) | 118 ms |
+
+- Behaviour on production matched the contract:
+  - `/admin/*` returns a 308 to `admin.anas.studio`, with path and query kept.
+  - `/api/users/login` and `/api/graphql` return 404.
+  - `/api/health` returns 200.
+  - `/api/revalidate` without the secret returns 401.
+  - An unknown probe returns 404.
+
+What it means:
+
+- The cache works. A warm cache hit costs about the same as the static
+  placeholder did, so the public pages themselves fit.
+- What does **not** fit is the per-isolate first request, about 20 ms. At this
+  site's low traffic, roughly a third of hits land on a fresh isolate. This cost
+  exists with or without the cache, and I15's p99 of 31.1 ms was the same
+  floor. The obvious suspect is the 29.6 MB bundle's module evaluation, but
+  that has not been isolated.
+- Two design risks for P01 onward are recorded here and not solved:
+  - **Cache misses are attacker-choosable.** Any unknown id or slug renders
+    through cold Payload at about 500 ms. Real routes need their parameters
+    validated before Payload is touched, or a bounded set of known paths.
+  - **`/api/revalidate` costs 118 ms even when it refuses the request**,
+    because the Next route loads first. The secret check could move into
+    `worker-entry.ts`, ahead of OpenNext.
+- **Invalidation proven on hosted, 2026-09-23 13:14Z.** The owner ran the
+  script.
+  - The probe title was edited in the hosted database, and the page still
+    served the old title from cache.
+  - `POST /api/revalidate` returned 200.
+  - The new title was **visible 5 s later**, against P02's 60 s budget.
+  - The next three requests were cache `HIT`s.
+  - The revalidation render cost 480 ms of CPU, and the authorized revalidate
+    call cost 168 ms.
+
+## I21 — at this site's traffic, most cache hits land on a fresh isolate and cost 19–46 ms
+
+**Status:** open. **Package:** P00. **Raised:** 2026-09-23.
+
+The I20 publish proof ran after the Worker had been idle for about four hours.
+Every request in it was served from cache, and every one cost more than the
+10 ms Free limit:
+
+| Request | CPU |
+|---|---|
+| Probe page, cache `HIT` (several isolates) | 19, 21, 25, 30, 46 ms |
+
+The warm 2–5 ms seen earlier happened only inside a burst of requests seconds
+apart. A single-owner portfolio site gets few visitors, so most real visitors
+will arrive at an isolate that has not served anything yet. For this site the
+per-isolate floor is the common case, not the exception.
+
+The first-request cost sits close to the Worker startup time recorded at
+deploy (20–22 ms, EXECUTION-STATUS). The hypothesis is that global-scope
+evaluation of the 29.6 MB bundle is charged to the first request. This has not
+been profiled, and the 30 and 46 ms samples suggest there is more to it than
+startup alone.
+
+Why it matters:
+
+- The documentation terminates Workers that exceed the limit "consistently",
+  with Error 1102.
+- Here, the overrun would be consistent for ordinary public visitors, not only
+  for the admin.
+- This is the last open CPU exposure on the public path.
+
+Options, none chosen:
+
+1. Profile the first request of a cache hit and cut whatever runs before the
+   cache lookup. For example, `worker-entry.ts` could answer cache hits before
+   the OpenNext handler loads, and the bundle could be trimmed (I20 added
+   4.3 MB).
+2. Serve public pages as Workers Static Assets, which run no Worker code, with
+   the VM rebuilding them on publish. The cost is publish latency: a rebuild
+   takes minutes, not P02's 60 s.
+3. Accept Workers Paid ($5/month, 30 s CPU default) earlier than E07 planned.
+   That breaks the owner's $0 window, so it is the owner's call.
+
+The recommendation is option 1 first, because it is measurable and costs $0. Part 2's
+Dockerfile uses the same slim base, but it runs `next start` rather than
+workerd; any image that runs wrangler remote mode needs the package.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the
