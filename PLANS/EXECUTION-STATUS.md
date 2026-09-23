@@ -49,10 +49,10 @@ owner will start once Anas replies.
    - `ADMIN_URL=https://admin.anas.studio`.
 
    Also confirm the `R2_*` S3 API keys are filled.
-6. Approve or amend the D27 text proposed in ISSUES I19.
+6. Approve or amend the D27 text proposed in ISSUES I19, after reading I22.
 7. Send the orchestrator the instance's public IP address. It is not a secret.
 
-### I19 part 1: accepted 2026-09-23, not yet committed
+### I19 part 1: accepted and committed 2026-09-23 (`e0d6464`)
 
 The Node admin target is built, and nothing has been deployed. It was proven
 locally against a disposable Postgres:
