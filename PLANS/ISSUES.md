@@ -559,9 +559,75 @@ on an isolated organic delivery. Both exceed the limit; the earlier number was
 taken from a window that was not isolated. Recorded rather than quietly
 replaced.
 
+**Correction, 2026-09-23: the 614.7 ms is not PBKDF2.** On production Workers
+PBKDF2 at 600,000 iterations throws immediately and never runs (I17). The login
+CPU therefore measures everything else a cold Payload request does. Evidence it
+is general cold-request cost rather than anything auth-specific: in Workers
+Observability, `/api/health` (no password work at all) reaches p50 333 ms and max
+725 ms CPU, the four login invocations measure 490 / 614 / 652 ms, and
+`/api/users/me` ranges from p50 6 ms to max 262 ms. The public route stays at
+p50 3 ms. Cold Payload initialisation has not been isolated or profiled; that is
+the open measurement, and it bears on the $0 constraint for every admin and API
+request, not only login. The row above is kept as recorded and should be read
+as "cold Payload API request", not "password hashing". The measurement was
+right; the interpretation attached to it was not checked.
+
 ## I17 — the seeded owner cannot log in, and the cause is not reachable
 
-**Status:** open, blocked on the owner. **Package:** P00. **Raised:** 2026-09-22.
+**Status:** root cause confirmed 2026-09-23; fix is an owner decision (I19).
+**Package:** P00. **Raised:** 2026-09-22.
+
+**Resolution, 2026-09-23.** The password was never the problem. Production
+Cloudflare Workers refuses PBKDF2 above 100,000 iterations, in both
+`node:crypto` and WebCrypto. Payload hashes at 600,000, so `crypto.pbkdf2`
+fails, `authenticate.js` swallows the error in `catch (ignore)`, and `login.js`
+increments the attempt counter and returns the generic 401. The two paragraphs
+below that call this "a real credential mismatch" and say the swallowed-error
+path is "excluded by the measurement" are wrong. They stand as the record of the
+mistake: 614.7 ms of CPU was read as proof that PBKDF2 ran, without checking
+what else the invocation did (see the I16 correction).
+
+Evidence, from a throwaway Worker (`pbkdf2-probe`: `compatibility_date`
+2026-09-21, `nodejs_compat`) deployed to this account's workers.dev, called with
+synthetic inputs, compared byte-for-byte against Node on the owner's machine,
+then deleted (API DELETE returned HTTP 200):
+
+| API | Iterations | Result |
+|---|---|---|
+| `node:crypto.pbkdf2` | 1,000 and 100,000 | identical to Node |
+| `node:crypto.pbkdf2` | 100,001 and 600,000 | `Pbkdf2 failed: iteration counts above 100000 not supported (requested N).` |
+| WebCrypto `deriveBits` | 1,000 and 100,000 | identical to Node |
+| WebCrypto `deriveBits` | 100,001 and 600,000 | throws the same message |
+
+So below the cap workerd and Node agree exactly; there is no divergence in the
+bytes, only a hard refusal above 100,000.
+
+Why local tests never saw it: upstream workerd's base
+`LimitEnforcer::checkPbkdfIterations` (`src/workerd/io/limit-enforcer.h`)
+defaults to `DEFAULT_MAX_PBKDF2_ITERATIONS` = 100,000, and `checkPbkdfLimits`
+(`src/workerd/api/crypto/impl.c++`) throws `DOMNotSupportedError`; both the
+WebCrypto and Node paths call it. The open-source server used by `wrangler dev`
+and Miniflare overrides it (`src/workerd/server/server.c++`: "No limit on the
+number of iterations in workerd"). Cloudflare's Web Crypto documentation does
+not mention the cap. Every local and container test passes, and only production
+fails.
+
+Scope: every path that calls PBKDF2 at 600,000 fails on production. That is
+login, `first-register` / create-first-user, password reset, and any create or
+update that sets a password (`generatePasswordSaltHash.js` callers:
+`login.js`, `resetPassword.js`, `register.js`, `collections/operations/utilities/update.js`).
+The seeded owner exists only because it was created in Node.
+
+One trap, recorded so nobody takes it: hashes without the `pbkdf2-sha256-v1:`
+prefix are verified on Payload's legacy parameters (25,000 iterations, 512-byte
+key). That passes the per-call cap, and `login.js` swallows the failed
+opportunistic rehash, so a legacy-format hash would log in. It is a security
+downgrade plus about two-thirds of the 600k CPU, because a 512-byte SHA-256 key
+is sixteen PBKDF2 blocks. It is not a fix.
+
+Login attempts spent: none since this investigation began. The lockout counter
+is where the prior session left it. No further login attempt is useful until
+I19 is decided and implemented.
 
 Login to the live Worker as `p00-owner@example.invalid` returns HTTP 401 with
 Payload's generic "invalid email or password". Three careful attempts across
@@ -629,6 +695,219 @@ stale pooled socket, which Supabase's own documentation names as a failure mode
 for serverless runtimes. Cloudflare's scheduled ceiling is 15 minutes, so its
 limit did not fire. The exact terminating limit was not confirmed and is
 recorded as an open gap rather than asserted.
+
+## I19 — Payload native password auth cannot run on production Workers as shipped
+
+**Status:** direction decided by the owner on 2026-09-23. The admin and the job
+runner move to an Oracle Cloud Always Free Ampere A1 VM, published through
+Cloudflare Tunnel; the public site stays on Workers. The plan amendment is not
+yet written or approved, and nothing is provisioned. **Package:** P00.
+**Raised:** 2026-09-23.
+
+**Proposed D27, awaiting the owner's approval of the wording.** The owner gave
+the direction on 2026-09-23. A worker applies the text to `PLANS/DECISIONS.md`
+only after approval.
+
+> D27 (2026-09-23) amends D01's "one Workers deployment". The same Next.js and
+> Payload codebase is deployed twice.
+>
+> - The public site runs on Cloudflare Workers Free, as D01 states.
+> - The Payload admin, authentication, REST and GraphQL writes, and the native
+>   job runner run as a Node server on an Oracle Cloud Always Free Ampere A1 VM
+>   in India West (Mumbai), published at `admin.anas.studio` through Cloudflare
+>   Tunnel.
+>
+> There is still one Supabase database. There is still one R2 bucket, reached
+> through the binding on the Worker and through the S3 API on the VM. Payload's
+> 600,000-iteration password hashing is unchanged.
+>
+> Reason: production Workers refuses PBKDF2 above 100,000 iterations (I17), and
+> cold Payload requests exceed the Free CPU limit (I19).
+>
+> P00's hosted proofs for login, CRUD, R2 and the scheduled write run against
+> the admin origin. Public-route CPU stays proven on the Worker. At E07 (Workers
+> Paid before live orders), moving the admin back is a separate decision,
+> because nobody has verified whether the PBKDF2 cap still applies on Paid.
+
+Region: India West (Mumbai), `ap-mumbai-1`. The Supabase database is in AWS
+`ap-south-1` (Mumbai), and every admin request makes several database round
+trips, so the VM sits beside the database rather than beside the user. Oracle
+lists one availability domain there, so an "out of host capacity" error means
+retrying later, not switching domains. The Tunnel requires the domain to be on
+Cloudflare, which puts buying `anas.studio` (D25, previously deferred with E01)
+on the critical path.
+
+`PLANS/ARCHITECTURE.md` makes Payload native authentication the only staff
+identity, and assumes the admin runs in the same Worker as the site. I17 shows
+that native password auth fails on production Workers at every step that hashes
+a password: login, first registration, reset, and setting a password. The plan
+cannot proceed as written. The iteration count is a security constant, so the
+choice belongs to the owner; no agent will change it on its own.
+
+The options, all $0:
+
+1. **Patch Payload to 100,000 iterations**, the most the platform allows, with
+   `pnpm patch` and a new hash prefix so old and new hashes never get confused.
+   The owner hash is regenerated in Node. This keeps native auth and the plan's
+   architecture intact. The cost is hashing at one sixth of the OWASP
+   PBKDF2-SHA256 figure. The iteration count only protects against offline
+   cracking of a leaked database, and a long, randomly generated owner password
+   makes that attack impractical at either count. The planned owner TOTP
+   (ARCHITECTURE "Owner MFA") and Payload's lockout still apply. The CPU cost of
+   100,000 iterations on Workers has not been measured. It is expected to exceed
+   the 10 ms Free limit (roughly 100 ms on the local machine) and rely on burst
+   tolerance, but only on rare owner logins.
+2. **Replace password auth** with a different Payload auth strategy, such as a
+   Cloudflare Access assertion or an emailed login link. This removes PBKDF2
+   entirely. It amends ARCHITECTURE's native-auth decision, needs vendor limits
+   cited from live documentation before anyone chooses it, and an emailed link
+   depends on the deferred E01 email setup.
+3. **Move the admin off Workers**, for example by running Payload admin on the
+   owner's machine against the same database. This contradicts the plan's
+   single-Worker design: native scheduled jobs and the custom admin views run in
+   that Worker. It is the largest change, and it leaves P00's hosted
+   authenticated CRUD criterion unprovable as written.
+
+~~The orchestrator recommends option 1, together with a generated owner password
+of at least 20 random characters.~~ Withdrawn the same day after the measurement
+below: the password choice is the small part of the problem.
+
+**Measurement, 2026-09-23: cold and warm CPU per request.** 26 read-only,
+unauthenticated requests were sent to the live Worker over about 70 seconds.
+None touched login. Each carried a unique `?m=a-NN` tag, and its CPU was read
+back from Workers Observability (`$workers.cpuTimeMs`, grouped by URL). 23 of
+the 26 appeared in the logs. Cloudflare spread them across four data centres
+(MRS, MXP, PRG, LHR) and several instances within each, and every instance warms
+separately.
+
+| Request | Warm | Cold (first hit on an instance) |
+|---|---|---|
+| `/api/users/me`, `/api/users?limit=1` | 5–8 ms | 58–402 ms |
+| `/api/health` (Payload plus one query) | 14 ms | 60–314 ms |
+| `/admin/login` (admin page render) | 23 ms | 498–678 ms |
+| `/` (public) | 3 ms | 11–17 ms |
+
+13 of the 23 logged requests cost more than 50 ms: a burst of 25 requests never
+reached a steady warm state. Limits of this measurement: only unauthenticated
+pages were measured, and real admin screens with data (lists, the editor, saves)
+do more work than the login page. It was one burst from one client.
+
+The rule, from current documentation
+(`developers.cloudflare.com/workers/platform/limits/`, read 2026-09-23): Workers
+Free allows 10 ms of CPU per HTTP request and 10 ms per Cron Trigger. "Each
+isolate [has] built-in flexibility to allow cases where [a] Worker infrequently
+runs over [the] configured limit. If [a] Worker starts hitting [the] limit
+consistently, execution will be terminated", which returns Error 1102. The
+documentation does not define "consistently".
+
+What it means:
+
+- Warm API requests fit. Warm admin rendering is about twice the limit, and cold
+  requests are 6–68 times over. At a solo owner's traffic, most admin clicks
+  land on a cold instance. An admin inside the Worker on Free therefore depends
+  on the flexibility clause for most of its work. If Cloudflare decides that is
+  "consistent", the owner sees intermittent Error 1102 in the admin, such as a
+  save that fails. Public visitors are unaffected.
+- The password option does not change this. Options 1 and 2 leave the admin in
+  the Worker.
+- The cron at 52.2 ms (I16) is over the limit on every run, which is the pattern
+  the documentation says gets terminated. It is the most exposed path.
+- The public route stays within or near the limit. Its cold first hits of
+  11–17 ms are infrequent by nature.
+- Later customer-facing paths (checkout, payment webhooks) inherit the cold cost
+  if they boot Payload in the Worker. Keeping Payload out of those request paths
+  is a design constraint for P08, not yet recorded in the plan.
+
+**Revised recommendation, 2026-09-23:** option 3 for the $0 window. The public
+site stays on Workers, where it fits. The Payload admin runs in Node on the
+owner's machine against the same database and R2. Node has no CPU limit and no
+PBKDF2 cap, so password hashing stays at 600,000 iterations with no patch. The
+costs are no admin editing away from that machine, and a plan amendment to the
+single-Worker design. Scheduled jobs also need a home outside the Worker's
+per-run 10 ms budget, which is not yet designed. Option 2 does not help, and
+option 1 helps only with login. This is a recommendation, not a decision.
+
+**Owner constraint, 2026-09-23:** the admin cannot live on the owner's own
+machine, because the site is built for a client (Anas). The admin needs a hosted
+home at $0; the only planned spend is the domain.
+
+**Hosting research, 2026-09-23.** Every figure below was read from the vendor's
+live page that day. None is recalled.
+
+- **Oracle Cloud Always Free, Ampere A1** (the orchestrator's pick).
+  - Resources: 2 OCPUs and 12 GB of memory in total, 200 GB of block storage,
+    and 10 TB of outbound data per month, "for the life of the account", in the
+    home region.
+  - Signup: "most users need a mobile phone number and a credit card … Your
+    credit card will not be charged unless you upgrade your account."
+  - Risks:
+    - Idle reclamation. Instances "may be reclaimed" if, over 7 days, p95 CPU,
+      network and (A1 only) memory are all below 20%.
+    - Shape capacity. Signup can hit "out of host capacity" errors.
+    - Home region. Oracle says to choose it carefully.
+    - Maintenance. The VM is a server someone must maintain, and there is no
+      SLA.
+  - It runs Payload as a normal Node server, which removes the PBKDF2 cap (no
+    patch; 600,000 iterations stays) and the per-request CPU limit. It can also
+    host the job runner, which moves the cron (I16, I18) off the Worker.
+  - Cloudflare Tunnel publishes it on a subdomain with no open ports: "You do
+    not need a paid Cloudflare Access plan to publish an application via
+    Cloudflare Tunnel." Access seats were not verified.
+- **Google Cloud Run** (runner-up).
+  - Free each month: 2 million requests, 360,000 GB-seconds and 180,000
+    vCPU-seconds, plus 1 GB of North America egress and 0.5 GB of Artifact
+    Registry storage.
+  - It scales to zero, so every admin session starts cold.
+  - It needs a billing account, and "Any usage that exceeds the Free Tier usage
+    limits is billed at standard rates."
+  - A first uncached load of `/admin/login` transfers about 1 MB (60 KB of HTML
+    plus 945 KB of assets, measured on the live Worker).
+- **Azure Container Apps.** The free grant has the same shape as Cloud Run
+  (180,000 vCPU-seconds, 360,000 GiB-seconds and 2 million requests per
+  subscription per month) and needs a subscription.
+- **Ruled out:**
+  - Google Colab: bans "file hosting, media serving, or other web service
+    offerings"; free sessions run for at most 12 hours.
+  - Supabase Edge Functions: 256 MB and 2 s of CPU per request, so not a host
+    for a Node server. Supabase remains the database.
+  - Vercel Hobby: non-commercial, personal use only. Opening the account in the
+    client's name does not change this. Vercel defines commercial use as any
+    deployment "used for the purpose of financial gain of anyone involved in any
+    part of the production of the project, including a paid employee or
+    consultant writing the code". Its examples include processing payments from
+    visitors and advertising the sale of a product or service. It also says
+    "Circumventing … Vercel's limits or usage guidelines is a violation."
+    (`vercel.com/docs/limits/fair-use-guidelines`, read 2026-09-23.)
+  - Hugging Face Docker Spaces: need a paid plan.
+  - Render Free: sleeps after 15 idle minutes, takes about a minute to wake, and
+    says "Do not use them for production applications".
+  - Koyeb: no free compute instance.
+  - AWS: the free plan closes after 6 months or when credits run out.
+  - Azure App Service F1: 60 CPU minutes per day; "Use of free plan for
+    production workloads is not supported."
+  - Google e2-micro: 1 GB of memory, US regions only, 1 GB of egress.
+  - Railway Free: $1 of credit per month and 0.5 GB of memory.
+  - Fly.io: no free tier; the 512 MB machine costs about $3.32 per month.
+- **Domain.** Cloudflare Registrar sells at cost and does not publish a price
+  list; the exact .studio price shows only in the dashboard. A third-party
+  tracker (domainoffer.net, 2026-09-05) lists the cheapest .studio renewal in
+  the market at $21.55.
+
+Sizing note for part 2. Oracle counts an A1 instance as idle only when CPU,
+network *and* memory all stay under 20% for 7 days. A single-owner admin keeps
+CPU and network near zero, so memory is what keeps the VM from counting as idle.
+At 6 GB, that means at least 1.2 GB in steady use. After the real container is
+measured, pick the instance memory so steady-state use sits above 20%. The
+first build on the VM should use the swap file from `setup.sh` instead of extra
+RAM.
+
+Nothing has been provisioned. Opening an Oracle account needs the owner's phone
+and card, so only the owner can do it. Moving the admin off the Worker still
+needs the owner-approved plan amendment.
+
+**Blocks:** the three unproven P00 criteria from I17 (private R2 round trip with
+unauthorized denial, authenticated hosted CRUD including delete, and a real cron
+content write). P00 is not accepted.
 
 ## Resolved
 
