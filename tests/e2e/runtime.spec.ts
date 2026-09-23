@@ -94,7 +94,10 @@ test('GET /api/health answers and leaks no configuration', async ({ request }) =
 test('POST /api/revalidate rejects a bad or missing secret', async ({ request }) => {
   // Never a success without proof of the secret, whether or not
   // REVALIDATE_SECRET happens to be configured on this instance (unconfigured
-  // means unavailable: 404; configured with the wrong bearer: 401).
+  // means unavailable: 404; configured with the wrong bearer: 401). I21:
+  // this check now runs twice — once in `worker-entry.ts`, before the
+  // OpenNext handler is even imported, and again in the route itself
+  // (defence in depth) — so a 401 here must carry the same body either way.
   const noAuth = await request.post('/api/revalidate', { data: { tags: ['runtime-probe:test'] } })
   expect([401, 404]).toContain(noAuth.status())
 
@@ -103,6 +106,12 @@ test('POST /api/revalidate rejects a bad or missing secret', async ({ request })
     data: { tags: ['runtime-probe:test'] },
   })
   expect([401, 404]).toContain(badAuth.status())
+  if (badAuth.status() === 401) {
+    expect(await badAuth.json()).toEqual({
+      ok: false,
+      error: { code: 'UNAUTHORIZED', message: 'Invalid or missing revalidate secret.' },
+    })
+  }
 })
 
 test('GET /probe/[id] 404s when there is no published document', async ({ request }) => {

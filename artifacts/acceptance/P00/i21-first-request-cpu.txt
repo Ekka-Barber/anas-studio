@@ -1,0 +1,758 @@
+# I21 — first-request CPU split (local only): measurement, code change, re-measurement
+# No deploy, no Cloudflare API calls, no hosted DB/R2/D1. Nothing read from .env.
+
+recorded_utc: 2026-09-23
+base_commit: 575d9af (branch agent/p00-runtime-spike)
+container: anasaq-bundle (node:24-bookworm-slim, pre-existing, synced via tar;
+  node_modules already matched pnpm-lock.yaml's sha256, no reinstall needed)
+wrangler: 4.136.1
+@opennextjs/cloudflare: 1.20.6
+@opennextjs/aws: 4.1.4 (printed by `opennextjs-cloudflare build`)
+workerd: 1.20260921.1
+
+## 0. Setup, once, reused for every measurement below
+
+Disposable Postgres `p00-i21-pg` (postgres:17-alpine) on throwaway network
+`p00-i21-net`, `anasaq-bundle` connected to it. `pnpm migrate` against it
+(DATABASE_URL, PAYLOAD_SECRET=throwaway-build-secret): exit 0, "Migrated:
+20260922_031113_initial (157ms)".
+
+Seeded one published RuntimeProbe document the same way I20 did: `pnpm dev`
+(plain Next dev server, CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE
+pointed at p00-i21-pg — this is also wrangler's own documented way to point
+`wrangler dev`'s local Hyperdrive simulation at a database, confirmed live:
+https://developers.cloudflare.com/hyperdrive/configuration/local-development/,
+fetched 2026-09-23), then real HTTP: `POST /api/users/first-register` (200),
+`POST /api/users/login` (200), `POST /api/runtime-probe` with
+`Authorization: JWT <token>` and `_status: published` (201). Cookie-only auth
+returned 403 for this collection's `create` access function — the REST API
+needs the `JWT <token>` Authorization header, not just the `payload-token`
+cookie, for a plain server-side fetch with no browser cookie jar. Probe id:
+`6137f660-d84c-4c03-bc2c-0a625f8c0711`. `pnpm dev` stopped immediately after
+(PIDs found by hand-walking /proc, same as I20 — no `ps` in this image).
+
+## 1. Method
+
+`wrangler check startup` (docs:
+https://developers.cloudflare.com/workers/wrangler/commands/workers/#check,
+section "startup", dateModified 2026-09-22, fetched 2026-09-23 — this command
+is real; it is not documented under a `wrangler check startup` heading
+anywhere else, only under `check` > `startup`) builds the Worker, profiles a
+fixed idle window with nothing sent to it, and reports "Active" CPU plus a
+`.cpuprofile`. Per its own note: "measures performance of your Worker locally
+... which has a different CPU than when your Worker runs on Cloudflare ...
+results can vary widely." This is item (a): isolate startup / global-scope
+evaluation.
+
+For (b) lazy module loading on the first request and (c) the cache lookup
+itself, `wrangler check startup` sends no request, so it cannot separate
+them. Instead: `pnpm preview:worker -- --inspector-port 9230`, wait for
+"Ready", then query `http://127.0.0.1:9230/json` for the
+`webSocketDebuggerUrl` (`ws://127.0.0.1:9230/ws`) and speak the Chrome
+DevTools Protocol directly — `Profiler.enable` / `Profiler.start`, one
+`fetch()` to the running preview, `Profiler.stop`, save the `.cpuprofile`.
+Attaching *after* "Ready" means global-scope evaluation has already run by
+the time profiling starts, so this captures only what the first real HTTP
+request itself does.
+
+Node 24's native `WebSocket` client failed the handshake against this
+specific server (undici's `failWebsocketConnection`, socket closed by the
+peer mid-handshake, cause not fully root-caused); a raw `net.Socket` HTTP
+upgrade to the same URL succeeded immediately (101 Switching Protocols,
+valid CDP frames). Worked around with a ~130-line hand-rolled RFC 6455
+client (`ws-client.mjs`, text frames only, extended-length frames handled,
+scratch script, not part of the repo) rather than adding a dependency for a
+one-off local measurement.
+
+`.cpuprofile` self time was read from the `samples`/`timeDeltas` arrays
+(the authoritative source per the Chrome DevTools protocol's own CPU profile
+format), not the `nodes[].hitCount` field, which is coarser. Idle time and
+V8-internal `(program)` time are reported separately from named JS
+functions. Local sampling interval was requested at 50 microseconds
+(`Profiler.setSamplingInterval`); actual inter-sample gaps were larger and
+uneven, because most of the profiled window is the async wait on the local
+R2/D1/Hyperdrive-over-loopback I/O the request makes, not CPU-bound work —
+expected, and the reason idle time dominates every profile below. All
+`.cpuprofile` files were deleted from the container at teardown (temporary,
+not retained as evidence beyond the numbers below); `.cpuprofile` is JSON, so
+the same file layout would be trivial to regenerate the same way.
+
+Local and hosted CPU differ in absolute value (I20/I21 already state this);
+everything below is a *relative*, same-hardware, same-container comparison
+of one build against another, not a claim about hosted numbers, which were
+already measured in I20/I21 and are not re-measured here.
+
+## 2. BEFORE (static top-level import, HEAD 575d9af)
+
+`PAYLOAD_SECRET=throwaway-build-secret pnpm build:worker`: exit 0.
+`npx wrangler deploy --dry-run`: **Total Upload: 29620.27 KiB / gzip:
+6514.47 KiB** (I21's own stated baseline for this task was 29616.49 KiB, the
+hosted `ef6809b5` deploy figure from a slightly different container state —
+3.78 KiB apart, consistent with the ~0.09 KiB noise I20 already measured
+between otherwise-identical builds; not investigated further).
+
+### 2a. `wrangler check startup` — isolate startup / global-scope evaluation
+
+  Bundle: 29620.27 KiB / gzip: 6514.23 KiB
+  Profile window: 489.8 ms   Sampled time: 479.5 ms
+  Active: 44.0 ms (including 0.0 ms garbage collection)
+  Idle: 435.4 ms   Samples: 32
+
+Only 32 samples over a ~490 ms window (~15 ms/sample) — too coarse to name
+individual functions with confidence. Of the 31 hits recorded: 21 in
+`(program)`, one each in `app/worker-entry.js` (the module top level itself),
+`cloudflare:workers`, and five different `node-internal:` compat shims
+(`internal_process`, `internal_https_agent`, `internal_tls_wrap`, `fs`,
+`fs/promises`, `internal_zlib_constants`) — consistent with Node-compat
+polyfills for `pg`/networking code touched at global scope, but each at only
+1 sample, i.e. not statistically distinguishable from noise at this
+resolution.
+
+### 2b. First real HTTP request to an already-started process, cache HIT
+
+Protocol: `pnpm preview:worker` run once, first request to
+`/probe/6137f660-…` (200, no `x-opennext-cache` header = MISS, this is what
+populates the cache and creates the 3 entries `populateCache` did not already
+write), confirmed a second request came back `x-opennext-cache: HIT`,
+process killed. Second `pnpm preview:worker` run started fresh (same
+`.wrangler/state` local persistence, so the cache entry from the first run is
+still there); CDP-profiled *first* request of this second process:
+
+  STATUS 200, x-opennext-cache: HIT, wallMs 103.50 (fetch()-measured)
+  samples=77  idle=751.36ms  program=17.81ms  named-js=9.91ms
+  non-idle total = 27.72 ms
+
+Self time by category (named JS only, program/idle excluded):
+cache-logic (`cacheInterceptor`, `getCacheKey`, `isStale`,
+`hasBeenRevalidated`, `computeCacheControl`, `generateResult`,
+`compareSemver`) 1.55 ms; routing/request-parse (`routingHandler`,
+`resolveOriginResolver`, `stringToRegexp`, `convertMatch`,
+`handleRedirects`, `getNextConfigHeaders`, `__facade_invokeChain__`,
+`initRuntime`) 2.85 ms; D1 binding (`mapD1Result` and other
+`cloudflare-internal:d1-api` frames) 0.71 ms; everything else named 4.79 ms.
+Top individual functions by self time: `routingHandler` 0.698 ms,
+`mapD1Result` 0.479 ms, `__facade_invokeChain__` 0.461 ms, `cacheInterceptor`
+0.428 ms, `getNextConfigHeaders` 0.353 ms, `resolveOriginResolver` 0.334 ms,
+`generateResult` 0.304 ms, `convertMatch` 0.294 ms.
+
+A second request against the same (now warm) process was also profiled for
+comparison (`second-request-before.cpuprofile`): only 18 samples, non-idle
+48.48 ms — **higher**, not lower, than the "cold" request above. With this
+few samples the number is not trustworthy either way (a handful of
+timeDeltas dominate the total); it is recorded here but not used as a "warm"
+comparison point. The hosted warm-vs-cold contrast (I20/I21: 2–5 ms warm,
+17–46 ms fresh-isolate) is the reliable source for that comparison, not this
+local sample.
+
+**Important caveat, discovered only by doing the AFTER measurement (§3):**
+this BEFORE number is an *undercount* of what a fresh Cloudflare isolate's
+first request actually pays. Because `worker-entry.ts` used a static
+top-level `import`, that module's own top-level code already ran during
+process startup — *before* "Ready" printed, i.e. before CDP profiling
+attached. This measurement is real (it is what the first HTTP request itself
+does, on top of an already-initialized module), but it excludes the
+module-load cost that I20/I21's hosted evidence says is already being
+charged to the first request's CPU meter on real Workers (a fresh-isolate
+cache HIT costs 17–46 ms hosted, vs 2–5 ms warm — that gap has to be paying
+for *something* on the first request, and this local measurement boundary
+was drawn on the wrong side of it for the static-import build).
+
+## 3. Source read, to decide what to change (@opennextjs/cloudflare 1.20.6, @opennextjs/aws 4.1.4, installed)
+
+- `.open-next/worker.js` (the `open-next-worker` alias target) is one
+  bundled file containing the Next.js server, the cache interceptor, the D1
+  tag cache, and Payload's own dependency tree (compiled twice — see I20's
+  §5, unresolved, not re-investigated here). Everything in it that is
+  reached via a *static* `import` at the top of `worker-entry.ts` becomes
+  part of the same single-file esbuild bundle's top-level, executed in
+  module-evaluation order — i.e. at isolate startup, regardless of which
+  route a request hits.
+- `node_modules/@opennextjs/aws/dist/core/routing/cacheInterceptor.js`
+  (referenced by `open-next.config.ts`'s own comment, re-read here): a cache
+  `HIT` answer still has to reach this file's `cacheInterceptor` function,
+  which needs the built route/prerender manifest and the R2/D1 override
+  modules already initialized — there is no cheaper path to a cache hit that
+  does not go through the OpenNext handler. This is why the task's
+  instruction not to reimplement cache-key/tag logic in `worker-entry.ts`
+  rules out a bigger win here without a real deploy of a differently-built
+  bundle.
+- esbuild's own docs on `import()` without code splitting (wrangler bundles
+  to a single output file, no splitting):
+  https://esbuild.github.io/api/#splitting (fetched 2026-09-23): "Without
+  code splitting enabled, an `import()` expression becomes
+  `Promise.resolve().then(() => require())` instead ... the imported code is
+  included in the same bundle instead of being split off into a separate
+  file." So a dynamic `import()` of `open-next-worker` cannot shrink the
+  upload (confirmed in §4: upload went up slightly, not down), but it does
+  move the `require()` — and therefore the module's top-level execution —
+  out of the synchronous top-level evaluation esbuild runs at load, to
+  whichever request first evaluates that line.
+- Secrets on `env`: https://developers.cloudflare.com/workers/configuration/secrets/
+  (fetched 2026-09-23): "Secrets can be accessed from Workers as you would
+  any other environment variables ... through the `env` parameter" —
+  confirmed this also holds for `wrangler dev`'s local `.dev.vars` secrets,
+  by reading the printed binding table (`env.REVALIDATE_SECRET ("(hidden)")
+  Environment Variable local`) during every preview run in this task.
+  `cloudflare-env.d.ts` (generated, not in this task's write scope) does not
+  declare `REVALIDATE_SECRET` because it is a Worker secret, not a
+  `wrangler.jsonc` `vars` entry — `worker-entry.ts` widens the type locally
+  (`WorkerEnv = CloudflareEnv & { REVALIDATE_SECRET?: string }`) rather than
+  editing the generated file.
+
+## 4. Change made
+
+`worker-entry.ts`:
+- `POST /api/revalidate` is now checked in this file, before
+  `openNextWorker` is imported at all: unset `REVALIDATE_SECRET` -> 404;
+  wrong/missing bearer -> 401, same JSON body shape as the route's own
+  check. Uses `isAuthorizedRevalidateRequest` from `src/lib/revalidate.ts`
+  (constant-time `secretsMatch` underneath) — not reimplemented.
+  `src/app/api/revalidate/route.ts` is unchanged; its own check still runs
+  for every request that reaches it, as defence in depth.
+- `import openNextWorker from 'open-next-worker'` (static, top-level)
+  replaced with `const openNextWorker = (await import('open-next-worker')).default`
+  inside `fetch`, in the one fallthrough branch that still needs it. Every
+  request this file answers itself — the `/admin` redirect and every
+  `/api/*` refusal, including the two new `/api/revalidate` cases — now
+  never triggers that `require()` at all.
+- Import of `isAuthorizedRevalidateRequest` uses a relative path
+  (`./src/lib/revalidate`), not the `@/*` tsconfig alias
+  `src/app/api/revalidate/route.ts` uses: `vitest.config.ts` (out of this
+  task's write scope) has no matching resolver, and the unit test below
+  needs to import `worker-entry.ts` directly under vitest/Node resolution,
+  which only understands relative paths without one.
+
+`pnpm typecheck`: exit 0. `pnpm build:worker`: exit 0 (same warnings as
+before — `typeof x === "null"` in a Next-internal chunk, `direct eval` in
+OpenNext's own handler — both pre-existing, unrelated to this change).
+
+`npx wrangler deploy --dry-run` (same container, same command as §2):
+**Total Upload: 29651.96 KiB / gzip: 6520.38 KiB** — **+31.69 KiB (+0.11%)**
+versus §2's 29620.27 KiB. Expected and small: per the esbuild quote above, a
+dynamic `import()` without code splitting adds the `Promise.resolve().then(…)`
+wrapper around the same code, not less code.
+
+## 5. AFTER — same two measurements, same protocol
+
+### 5a. `wrangler check startup`
+
+  Bundle: 29651.96 KiB / gzip: 6520.41 KiB
+  Profile window: 531.5 ms   Sampled time: 519.5 ms
+  Active: 46.3 ms (including 1.2 ms garbage collection)
+  Idle: 473.2 ms   Samples: 31
+
+Essentially flat versus §2a's 44.0 ms (+2.3 ms, 31 vs 32 samples). This is
+expected: with no request sent, the deferred `import()` never executes
+during this check either — the tool is idling a *different*, much smaller
+set of top-level code now (no more `open-next-worker` at global scope,
+just `isAuthorizedRevalidateRequest`/`secretsMatch`, both pure functions
+with no side effects at module load). At ~15–17 ms per sample this tool
+cannot reliably resolve a delta below its own sampling granularity in
+either direction; it is reported for completeness, not relied on.
+
+### 5b. First real HTTP request to an already-started process, cache HIT
+
+Same protocol as §2b, repeated twice independently (once right after the
+code change, once again after the `@/*` -> relative import fix, which does
+not change runtime behaviour):
+
+  first-request-after.cpuprofile:  samples=101 idle=499.13ms program=59.37ms named-js=12.54ms  non-idle=71.91ms
+  final-cache-hit2.cpuprofile:     samples=97  idle=472.54ms program=67.03ms named-js=11.20ms  non-idle=78.23ms
+
+Both `x-opennext-cache: HIT`. Top functions in `final-cache-hit2.cpuprofile`:
+`__init` 1.435 ms, `.open-next/middleware/handler.mjs` module init
+0.832 ms, `routingHandler` 0.819 ms, a `cloudflare-internal:d1-api` frame
+0.494 ms, `fromString` 0.374 ms, `generateResult` 0.327 ms,
+`computeCacheKey` 0.271 ms, `hasBeenRevalidated`/`cacheInterceptor`
+0.236 ms each — the same functions as §2b, plus module-init frames
+(`__init`, the middleware handler's own top-level) that did not appear in
+§2b because in the static-import build those had already run before
+profiling started.
+
+**This is higher than §2b's 27.72 ms, not lower.** Per §2's caveat, this is
+not a regression in real behaviour: it is the same cost §2b was missing,
+now visible because it genuinely happens inside this request instead of
+before it. For an isolate whose first request is an actual page load, this
+change does not reduce CPU — it relocates previously-hidden cost into the
+measured window. This matches, and does not resolve, I21's own hypothesis
+that a fresh isolate's first cache-HIT page render pays for module
+evaluation (hosted: 17–46 ms; here, on different/slower shared-container
+hardware: ~72–78 ms non-idle, same order-of-magnitude relationship).
+
+### 5c. First real HTTP request to an already-started process, refused route
+
+Two independent fresh-process runs, first request = `POST /api/revalidate`
+with `Authorization: Bearer wrong` (`REVALIDATE_SECRET` set via `.dev.vars`):
+
+  revalidate-401-after.cpuprofile: samples=9 idle=551.18ms program=0.00ms named-js=0.62ms  non-idle=0.62ms
+  final-revalidate-401.cpuprofile: samples=8 idle=474.21ms program=39.59ms named-js=3.35ms  non-idle=42.94ms
+
+Both returned `401` with body
+`{"ok":false,"error":{"code":"UNAUTHORIZED","message":"Invalid or missing revalidate secret."}}`.
+The two runs disagree sharply on `(program)` time (0.00 ms vs 39.59 ms) —
+with only 8–9 samples on a shared, multi-container machine, a single sample
+landing during an unrelated scheduler preemption swings the total by tens of
+ms; this is noise, not signal, and is reported honestly rather than
+picked to fit either direction.
+
+**What is not noise, and is the actual finding:** in both runs, the *only*
+named JS functions touched are `isAuthorizedRevalidateRequest`,
+`__facade_invokeChain__` (wrangler's own middleware plumbing), and
+`read`/`getReader` (draining the request body stream). Neither run touches
+`routingHandler`, `cacheInterceptor`, `generateResult`, `mapD1Result`, or
+any other function that appeared in every cache-HIT profile above. This was
+checked directly, not inferred: full per-sample function lists for both
+files are in this task's working set (not retained past this evidence file;
+regenerable from `worker-entry.ts` + the protocol in §1). The categorical
+absence of every OpenNext/cache/D1 function — not the noisy millisecond
+totals — is the evidence that the dynamic import achieves what it was
+meant to for this route class.
+
+`GET /admin` (redirect) was spot-checked the same way on the same
+never-warmed process right after the revalidate-401 request and returned
+`308` with no `x-opennext-cache` header, consistent with also skipping the
+OpenNext handler, but not independently profiled as its own fresh-process
+first request (budget; the mechanism is identical to the revalidate case —
+neither branch reaches the `import()` line).
+
+## 6. Checks, final build
+
+  $ pnpm check                       exit 0
+    lint: 0 errors. typecheck: 0 errors.
+    check:frozen: OK — 59 files under deploy/ unchanged.
+    check:copy: OK — 22 source files.
+    test (vitest, unit only): 3 files, 27 tests, all passed
+      tests/unit/revalidate.test.ts       19 tests
+      tests/unit/runtime-target.test.ts    3 tests
+      tests/unit/worker-entry.test.ts      5 tests (new)
+
+  $ pnpm build:worker                exit 0
+  $ npx wrangler deploy --dry-run    Total Upload: 29651.96 KiB / gzip: 6520.38 KiB
+
+  $ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test
+    (against a live `pnpm preview:worker` of this exact build; same
+    disposable Postgres, same seeded probe)
+    6 passed (3.1s):
+      1 public route renders Arabic right-to-left
+      2 GET /admin and /admin/* redirect to the admin origin, same path and query
+      3 /api/* is refused except /api/health and POST /api/revalidate
+      4 GET /api/health answers and leaks no configuration
+      5 POST /api/revalidate rejects a bad or missing secret (now also
+        asserts the exact 401 JSON body — I21 strengthening, "stricter never
+        looser" per docs/runtime-spike.md's own rule)
+      6 GET /probe/[id] 404s when there is no published document
+
+## 7. Changed files
+
+  worker-entry.ts                        early /api/revalidate gate, dynamic import, WorkerEnv type
+  tests/unit/worker-entry.test.ts         new — 5 tests for worker-entry.ts's own branches
+  tests/e2e/runtime.spec.ts               strengthened the existing 401-body assertion
+  artifacts/acceptance/P00/i21-first-request-cpu.txt   this file
+
+Not changed: `open-next.config.ts`, `next.config.ts`, `wrangler.jsonc`,
+`src/app/api/revalidate/route.ts`, `src/lib/revalidate.ts`. No bundle-trimming
+alias was added to `next.config.ts` — the profile did not point at a specific
+additional module to alias out the way `drizzle-kit/api` and
+`@payloadcms/storage-s3` were (I19/I20); the only concrete lead for further
+size reduction is I20's already-flagged, unresolved "Payload compiled twice
+across Next's Route-Handler/page layers" finding, which is deep,
+un-investigated further here, and out of this task's scope.
+
+## 8. What was verified vs. assumed
+
+Verified directly, this task: `wrangler check startup` is a real, documented
+command and what it measures; secrets are readable on `env` at runtime even
+though the generated type does not declare them; a dynamic `import()` does
+not shrink a single-file esbuild bundle (upload went up, not down);
+`/api/revalidate`'s early gate produces byte-identical 401/404 behaviour to
+before, with the OpenNext handler categorically untouched; `pnpm check`,
+`pnpm build:worker`, and the full e2e suite all pass against the final
+build.
+
+Assumed / not independently re-verified here: the hosted 17–46 ms
+fresh-isolate and 2–5 ms warm-isolate numbers and the 118 ms hosted
+`/api/revalidate` cost are I20/I21's own hosted measurements, taken as given
+per this task's brief ("no deploy, no hosted calls") — not reproduced or
+re-checked against a live Worker in this task. Whether the `/api/revalidate`
+fix reduces that 118 ms hosted figure, and by how much, is not verified —
+only the local, relative, same-hardware comparison in §5c is.
+
+## 9. Remaining risk / recommendation (I21 options 1–3)
+
+Option 1 (profile and cut what is measurable, $0) was followed as far as
+this task's own guardrail allows (no cache-key/tag reimplementation in
+`worker-entry.ts`, no deploy). It produced one real, verified, narrow win:
+an isolate whose first request is `/admin`, or any refused `/api/*` path
+including an unauthenticated `POST /api/revalidate`, no longer touches the
+~29 MB OpenNext bundle at all. For a low-traffic public site that also
+receives scanner/bot traffic on `/admin` and `/api/*`, this removes real,
+previously-wasted CPU on isolates that would otherwise have paid for a full
+Next.js/Payload module load just to return a 404 or 308.
+
+It does **not** reduce CPU for the traffic I21 actually flagged as the
+common case: an ordinary visitor whose first request to a fresh isolate is
+a real page. §5b's own measurement makes this concrete — the true first-page
+cost, now fully inside the profiled window instead of partly hidden before
+it, is *higher* than §2b's original (incomplete) number, not lower. The
+gap I21 describes between a 2–5 ms warm cache hit and a 17–46 ms
+fresh-isolate cache hit is still there; this task's change does not touch
+it, and could not without either reimplementing OpenNext's own cache
+lookup outside the handler (explicitly out of scope) or reducing what that
+handler has to evaluate in the first place (I20's duplicate-Payload-compile
+lead, not pursued here).
+
+Recommendation: keep this change (it is a real, low-risk, $0 win with a
+measured +0.11% upload cost), but do not treat I21 as closed by it. The
+remaining gap is a page-serving-isolate problem, not an
+`/api/revalidate`-shaped problem. Of I21's three options, this task's
+evidence does not newly favour option 2 or 3 over option 1 — it narrows what
+"option 1" can still mean: the next concrete, measurable step under option 1
+is bundle size (I20's flagged duplicate-compile lead), not further
+`worker-entry.ts` routing changes, since every remaining `worker-entry.ts`
+branch that reaches a real page already has to load the full handler by
+design. Whether that is worth the effort against just accepting option 3
+(Workers Paid, $5/month, breaks the owner's $0 window) is the owner's call,
+not resolved here.
+
+## 10. Cleanup
+
+  $ docker rm -f p00-i21-pg
+  $ docker network disconnect p00-i21-net anasaq-bundle
+  $ docker network rm p00-i21-net
+  $ docker ps -a | grep p00-i21        -> (none)
+  $ docker network ls | grep p00-i21   -> (none)
+
+`anasaq-bundle` kept (pre-existing, shared, not mine to remove). Removed from
+it: `.dev.vars`, `worker-startup.cpuprofile`, every `/tmp/*.cpuprofile` and
+scratch `.mjs`/log file this task created. No `wrangler dev`/`workerd`/
+`next dev` process left running (confirmed by hand-walking `/proc/*/cmdline`
+after the last kill — no `ps` in this image). Chromium in
+`~/.cache/ms-playwright` left installed (cache, not repository content,
+already there from I20).
+
+# ============================================================
+# ROUND 2 -- coordinator audit, 2026-09-23
+# ============================================================
+#
+# Round 1's dynamic import() was rejected: startup was flat (44.0 -> 46.3 ms)
+# and the first cache-HIT request measured 28 -> 78 ms on round 1's own
+# numbers, i.e. it did not reduce CPU on the path that matters and risked the
+# common one. This round: (1) revert that import, keep the early gate,
+# (2) esbuild metafile bundle composition, (3) a pageExtensions experiment to
+# exclude Payload's admin/API route files from only the Worker build.
+#
+# Container/tooling unchanged from round 1: anasaq-bundle, wrangler 4.136.1,
+# @opennextjs/cloudflare 1.20.6. New disposable Postgres/network per R2.0
+# below (round 1's were already torn down before this round started).
+
+## R2.0 Setup
+
+Disposable Postgres `p00-i21r2-pg` (postgres:17-alpine) on network
+`p00-i21r2-net`. `pnpm migrate`: exit 0. Seeded one published RuntimeProbe
+document the same way as round 1 (`pnpm dev` + `first-register`/`login`/
+`POST /api/runtime-probe` with `Authorization: JWT <token>`): probe id
+`b6ea9044-e119-49a2-92e4-d58631d062a4`.
+
+## R2.1 Revert the dynamic import
+
+`worker-entry.ts`: `import openNextWorker from 'open-next-worker'` restored
+as a static top-level import; `fetch` is synchronous again (no `async`, no
+`await import(...)`). Kept: the early `POST /api/revalidate` gate (404 unset
+secret / 401 wrong bearer, `isAuthorizedRevalidateRequest`), the `WorkerEnv`
+type widening for `REVALIDATE_SECRET`, and `tests/unit/worker-entry.test.ts`.
+Removed the round-1 comment paragraph justifying deferral; replaced with a
+short note recording that it was tried and rejected, pointing at this file
+for the evidence.
+
+`tests/unit/worker-entry.test.ts` needed one change to keep working: with a
+static top-level `import openNextWorker from 'open-next-worker'` restored,
+importing `worker-entry.ts` under vitest now fails module resolution
+immediately (that specifier only resolves through wrangler's build-time
+alias), even for test cases that never reach the fallthrough branch. Added
+`vi.mock('open-next-worker', () => ({ default: { fetch: vi.fn() } }))` before
+the `import('../../worker-entry')` (now a top-level `await import`, since the
+mock must be registered first). The mock is never actually invoked by any of
+the 5 cases -- they all return before reaching `openNextWorker.fetch`.
+
+`pnpm typecheck`: exit 0. `pnpm run test` (vitest): 3 files, 27 tests, all
+passed, immediately after this change (checked before moving on to R2.2/R2.3,
+not just at the end).
+
+## R2.2 Bundle composition (esbuild metafile)
+
+`npx wrangler deploy --dry-run --metafile=./worker-bundle-meta.json` against
+the reverted (static-import, admin/API included) build: this produced a
+metafile for wrangler's own esbuild pass (`worker-entry.ts` + the aliased
+`.open-next/worker.js`), only 72 inputs -- wrangler sees `.open-next/worker.js`
+as a single opaque pre-bundled file, so it cannot show per-npm-package
+composition. Used `.open-next/server-functions/default/handler.mjs.meta.json`
+instead (OpenNext's own esbuild pass that actually bundles Next.js/Payload's
+dependency tree into `handler.mjs`) -- same file I20 already used for the same
+reason. 854 inputs, one output, total 19.26 MiB `bytesInOutput` across 854
+files (`handler-meta-before.json`, not retained past this task).
+
+Top 15 by `node_modules` package (by `bytesInOutput`, summed across every
+file whose path matches that package, `.pnpm` virtual-store paths resolved to
+the real package name):
+
+  16197.4 KiB  (app code -- Next's own compiled .next/server/... chunk files;
+                see below, this is not raw node_modules source)
+   2611.1 KiB  next
+    404.8 KiB  graphql
+    209.2 KiB  react-dom
+     55.6 KiB  pg
+     33.1 KiB  pino
+     29.2 KiB  pino-pretty
+     19.5 KiB  pg-protocol
+     14.7 KiB  react
+     12.9 KiB  safe-stable-stringify
+     12.0 KiB  thread-stream
+     11.5 KiB  styled-jsx
+     11.0 KiB  sonic-boom
+     10.1 KiB  pg-types
+      9.2 KiB  pg-pool
+
+Which route/entry pulls each in: traced by reading each package's forward
+import graph (`m.inputs[file].imports[].path`, breadth-first from each
+route's compiled entry file -- `.next/server/app/.../page.js` or `route.js`)
+for all 6 non-trivial route entries (admin, api/[...slug], api/graphql,
+api/graphql-playground, the public probe page, api/health, api/revalidate).
+Result: every one of the top 15 packages, and 666 of 667 files total, is
+reachable from every one of the 7 traced routes -- admin's reachable set and
+the public probe page's reachable set differ by exactly one file each (each
+route's own entry file). `react-dom` and `styled-jsx` were the only two of
+the top 15 not reached by this BFS from any of the 7 named entries, i.e.
+wired in some other way (React's own runtime bootstrapping, not traced
+further).
+
+This BFS predicted almost no separable admin-only weight -- every route
+touches `@payload-config`, which touches every collection and the full
+Postgres/GraphQL/logging stack regardless of whether that route is
+admin-shaped. R2.3 measured a 55.8% size reduction from excluding the
+admin/API routes, which contradicts this prediction -- recorded here as a
+real discrepancy, not smoothed over. Most likely explanation, not fully
+confirmed: OpenNext's default single-function build bundles every route into
+one `handler.mjs` with no true per-route code splitting, so Turbopack's own
+prior chunking (which the esbuild pass here just re-bundles) had already
+merged shared dependencies into a small number of very large chunk files
+before this metafile's import graph was even generated, and this BFS chases
+static import edges between those already-merged chunks -- which mostly
+prove "the whole merged graph is one component", not the same thing as "how
+much of a route's own dead code was in that graph before Turbopack merged
+it." The two pairs of near-identical, ~2.3-2.4 MiB chunk files mentioned
+below were reachable from all 7 routes in this metafile, yet excluding
+admin/API still removed roughly half the bundle -- so at least one member of
+each pair must have been admin/API-only code Turbopack packaged into a
+shared-looking chunk name, not actually shared at the file level this BFS
+could see. Not resolved further; flagged as a limit of this method, not
+papered over.
+
+Largest individual "(app code)" files (303 files, 15.82 MiB of the 19.26 MiB
+total) -- this reproduces I20's already-flagged "Payload compiled twice"
+finding with the exact file names this time:
+
+   2372.5 KiB  .../chunks/ssr/_1tx4x-r._.js
+   2372.5 KiB  .../chunks/ssr/_0r1rrh-._.js
+   2314.9 KiB  .../chunks/_0sah7xn._.js
+   2314.9 KiB  .../chunks/_1ed31g_._.js
+   1391.4 KiB  .../chunks/ssr/node_modules__pnpm_0tkk6v4._.js
+    687.5 KiB  .../chunks/ssr/node_modules__pnpm_02ibt6f._.js
+    438.6 KiB  .../chunks/ssr/_0qi4h_s._.js
+    400.9 KiB  .../chunks/ssr/node_modules__pnpm_1gev9hl._.js
+    246.5 KiB  .../chunks/ssr/[root-of-the-server]__1-v052v._.js
+    166.3 KiB  .../chunks/_1x5q8qf._.js
+    165.4 KiB  .../chunks/ssr/1mv1_next_dist_0zrv65d._.js
+    160.6 KiB  .../chunks/ssr/0ty6_@payloadcms_richtext-lexical_..._chunk-QAW5QKEM_....js
+
+The two ~2.37 MiB and two ~2.31 MiB near-duplicate pairs alone are ~9.15 MiB
+-- about 47% of the whole bundle.
+
+## R2.3 Experiment: exclude Payload's admin/API routes from only the Worker build
+
+Mechanism, verified from installed Next 16.3.5 source before writing any
+code (not assumed): `node_modules/next/dist/build/route-discovery.js`'s
+`createPagesMapping` is called with `pagesType: PAGE_TYPES.APP` and the
+configured `pageExtensions` for the app directory scan, and
+`node_modules/next/dist/server/lib/find-page-file.js`'s
+`createValidFileMatcher(pageExtensions, appDirPath)` builds its `page`/
+`layout`/`route`/`not-found` regexes directly from that extension list
+(matched against the full relative path regardless of nesting depth). The
+official docs
+(https://nextjs.org/docs/app/api-reference/config/next-config-js/pageExtensions,
+version 16.3.5, fetched 2026-09-23) describe this option only in terms of
+the Pages Router, which is stale/incomplete relative to the source -- the
+source is what this change relies on, and it was confirmed empirically too
+(below).
+
+Changed:
+- `src/app/(payload)/layout.tsx` -> `layout.admin.tsx`
+- `src/app/(payload)/admin/[[...segments]]/page.tsx` -> `page.admin.tsx`
+- `src/app/(payload)/admin/[[...segments]]/not-found.tsx` -> `not-found.admin.tsx`
+- `src/app/(payload)/api/[...slug]/route.ts` -> `route.admin.ts`
+- `src/app/(payload)/api/graphql/route.ts` -> `route.admin.ts`
+- `src/app/(payload)/api/graphql-playground/route.ts` -> `route.admin.ts`
+- `src/app/(payload)/admin/importMap.js` left unchanged, as instructed --
+  none of the renamed files' relative imports of it changed, since only the
+  leaf filename changed, not the directory.
+- `next.config.ts`: added a `pageExtensions` entry, base extensions
+  (tsx/ts/jsx/js) restated plus `admin.tsx`/`admin.ts`, conditioned on
+  `process.env.WORKER_BUILD === '1'` to drop the `admin.*` pair (setting
+  `pageExtensions` replaces Next's default list rather than merging with it
+  -- confirmed from `node_modules/next/dist/server/config-shared.js`'s own
+  default).
+- `package.json`: `"build:worker": "WORKER_BUILD=1 opennextjs-cloudflare build"`.
+
+Proof the mechanism works, both directions:
+
+  $ PAYLOAD_SECRET=throwaway-build-secret pnpm build        (WORKER_BUILD unset)
+  Route (app): /, /_not-found, /admin/[[...segments]], /api/[...slug],
+    /api/graphql, /api/graphql-playground, /api/health, /api/revalidate,
+    /probe/[id]            <- unchanged, all 9 routes present
+
+  $ PAYLOAD_SECRET=throwaway-build-secret pnpm build:worker  (WORKER_BUILD=1)
+  Route (app): /, /_not-found, /api/health, /api/revalidate, /probe/[id]
+    <- admin + all 4 Payload API routes gone, exactly as intended
+
+  Also: the two esbuild warnings present in every round-1 build
+  ("direct eval", `typeof x === "null"`) are gone from this build -- both
+  traced (round 1, section 3) to code paths only reachable through the
+  admin/GraphQL routes.
+
+Node target still works (Docker-equivalent, no Worker code):
+
+  $ PAYLOAD_SECRET=throwaway-build-secret pnpm build; node .next/standalone/server.js
+  GET /admin/login  -> 200, 50617-byte body (the real rendered login page)
+  GET /api/users/me -> 200, {"user":null,"message":"..."} (Payload's own
+                        REST response, not a 404)
+
+Measurements, same protocol as round 1 (section 1):
+
+`npx wrangler deploy --dry-run`:
+  admin/API included (reverted baseline): Total Upload: 29621.85 KiB / gzip: 6515.00 KiB
+  admin/API excluded:                     Total Upload: 13086.05 KiB / gzip: 2760.35 KiB
+  -16535.80 KiB, -55.8%
+
+`wrangler check startup`, 3 runs each build, back to back, same container:
+  admin/API included: Active 40.1, 41.1, 40.1 ms  (avg 40.6 ms)
+  admin/API excluded: Active 40.1, 38.5, 41.1 ms  (avg 39.9 ms)
+  Ranges overlap almost completely. At this tool's own resolution (~29-31
+  samples over a ~270-530 ms window, ~15-17 ms/sample) there is no
+  measurable difference between a 29.6 MiB and a 13.1 MiB bundle's
+  global-scope evaluation cost. This is a real, somewhat counter-intuitive
+  finding, not a tooling failure: V8 lazily parses/compiles function bodies,
+  so code that is included but never executed mostly only adds cheap
+  pre-parse scanning at load, not full compile time -- which is consistent
+  with, not contradicted by, R2.2's over-50% dead-weight finding.
+
+CDP-profiled first HTTP request to an already-started process (same protocol
+as round 1 sections 1/2b -- attach after "Ready", so this excludes whatever
+startup already ran, and captures only what the first real request itself
+costs), cache HIT on the probe page, admin/API excluded build, 2 independent
+fresh-process samples (a 3rd attempt raced a cache-key change from an
+intervening rebuild and came back a MISS -- discarded, not counted):
+
+  round2-cache-hit.cpuprofile:   samples=74 idle=301.33ms program=21.15ms named-js=11.40ms  non-idle=32.55ms
+  round2-cache-hit-3.cpuprofile: samples=75 idle=245.99ms program=60.07ms named-js=8.95ms   non-idle=69.02ms
+
+Compare against round 1's single admin/API-included sample (section 2b):
+non-idle=27.72ms. The two admin/API-excluded samples (32.55, 69.02 ms) do
+not show a reduction -- one is close to the baseline, the other is over
+double it. Given the run-to-run variance already seen throughout this task
+on this shared container (round 1's own "warm" second-request sample swung
+from 27.72 to 48.48 ms on identical code), two samples cannot support a
+"smaller bundle -> faster first request" claim here, and the direction is,
+if anything, not favourable.
+
+Worker e2e, admin/API excluded build
+(`PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test`): 6/6
+passed -- no behavioural regression from removing the dead routes, since
+`worker-entry.ts` already refused all of them before this change.
+
+## R2.4 Decision: reverted
+
+Per the instruction ("keep the change only if it measurably reduces startup
+or first-request CPU"): it does not. `wrangler check startup`'s repeated,
+back-to-back samples overlap between the two builds; the first-request CPU
+samples show no consistent direction and are, on the limited data available,
+slightly worse rather than better. The 55.8% smaller upload is real and
+would matter for deploy bandwidth/time and for headroom against the
+platform's separate 1-second Worker-startup wall-clock limit, but that is
+not what this task's keep/revert criterion was measuring, and this task does
+not claim it as a CPU win.
+
+Reverted: `git mv` every renamed file back to its original name,
+`next.config.ts`'s `pageExtensions` addition removed, `package.json`'s
+`build:worker` script restored to `opennextjs-cloudflare build`. Confirmed
+byte-identical to the pre-experiment state: `git diff next.config.ts
+package.json` is empty after the revert. Final rebuild reproduced the exact
+reverted baseline: `Total Upload: 29621.85 KiB / gzip: 6515.00 KiB`.
+`pnpm check`: exit 0 (27/27 unit tests). Final e2e run against this exact
+build: 6/6 passed.
+
+The dead-code finding (R2.2/R2.3) is still worth recording for whoever picks
+up bundle-size work next: excluding Payload's admin/API route files removes
+about half the bundle by size, but neither local CPU measurement available
+here shows that size difference turning into a CPU difference -- so the
+already-flagged duplicate-Payload-compile chunks (I20, R2.2) are a stronger
+lead for a future CPU-focused attempt than route-file exclusion is, if one
+is ever made.
+
+## R2.5 Checks, final (reverted) build
+
+  $ pnpm check                       exit 0 (lint, typecheck, check:frozen,
+                                      check:copy, 27/27 unit tests)
+  $ pnpm build:worker                exit 0
+  $ npx wrangler deploy --dry-run    Total Upload: 29621.85 KiB / gzip: 6515.00 KiB
+  $ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test
+    6 passed (2.4s) -- same 6 cases as round 1's final run
+
+## R2.6 Changed files (final, after the R2.4 revert)
+
+  worker-entry.ts                        static import restored; early gate,
+                                          WorkerEnv, and tests kept
+  tests/unit/worker-entry.test.ts        added vi.mock('open-next-worker', ...)
+                                          so it still runs under vitest with a
+                                          static top-level import
+  tests/e2e/runtime.spec.ts              unchanged since round 1
+  artifacts/acceptance/P00/i21-first-request-cpu.txt   this appendix
+
+Not changed in the final diff (touched during the experiment, then reverted
+to identical content): `next.config.ts`, `package.json`,
+`src/app/(payload)/layout.tsx`, `src/app/(payload)/admin/[[...segments]]/
+page.tsx`, `.../not-found.tsx`, `src/app/(payload)/api/[...slug]/route.ts`,
+`src/app/(payload)/api/graphql/route.ts`,
+`src/app/(payload)/api/graphql-playground/route.ts`.
+
+## R2.7 What was verified vs assumed
+
+Verified: `pageExtensions` applies to the App Router (read from installed
+Next 16.3.5 source, not assumed from the Pages-Router-only doc wording);
+setting `pageExtensions` replaces rather than merges Next's default list
+(same source); the rename mechanism actually excludes the routes from the
+Worker build and keeps them everywhere else (both directions built and their
+route tables read); the node target still serves `/admin/login` (200, real
+page body) and `/api/[...slug]` (200, real Payload REST body) with the
+renamed files in place; `wrangler check startup` shows no measurable
+difference across repeated same-container runs; the Worker e2e suite passes
+unchanged on both the experimental and the final reverted build.
+
+Assumed / not resolved: the exact reason the metafile-based reachability
+prediction (R2.2) undercounted the real savings (R2.3) -- flagged as a limit
+of that method, not chased further given this experiment was reverted
+anyway. Whether the -55.8% upload size meaningfully changes real hosted
+startup-time risk (the platform's separate 1-second limit, not the CPU
+metric this task gates on) was not measured -- no hosted call was made.
+
+## R2.8 Cleanup
+
+  $ docker rm -f p00-i21r2-pg
+  $ docker network disconnect p00-i21r2-net anasaq-bundle
+  $ docker network rm p00-i21r2-net
+  $ docker ps -a | grep p00-i21r2        -> (none)
+  $ docker network ls | grep p00-i21r2   -> (none)
+
+`anasaq-bundle` kept. Removed from it: `.dev.vars`, `worker-startup.cpuprofile`,
+`worker-bundle-meta.json`, every `/tmp/*.cpuprofile` and scratch `.mjs`/log
+file this round created. No `wrangler dev`/`workerd`/`next dev`/
+`node server.js` process left running (confirmed via `/proc/*/cmdline` after
+the last kill).

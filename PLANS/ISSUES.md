@@ -1068,7 +1068,43 @@ Options, none chosen:
 3. Accept Workers Paid ($5/month, 30 s CPU default) earlier than E07 planned.
    That breaks the owner's $0 window, so it is the owner's call.
 
-The recommendation is option 1 first, because it is measurable and costs $0. Part 2's
+The recommendation is option 1 first, because it is measurable and costs $0.
+
+**Option 1 explored, 2026-09-23. It did not close the gap.** The evidence is
+in `artifacts/acceptance/P00/i21-first-request-cpu.txt`.
+
+Kept:
+
+- `worker-entry.ts` now refuses `POST /api/revalidate` itself, before
+  OpenNext: 404 when `REVALIDATE_SECRET` is unset, and 401 with a constant-time
+  check when the secret is wrong. A refused call no longer loads the Next route,
+  which cost 118 ms hosted. The route keeps its own check as defence in depth.
+
+Rejected on measurement:
+
+- **Deferring the OpenNext import** (`await import`). Startup stayed flat
+  (44.0 → 46.3 ms, `wrangler check startup`), and the local first cache hit
+  went from 28 to 78 ms. It moves module evaluation into the metered request,
+  so the static import was restored.
+- **Building the Worker without the Payload admin/API route group.** The
+  mechanism was a `pageExtensions` switch set only by `build:worker`.
+  - The upload shrank from 29,622 to 13,086 KiB (−55.8%).
+  - Startup did not change: 40.1, 41.1 and 40.1 ms against 40.1, 38.5 and
+    41.1 ms, three runs each.
+  - Two first-request samples (32.6 and 69.0 ms) were not lower than the
+    27.7 ms baseline.
+  - It was reverted, per the rule "keep only if CPU measurably drops".
+  - The mechanism is proven and recorded if a later reason to shrink appears.
+
+Conclusion: locally, bundle size is not what drives the first-request cost.
+The sampled startup profile is dominated by `(program)` and the Node-compat
+shims (`internal_process`, `https`, `tls`, `fs`, `zlib`). Hosted isolates
+could behave differently, and no hosted A/B has been run.
+
+**What remains is option 2 or 3, and both are owner decisions.** A third,
+unmeasured option is to accept the Free plan's documented tolerance for
+infrequent overruns until real traffic data exists. Its risk is Error 1102 on
+public pages if Cloudflare judges the overruns to be consistent. Part 2's
 Dockerfile uses the same slim base, but it runs `next start` rather than
 workerd; any image that runs wrangler remote mode needs the package.
 
