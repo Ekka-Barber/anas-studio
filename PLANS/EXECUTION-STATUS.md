@@ -77,6 +77,23 @@ produces a warning because `clientUploads` is off. The first scheduled run after
 a boot can take up to 30 minutes, because Payload queues it for the next cron
 slot.
 
+## Owner override, 2026-09-23
+
+The owner authorized work to continue before P00 is accepted: "override the
+plan if it is okay … I approve you to do what you can do till oracle is set".
+This relaxes the P00 gate on dependent work for the period until the VM exists.
+It is not P00 acceptance and not D27 approval.
+
+The risk is accepted and recorded: if a VM proof fails (login, CRUD, R2 or the
+scheduled write), work that depends on the admin may need rework. The public
+page work in P01 depends only on the Worker path already proven in I20.
+
+The first use of the override is P01 content preparation. Anas's page texts and
+media from the WhatsApp chat, 21–23 September, are sorted into
+`BOOK_ASSETS/SORTED_2026-09-21/`, which is git-excluded and so not committed. The
+texts are copied verbatim into `CONTENT.md` in that folder, together with the
+questions for Anas.
+
 ## Package ledger
 
 | Package | Status | Evidence |
