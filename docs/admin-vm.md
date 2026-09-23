@@ -36,6 +36,14 @@ of them): `JOBS_SECRET`, `TOKEN_HASH_PEPPER`, `MFA_ENCRYPTION_KEY`,
 `TURNSTILE_SECRET_KEY`, `MOYASAR_SECRET_KEY`, `WEBHOOK_SECRET`,
 `PAYMENTS_MODE`, `SENTRY_DSN`.
 
+**Not yet copied — `deploy.sh`'s `env_keys` allowlist needs these two added**
+(I20/D27; noted here for the orchestrator, not edited by this change):
+`SITE_URL` and `REVALIDATE_SECRET`. Both are optional on the VM — the
+RuntimeProbe `afterChange`/`afterDelete` hook (`src/lib/revalidate.ts`) that
+needs them logs and skips instead of failing the save when either is unset —
+but without them the node admin can never tell the public Worker to
+invalidate its cache after a save.
+
 ## One-time VM setup
 
 ```sh

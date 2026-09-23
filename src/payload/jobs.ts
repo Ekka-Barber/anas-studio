@@ -1,6 +1,6 @@
 import type { JobsConfig, TaskConfig } from 'payload'
 
-import { isNodeRuntimeTarget } from '../lib/env'
+import { isNodeRuntimeTarget, secretsMatch } from '../lib/env'
 import { RUNTIME_PROBE_SLUG } from './collections/RuntimeProbe'
 
 export const PROBE_HEARTBEAT_TASK = 'probeHeartbeat'
@@ -59,18 +59,6 @@ const probeHeartbeat: TaskConfig<'probeHeartbeat'> = {
 
     return { output: { probeId: String(doc.id), ranAt, updated: true } }
   },
-}
-
-/** Length-independent comparison, so a wrong secret leaks no timing signal. */
-function secretsMatch(provided: string, expected: string): boolean {
-  const a = new TextEncoder().encode(provided)
-  const b = new TextEncoder().encode(expected)
-  let diff = a.length ^ b.length
-  const length = Math.max(a.length, b.length)
-  for (let i = 0; i < length; i++) {
-    diff |= (a[i] ?? 0) ^ (b[i] ?? 0)
-  }
-  return diff === 0
 }
 
 /**

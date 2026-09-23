@@ -26,7 +26,7 @@
     "migrate:create": "payload migrate:create",
     "generate:types": "payload generate:types",
     "generate:schema": "payload generate:db-schema",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types cloudflare-env.d.ts --env-interface CloudflareEnv --env-file=wrangler-empty.env"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.90.1",

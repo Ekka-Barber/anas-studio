@@ -386,3 +386,14 @@ Additional open items from the local half:
   Linux path is the only one proven.
 - The `RuntimeProbe` collection, its media collection and the `probeHeartbeat`
   task are spike scaffolding and are removed once this evidence is retained.
+
+## I20/D27 — Worker-side caching and the admin split
+
+Everything above predates D27 (admin moved to a Node VM) and I20 (the public
+route measurement was taken on a page with no data). The Worker's `scheduled`
+handler, the "route precedence" table's `/api/users/me` and
+`/api/runtime-probe` examples, and the `SITE_URL`/`JOBS_SECRET` descriptions
+above are all superseded by that later work, not retroactively edited here —
+this document stays what it was when it was written. The current state is in
+`docs/development.md`, `docs/admin-vm.md`, and
+`artifacts/acceptance/P00/i20-public-read-path.txt`.

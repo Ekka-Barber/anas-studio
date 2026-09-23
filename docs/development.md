@@ -38,11 +38,20 @@ What each variable is for:
   a request.
 - `PAYLOAD_SECRET` — required whenever the Payload config is loaded. `next build`
   loads it while collecting page data, so a build fails without it.
-- `SITE_URL` — the site's own origin. The Worker's `scheduled` handler builds its
-  job-run request against it, so in local preview it must be the preview origin
-  (`http://127.0.0.1:8787`), not the production domain.
-- `JOBS_SECRET` — bearer secret for `GET /api/payload-jobs/run`. Without it the
-  bearer path does not exist and the scheduled handler refuses to run at all.
+- `SITE_URL` — the Worker's own origin. It is Payload's `serverURL` on that
+  target, and it is also the origin the node admin target's revalidation hook
+  calls back into (`src/lib/revalidate.ts`), so in local preview it must be the
+  preview origin (`http://127.0.0.1:8787`), not the production domain.
+- `JOBS_SECRET` — bearer secret for `GET /api/payload-jobs/run`
+  (`src/payload/jobs.ts`). I19/D27: the Worker no longer calls this path at all
+  (there is no `scheduled` handler, and `worker-entry.ts` refuses `/api/*`
+  except `/api/health` and `POST /api/revalidate`) — scheduled jobs run on the
+  node admin target's own `autoRun` timer instead. The bearer path still exists
+  for a manual/ops trigger against the node admin directly.
+- `REVALIDATE_SECRET` — bearer secret for `POST /api/revalidate` (I20/D27). The
+  Worker checks it; the node admin target sends it when a RuntimeProbe save or
+  delete needs the public cache invalidated. Unset on either side means no open
+  fallback — the endpoint does not exist, or the hook logs and skips.
 - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` — the database that
   wrangler points the `HYPERDRIVE` binding at during local development. Set it to
   the local container, never to a hosted database.
@@ -107,11 +116,17 @@ pnpm build:worker
 pnpm preview:worker     # http://127.0.0.1:8787
 ```
 
-`preview:worker` needs `.dev.vars` (at minimum `SITE_URL`, `PAYLOAD_SECRET`,
-`JOBS_SECRET`) and the Hyperdrive local connection string in the environment.
+`preview:worker` needs `.dev.vars` (at minimum `SITE_URL`, `PAYLOAD_SECRET`)
+and the Hyperdrive local connection string in the environment. It also runs
+`opennextjs-cloudflare`'s own `populateCache` step first (local target): this
+creates the D1 `revalidations` table used by the tag cache in wrangler's local
+D1 simulation and uploads the built static/ISR cache entries to the local R2
+simulation, before `wrangler dev` starts — see
+`node_modules/@opennextjs/cloudflare/dist/cli/commands/{preview,populate-cache}.js`.
 
-Cron behaviour can be exercised locally: `wrangler dev` exposes the Worker's
-`scheduled` handler at `GET /cdn-cgi/handler/scheduled?cron=*/15+*+*+*+*`.
+There is no Worker `scheduled` handler any more (I19/D27): scheduled jobs run
+on the node admin target's own `autoRun` timer instead, which only this
+repository's Docker image/VM runs.
 
 ### Running the preview in a Linux container
 

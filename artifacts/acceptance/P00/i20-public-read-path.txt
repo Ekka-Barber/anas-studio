@@ -1,0 +1,756 @@
+# I20 + D27 (Worker side) — public read path with R2/D1 on-demand cache: evidence
+# Build and local-proof only. No deploy, no Cloudflare API calls, no R2/D1
+# resources created. Nothing was read from .env; throwaway values only.
+
+recorded_utc: 2026-09-23
+
+## 1. What changed and why (summary; full reasoning is in code comments)
+
+- `open-next.config.ts`: `r2-incremental-cache` + `d1-next-tag-cache`,
+  `enableCacheInterception: true`, no queue, no regional cache, no cache
+  purge, no `WORKER_SELF_REFERENCE`. Reasoning and citations are in the
+  file's own doc comment (fetched https://opennext.js.org/cloudflare/caching
+  2026-09-23; installed source under
+  `node_modules/@opennextjs/cloudflare/dist/api/overrides/`).
+- `wrangler.jsonc`: added `r2_buckets` entry `NEXT_INC_CACHE_R2_BUCKET` ->
+  `anas-studio-next-cache` (no id needed for R2), `d1_databases` entry
+  `NEXT_TAG_CACHE_D1` -> `anas-studio-tag-cache` with `database_id:
+  "TODO-orchestrator"`. Removed `triggers.crons`. Added var
+  `ADMIN_URL: "https://admin.anas.studio"`. `SITE_URL`, Hyperdrive and the
+  media `R2` binding unchanged.
+- `worker-entry.ts`: deleted `scheduled` and its `JOBS_SECRET` handling.
+  `fetch` now redirects `/admin`+`/admin/*` (308, same path+query) to
+  `ADMIN_URL`, and refuses `/api/*` (404) except `/api/health` and
+  `POST /api/revalidate`.
+- `src/payload/collections/RuntimeProbe.ts`: `read` access changed from
+  `Boolean(req.user)` to `req.user ? true : { _status: { equals: 'published' }
+  }` — the only access change; `readVersions` untouched (owner-only). Added
+  `afterChange`/`afterDelete` hooks, node-target only, that call
+  `notifyRevalidate` (fire-and-forget, never blocks the save).
+- `src/lib/env.ts`: added `secretsMatch` (same pattern as the private one in
+  `src/payload/jobs.ts`, which is out of this task's write scope — see the
+  task's own instruction to duplicate rather than edit `jobs.ts`).
+- `src/lib/revalidate.ts` (new): `isAuthorizedRevalidateRequest`,
+  `parseRevalidatePayload`, `runtimeProbeTag`, `notifyRevalidate`.
+- `src/app/api/revalidate/route.ts` (new): `POST` only; 404 with no
+  `REVALIDATE_SECRET` configured; 401 on bad/missing bearer; 400 on missing
+  or invalid JSON body; calls `revalidateTag(tag, { expire: 0 })` and
+  `revalidatePath(path)` — see section 4 for why `{ expire: 0 }` and not the
+  deprecation warning's suggested `'max'`.
+- `src/app/(public)/probe/[id]/page.tsx` (new): reads one document by id
+  through the Payload Local API (`overrideAccess: false`, no user), wrapped in
+  `unstable_cache` keyed and tagged per id, `notFound()` on anything the
+  access constraint excludes or that does not exist. Includes
+  `generateStaticParams() { return [] }` — see section 3, this is load-bearing.
+- `.env.example`: added `REVALIDATE_SECRET`.
+- `docs/admin-vm.md`, `docs/development.md`, `docs/runtime-spike.md`: updated
+  for the new contract; `docs/admin-vm.md` flags `deploy.sh`'s `env_keys`
+  allowlist needing `SITE_URL` and `REVALIDATE_SECRET` added (not edited here,
+  per the task).
+- `cloudflare-env.d.ts`: regenerated via `wrangler types` with an explicit
+  empty `--env-file` — see section 2, this is also load-bearing.
+
+## 2. A real leak caught while regenerating `cloudflare-env.d.ts`
+
+`pnpm cf-typegen`'s actual script (`package.json`) is
+`wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts`, with no
+`--env-file` flag. Run exactly that on this machine and it pulls in every key
+name from this machine's local `.dev.vars`/`.env` discovery — not values, but
+names — into the *committed* type file: `CLOUDFLARE_API_TOKEN`,
+`SUPABASE_DB_PASSWORD`, `SENTRY_SETUP_RUN_CODE`, `UPTIMEROBOT_API_KEY`,
+`P00_OWNER_PASSWORD`, and more, none of which are declared in `wrangler.jsonc`.
+Confirmed by actually running it and reading the diff, not assumed. The
+previous committed file's own header comment ("run with an empty --env-file
+so that local .env names are not declared as Worker bindings") records that
+whoever generated it before hit the same thing and worked around it by hand;
+`package.json`'s script itself was never fixed and is not in this task's
+write scope (shared manifest). Regenerated instead with:
+
+  wrangler types cloudflare-env.d.ts --env-interface CloudflareEnv \
+    --env-file=<path to an empty scratch file>
+
+Result: only `SITE_URL` and `ADMIN_URL` appear (both declared in
+`wrangler.jsonc`'s `vars`), matching what a clean build should produce. The
+leading comment line was hand-edited afterward to remove the session-specific
+scratch path and restate the reason, mirroring the prior file's own comment
+style. **Remaining risk, flagged for the orchestrator:** `pnpm cf-typegen` as
+written in `package.json` is a live footgun — anyone who runs it bare on a
+machine with a populated `.dev.vars`/`.env` will silently commit local secret
+*names* into a tracked file. Fixing `package.json`'s script is outside this
+task's allowlist.
+
+## 3. A real bug caught by building, not assumed: `generateStaticParams`
+
+First `pnpm build:worker` (before adding `generateStaticParams`) produced:
+
+  Route (app)
+  ...
+  └ ƒ /probe/[id]
+
+`ƒ` = "server-rendered on demand" — plain SSR, not ISR. Read
+`.next/prerender-manifest.json` after that build: `dynamicRoutes: []` — the
+probe route was NOT in it. Cross-checked against
+`node_modules/@opennextjs/aws/.../core/routing/cacheInterceptor.js`'s `isISR`
+check, which only intercepts a path listed in `PrerenderManifest.routes` or
+matching `dynamicRoutes`' regex. Left as originally written, the R2/D1 cache
+would never have been consulted for this route at all — every request would
+still boot Payload, the exact CPU cost I20 exists to fix, silently
+unfixed.
+
+Root cause: in App Router, a dynamic segment page with no
+`generateStaticParams` at all is fully dynamic by default; the manifest entry
+that makes ISR-with-fallback caching possible only appears once
+`generateStaticParams` is defined, even if it returns `[]`. Added
+`export async function generateStaticParams() { return [] }` to
+`src/app/(public)/probe/[id]/page.tsx`. Rebuilt:
+
+  Route (app)
+  ...
+  └ ● /probe/[id]
+
+`●` = SSG ("uses generateStaticParams"). `prerender-manifest.json` afterward:
+
+  "dynamicRoutes": { "/probe/[id]": { "fallback": null, ... } }
+
+`fallback: null` is Next's "blocking fallback" — first visit to any id
+renders on demand and is then cached; nothing is pre-rendered at build time.
+Confirmed working end to end in section 5.
+
+## 4. A real bug caught by testing, not assumed: `revalidateTag`'s new required second argument
+
+`pnpm typecheck` failed first:
+
+  src/app/api/revalidate/route.ts(51,35): error TS2554: Expected 2 arguments, but got 1.
+
+`node_modules/next/dist/server/web/spec-extension/revalidate.d.ts`:
+`revalidateTag(tag: string, profile: string | CacheLifeConfig): undefined` —
+Next 16 made the second argument required (a "cache life" profile). The
+runtime implementation
+(`node_modules/next/dist/server/web/spec-extension/revalidate.js`) still
+warns-and-continues without it ("`revalidateTag` without the second argument
+is now deprecated, add second argument of `max` or use `updateTag`"), so this
+was a real behaviour change to account for, not just a type error.
+`updateTag` is not usable here — "can only be called from within a Server
+Action", and this is a Route Handler.
+
+First fix: `revalidateTag(tag, 'max')`, following the deprecation warning's
+own suggestion. Typechecked and built clean, so it shipped to the first local
+proof — and failed the proof. Editing a published document's title directly
+in Postgres, calling `POST /api/revalidate` with the correct secret, then
+re-requesting the page still returned the *old* title on the very next
+request (`x-opennext-cache` header absent, meaning it fell through to the
+real Next.js server, which then still served stale content).
+
+Root-caused by reading, not guessing:
+`node_modules/@opennextjs/cloudflare/dist/api/overrides/tag-cache/d1-next-tag-cache.js`'s
+`hasBeenRevalidated`: `if (expire != null) return expire <= now && expire >
+lastModified`. `'max'` writes a `stale`/`expire` window roughly a year in the
+future (`next/dist/server/config-shared.js`'s `cacheLife.max`:
+`revalidate: 30d, expire: 365d`), so `expire <= now` is false — the tag cache
+answers "not revalidated" even though it was, and the entry only qualifies
+for the *soft* `isStale` (stale-while-revalidate) path, which tries to queue
+a background refresh via `globalThis.queue.send(...)`
+(`cacheInterceptor.js`) — this app has no queue configured (by design, see
+section on `open-next.config.ts`), so that call has nothing to do and the
+page keeps serving the old value with no way to catch up.
+
+Fix: `revalidateTag(tag, { expire: 0 })`. `@opennextjs/aws`
+`adapters/cache.js`'s own `revalidateTag` comment: "Immediate expiration,
+default behavior before next 16, now only with `{expire: 0}`" — this is the
+literal replacement for the pre-Next-16 default (immediate, hard, no-queue
+invalidation), not `'max'`, which is a different, SWR-flavoured semantic the
+deprecation message also offers but that does not fit an app with no queue.
+Re-tested (section 5): the very next request after revalidate now shows the
+new title.
+
+## 5. Local proof: `pnpm preview:worker` (wrangler dev) against a disposable local Postgres
+
+Container: `anasaq-bundle` (`node:24-bookworm-slim`, pre-existing, synced with
+the current working tree via `tar` — node_modules reused, `pnpm install
+--frozen-lockfile` run once since the container's copy predated
+`@payloadcms/storage-s3` in `pnpm-lock.yaml`). A leftover `opennextjs-cloudflare
+preview`/`wrangler dev`/`workerd` process chain from an earlier, unrelated
+session was found still running and bound to port 8787 in this same
+container (PIDs discovered by hand-walking `/proc/*/cmdline`, no `ps` in the
+slim image); killed before starting anything of mine, and confirmed the port
+was free first. Disposable Postgres: `p00-i20-pg` (`postgres:17-alpine`) on a
+throwaway network `p00-i20-net`. Both containers and the network were
+removed at the end (see section 8).
+
+Commands and exit codes, in order:
+
+  $ pnpm build (container, PAYLOAD_SECRET=throwaway-build-secret)
+    exit 0 — route table showed `● /probe/[id]` (see section 3)
+
+  $ pnpm build:worker (same env)
+    exit 0 — `.open-next/worker.js` produced
+
+  $ npx wrangler deploy --dry-run
+    Total Upload: 29617.01 KiB / gzip: 6513.69 KiB
+
+    Compared against the same container/toolchain, not just the recorded
+    25338.23 KiB baseline number: `git archive e0d6464` extracted to a
+    sibling directory (`/app-baseline`) in the same container, same
+    node_modules, same build/dry-run commands, gave `Total Upload: 25338.32
+    KiB` — 0.09 KiB from the recorded baseline, noise. So the real delta from
+    this task's changes is +4278.69 KiB uncompressed (+16.9%), not the ~3 KiB
+    "immaterial" kind of change I19 saw for the same command.
+
+    Root-caused with the esbuild metafile
+    (`.open-next/server-functions/default/handler.mjs.meta.json`, produced by
+    both builds) rather than left as an unexplained number: diffing
+    `inputs` between the two metafiles, the added modules include two pairs
+    of near-identical-size new chunks (~2.23 MiB x2, ~2.17 MiB x2 — each pair
+    byte-for-byte the same size). Grepping one of them shows `payload.config.js`,
+    `importMap.js`, and Postgres/Drizzle/Lexical-related strings — this is
+    Payload's own dependency tree, compiled a *second* time. Cause: the new
+    probe page is the first Server Component (not a Route Handler) to import
+    the Payload Local API; Next/Turbopack builds Route Handlers and page
+    (RSC/SSR) components in separate module "layers", each with their own
+    instantiation of a shared heavy dependency, so importing Payload from a
+    page duplicates it into a second copy rather than sharing the one
+    Route Handlers already pull in. This is a one-time layer cost, not a
+    per-page one — a second Payload-backed public page would not double it
+    again, since it would share the same page-layer copy. Still real and
+    still worth flagging: **remaining risk for P01+**, where public pages
+    reading Payload data will be the norm, not a one-off spike route. Not
+    investigated further to a fix in this task (out of scope; the budget
+    still has ~55% headroom against the 64 MiB Workers limit — see
+    `developers.cloudflare.com/workers/platform/limits/`, the same figure
+    already verified in `docs/runtime-spike.md` on 2026-09-22 and not
+    re-fetched here since nothing suggested it changed).
+
+    Both dry-run measurements were run in the same container as bindings
+    that do not exist yet (`NEXT_INC_CACHE_R2_BUCKET`, `NEXT_TAG_CACHE_D1`),
+    which `wrangler deploy --dry-run` does not need to resolve for real —
+    it only reads `wrangler.jsonc`'s declared binding *names*, and prints
+    them in its own binding table, reproduced below:
+
+      env.NEXT_TAG_CACHE_D1 (anas-studio-tag-cache)     D1 Database
+      env.HYPERDRIVE (f93334ce5f554313b81ed0afdb003461) Hyperdrive Config
+      env.R2 (anas-studio-media-test)                   R2 Bucket
+      env.NEXT_INC_CACHE_R2_BUCKET (anas-studio-next-cache) R2 Bucket
+      env.ASSETS                                        Assets
+      env.SITE_URL ("https://anas-studio.anas-studio.worke...") Environment Variable
+      env.ADMIN_URL ("https://admin.anas.studio")       Environment Variable
+
+  $ pnpm migrate (DATABASE_URL -> p00-i20-pg, PAYLOAD_SECRET=throwaway)
+    exit 0 — "Migrated: 20260922_031113_initial (307ms)"
+
+  Seeded one published and one draft RuntimeProbe document. Not via SQL and
+  not via `payload run` (the latter has a known, documented defect —
+  `docs/runtime-spike.md` — that silently exits mid-import; not re-litigated
+  here). Instead: ran `pnpm dev` (plain Next dev server, not the Worker;
+  `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` pointed at the
+  same disposable Postgres) against the same database, used
+  `POST /api/users/first-register` + `POST /api/users/login` +
+  `POST /api/runtime-probe` (once with `_status: published`, once with
+  `_status: draft`) over real HTTP, then stopped `pnpm dev`. This is
+  legitimate because the Worker's login refusal is `worker-entry.ts`-only —
+  `next dev` never runs that file — and it reuses the same working pattern
+  the I19 evidence already used for the same reason (owner bootstrap).
+
+    REGISTER 200, LOGIN 200
+    PUBLISHED 201, id 91364c58-6fb6-4a2f-89eb-9591e4e2578b
+    DRAFT     201, id 1e5e1429-1c13-4ef6-9045-671adf3a00e1
+
+  $ pnpm preview:worker -- --ip 0.0.0.0 --port 8787
+    (CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE -> p00-i20-pg;
+    .dev.vars in the container only, never committed, never printed:
+    PAYLOAD_SECRET, REVALIDATE_SECRET, both throwaway)
+
+    "Populating local R2 incremental cache... Successfully populated cache
+    with 3 entries" and "Creating D1 table if necessary... Successfully
+    created D1 table" — both printed automatically by
+    `opennextjs-cloudflare preview` before `wrangler dev` starts (calls its
+    own `populateCache` command, local target — see
+    `node_modules/@opennextjs/cloudflare/dist/cli/commands/{preview,populate-cache}.js`).
+    This is the answer to "how does the D1 `revalidations` table get
+    created": the `opennextjs-cloudflare` CLI's own `deploy`/`upload`/
+    `preview` commands run it, via `wrangler d1 execute ... --command
+    "CREATE TABLE IF NOT EXISTS revalidations (tag TEXT NOT NULL,
+    revalidatedAt INTEGER NOT NULL, stale INTEGER, expire INTEGER default
+    NULL, UNIQUE(tag) ON CONFLICT REPLACE);"` — never a migration in this
+    repository. See section 7 for what the orchestrator's real deploy needs
+    to run.
+
+    `Ready on http://0.0.0.0:8787`
+
+  Proof requests (all against the running preview, from inside the same
+  container — `curl` is absent from this slim image, used `node -e
+  "fetch(...)"` instead):
+
+    GET  /api/health                         -> 200
+    POST /api/users/login (no body)          -> 404
+    GET  /admin                              -> 308, Location:
+      https://admin.anas.studio/admin
+    GET  /admin/collections/runtime-probe?limit=1 -> 308, Location:
+      https://admin.anas.studio/admin/collections/runtime-probe?limit=1
+    GET  /probe/<published-id> (1st)         -> 200, x-opennext-cache: (absent)
+      body contains "فحص منشور I20"
+    GET  /probe/<published-id> (2nd)         -> 200, x-opennext-cache: HIT
+    GET  /probe/<draft-id>                   -> 404
+    GET  /probe/00000000-0000-0000-0000-000000000000 -> 404
+
+    UPDATE cms.runtime_probe SET title = '... — معدّل' WHERE id =
+      '<published-id>'  (direct SQL against p00-i20-pg; the point of this
+      step is that the cache does NOT see it yet)
+
+    GET  /probe/<published-id> (before revalidate) -> 200, x-opennext-cache:
+      HIT, old title only (confirms the cache, not the database, is what a
+      visitor sees)
+
+    POST /api/revalidate, no auth              -> 401
+    POST /api/revalidate, wrong bearer         -> 401
+    POST /api/revalidate, right bearer, no body -> 400
+    POST /api/revalidate, right bearer, {}     -> 400
+    POST /api/revalidate, right bearer,
+      {"tags":["not-an-array-would-be-here"]} type-mismatch -> 400
+    GET  /api/revalidate (right path, wrong method) -> 404 (blocked by
+      `worker-entry.ts`, never reaches the route handler)
+    POST /api/revalidate, right bearer,
+      {"tags":["runtime-probe:<published-id>"]} -> 200
+      {"ok":true,"data":{"tags":["runtime-probe:<published-id>"],"paths":[]}}
+
+    GET  /probe/<published-id> (immediately after) -> 200,
+      x-opennext-cache: (absent), NEW title present
+    GET  /probe/<published-id> (again)             -> 200,
+      x-opennext-cache: HIT, NEW title present (now cached fresh)
+
+    POST /api/revalidate, right bearer,
+      {"paths":["/probe/<published-id>"]}        -> 200; next GET also fell
+      through (x-opennext-cache absent) — `revalidatePath` proven separately
+      from `revalidateTag`.
+
+  $ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test
+    (chromium installed fresh in the container for this —
+    `npx playwright install --with-deps chromium`, ~300 MiB download; the
+    suite's tests are almost all `request`-only and would not have needed
+    it, but the first test drives a real `page`)
+
+      6 passed (2.0s)
+      1 public route renders Arabic right-to-left
+      2 GET /admin and /admin/* redirect to the admin origin, same path and query
+      3 /api/* is refused except /api/health and POST /api/revalidate
+      4 GET /api/health answers and leaks no configuration
+      5 POST /api/revalidate rejects a bad or missing secret
+      6 GET /probe/[id] 404s when there is no published document
+
+## 6. What local wrangler dev does and does not prove
+
+Proves: the whole on-demand invalidation loop is wired correctly end to end —
+R2 incremental cache, D1 tag cache, `revalidateTag`/`revalidatePath`, the
+Worker's own routing gate (`/admin` redirect, `/api/*` refusal), and the
+access-control change on `RuntimeProbe.read`, all against the real built
+`.open-next/worker.js` artifact run by `workerd` (the real Workers runtime),
+not `next dev`.
+
+Does not prove: real R2/D1 network latency or quota behaviour (local
+simulation has neither), real Hyperdrive pooling behaviour (Hyperdrive
+itself is bypassed locally in favour of a direct Postgres connection string —
+this was already true and already documented before this task), CPU time on
+a cache hit under production's 10 ms Free limit (not measured here — that is
+hosted-half work, blocked the same way the rest of P00's hosted proofs are:
+no deploy performed), the real `opennextjs-cloudflare deploy`/`upload`
+`populateCache` step against real R2/D1 (only the `local` target was
+exercised, never `remote`), and whether Automatic Cache Purge or a custom
+domain change any of this once `anas.studio` is a real Cloudflare zone
+(deliberately not configured — see `open-next.config.ts`'s comment).
+
+## 7. Deploy notes for the orchestrator (not run)
+
+1. Create the R2 bucket and D1 database, then fill in `wrangler.jsonc`'s two
+   `TODO-orchestrator` placeholders (the D1 `database_id`; the R2 bucket
+   needs no id, just the `bucket_name` already written,
+   `anas-studio-next-cache`).
+2. Set the Worker secret: `wrangler secret put REVALIDATE_SECRET` (in
+   addition to the existing `PAYLOAD_SECRET`; `JOBS_SECRET` is no longer
+   read by anything in the Worker but is still read by
+   `src/payload/jobs.ts`'s `access.run`, out of this task's scope to
+   change).
+3. Deploy with `opennextjs-cloudflare deploy` (or `... upload`), **not** a
+   bare `wrangler deploy`: the adapter's own `deploy`/`upload` commands run
+   `populateCache` (remote target) first, which is what creates the D1
+   `revalidations` table and uploads the static/ISR cache entries to R2 —
+   see section 5's proof. A bare `wrangler deploy` would skip both. This
+   repository's `package.json` has no `deploy:worker` script yet (only
+   `build:worker` and `preview:worker`); adding one is a `package.json`
+   change, out of this task's write scope.
+4. Add `SITE_URL` and `REVALIDATE_SECRET` to
+   `scripts/admin-vm/deploy.sh`'s `env_keys` allowlist, so the node admin
+   target can actually call the Worker's `/api/revalidate` after a
+   RuntimeProbe save/delete (`docs/admin-vm.md` already flags this; the
+   script itself was not edited here per the task).
+5. Re-run `wrangler deploy --dry-run` once real bindings exist and compare
+   Total Upload against 29617.01 KiB (this task's own baseline going
+   forward) — real R2/D1 client libraries are already in this build, so no
+   further change is expected, but it was not verified against real
+   binding ids.
+
+## 8. Cleanup
+
+  $ docker rm -f p00-i20-pg
+  $ docker network disconnect p00-i20-net anasaq-bundle
+  $ docker network rm p00-i20-net
+  $ docker network ls | grep p00-i20   -> (none)
+  $ docker ps -a | grep p00-i20        -> (none)
+
+`anasaq-bundle` itself was kept (pre-existing, shared, not mine to remove) —
+`.dev.vars`, the seed script and preview logs inside it were deleted; the
+one-off `/app-baseline` comparison checkout was deleted; the two
+`opennextjs-cloudflare preview`/`wrangler dev`/`workerd` process chains found
+running in it (one pre-existing from an earlier session, one left over from
+this task's own restart after the port conflict) were both killed — the
+container itself is left with nothing of mine still running. Chromium
+downloaded for the Playwright run was left installed in the container's
+`~/.cache/ms-playwright` (not removed — reusable by whoever runs
+`anasaq-bundle` next; it is cache, not repository content).
+
+## 9. Local host commands (Windows, not the container)
+
+  $ pnpm cf-typegen  -> see section 2 for why this was NOT run as-written;
+    the actual command used is documented there.
+  $ pnpm typecheck   -> exit 0 (after the generateStaticParams and
+    revalidateTag fixes in sections 3–4; failed twice before that, pasted
+    above)
+  $ pnpm lint        -> exit 0, no output
+  $ pnpm test        -> exit 0, 2 files, 22 tests passed
+  $ pnpm check:frozen -> exit 0, 59 files under deploy/ unchanged
+  $ pnpm check:copy  -> exit 0, 22 source files
+  $ pnpm check       -> exit 0 (full pipeline, re-run last after all fixes)
+
+`pnpm build:worker` was not attempted natively on Windows — documented,
+pre-existing EPERM-on-symlink limitation (`docs/runtime-spike.md`), unrelated
+to this task; all builds ran in the Linux container as in every prior P00
+package.
+
+## Remaining risks (summary, cross-referenced above)
+
+- `pnpm cf-typegen` as written can leak local env var *names* into a
+  committed file (section 2) — not fixed, `package.json` out of scope.
+- The Worker bundle grew +4278.69 KiB (+16.9%) from one Payload-reading
+  public page, due to Next/Turbopack's per-layer module duplication
+  (section 5) — still well inside the 64 MiB limit today, but a real cost to
+  watch as P01+ adds more Payload-backed public pages sharing the same page
+  layer (a second such page should not add another full copy, only the
+  first one does).
+- No Automatic Cache Purge and no regional cache — deliberate, both need a
+  Cloudflare zone that does not exist yet (`open-next.config.ts` comment);
+  revisit once `anas.studio` is attached.
+- Real R2/D1 network behaviour, quotas, and CPU-on-cache-hit under the 10 ms
+  Free limit are unproven — hosted-half work, blocked on the orchestrator's
+  deploy (section 6/7).
+- `deploy.sh`'s allowlist gap for `SITE_URL`/`REVALIDATE_SECRET` (section 7,
+  item 4) — the node admin target cannot invalidate the Worker's cache until
+  this is added.
+
+# Round 2 — five bounded follow-ups after audit
+
+recorded_utc: 2026-09-23 (same day, later). Same lock. Write scope widened by
+the coordinator to also include `scripts/admin-vm/deploy.sh`,
+`src/payload/jobs.ts` and `package.json`. Nothing committed by this round
+either; no deploy, no Cloudflare API calls, no resources created — the D1 id
+below was created by the orchestrator, not by this task.
+
+## R2.1 — D1 id and R2 bucket comment (`wrangler.jsonc`)
+
+`d1_databases[0].database_id` set to `b29a8934-b98c-4eec-aa05-22649cab90cc`
+(APAC, created by the orchestrator); the `TODO-orchestrator` placeholder and
+comment removed. `r2_buckets[1]` (`NEXT_INC_CACHE_R2_BUCKET` ->
+`anas-studio-next-cache`) keeps its `bucket_name` unchanged; its comment now
+says the bucket does not exist yet and is created at the owner's deploy step,
+per the coordinator (the orchestrator's own tooling could not create it).
+
+## R2.2 — `deploy.sh` allowlist
+
+Added `SITE_URL` and `REVALIDATE_SECRET` to `env_keys` in
+`scripts/admin-vm/deploy.sh`. Nothing else in the file changed.
+`bash -n scripts/admin-vm/deploy.sh` -> exit 0.
+
+## R2.3 — one `secretsMatch`
+
+`src/payload/jobs.ts` now imports `secretsMatch` from `../lib/env` instead of
+declaring its own private copy (deleted, 10 lines). `mayRunJobs` is
+unchanged apart from the import. `src/lib/env.ts`'s doc comment on
+`secretsMatch` updated to describe both callers (`JOBS_SECRET`,
+`REVALIDATE_SECRET`) instead of explaining why there were two copies.
+`tests/unit/runtime-target.test.ts` (which imports `jobs.ts` transitively)
+and `tests/unit/revalidate.test.ts` (which imports `secretsMatch` from
+`env.ts` directly) both still pass — see the `pnpm check` runs below.
+
+## R2.4 — safe `cf-typegen`, proven on both hosts
+
+Root cause (already described in Round 1 section 2): the old script,
+`wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts`, has no
+`--env-file`, so wrangler auto-discovers this machine's `.dev.vars`/`.env`
+and declares every key name it finds as a Worker binding in the committed
+type file.
+
+Fix: added a tracked, always-empty file `wrangler-empty.env` (not `.env.*`,
+so `.gitignore`'s `.env`/`.env.*` rule does not touch it — confirmed with
+`git check-ignore -v wrangler-empty.env`, exit 1, not ignored) and pointed
+`--env-file` at it explicitly:
+
+  "cf-typegen": "wrangler types cloudflare-env.d.ts --env-interface CloudflareEnv --env-file=wrangler-empty.env"
+
+Two real ordering bugs found and worked around while getting here, both
+confirmed by running the exact command, not assumed:
+
+- `--env-file` is an array-type wrangler flag. Placed *before* the positional
+  output path (`--env-file=<path> cloudflare-env.d.ts`), it swallows the
+  positional into itself — even with `=` syntax on the first value — and
+  wrangler falls back to writing the default `worker-configuration.d.ts`
+  instead, with garbage extra "keys" in the output (observed: literal `"0"`
+  and `"1"` in the generated `ProcessEnv` type). Reproduced twice, once on
+  each host.
+- Fix is ordering, not syntax: the positional path must come *first* —
+  `wrangler types cloudflare-env.d.ts --env-interface CloudflareEnv
+  --env-file=wrangler-empty.env`. This is what shipped.
+
+Proof, both hosts, both exit 0:
+
+  Windows host (this machine's own real `.dev.vars`/`.env`, whatever it
+  currently holds — not inspected, only relied on as a pre-existing fixture):
+
+    $ pnpm cf-typegen
+    exit 0
+    $ head -15 cloudflare-env.d.ts
+    interface __BaseEnv_CloudflareEnv {
+    	R2: R2Bucket;
+    	NEXT_INC_CACHE_R2_BUCKET: R2Bucket;
+    	NEXT_TAG_CACHE_D1: D1Database;
+    	HYPERDRIVE: Hyperdrive;
+    	ASSETS: Fetcher;
+    	SITE_URL: "https://anas-studio.anas-studio.workers.dev";
+    	ADMIN_URL: "https://admin.anas.studio";
+    }
+    ... ProcessEnv Pick<Cloudflare.Env, "SITE_URL" | "ADMIN_URL"> only.
+    No `worker-configuration.d.ts` left behind.
+
+  Linux container (`anasaq-bundle`), with a throwaway fixture `.dev.vars`
+  written specifically to prove the negative:
+
+    FIXTURE_SECRET_A=whatever
+    FIXTURE_SECRET_B=whatever2
+
+    $ pnpm cf-typegen
+    exit 0
+    ... identical output to the host: only SITE_URL/ADMIN_URL in
+    __BaseEnv_CloudflareEnv and in the ProcessEnv Pick. Neither
+    FIXTURE_SECRET_A nor FIXTURE_SECRET_B appears anywhere in the file
+    (grepped for both, no match). Fixture `.dev.vars` deleted immediately
+    after.
+
+`package.json`'s `cf-typegen` line and the new `wrangler-empty.env` file are
+the only changes for this item.
+
+## R2.5 — proof of the publish transition (the one that matters)
+
+Fresh disposable Postgres for this round: `p00-i20r2-pg`
+(`postgres:17-alpine`) on network `p00-i20r2-net`, both removed at the end.
+`pnpm migrate` (DATABASE_URL -> p00-i20r2-pg, PAYLOAD_SECRET=throwaway) ->
+exit 0.
+
+Seeded **one draft only** (no published sibling this round) the same way as
+Round 1 — `pnpm dev` against the same database, `first-register` + `login` +
+`POST /api/runtime-probe` with `_status: draft` — then stopped `pnpm dev`.
+id `8dc23608-71ab-4ec7-9da5-f1d3c966ada8`, title "فحص مسودة الجولة الثانية".
+
+`pnpm build:worker` -> exit 0. `pnpm preview:worker -- --ip 0.0.0.0 --port
+8787` (CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE ->
+p00-i20r2-pg; `.dev.vars`: throwaway PAYLOAD_SECRET and REVALIDATE_SECRET,
+container-only, never committed) -> `Ready on http://0.0.0.0:8787`.
+
+### Step 1 — is the draft's 404 cached?
+
+  GET /probe/<draft-id> (1st) -> 404, x-opennext-cache: (absent)
+  GET /probe/<draft-id> (2nd) -> 404, x-opennext-cache: HIT
+
+Yes — the not-found render is cached exactly like a successful render. This
+matters because it means the cache has to be told to drop it too, not just
+told about new content.
+
+### Step 2 — publish through the real node-target hook, not SQL
+
+"Don't use raw SQL" — used the Payload Local API directly instead, in a
+disposable script (`tmp-publish-r2.ts`, written to the repo root only inside
+the container so `node_modules` resolution worked, deleted immediately after,
+never committed). Node's own native TypeScript stripping could not run it —
+a real, separate finding:
+
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/app/src/lib/db'
+  imported from /app/src/payload.config.ts
+
+Node 24's built-in TS support strips types but does not resolve TypeScript's
+extension-less relative imports (`from './lib/db'`) the way a bundler does —
+this project's source relies on that resolution throughout, same as the
+`payload run` defect already recorded in `docs/runtime-spike.md`, but hit via
+a different path this time. Worked around with `tsx` (already present as a
+transitive dependency, `node_modules/.pnpm/tsx@4.22.4`, not top-level so
+invoked via its `dist/cli.mjs` directly rather than `npx tsx`, which failed
+to resolve a bin that isn't hoisted).
+
+The script calls `getPayload({ config })` directly, then
+`payload.update({ collection: 'runtime-probe', id, data: { _status },
+overrideAccess: true })` — the same Local API shape the node admin's REST
+handler ultimately calls, with `overrideAccess: true` standing in for an
+authenticated admin session (the point of this proof is the collection hook,
+not access control, which is already exercised elsewhere). Run with:
+
+  RUNTIME_TARGET=node, PAYLOAD_SECRET (throwaway), ADMIN_URL (throwaway,
+  http://localhost:3000 — required by payload.config.ts, never reached),
+  CMS_DATABASE_URL -> p00-i20r2-pg, R2_ENDPOINT/R2_ACCESS_KEY_ID/
+  R2_SECRET_ACCESS_KEY/R2_BUCKET_NAME (throwaway, matching the I19 precedent
+  — uploads never exercised), SITE_URL=http://127.0.0.1:8787 and
+  REVALIDATE_SECRET matching `.dev.vars` — both pointing at the running
+  preview, so `notifyRevalidate` calls the real Worker.
+
+This is what makes the hook real, not simulated: `isNodeRuntimeTarget()`
+(`RUNTIME_TARGET=node`) is what makes `RuntimeProbe.ts`'s conditional
+`hooks:` object non-`undefined` in the first place — the same module-load-time
+switch the rest of this codebase already uses (`jobs.ts`'s `autoRun`,
+`storage.ts`'s adapter choice).
+
+### Step 3 — timing the hook's POST without touching committed source
+
+The hook calls `notifyRevalidate` fire-and-forget (`void`, never awaited) —
+correct per its own contract, but it means nothing in the normal call chain
+reports how long the outbound POST took, and nothing should: the admin save
+must return immediately regardless. Measured by temporarily wrapping
+`globalThis.fetch` *inside the disposable script only*, timing exactly the
+calls whose URL contains `/api/revalidate`, and giving the process 3 extra
+seconds before exit so the un-awaited promise had time to actually finish
+(otherwise `process.exit()` right after `payload.update()` resolves could
+cut the in-flight request off — a real risk for a one-shot script that a
+long-lived node admin process does not have).
+
+  publish:            UPDATED ... status= published
+                       REVALIDATE_HOOK_POST_MS 146 status 200
+  unpublish (draft):  UPDATED ... status= draft
+                       REVALIDATE_HOOK_POST_MS 55 status 200
+  publish (again):    REVALIDATE_HOOK_POST_MS 44 status 200
+  delete:              DELETED ...
+                       REVALIDATE_HOOK_POST_MS 58 status 200
+
+44–146 ms, same-container loopback HTTP the whole way (script -> preview
+Worker), so this is a floor, not a production estimate — real network hops
+(VM -> Cloudflare edge) are not represented. Well inside the 60-second P02
+budget either way.
+
+### Step 4 — does the cache actually flip, in both directions?
+
+  After publish (step 2's first call):
+    GET /probe/<id> (1st) -> 200, x-opennext-cache: (absent), body contains
+      "فحص مسودة الجولة الثانية"
+    GET /probe/<id> (2nd) -> 200, x-opennext-cache: HIT
+
+  After unpublish:
+    GET /probe/<id> (1st) -> 404, x-opennext-cache: (absent)
+    GET /probe/<id> (2nd) -> 404, x-opennext-cache: HIT
+
+  Republished, confirmed 200, then deleted:
+    GET /probe/<id> after delete -> 404
+
+**No fix was needed.** The cached 404 *was* correctly invalidated by the tag
+on every transition (publish, unpublish, delete), on the first try, with the
+code exactly as Round 1 left it. Root cause, read from source rather than
+assumed: `src/app/(public)/probe/[id]/page.tsx`'s `unstable_cache(..., {
+tags: [runtimeProbeTag(id)] })` call passes its `tags` option to the wrapper
+unconditionally — the callback's return value (a document, or `null` on the
+`NotFound` catch) has no bearing on which tag gets attached. Next's own
+`getFetchCache`/`getIncrementalCache` (`@opennextjs/aws` `adapters/cache.js`,
+already read in Round 1) key the *page's* Full Route Cache entry off the same
+aggregated tag set regardless of whether that render produced a 200 or a 404
+body. One tag, one id, covers both outcomes by construction — there was
+never a separate "not-found" cache namespace to forget to tag.
+
+### Cleanup, round 2
+
+  $ docker rm -f p00-i20r2-pg
+  $ docker network disconnect p00-i20r2-net anasaq-bundle
+  $ docker network rm p00-i20r2-net
+  $ docker network ls | grep p00-i20r2   -> (none)
+  $ docker ps -a | grep p00-i20r2        -> (none)
+
+Killed both the `pnpm dev` (seeding) and `pnpm preview:worker`/`wrangler
+dev`/`workerd` process chains in `anasaq-bundle` by hand (no `ps` in the
+image; walked `/proc/*/cmdline`) before the final rebuild and again before
+finishing. `/proc` walk after cleanup shows only the container's own `sleep
+infinity` (PID 1) and one pre-existing, not-mine `/bin/sh` (PID 6099, present
+since before this task started, holds no listening port, left alone as in
+Round 1). `.dev.vars` deleted from the container.
+
+## Re-run: `pnpm check`, `pnpm build:worker`, dry-run size
+
+Host (Windows), after all five items:
+
+  $ pnpm check
+  exit 0 — lint, typecheck, check:frozen (59 files unchanged), check:copy (22
+  files), test (2 files, 22 tests) all passed.
+
+Container (`anasaq-bundle`), full tree re-synced via `tar` after all five
+edits, clean `.next`/`.open-next`:
+
+  $ pnpm check (PAYLOAD_SECRET=throwaway-build-secret)
+  exit 0 — same 2 files / 22 tests.
+
+  $ pnpm build:worker (same env)
+  exit 0.
+
+  $ npx wrangler deploy --dry-run
+  Total Upload: 29616.49 KiB / gzip: 6513.43 KiB
+
+  -0.52 KiB from Round 1's 29617.01 KiB — noise (the `secretsMatch` dedup
+  removed ~10 lines from `jobs.ts`, which is already in the Worker bundle via
+  `payload.config.ts`). The D1 id and R2/deploy.sh/package.json changes carry
+  no runtime code, so no further size effect was expected or found. Real
+  bindings printed by the dry-run (same as Round 1's shape, D1 id now real):
+
+    env.NEXT_TAG_CACHE_D1 (anas-studio-tag-cache)     D1 Database
+    env.HYPERDRIVE (f93334ce5f554313b81ed0afdb003461) Hyperdrive Config
+    env.R2 (anas-studio-media-test)                   R2 Bucket
+    env.NEXT_INC_CACHE_R2_BUCKET (anas-studio-next-cache) R2 Bucket
+    env.ASSETS                                        Assets
+    env.SITE_URL ("https://anas-studio.anas-studio.worke...") Environment Variable
+    env.ADMIN_URL ("https://admin.anas.studio")       Environment Variable
+
+  $ PLAYWRIGHT_BASE_URL=http://127.0.0.1:8787 npx playwright test (re-run
+  against the round-2 preview, after the publish-transition proof, before
+  tearing the preview down)
+  6 passed (2.4s) — same 6 tests as Round 1, no regression from any of the
+  five items.
+
+## Recommended hosted deploy order (not run)
+
+1. R2 bucket `anas-studio-next-cache` does not exist yet and the
+   orchestrator's tooling could not create it — the owner's deploy step must
+   create it before anything below, or the R2 incremental cache silently has
+   nowhere to write (`IgnorableError("No R2 bucket")` in
+   `r2-incremental-cache.js`, swallowed, degrading to "no caching" rather
+   than failing loud — worth knowing, not fixed here, this is the adapter's
+   own behaviour).
+2. Confirm the D1 database `anas-studio-tag-cache`
+   (`b29a8934-b98c-4eec-aa05-22649cab90cc`) is reachable from the account
+   that will run the deploy (created by the orchestrator in APAC; not
+   verified reachable from this task, no Cloudflare API calls made).
+3. `wrangler secret put PAYLOAD_SECRET` (already required) and
+   `wrangler secret put REVALIDATE_SECRET` (new).
+4. Deploy with `opennextjs-cloudflare deploy` (or `... upload`), not a bare
+   `wrangler deploy` — see Round 1 section 7, unchanged: this is what runs
+   `populateCache` (remote target), which creates the D1 `revalidations`
+   table and uploads the static/ISR cache entries to R2. `package.json` still
+   has no `deploy:worker` script; adding one is a further `package.json`
+   change beyond this round's specific fixes, not made speculatively.
+5. Add `SITE_URL` and `REVALIDATE_SECRET` to the *VM's* actual `.env` (not
+   `.env.example`, which only names them) before the next `deploy.sh` run —
+   `deploy.sh`'s allowlist now copies them (R2.2 above) but only if they are
+   present in `.env` to copy.
+6. Redeploy the node admin target (`scripts/admin-vm/deploy.sh`) after step 5
+   so its container actually has `SITE_URL`/`REVALIDATE_SECRET` and the
+   `afterChange`/`afterDelete` hooks can reach the Worker.
+7. Smoke-test the same publish transition proven locally in R2.5, once,
+   against the real hosted Worker and the real node admin — draft renders
+   404, publish through the real admin UI, confirm the public page appears
+   within P02's 60-second budget, unpublish, confirm 404 returns. This local
+   proof is not a substitute for that — see Round 1 section 6 for exactly
+   what local `wrangler dev` does and does not prove.

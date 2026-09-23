@@ -21,6 +21,24 @@ export function isNodeRuntimeTarget(): boolean {
   return process.env.RUNTIME_TARGET === 'node'
 }
 
+/**
+ * Length-independent comparison, so a wrong secret leaks no timing signal.
+ *
+ * Shared by `src/payload/jobs.ts` (`JOBS_SECRET`) and
+ * `src/lib/revalidate.ts` (`REVALIDATE_SECRET`) — one implementation, not a
+ * duplicate per caller.
+ */
+export function secretsMatch(provided: string, expected: string): boolean {
+  const a = new TextEncoder().encode(provided)
+  const b = new TextEncoder().encode(expected)
+  let diff = a.length ^ b.length
+  const length = Math.max(a.length, b.length)
+  for (let i = 0; i < length; i++) {
+    diff |= (a[i] ?? 0) ^ (b[i] ?? 0)
+  }
+  return diff === 0
+}
+
 export class MissingEnvError extends Error {
   constructor(name: string) {
     super(`Missing required environment variable: ${name}`)
