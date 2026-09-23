@@ -909,6 +909,55 @@ needs the owner-approved plan amendment.
 unauthorized denial, authenticated hosted CRUD including delete, and a real cron
 content write). P00 is not accepted.
 
+## I20 — the "public route fits Free" result was measured on a page with no data
+
+**Status:** open, in progress. **Package:** P00. **Raised:** 2026-09-23.
+
+I15's 2.4 ms p50 is correct for what it measured, but that route
+(`src/app/(public)/page.tsx`) is static Arabic text. It reads nothing from
+Payload or PostgreSQL. Real public pages will. The closest measured proxy is
+`/api/health`, which boots Payload and runs one query plus one `find`. On the
+live Worker it measured **14 ms warm** and 60–314 ms cold (I19). So an uncached
+page that reads content is over the 10 ms Free limit even when warm. This is the
+same failure pattern as I16 and I17: the measurement was sound, but it was taken
+as proof of more than it covered.
+
+D27 makes this sharper. The public Worker keeps reading content while the admin
+writes it from another deployment, so the Worker needs a cache that the VM can
+invalidate. OpenNext's documented design for this
+(`opennext.js.org/cloudflare/caching`, read 2026-09-23) has three parts:
+
+- An R2 incremental cache.
+- A D1 tag cache, needed for `revalidatePath`/`revalidateTag`.
+- A queue, needed only for time-based revalidation.
+
+On-demand revalidation needs no queue. The static-assets cache in use today is
+read-only, and it "does not support revalidation".
+
+The free quotas, read the same day, cover a site of this size with room to
+spare:
+
+- R2 Standard: 10 GB-month of storage, 1 million Class A operations and
+  10 million Class B operations per month.
+- D1 on Workers Free: 5 million rows read and 100,000 rows written per day,
+  and 5 GB of storage. Queries fail at the cap from 2026-09-01.
+
+The planned proof, P00 on hosted Free:
+
+- Serve a public page that reads one published document through the Payload
+  Local API, with on-demand ISR.
+- Measure CPU for cache hits and for a revalidation render.
+- Show that an authenticated invalidation reaches a visitor within 60 seconds,
+  the P02 requirement.
+
+The Worker side of D27 lands in the same change:
+
+- Remove the Cron Trigger and `scheduled` handler. The jobs moved to the VM, and
+  the cron was the path over the limit on every run.
+- Redirect `/admin` to `ADMIN_URL`.
+- Refuse the Payload REST and GraphQL surface on the Worker, so its broken login
+  path cannot be reached or used to lock the owner out.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the
