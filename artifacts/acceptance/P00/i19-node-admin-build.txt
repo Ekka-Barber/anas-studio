@@ -1,0 +1,450 @@
+# I19 part 1 of 2 — Node admin build target: evidence
+# No deploy performed. Worker behaviour unchanged (proved below). All builds
+# and container runs used throwaway/dummy values; .env was never read or
+# printed. Linux container work used `MSYS_NO_PATHCONV=1` (Git Bash on
+# Windows) to avoid path mangling; commands below are the real commands run.
+
+recorded_utc: 2026-09-23
+
+## 1. Worker bundle size before/after (requirement 6)
+
+Both measured the same way: `pnpm build:worker` then `npx wrangler deploy
+--dry-run`, inside a throwaway `node:24-bookworm-slim` container (native
+`pnpm build:worker` fails on this Windows host with EPERM on symlink
+creation — a pre-existing, unrelated Windows/OpenNext limitation already
+documented in docs/development.md, not something this task touched).
+
+BEFORE (this task's edits, storage-s3 installed but not yet imported by any
+source file):
+  Total Upload: 25335.05 KiB / gzip: 5610.23 KiB
+
+AFTER first pass (db/env/storage/jobs/payload.config edits landed, before the
+next.config.ts Turbopack alias):
+  Total Upload: 27123.17 KiB / gzip: 5957.31 KiB
+  -> +1788.12 KiB raw (+7.06%), +347.08 KiB gzip (+6.19%). MATERIAL.
+  Cause: `src/payload/storage.ts` statically imports `@payloadcms/storage-s3`
+  (and its AWS SDK dependency tree) so the node target can select it, but
+  Turbopack/esbuild cannot prove the `isNodeRuntimeTarget()` branch that
+  calls it is unreachable when RUNTIME_TARGET is unset, so the whole AWS SDK
+  got bundled into the Worker as dead code.
+
+Fix: `next.config.ts` `turbopack.resolveAlias` aliases
+`@payloadcms/storage-s3` to `node:util` whenever `RUNTIME_TARGET !== 'node'`
+at build time — same pattern already in this file for `drizzle-kit/api`
+(inert unless actually called; the node target's own build sets
+RUNTIME_TARGET=node, so its build gets the real package).
+
+AFTER fix (final state):
+  Total Upload: 25338.41 KiB / gzip: 5611.14 KiB
+  -> +3.36 KiB raw (+0.013%), +0.91 KiB gzip (+0.016%) vs BEFORE. Immaterial.
+
+## 2. `pnpm build` (plain, RUNTIME_TARGET unset) — proves standalone output
+
+Command (container, `PAYLOAD_SECRET=throwaway-build-secret pnpm build`):
+  ...
+  ✓ Compiled successfully in 69s
+  Running TypeScript ...
+  Finished TypeScript in 16.6s ...
+  ...
+  ✓ Generating static pages using 7 workers (5/5) in 1034ms
+Exit: 0
+  $ ls .next/standalone
+  node_modules  package.json  server.js
+
+Only PAYLOAD_SECRET was needed at build time (matches docs/development.md:
+"next build loads it while collecting page data"). DATABASE_URL was not
+required — nothing in this app's build reaches the database.
+
+## 3. Docker image build (requirement 7)
+
+Command: `docker build -t anasaq-admin-node:local -f Dockerfile .`
+Result: succeeded (multi-stage: deps -> build -> runtime). Build stage ran
+`pnpm build` with RUNTIME_TARGET=node and throwaway values for
+PAYLOAD_SECRET, ADMIN_URL, CMS_DATABASE_URL, R2_ENDPOINT, R2_ACCESS_KEY_ID,
+R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, scoped to that one RUN step only (not
+image ENV; the runtime stage starts fresh from `base` and copies only
+`.next/standalone` + `.next/static`). `corepack enable` alone correctly
+activated pnpm@10.33.0 from package.json's `packageManager` field (observed:
+"Corepack is about to download .../pnpm-10.33.0.tgz").
+
+### Container refuses to start without real env
+
+  $ docker run --name p00-admin-noenv anasaq-admin-node:local
+  Missing required environment variable: PAYLOAD_SECRET
+  $ echo $?
+  1
+
+  $ docker run --name p00-admin-partial -e PAYLOAD_SECRET=real-secret \
+      -e ADMIN_URL=https://admin.anas.studio anasaq-admin-node:local
+  Missing required environment variable: CMS_DATABASE_URL
+  $ echo $?
+  1
+
+(The Dockerfile's CMD checks the required-env allowlist itself before
+starting Next.js, because Next only evaluates payload.config.ts on the first
+request that reaches a Payload route, not at server startup — so without this
+check the container would listen on 3000 and only fail later, not refuse to
+start.)
+
+## 4. Local proof: throwaway Postgres, migrations, full container run (requirement 8)
+
+  docker network create p00-i19-net
+  docker run -d --name p00-pg --network p00-i19-net \
+    -e POSTGRES_USER=p00 -e POSTGRES_PASSWORD=p00pass -e POSTGRES_DB=p00_admin \
+    -p 55433:5432 postgres:17
+  -> running, 0.0.0.0:55433->5432/tcp
+
+  # migrations, from the source container (RUNTIME_TARGET unset — migrations
+  # always use DATABASE_URL, never CMS_DATABASE_URL):
+  docker exec -e DATABASE_URL=postgres://p00:p00pass@p00-pg:5432/p00_admin \
+    -e PAYLOAD_SECRET=throwaway-build-secret <worker-container> pnpm migrate
+  [INFO] Migrating: 20260922_031113_initial
+  [INFO] Migrated:  20260922_031113_initial (222ms)
+  [INFO] Done.
+
+  docker run -d --name p00-admin --network p00-i19-net \
+    -e PAYLOAD_SECRET=throwaway-runtime-secret-01234567 \
+    -e ADMIN_URL=http://localhost:3000 \
+    -e CMS_DATABASE_URL=postgres://p00:p00pass@p00-pg:5432/p00_admin \
+    -e R2_ENDPOINT=https://dummy.r2.cloudflarestorage.com \
+    -e R2_ACCESS_KEY_ID=dummy-access-key \
+    -e R2_SECRET_ACCESS_KEY=dummy-secret-key \
+    -e R2_BUCKET_NAME=dummy-bucket \
+    -p 3300:3000 anasaq-admin-node:local
+  -> running, logs show "Ready in 0ms" (dummy R2 values are fine: uploads
+     were not exercised, as instructed — only login/health/first-user)
+
+  $ curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3300/api/health
+  HTTP 200
+
+  $ curl -sS -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:3300/admin/login
+  HTTP 200
+
+  $ curl -sS -X POST http://127.0.0.1:3300/api/users/first-register \
+    -H "Content-Type: application/json" \
+    -d '{"email":"p00-node-proof@example.invalid","password":"Th1s-Is-A-Th4owaway-Test-Password-42!","role":"owner"}' \
+    -w "\nHTTP %{http_code}\n"
+  {"exp":...,"message":"تم تسجيل العضو الأول بنجاح.","token":"...","user":{...}}
+  HTTP 200
+
+  $ curl -sS -X POST http://127.0.0.1:3300/api/users/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"p00-node-proof@example.invalid","password":"Th1s-Is-A-Th4owaway-Test-Password-42!"}' \
+    -w "\nHTTP %{http_code}\n"
+  {"message":"تمت المصادقة","exp":...,"token":"...","user":{...}}
+  HTTP 200
+
+This is the direct proof I17 asked for: Payload's 600,000-iteration PBKDF2
+hash creation (first-register) AND verification (login) both succeed in the
+Node target — the exact operation that returns
+"Pbkdf2 failed: iteration counts above 100000 not supported" on production
+Workers.
+
+Non-fatal warning observed in container logs (not caused by uploads, none
+attempted): `getFromImportMap: PayloadComponent not found in importMap` for
+`@payloadcms/storage-s3/client#S3ClientUploadHandler`. The checked-in
+`src/app/(payload)/admin/importMap.js` was generated for the R2-only setup
+and was not regenerated for the S3 client-upload handler component. That file
+is outside this task's allowed paths. It did not affect any of the proofs
+above (clientUploads is disabled on the s3Storage() call, so this handler is
+never actually invoked) but is a known gap — flagged as a remaining risk
+below, not fixed here.
+
+### autoRun registration (requirement 8's "logs show autoRun registered")
+
+Payload's own source has no log line for cron/autoRun registration (checked:
+`payload/dist/index.js` `_initializeCrons()`, `payload/dist/queues/config/types/index.d.ts`
+— no info/debug logging anywhere in that path). Direct proof instead, via a
+disposable vitest probe (never committed; written and run only inside the
+disposable build container, deleted with it) that calls Payload's own
+`getPayload({ config, cron: true })` — the exact call `@payloadcms/next`'s
+`initReq.js` makes on every request — against the real compiled
+`src/payload.config.ts` and the same throwaway Postgres:
+
+  RUNTIME_TARGET=node (+ same required env as above):
+    CRONS_REGISTERED: 1
+    CRON_PATTERN: */15 * * * *
+
+  RUNTIME_TARGET unset (negative control, DATABASE_URL used instead):
+    CRONS_REGISTERED: 0
+
+This matches `tests/unit/runtime-target.test.ts`'s config-level assertion,
+but against the real running process and real database instead of a mock.
+
+### Teardown
+
+  docker rm -f p00-admin p00-pg <worker-container>
+  docker network rm p00-i19-net
+  $ docker ps -a | grep p00- ; docker network ls | grep p00-i19
+  (no output — fully torn down)
+
+## 5. VM scripts (requirement 9)
+
+  $ bash -n scripts/admin-vm/setup.sh && echo OK
+  OK
+  $ bash -n scripts/admin-vm/deploy.sh && echo OK
+  OK
+  (deploy.sh initially had a bug caught here: an apostrophe inside a
+  `${VAR:?message}` parameter-expansion string opened an unterminated
+  single-quote — `${...}`'s `:?` message text is re-parsed for quoting even
+  though the whole expansion sits inside outer double quotes. Fixed by
+  rewording the message; re-ran bash -n clean.)
+
+  $ docker run --rm -v "$(pwd)/scripts/admin-vm:/mnt" koalaman/shellcheck:stable \
+      /mnt/setup.sh /mnt/deploy.sh
+  setup.sh:37  SC1091 (info): Not following: /etc/os-release was not specified as input
+  deploy.sh:68 SC2029 (info): Note that, unescaped, this expands on the client side.
+  deploy.sh:80 SC2029 (info): Note that, unescaped, this expands on the client side.
+  (all three are informational and intentional: sourcing /etc/os-release for
+  $VERSION_CODENAME is deliberate, and the two SC2029s are local variables
+  I deliberately want expanded on the owner's PC before being sent to ssh as
+  literal remote command text, not remote-side variables. No warnings or
+  errors from either script.)
+
+### setup.sh dry run, ubuntu:24.04 container
+
+Ran as a created non-root sudo user (the script refuses to run as root).
+Verified: apt update/upgrade, `unattended-upgrades` package install and
+noninteractive `dpkg-reconfigure` all succeeded.
+
+Stopped (exit 1, `set -euo pipefail` correctly halted the script) at:
+  Executing: /usr/lib/systemd/systemd-sysv-install enable unattended-upgrades
+  System has not been booted with systemd as init system (PID 1). Can't operate.
+
+NOT verified, and could not be, in a plain Docker container: `systemctl
+enable --now` for unattended-upgrades and docker (no systemd as PID 1 in a
+container — this is a Docker-in-Docker limitation, not a script defect),
+Docker Engine's actual install/start, and the swap file
+(`fallocate`/`mkswap`/`swapon` need real block-device/swap-subsystem access
+that a container either lacks or that would risk touching the host's swap —
+not attempted). These need the real VM (Ubuntu 24.04, systemd as PID 1) to
+verify, which is part 2's job, not part 1's.
+
+deploy.sh was not run against any host, real or simulated — it needs a live
+VM with a running Docker daemon reachable over ssh, which does not exist yet.
+
+## 6. Final check commands (run and reported exactly, from the repository root)
+
+  $ pnpm check
+  (lint, typecheck, check:frozen, check:copy, test — all passed)
+  Test Files  1 passed (1)
+       Tests  3 passed (3)
+  Exit: 0
+
+  $ pnpm run lint / pnpm run typecheck
+  (both clean, no output, exit 0 — run separately too, native on Windows)
+
+  $ git status --short
+   M .env.example
+   M next.config.ts
+   M package.json
+   M pnpm-lock.yaml
+   M src/lib/db.ts
+   M src/lib/env.ts
+   M src/payload.config.ts
+   M src/payload/jobs.ts
+   M src/payload/storage.ts
+  ?? .dockerignore
+  ?? Dockerfile
+  ?? docs/admin-vm.md
+  ?? scripts/admin-vm/
+  ?? tests/unit/
+  (PLANS/EXECUTION-STATUS.md and PLANS/ISSUES.md were already dirty from the
+  orchestrator at task start and were never touched by this task.)
+
+## Round 2 — three audit fixes (same lock, no deploy, no hosted calls)
+
+Changed this round: `src/lib/payload.ts` (new allowed path), `src/payload.config.ts`,
+`Dockerfile`, `scripts/admin-vm/deploy.sh`, `docs/admin-vm.md`. No other source
+touched.
+
+### Fix 3 (smallest, done first): redundant `csrf` line
+
+Removed `csrf: isNodeRuntimeTarget() ? [requireEnv('ADMIN_URL')] : undefined`
+from `src/payload.config.ts`. Confirmed redundant by reading
+`payload/dist/config/sanitize.js` L340-342: `if (config.serverURL !== '') {
+config.csrf.push(config.serverURL) }` — sanitize already adds a non-empty
+`serverURL` to the CSRF allowlist. `serverURL` itself is unchanged.
+
+### Fix 2: deploy.sh env parsing
+
+`grep -m1 "^KEY=" .env | cut -d= -f2-` copied surrounding quotes literally,
+and `docker run --env-file` does not strip them. Replaced with the pattern
+already used by `artifacts/acceptance/P00/pooler-probe.mjs`
+(`set -a; . ./.env; set +a`), sourced in a subshell so it never touches
+deploy.sh's own variables, reading each allowlisted key back through bash's
+own parsing via `${!key}`. A value containing a newline is rejected — key
+name only, to stderr, before anything is sent anywhere — because `--env-file`
+is one value per line and cannot carry one.
+
+Combined fixture test (`quoted`, `unquoted`, `empty` and `newline` values in
+one file, never `.env`):
+
+  $ cat fixture-combined.env
+  PAYLOAD_SECRET="quoted value with spaces"
+  ADMIN_URL=https://admin.anas.studio
+  CMS_DATABASE_URL=
+  R2_ENDPOINT='single-quoted-value'
+  R2_ACCESS_KEY_ID=unquoted-no-spaces
+  R2_SECRET_ACCESS_KEY=
+  R2_BUCKET_NAME=throwaway-fixture-bucket
+  JOBS_SECRET="line one
+  line two"
+
+Ran deploy.sh's exact env-block (byte-for-byte, same `set -euo pipefail`, no
+suppression) against it, pointed at this fixture instead of `.env`:
+
+  $ bash test-env-block-real.sh
+  Value for JOBS_SECRET contains a newline; --env-file cannot carry one. Aborting.
+  === real deploy.sh-equivalent script exit code: 1 ===
+
+The line placed immediately after the env_payload assignment
+(`echo "THIS LINE MUST NEVER PRINT..."`) correctly never printed — `set -e`
+halts the whole script the moment the subshell exits 1, before the `printf
+... | ssh ...` send step is ever reached. Nothing was sent anywhere; only the
+key name reached stderr.
+
+Separately, with output capture forced open (`set +e` around the assignment,
+diagnostic-only — not deploy.sh's real behaviour) to inspect what the
+subshell captured before aborting, values shown length-only:
+
+  === subshell exit code: 1 ===
+  PAYLOAD_SECRET=<redacted, len=24>      # matches "quoted value with spaces", 24 chars — quotes stripped
+  ADMIN_URL=<redacted, len=25>
+  R2_ENDPOINT=<redacted, len=19>         # matches "single-quoted-value", 19 chars — quotes stripped
+  R2_ACCESS_KEY_ID=<redacted, len=18>
+  R2_BUCKET_NAME=<redacted, len=24>
+  (CMS_DATABASE_URL and R2_SECRET_ACCESS_KEY correctly absent — empty in the fixture)
+
+No value was printed in either run, in the terminal or into this file.
+
+`bash -n` and `shellcheck` (round 1's three informational-only notices,
+unchanged — see above) both re-run clean this round too.
+
+### Fix 1: autoRun never starts after a reboot until someone opens a route
+
+`src/lib/payload.ts`'s `getPayloadClient()` now calls
+`getPayload({ config, cron: isNodeRuntimeTarget() })` (was: no `cron` key at
+all, i.e. always falsy). `/api/health` is the only caller that goes through
+this helper without `@payloadcms/next`'s own `initReq.js` (which always
+passes `cron: true`), so it was the one route that could run forever without
+ever starting Payload's `autoRun` timer. Worker target unaffected:
+`isNodeRuntimeTarget()` is false there, `cron: false`, identical to before.
+
+Added a Dockerfile `HEALTHCHECK` (interval 60s, timeout 5s, start-period 30s,
+retries 3) that polls `/api/health` with `node -e 'fetch(...)'` (the slim
+image has no curl) — so after `--restart unless-stopped` brings the container
+back up with nobody visiting the admin, the healthcheck itself is what makes
+the first `/api/health` request happen, which is what starts the cron timer.
+
+**Bug found and fixed while proving this**, before the official run: Docker
+sets `HOSTNAME` to the container ID for every container by default (confirmed
+via `docker exec ... env` and `/etc/hosts`, which mapped the container ID to
+the container's bridge IP, not `127.0.0.1`). Next's standalone server does
+`process.env.HOSTNAME || '0.0.0.0'` (`next/dist/build/utils.js`), so without
+an override it bound only to the container's own bridge IP. Host-published
+port access still worked (Docker's port DNAT targets the bridge IP directly —
+confirmed, round 1's `/api/health`/`/admin/login`/login proofs all used
+published-port access and all passed), but the in-container `HEALTHCHECK`
+connects over loopback and got `ECONNREFUSED 127.0.0.1:3000` on every attempt
+(reproduced manually via `docker exec <container> node -e "fetch(...)"`,
+caught the `TypeError: fetch failed` / `ECONNREFUSED` directly). Fixed with
+`ENV HOSTNAME=0.0.0.0` in the runtime stage, verified with a disposable
+diagnostic container before the official run (`STATUS 200`, exit 0).
+
+**Official proof run**, container `p00-admin-proof`, started
+`2026-09-23T03:01:12.165633602Z`. No admin or REST request was made by
+anyone (owner-equivalent) between start and the first successful
+healthcheck.
+
+  $ docker inspect --format '{{json .State.Health}}' p00-admin-proof
+  (at 03:16:01Z) {"Status":"healthy","FailingStreak":0,
+    "Log":[...5 entries, all ExitCode 0, 03:11:21Z through 03:15:22Z...]}
+
+Direct database check (bypasses the app; not an HTTP request) confirmed the
+job was queued, not yet run:
+
+  $ docker exec p00-pg psql -U p00 -d p00_admin -c \
+    "SELECT id, task_slug, queue, wait_until, completed_at, has_error, processing FROM cms.payload_jobs ORDER BY created_at DESC LIMIT 5;"
+  f539571b-... | probeHeartbeat | default | 2026-09-23 03:30:00+00 | (empty) | f | f
+
+**Finding, not a bug**: on a genuinely fresh database (no prior
+`payload-jobs-stats` global), the first `autoRun` tick that reaches
+`handleSchedules()` has no `lastScheduledRun` baseline, so
+`checkQueueableTimeConstraints` (`payload/dist/queues/operations/handleSchedules/index.js`)
+computes `nextRun(undefined)` — the *next* occurrence of the cron pattern
+strictly after "now" — and queues the job with `waitUntil` set to that time,
+one full cycle away, rather than running it immediately. `defaultAfterSchedule`
+then records the real run time as the new baseline, so every tick after the
+first is on-cadence (queue now, run now). Net effect: cold start costs up to
+2x the cron interval (here, up to 30 minutes) before the first completed job
+appears, not 1x. Read directly from the installed 3.90.1 source, not recalled.
+
+**Requester's manual HTTP requests to this container, stated plainly:** yes.
+`curl -sS http://127.0.0.1:3303/api/health` was run twice, as part of my own
+verification scripts, at `2026-09-23T03:16:02.830Z` and
+`2026-09-23T03:31:04.854Z` — both read-only GETs to the public, unauthenticated
+health endpoint, no login, no admin route, no REST write. Both came *after*
+the event each was checking had already happened on its own: the 03:16:02
+request came after the healthcheck's own 5 logged successes (03:11:21Z-
+03:15:22Z, all before my request) and after the direct DB query already
+showed the job queued; the 03:31:04 request came after
+`completed_at 2026-09-23 03:30:00.13+00` was already written to the database
+(confirmed by direct DB query moments before the HTTP request, in the same
+background script). Neither request could have caused cron registration or
+the first job to run — both had already happened, independently, by the
+time each request was made. The `docker exec p00-pg psql ...` calls query
+the database directly and are not requests to the container.
+
+**Independently confirmed by the orchestrator**, reading the same running
+container over a longer window than this task waited: `p00-admin-proof`
+logged "Running 1 jobs" at 03:30, 03:45 and 04:00 UTC — exactly the steady-
+state, on-cadence behaviour predicted above once the cold-start baseline was
+set — and `/api/health` reported `lastCompletedAt: 2026-09-23T04:00:00.081Z`,
+`healthy`.
+
+### Re-run, exact commands and exit codes (round 2, final)
+
+  $ pnpm check
+  (lint, typecheck, check:frozen, check:copy, test — all passed)
+  Test Files  1 passed (1) / Tests  3 passed (3)
+  Exit: 0
+
+  $ docker exec -w //app <worker-container> sh -c "npx wrangler deploy --dry-run"
+  Total Upload: 25338.23 KiB / gzip: 5611.12 KiB
+  (round 1 final was 25338.41 KiB; this round's edits touch shared code —
+  src/lib/payload.ts, src/payload.config.ts — that the Worker also bundles;
+  0.18 KiB difference is noise, not material.)
+
+  $ bash -n scripts/admin-vm/setup.sh   → exit 0
+  $ bash -n scripts/admin-vm/deploy.sh  → exit 0
+
+  $ docker rm -f p00-admin-proof p00-pg p00-i19-worker2
+  $ docker network rm p00-i19-net2
+  $ docker ps -a | grep -E "p00-|anasaq-bundle"
+  anasaq-bundle   Up 15 hours   (kept, not mine to remove)
+  (no p00- containers remain)
+  $ docker network ls | grep p00
+  (none)
+
+  $ git status --short
+   M .env.example
+   M PLANS/EXECUTION-STATUS.md
+   M PLANS/ISSUES.md
+   M next.config.ts
+   M package.json
+   M pnpm-lock.yaml
+   M src/lib/db.ts
+   M src/lib/env.ts
+   M src/lib/payload.ts
+   M src/payload.config.ts
+   M src/payload/jobs.ts
+   M src/payload/storage.ts
+  ?? .dockerignore
+  ?? Dockerfile
+  ?? artifacts/acceptance/P00/i19-node-admin-build.txt
+  ?? docs/admin-vm.md
+  ?? scripts/admin-vm/
+  ?? tests/unit/
+  (PLANS/EXECUTION-STATUS.md and PLANS/ISSUES.md remain the orchestrator's
+  own pre-existing dirty state; still never touched by this task.)

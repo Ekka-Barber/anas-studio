@@ -1,14 +1,31 @@
 import { r2Storage } from '@payloadcms/storage-r2'
+import { s3Storage } from '@payloadcms/storage-s3'
 import { getCloudflareContext } from '@opennextjs/cloudflare/cloudflare-context'
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Plugin } from 'payload'
+
+import { isNodeRuntimeTarget, requireEnv } from '../lib/env'
 
 /**
  * R2 object storage mapping.
  *
- * Uses `@payloadcms/storage-r2` with the native Worker R2 binding, never the S3
- * adapter. Originals stay private: the collection keeps Payload access control
- * in front of the file route, so an unauthenticated request for an uploaded
- * object is denied rather than served.
+ * Worker target (`RUNTIME_TARGET` unset): `@payloadcms/storage-r2` against the
+ * native Worker R2 binding. Node target (`RUNTIME_TARGET=node`, I19/D27): the
+ * R2 binding does not exist outside a Worker, so `@payloadcms/storage-s3`
+ * talks to the same bucket through R2's S3-compatible API instead.
+ *
+ * Both adapters land objects at the same key: `handleUpload`/`handleDelete`
+ * both receive an identical `storageFilePath` computed by the shared
+ * `@payloadcms/plugin-cloud-storage` wrapper (same collection config, same
+ * default `useCompositePrefixes: false`, no `prefix` override), and both
+ * adapters pass it straight through with no transformation —
+ * `storage-r2/dist/uploadFile.js` calls `bucket.put(storageFilePath, ...)`,
+ * `storage-s3/dist/uploadFile.js` calls `client.putObject({ Key:
+ * storageFilePath, ... })`. Verified by reading both packages'
+ * `adapter.js`/`uploadFile.js` at the pinned 3.90.1 version.
+ *
+ * Originals stay private in both cases: the collection keeps Payload access
+ * control in front of the file route, so an unauthenticated request for an
+ * uploaded object is denied rather than served. No Sharp either way (D15).
  */
 
 /**
@@ -62,9 +79,32 @@ export const RuntimeProbeMedia: CollectionConfig = {
   ],
 }
 
-export const r2StoragePlugin = r2Storage({
-  bucket,
-  collections: {
-    [RUNTIME_PROBE_MEDIA_SLUG]: true,
-  },
-})
+/**
+ * R2's S3-compatible API: region is always `auto` and the endpoint is the
+ * account-scoped `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` host, both
+ * required by R2 rather than left at AWS SDK defaults
+ * (developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/, fetched
+ * 2026-09-23: `region: "auto", // Required by SDK but not used by R2`). No
+ * `forcePathStyle` — Cloudflare's own example does not set it.
+ */
+export const storagePlugin: Plugin = isNodeRuntimeTarget()
+  ? s3Storage({
+      bucket: requireEnv('R2_BUCKET_NAME'),
+      config: {
+        region: 'auto',
+        endpoint: requireEnv('R2_ENDPOINT'),
+        credentials: {
+          accessKeyId: requireEnv('R2_ACCESS_KEY_ID'),
+          secretAccessKey: requireEnv('R2_SECRET_ACCESS_KEY'),
+        },
+      },
+      collections: {
+        [RUNTIME_PROBE_MEDIA_SLUG]: true,
+      },
+    })
+  : r2Storage({
+      bucket,
+      collections: {
+        [RUNTIME_PROBE_MEDIA_SLUG]: true,
+      },
+    })

@@ -1,7 +1,7 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare/cloudflare-context'
 import type { PoolConfig } from 'pg'
 
-import { requireEnv } from './env'
+import { isNodeRuntimeTarget, requireEnv } from './env'
 
 /**
  * Database connection policy — one owner for every PostgreSQL endpoint choice.
@@ -21,10 +21,19 @@ import { requireEnv } from './env'
 /**
  * Resolves the CMS runtime connection string.
  *
- * Order: Hyperdrive binding (Worker request, or `next dev` with wrangler's local
- * bindings) -> `DATABASE_URL` (CLI: migrations, type generation, local tooling).
+ * Node target (`RUNTIME_TARGET=node`, I19/D27): `CMS_DATABASE_URL`, the
+ * runtime transaction-pooler credential. It never falls back to
+ * `DATABASE_URL` — that is the separate D26 migration credential and
+ * `.env.example` forbids its runtime use.
+ *
+ * Otherwise: Hyperdrive binding (Worker request, or `next dev` with wrangler's
+ * local bindings) -> `DATABASE_URL` (CLI: migrations, type generation, local
+ * tooling).
  */
 export function resolveCmsConnectionString(): string {
+  if (isNodeRuntimeTarget()) {
+    return requireEnv('CMS_DATABASE_URL')
+  }
   try {
     const hyperdrive = getCloudflareContext().env.HYPERDRIVE
     if (hyperdrive?.connectionString) {
@@ -65,5 +74,30 @@ export const cmsPoolOptions: PoolConfig = {
   maxUses: 1,
   idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 10_000,
+  allowExitOnIdle: true,
+}
+
+/**
+ * node-postgres options for the Node admin target (I19/D27).
+ *
+ * A normal long-lived pool, unlike the Worker's per-isolate `maxUses: 1`: the
+ * Node server keeps its own connections open across requests instead of
+ * retiring one after a single checkout. `max` stays small because the
+ * transaction pooler multiplexes many client connections onto few Postgres
+ * backends. `query_timeout` and `connectionTimeoutMillis` are both
+ * client-side node-postgres limits, so a stale pooled socket fails the query
+ * instead of hanging — ISSUES I18 records a 600-second scheduled invocation
+ * with no `statement_timeout` as the likely cause.
+ *
+ * No prepared-statement name is set here either: the transaction pooler only
+ * supports the unnamed extended query protocol, exactly as the Worker path.
+ */
+export const cmsNodePoolOptions: PoolConfig = {
+  get connectionString() {
+    return resolveCmsConnectionString()
+  },
+  max: 5,
+  connectionTimeoutMillis: 10_000,
+  query_timeout: 10_000,
   allowExitOnIdle: true,
 }

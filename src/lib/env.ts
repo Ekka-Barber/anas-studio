@@ -11,6 +11,16 @@
 /** Hosts that are accepted as a disposable local database. */
 const LOCAL_DB_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'host.docker.internal'])
 
+/**
+ * The one runtime switch (I19/D27). `RUNTIME_TARGET=node` is set only by the
+ * Docker image/VM's runtime environment, never inferred from the absence of
+ * Cloudflare context — the CLI (migrations, type generation) also lacks that
+ * context and must never select the node target's storage adapter or autoRun.
+ */
+export function isNodeRuntimeTarget(): boolean {
+  return process.env.RUNTIME_TARGET === 'node'
+}
+
 export class MissingEnvError extends Error {
   constructor(name: string) {
     super(`Missing required environment variable: ${name}`)

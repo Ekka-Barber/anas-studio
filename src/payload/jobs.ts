@@ -1,5 +1,6 @@
 import type { JobsConfig, TaskConfig } from 'payload'
 
+import { isNodeRuntimeTarget } from '../lib/env'
 import { RUNTIME_PROBE_SLUG } from './collections/RuntimeProbe'
 
 export const PROBE_HEARTBEAT_TASK = 'probeHeartbeat'
@@ -88,9 +89,23 @@ function mayRunJobs(req: { headers: Headers; user?: unknown }): boolean {
 
 export const jobs: JobsConfig = {
   tasks: [probeHeartbeat],
-  // No `autoRun`: schedules are driven by the Worker cron trigger, never by a
-  // long-lived in-process timer.
+  // Worker target (`RUNTIME_TARGET` unset): no `autoRun`. Schedules are driven
+  // by the Worker cron trigger (`worker-entry.ts` `scheduled`), never by a
+  // long-lived in-process timer — a Worker isolate does not stay alive long
+  // enough to host one.
   //
+  // Node target (`RUNTIME_TARGET=node`, I19/D27): the Docker/VM process IS
+  // long-lived, so Payload's native `autoRun` timer can own scheduling
+  // in-process. Read from `payload/dist/index.js` `_initializeCrons()`: each
+  // `autoRun` tick calls `handleSchedules()` (enqueues jobs for any task whose
+  // `schedule` cron is due on this queue) and then `jobs.run()` (drains up to
+  // `limit`). It is guarded by `!isNextBuild()`, so it never starts during
+  // `next build`, and it is only initialized by `getPayload({ cron: true })`
+  // (called from every request via `@payloadcms/next`'s `initReq.js`), cached
+  // per process — so it starts once, in the live server, never in the CLI.
+  autoRun: isNodeRuntimeTarget()
+    ? [{ cron: '*/15 * * * *', queue: 'default', limit: 5 }]
+    : undefined,
   // Payload deletes a job row as soon as it completes successfully
   // (`deleteJobOnComplete` defaults to `true`). That would make a successful run
   // indistinguishable from a run that never happened: only pending and failed
