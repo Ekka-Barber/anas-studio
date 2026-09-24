@@ -1,18 +1,16 @@
 # ANASAQ: Claude execution entry
 
-Read `AGENTS.md` and `PLANS/README.md`. The only execution kickoff is
-`PLANS/FIRST-GLM-PROMPT.md`; its historical filename does not select a model.
-Read `PLANS/PREFLIGHT.md` and `PLANS/SKILLS.md` before that kickoff.
+Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md`.
 
 ## Authority and scope
 
-- `PLANS/` is the plan of record. D01-D25 are settled; do not reopen them.
+- `PLANS/` is the plan of record. D01-D29 are settled (D02 superseded by D29); do not reopen them.
 - D24 as amended by D28: the orchestrator (Opus 5.5, 1M) plans, audits, fixes and
   does all major design work itself. `sonnet-worker` (Sonnet 5, 1M) does long,
   well-specified work. Set `model` explicitly on every dispatch. Definitions are in
   `.claude/agents/`. D29: a custom Supabase admin replaces Payload.
 - D25: the canonical domain is `anas.studio`; the folder name is historical.
-- Start P00 only and stop with evidence. P00 acceptance gates dependent work.
+- Follow "Next work" in `PLANS/EXECUTION-STATUS.md`, one package at a time, and stop with evidence.
 - Preserve the frozen design. Before UI work, read `PLANS/DESIGN-AUDIT.md`;
   recheck every applicable item and exercise every changed control before handoff.
 - Preparation, account existence, and passing structural checks do not close

@@ -1,66 +1,66 @@
-# Final implementation research
+# Implementation research
 
-Research cutoff: 2026-09-21. Planning only. No package was installed, no app was scaffolded and no production file was changed.
+Revised 2026-09-24 for D29. The original research cutoff was 2026-09-21; Payload-specific findings were removed with Payload and remain in Git history. Exact installed versions live in `package.json` and `pnpm-lock.yaml`, not here.
 
-## Recommendation and first gate
+## Supabase plan limits (live docs, read 2026-09-24)
 
-Build one embedded Payload 3 application: one Next.js/React/TypeScript codebase, one Supabase PostgreSQL database and one Cloudflare Workers deployment. Use `@payloadcms/db-postgres` through a Hyperdrive binding aimed at the Supabase pooler. Use a second least-privilege runtime credential/binding for financial functions in the same database, not a second database or service. Payload native auth is the only staff identity.
+| Item | Free | Pro ($25/month) | Source |
+|---|---|---|---|
+| Pausing | Paused after low activity over 7 days; warning email first; restorable for up to 1 year | Never paused | [pricing](https://supabase.com/pricing), [pausing](https://supabase.com/docs/guides/platform/free-project-pausing) |
+| Active projects | 2 (paused projects do not count) | No cap; each project pays its own compute | [pricing](https://supabase.com/pricing) |
+| Compute | Nano: up to 0.5 GB RAM, shared CPU, 60 direct connections, 200 pooler clients | $10/month credit covers one Micro (1 GB RAM, same connection limits) | [compute](https://supabase.com/docs/guides/platform/compute-and-disk) |
+| Database size | 500 MB; above it the project goes read-only | 8 GB disk included, $0.125/GB; auto-grows at 90% | [pricing](https://supabase.com/pricing), [database size](https://supabase.com/docs/guides/platform/database-size) |
+| Egress | 5 GB (+5 GB cached) | 250 GB (+250 GB cached), then $0.09/GB | [pricing](https://supabase.com/pricing) |
+| Auth MAU | 50,000 | 100,000, then $0.00325/MAU | [pricing](https://supabase.com/pricing) |
+| Auth email | Built-in sender: 2 emails per hour per project; custom SMTP lifts it | same | [rate limits](https://supabase.com/docs/guides/auth/rate-limits) |
+| Storage | 1 GB, 50 MB max file | 100 GB, 500 GB max file | [pricing](https://supabase.com/pricing), [file limits](https://supabase.com/docs/guides/storage/uploads/file-limits) |
+| Edge Functions | 500,000 invocations; 2 s CPU per request, 150 s wall clock, 256 MB | 2 M invocations, 400 s wall clock | [pricing](https://supabase.com/pricing), [limits](https://supabase.com/docs/guides/functions/limits) |
+| Backups | None; export with `supabase db dump` and keep off-site copies | Daily, last 7 days; PITR extra (~$100/month per 7 days, needs Small compute) | [backups](https://supabase.com/docs/guides/platform/backups) |
 
-P00 is the first and blocking implementation step. Pin the compatible Payload 3.90.1 set, run the real admin route on Workers, log in, CRUD one collection row through Supabase Postgres/Hyperdrive, upload and read one private object through `@payloadcms/storage-r2`, and prove the bundle contains no Sharp/native image resize or filesystem persistence. Measure Worker CPU, compressed bundle, route compatibility, migrations and connection behavior on Free. Failures stop dependent work; they do not authorize a silent paid plan, D1 switch, custom CMS or separate deploy.
+MFA: TOTP is enforced in RLS through the JWT `aal` claim; `amr` lists methods with timestamps, newest first; the challenge/verify limit is fixed at 15 per minute per IP ([MFA](https://supabase.com/docs/guides/auth/auth-mfa), [rate limits](https://supabase.com/docs/guides/auth/rate-limits)). The MFA page does not state plan availability; P03 confirms it. pg_cron schedules from every second to once a year, with at most 8 concurrent jobs recommended ([cron](https://supabase.com/docs/guides/cron)).
 
-Cloudflare's 2025-09-30 Payload article is unusually strong feasibility evidence: the official Postgres adapter worked on Workers, with `maxUses: 1`, and Hyperdrive restored pooling/query cache. It is still a demonstration, not proof of this project's Supabase path or free CPU budget.
+Consequences: staff are the only Auth users (about 3 MAU). Media stays in R2, so Supabase Storage limits do not apply. The real Free risks are pausing and the absence of backups; neither matters locally, and both are covered by E07 (Pro before live orders) and P06 (own off-site backup). Hosted staff mail needs Resend SMTP.
 
-## Selected platform
+## Platform choices
 
-| Area | Selection and boundary | Evidence snapshot |
+| Area | Choice | Reason |
 |---|---|---|
-| CMS/runtime | `payload@3.90.1`, `@payloadcms/next@3.90.1`, `@payloadcms/db-postgres@3.90.1`; OpenNext `1.20.6` is the starting adapter because Payload's official Workers port used it. P00 also records current Cloudflare guidance, where vinext is beta and OpenNext remains documented. | MIT; 8,335,126 B, 2,313,164 B, 58,556 B and 472,302 B unpacked. Payload repo and releases were active in Sep 2026. |
-| CMS behavior | Native collections/globals, admin, access controls, versions, drafts, preview, `schedulePublish`, jobs, folders/media and generated types/migrations. Native Lexical through `@payloadcms/richtext-lexical@3.90.1`. | Lexical adapter MIT, 6,225,893 B, released 2026-09-18. Jobs persist in DB, but schedules require an actual runner. One Worker scheduled handler invokes them. |
-| Storage | `@payloadcms/storage-r2@3.90.1` with native R2 binding. Private originals, paid files and quarantine; approved public derivatives use separate keys/origin. | MIT, 93,931 B, released 2026-09-18. Payload docs identify it as the Workers-only R2 adapter. |
-| Staff auth | Payload sessions/cookies, password reset, verification and lockout. Disable public registration; re-read active role per request. | Current Payload auth pages document these features but not MFA/TOTP. |
-| Database authorization | Private `cms` and `finance` schemas; no Supabase anon/authenticated grants and no Data API exposure. Payload access controls human authorization. DB roles/grants/RLS isolate service principals. Financial runtime gets EXECUTE only on fixed-search-path functions. | Do not claim Payload hooks propagate each human identity into Postgres RLS. Avoid pooled `SET` identity. Use checked-in migrations and direct role-negative tests. |
-| Email/abuse | `resend@6.28.1` over HTTP with durable outbox/idempotency; Turnstile plus bounded DB throttles. | Resend MIT, 282,178 B, Sep 2026. Free development quotas exist; sender/domain setup remains external. |
-| Validation/tests | Payload field validation internally, Zod at custom boundaries; Vitest 5.0.1, Playwright 1.63.0, axe and LHCI. | Licenses are MIT, Apache-2.0, MPL-2.0 and Apache-2.0 respectively. Test exact Worker preview, DB roles, browser RTL and payment replay. |
-
-Payload, Lexical and their exact patch set move together. A later `latest` tag is not authorization to upgrade. P00 may select a different mutually supported patch only with recorded compatibility, licenses, advisories and lockfile.
+| Runtime | Next 16 with OpenNext for Cloudflare on Workers | Proven in P00 for the public route, ISR cache and revalidate gate. |
+| Staff auth | Supabase Auth, passwordless (email code, Google) | Hashing runs on Supabase, not the Worker (I17). Sign-up disabled. |
+| Data API | `@supabase/supabase-js` with RLS | Per-person authorization in the database, EKKa pattern; the admin costs almost no Worker CPU. |
+| Server writes | `pg` through Hyperdrive as `app_server` | EXECUTE-only least privilege; pooler behaviour proven in P00. |
+| Rich text | Lexical packages directly | Keeps the planned JSON format and D14 allowlist renderer; no Tiptap. |
+| Email/abuse | Resend over HTTP with durable outbox; Turnstile plus bounded DB throttles | Free development quotas; sender domain is external (E01). |
+| Tests | Vitest, Playwright, axe, LHCI | Real DB, real JWT and Worker checks. |
 
 ## Media without Sharp or Images
 
-Baseline is upload-time browser processing, not on-request optimization. `react-easy-crop@6.2.3` provides the crop UI; native `createImageBitmap` plus canvas `toBlob('image/webp')` generates the required bounded widths without upscaling. Generate automatically before upload, fail with an actionable message when the browser cannot encode, and never publish the raw original as a fallback. Preserve crop coordinates for deliberate regeneration.
+Baseline is upload-time browser processing, not on-request optimization. `react-easy-crop` provides the crop UI; native `createImageBitmap` plus canvas `toBlob('image/webp')` generates the bounded widths without upscaling. Generate automatically before upload, fail with an actionable message when the browser cannot encode, and never publish the raw original as a fallback. Preserve crop coordinates for deliberate regeneration.
 
-The server does not trust browser claims. Direct pins `file-type@22.1.1` and `image-size@2.0.4` check magic bytes and bounded dimensions before promotion; enforce authenticated short-lived upload ticket, byte limit, pixel limit, allowed exact widths/aspect ratios, server-generated keys and ownership. Reject SVG, HTML, archives and mismatched declared MIME. Canvas output normally removes source metadata, but header/type checks do not fully decode or sterilize a hostile image. Keep originals private, serve derivatives from an isolated origin with `nosniff`, and require alt text/rights.
+The server does not trust browser claims. `file-type` and `image-size` check magic bytes and bounded dimensions before promotion; enforce an authenticated short-lived upload ticket, byte and pixel limits, allowed exact widths/aspect ratios, server-generated keys and ownership. Reject SVG, HTML, archives and mismatched declared MIME. Canvas output normally removes source metadata, but header/type checks do not fully decode or sterilize a hostile image. Keep originals private, serve derivatives from an isolated origin with `nosniff`, and require alt text and rights.
 
-Package evidence: `react-easy-crop@6.2.3` is MIT, 281,101 B, published 2026-07-24 and its repo was active 2026-09-10. `file-type` is MIT, 138,897 B, published/repo-pushed 2026-09-17. `image-size` is MIT, dependency-free, 95,510 B, published 2026-09-14. Exact-version OSV queries returned no known advisories at cutoff.
+Do not add Sharp, Cloudflare Images, a WASM codec or an image proxy to the baseline. Sharp is unsupported on Workers. A WASM encoder adds large code and CPU risk against Free's 10 ms budget. Cloudflare Images remains a separately cost-approved post-launch choice.
 
-Do not add Sharp, Cloudflare Images, a WASM codec or an image proxy to baseline. Sharp is unsupported in the Workers path under discussion #16937. A pure WASM encoder moves trust server-side but adds large code, codec maintenance and CPU risk against Free's 10 ms request budget. Test one only if P00 proves browser encoding cannot meet supported-browser/quality requirements. Cloudflare Images remains a separately cost-approved post-launch choice.
+## Owner statistics
 
-## Auth and owner operations
-
-Current Payload docs expose sessions, reset, verification, lockout and custom strategies, but no native MFA/TOTP. Check installed 3.90.1 once more in P03. If still absent, add only `otpauth@9.5.2`: MIT, 997,251 B unpacked, one `@noble/hashes` dependency, published 2026-09-03, repo active 2026-09-18, no exact-version OSV result. Encrypt TOTP seeds, hash single-use recovery codes, rate-limit challenges and issue a short-lived one-use grant bound to owner, session and action. Refunds and role grants consume it transactionally. This extends Payload auth; it does not introduce Supabase Auth.
-
-Owner statistics combine factual sources: orders/revenue/customers from the database; traffic from Cloudflare's GraphQL Analytics API using a server-only least-privilege token. The official selected-dataset example documents `httpRequestsAdaptiveGroups.sum.visits`; use it only after P06 introspects the connected account's schema/entitlement. A second bounded query may group `dimensions.clientRequestPath`, ordered by request count, filtered to `requestSource: "eyeball"`, production hostname and an explicit UTC range. P06 must first prove a documented response content-type/status filter in that account, then include HTML success responses and exclude admin, API, asset and health paths. Label the result **most requested public pages**, not unique page views. If those fields/filters are absent, data is delayed/unauthorized, or any returned `avg.sampleInterval > 1`, exact visit and page KPIs are **unavailable**. Never present extrapolated/sampled figures as exact and never turn missing into zero.
-
-The bonus kanban uses private owner-only Payload `Boards`, `BoardColumns` and `BoardCards`. `@dnd-kit/core@6.3.1` and `@dnd-kit/sortable@10.0.0` are already exact dependencies of `@payloadcms/next@3.90.1`; direct imports should still be declared. Both are MIT, 1,066,148 B and 234,022 B unpacked. Packages were published Dec 2024, but the non-archived repo was active 2026-09-12; OSV exact-version checks were empty. Dnd-kit operates in physical coordinates and does not prove RTL by itself. Use logical CSS, explicit horizontal-order mapping, keyboard sensor/announcements, non-drag move controls, and test pointer plus keyboard in RTL. Publishing linked content stays a separate explicit action.
+Orders, revenue and customers come from the database. Traffic comes from Cloudflare's GraphQL Analytics API with a server-only least-privilege token. The documented selected-dataset example uses `httpRequestsAdaptiveGroups.sum.visits`; use it only after P06 introspects the account's schema and entitlement. A second bounded query may group `dimensions.clientRequestPath` by request count, filtered to `requestSource: "eyeball"`, the production hostname and an explicit UTC range. P06 must first prove a response content-type/status filter in that account, then include HTML success responses and exclude admin, API, asset and health paths. Label the result "most requested public pages". If fields or filters are absent, data is delayed or unauthorized, or any `avg.sampleInterval > 1`, the exact KPI is unavailable. Never present sampled figures as exact or turn missing into zero.
 
 ## UI, reader, commerce and booking choices
 
-| Keep | Why | Candidate not selected |
+| Keep | Why | Not selected |
 |---|---|---|
-| Payload native admin with existing Radix, plus React Aria only for accessibility gaps | Smallest custom surface and native access/editor behavior. `@radix-ui/react-dialog@1.1.23` is MIT, 99,377 B. `react-aria-components@1.21.1` is **Apache-2.0**, 6,586,272 B, active Sep 2026 and has broad locale/direction behavior. Preserve Apache notices. | Request's React Aria MIT label was false. Base UI is MIT but 9,628,362 B and would add another primitive system. A custom dashboard duplicates CMS behavior. |
-| Payload Lexical adapter | Native typed rich text, admin integration and versioning. Allowlist renderer, no arbitrary HTML/embed. | Tiptap 3.31.3 is maintained/MIT but adds a second editor and SSR/configuration surface. |
-| Patched `pdfjs-dist@6.3.289` plus direct `page-flip@2.0.7` | PDF.js is maintained, Apache-2.0, 34,781,083 B and had no exact OSV result. Direct page-flip gives physical RTL ordering without React wrapper indirection. Lazy-load both and retain accessible static fallback. | `react-pageflip@2.0.3` is only 37,672 B but adds a stale wrapper. `page-flip` itself is MIT, 9,391,581 B, last published 2021 and repo-pushed 2024, so pin it, isolate it and keep a removable fallback. Three.js/R3F is much larger and unnecessary. |
-| Moyasar hosted invoice + server fetch verification | Existing official evidence covers invoice creation, webhook token, status, payment fetch, refunds, test/live separation and Apple Pay registration. Card data never touches app. | Stream is credible and documented, but changing gateway reopens payment proof. Payload ecommerce plugin is not a payment/inventory correctness layer. Medusa/Saleor create another commerce service and violate one app/deploy. |
-| Native booking tables/functions plus `ics@3.12.0` | One Riyadh calendar, DB exclusion, holds, exceptions and a private one-way feed need little code. `ics` is ISC, 71,873 B, published Apr 2026, repo active Sep 2026. | Cal.com is an oversized second product. `ical.js@2.2.1` is MPL-2.0 and 1,200,090 B; use only if parsing/import becomes approved scope. |
-| CSS Modules and existing licensed fonts | Matches frozen design and avoids a second styling system. Use logical properties and Arabic browser/device checks. | Tailwind/dashboard templates, custom CMS editor and Tiptap are duplication. |
+| Custom admin on the main tokens, Radix for dialogs, React Aria only for gaps | Smallest surface matching the site. React Aria is Apache-2.0; preserve notices. | Dashboard templates, Tailwind, Base UI. |
+| Patched `pdfjs-dist` plus direct `page-flip` | Maintained PDF.js; direct page-flip gives physical RTL ordering. Lazy-load both with an accessible static fallback. | `react-pageflip` (stale wrapper), Three.js. |
+| Moyasar hosted invoice + server fetch verification | Official evidence covers invoice creation, webhook token, status, fetch, refunds, test/live separation and Apple Pay registration. Card data never touches the app. | Stream (changing gateway reopens payment proof), Medusa/Saleor (second commerce service). |
+| Booking tables/functions plus `ics` | One Riyadh calendar, DB exclusion, holds, exceptions and a private one-way feed need little code. | Cal.com, `ical.js` unless import becomes approved scope. |
+| `@dnd-kit` for the P12 board | Pointer, touch and keyboard sensors; RTL mapping and a move menu are ours to add. | Hand-built drag engine. |
 
-## Operations, costs and security
+## Operations and security
 
-Use Sentry Free for checkout, webhook and scheduler failures: `@sentry/nextjs@10.75.1`, MIT, 1,967,109 B, active/published 2026-09-21, exact OSV empty. Disable replay. Scrub tokens, request bodies, payment payloads, emails and addresses in `beforeSend`. Sentry's current Developer allowance is one user/unlimited projects/5,000 errors; quotas can change.
+Sentry Free for checkout, webhook and scheduler failures, replay disabled, `beforeSend` scrubbing tokens, bodies, payment payloads, emails and addresses. One UptimeRobot Free HTTPS check against a read-only health endpoint; it is neither an SLA nor proof of payment correctness.
 
-Use one UptimeRobot Free HTTPS check against a read-only health endpoint. Current offer is 50 monitors at five-minute intervals; configure exactly one. The endpoint checks app, bounded DB and job freshness without exposing secrets. Monitor availability is neither an SLA nor proof of payment correctness.
+Development runs on the local Supabase stack, Workers Free, R2 Free, Resend Free and Turnstile Free. Free allocations are test envelopes, not launch economics. Workers Free allows 10 ms CPU per invocation. Live orders wait for explicit recurring-cost approval, a non-pausable database with backups, and measured Worker headroom (E07).
 
-Development target is Workers Free, R2 Free, Resend Free, Turnstile Free and local Supabase, with one free hosted Supabase project for synthetic preview only. No Cloudflare Images dependency. Free allocations are test envelopes, not launch economics. Workers Free currently allows 100,000 requests/day but only 10 ms CPU/invocation. Production order acceptance waits for explicit recurring-cost approval, non-pausable DB/backups and measured Worker headroom.
+Exact-version advisory checks do not cover every transitive package or future disclosure. Commit the lockfile, run dependency, secret and SAST checks, and review Next/Supabase advisories at each release.
 
-Security snapshot is limited: direct exact-version OSV returned no known advisories for researched pins. That does not cover every transitive package, malicious updates, configuration flaws or future disclosures. Commit lockfile/integrities, run dependency/secret/SAST checks, review Payload/Next advisories at each release and make runtime proof outrank marketing claims.
-
-Detailed source URLs, dates and caveats are in `evidence/final-official-sources.txt`; normalized package evidence is in `evidence/final-package-snapshot.json`. Older platform/runtime/commerce captures remain the source for losing candidates and provider protocols.
+Provider evidence captured during planning is under `evidence/` (Moyasar, Cloudflare, Supabase, Resend, Turnstile, PDF.js, page-flip, iCalendar).

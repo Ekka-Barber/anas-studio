@@ -4,7 +4,7 @@ Scope source is `offer-site-v3/index.html`; line references refer to the unchang
 
 | ID | Source and full requirement | Sole owner / supporting proof |
 |---|---|---|
-| C01 | 1539–1557: React + TypeScript inside Next.js; real PostgreSQL, admin, R2 and Saudi payments | **P00**; supporting proof: P00/P03/P08; real Worker build, DB integration and sandbox gateway; embedded Payload retained under D02; exact runtime spike first|
+| C01 | 1539–1557: React + TypeScript inside Next.js; real PostgreSQL, admin, R2 and Saudi payments | **P00**; supporting proof: P00/P03/P08; real Worker build, DB integration and sandbox gateway; custom Supabase admin under D29; exact runtime spike first|
 | C02 | 1529–1531,1699: versioned production repository; preserve existing design as input | **P00**; supporting proof: P00; keep current Git, frozen hashes, one accepted commit per package|
 | C03 | 1464–1465,1817–1821: personal digital home, portrait/tagline and ordered rooms | **P01**; supporting proof: P01/P04/P06; home route + owner edits all visible texts/media/order|
 | C04 | 1465,1825–1844: بدأت هنا, بُنيت هنا, مرّت من هنا; private projects and upcoming work; Rahha branches/campaigns/products/achievements; brands/philosophy/images and contribution stories | **P01**; supporting proof: P01/P04; three routes, project detail, room taxonomy, metrics/rights and working filters|
@@ -49,11 +49,11 @@ Scope source is `offer-site-v3/index.html`; line references refer to the unchang
 
 The introduction/current stage (1334–1351), frank letter (1357–1384), existing examples/identity (1392–1447), completed work (1456–1485), timeline (1493–1518), blog gap (1523–1525), historical technical accounting (1529–1531), technical choice (1539–1557), admin (1563–1639), store (1644–1683), phases (1688–1727), price (1733–1757), external costs (1764–1802), homework (1810–1901), closing letter (1908–1912), printed offer clauses 1–7 (1930–1970) and signature/footer (1975–1986) were inspected.
 
-Historical timelines, the one deliberate tools sentence at 1365, old prototype counts and signature spaces are offer content, not new site feature requests. Keep that file unchanged. The printed offer reinforces the same scope; its binding Payload requirement is retained in D02; the prior replacement proposal is withdrawn. Supporting DOCX text was extracted to `evidence/offer-docx-1.txt` and `offer-docx-2.txt`; v3 wins any difference. Supporting brand package is summarized in `SOURCE-NOTES.md`.
+Historical timelines, the one deliberate tools sentence at 1365, old prototype counts and signature spaces are offer content, not new site feature requests. Keep that file unchanged. The printed offer reinforces the same scope; its Payload requirement was replaced by D29 with Anas's agreement (2026-09-24). Supporting DOCX text was extracted to `evidence/offer-docx-1.txt` and `offer-docx-2.txt`; v3 wins any difference. Supporting brand package is summarized in `SOURCE-NOTES.md`.
 
 ## Explicit deviations and gates, never silent omissions
 
-1. Payload retained, with native CMS/catalog management, native staff auth and independently enforced database service-principal isolation. P00 proves exact Workers runtime before dependent work.
+1. Custom Supabase admin (D29) for content and catalog, passwordless staff auth, RLS per person and EXECUTE-only server roles. P00 proves exact Workers runtime before dependent work.
 2. Free entry-tier claim is not an uptime guarantee: E07 requires cost acceptance or actual free-tier measurement/risk acceptance before live operation.
 3. Calendar integration is a functioning one-way iCalendar feed and export, D12, not an unsupported claim of bidirectional provider synchronization.
 4. Final manuscript, font/content rights, owner-configured prices/stock/tax/shipping/policies and merchant activation remain human inputs. Local implementations and tests continue, but these gates must not be marked closed without evidence.

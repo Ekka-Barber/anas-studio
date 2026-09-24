@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
-$required = @('README.md', 'DECISIONS.md', 'ARCHITECTURE.md', 'DATA-AND-SECURITY.md', 'WORK-PACKAGES.md', 'COVERAGE.md', 'VERIFICATION.md', 'DESIGN-AUDIT.md', 'research-final.md', 'SOURCE-NOTES.md', 'PLAN-AUDIT.md', 'SECOND-PASS-AUDIT.md', 'FIRST-GLM-PROMPT.md')
+$required = @('README.md', 'DECISIONS.md', 'ARCHITECTURE.md', 'DATA-AND-SECURITY.md', 'WORK-PACKAGES.md', 'COVERAGE.md', 'VERIFICATION.md', 'DESIGN-AUDIT.md', 'research-final.md', 'SOURCE-NOTES.md', 'KICKOFF.md', 'EXECUTION-STATUS.md', 'ISSUES.md')
 foreach ($name in $required) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $name) -PathType Leaf)) { throw "Missing plan: $name" }
 }
@@ -41,9 +41,6 @@ foreach ($name in $required) {
         if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $target))) { throw "Broken local link in ${name}: $target" }
     }
 }
-Get-Content -LiteralPath (Join-Path $PSScriptRoot 'evidence/final-package-snapshot.json') -Raw -Encoding utf8 | ConvertFrom-Json | Out-Null
-$changed = @(& git -C $repo diff --name-only; & git -C $repo diff --cached --name-only; & git -C $repo ls-files --others --exclude-standard)
-if ($changed | Where-Object { $_ -notmatch '^PLANS/' }) { throw 'Changes outside PLANS detected.' }
 & git -C $repo diff --check
 if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
 [ordered]@{
@@ -57,9 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed.' }
     bonus_has_no_contract_owner = $true
     frozen_files_verified = $manifest.Count
     local_links = 'pass'
-    research_json = 'pass'
-    changed_paths = 'PLANS only'
     diff_whitespace = 'pass'
     application_runtime_tested = $false
 } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'evidence/planning-checks.json') -Encoding utf8
-"PASS: $($required.Count) documents; $($packages.Count) packages; $($rows.Count) unique scope owners; $($manifest.Count) frozen hashes; PLANS-only changes."
+"PASS: $($required.Count) documents; $($packages.Count) packages; $($rows.Count) unique scope owners; $($manifest.Count) frozen hashes."

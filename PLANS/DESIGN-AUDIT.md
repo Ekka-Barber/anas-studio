@@ -4,7 +4,7 @@ This walks the entire supplied design law, including repeated tells, premium tec
 
 Codes: **F** = explicit frozen identity overrides the generic stylistic ban; reproduce carefully, not permission to copy into unrelated new screens. **N** = new journal/admin/store/services/board rule. **B** = defect prevention required everywhere, including production port of frozen design. **O** = optional technique, use only when it fits; never a required decoration. The orchestrator must append actual screenshot/interaction evidence for each applicable item during P10/P12. An N/O item absent from output is recorded not applicable, not embellished to satisfy a checklist.
 
-Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and distinct room jewel tones; licensed Lyon Arabic/Thmanyah; literary room hierarchy, signature, approved book world. The book's layout/type/art outside reader is final. Behavior, real prices and accessible visibility are wired without redesign. Original Motion Spec opacity-zero reveals are NOT reproduced as a reliability failure: readable default content wins. Responsive Frames are reference canvases, not production pages to make mobile. New native Payload screens prioritize clear Arabic editing, functional forms and real data, not a marketing signature pasted into admin.
+Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and distinct room jewel tones; licensed Lyon Arabic/Thmanyah; literary room hierarchy, signature, approved book world. The book's layout/type/art outside reader is final. Behavior, real prices and accessible visibility are wired without redesign. Original Motion Spec opacity-zero reveals are NOT reproduced as a reliability failure: readable default content wins. Responsive Frames are reference canvases, not production pages to make mobile. New admin screens use the main theme tokens and prioritize clear Arabic editing, functional forms and real data, not a marketing signature pasted into admin.
 
 ## Every anti-slop tell
 
@@ -156,7 +156,7 @@ Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and 
 137. [B/F] Arrow craft: correct RTL direction/optical alignment; existing arrow language.
 138. [B] Synchronized visual language: shared spacing/type/corners/focus, including native admin overrides.
 139. [O/B] Glass CTA: only if source earns backdrop; no gratuitous addition.
-140. [B] Real libraries: native Payload, Radix/React Aria and dnd-kit behavior; no hand-built editor/modal/drag engine.
+140. [B] Real libraries: Lexical, Radix/React Aria and dnd-kit behavior; no hand-built editor/modal/drag engine.
 141. [O] Standing toolkit: Motion only if needed; no Tailwind installation for shadcn/tailark/kokonut blocks.
 142. [B] De-slop prebuilts: native accessibility retained, no generic marketing styling leaks into brand.
 
@@ -170,4 +170,4 @@ Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and 
 148. [O/F] Nice free grotesque warning: do not swap fonts merely to appear distinctive.
 149. [B] Dead-looking failure: navigation and actions respond; calm is allowed, broken/static controls are not.
 
-Planning conclusion: explicit frozen exceptions are documented rather than silently redesigned; every behavioral defect category has a real P10/P12 inspection/test gate. No claim that unbuilt UI passed visual QA. PLAN-AUDIT records this limit.
+Planning conclusion: explicit frozen exceptions are documented rather than silently redesigned; every behavioral defect category has a real P10/P12 inspection/test gate. No claim that unbuilt UI passed visual QA.

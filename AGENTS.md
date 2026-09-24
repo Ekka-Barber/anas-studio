@@ -51,7 +51,7 @@ no API key, $0).
 <!-- ANASAQ_EXEC_START -->
 ## ANASAQ execution contract (all agents)
 
-- Authority: `PLANS/` is the plan of record. Execute packages P00→P12 in order from `PLANS/WORK-PACKAGES.md`; P00 (runtime spike) gates everything after it. `PLANS/DECISIONS.md` D01–D25 are settled.
+- Authority: `PLANS/` is the plan of record. Execute packages P00→P12 in order from `PLANS/WORK-PACKAGES.md`; P00 (runtime spike) gates everything after it. `PLANS/DECISIONS.md` D01–D29 are settled (D02 superseded by D29).
 - Orchestrator (main session, Claude Opus 5.5 per D28): plans, dispatches, audits, accepts, fixes, and does all major design work itself. It holds the lock whenever it writes product code.
 - Builder: `sonnet-worker` (Sonnet 5, 1M) from `.claude/agents/` for long, well-specified work; set `model` explicitly on every dispatch. `opus-worker`/`opus-worker-lite` only on the owner's request. Exactly ONE active writer, holding the exclusive lock (fs.openSync 'wx'). No writer spawns a writer.
 - The orchestrator fixes small audit findings itself; large ones go to a fresh bounded worker (never a resumed one). Token rules: CLAUDE.md "Token budget" (I24). Never self-accept; the orchestrator accepts after independent inspection.

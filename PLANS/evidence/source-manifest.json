@@ -971,8 +971,8 @@
   },
   {
     "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/WhatsApp Chat with انس القرني.txt",
-    "bytes": 32807,
-    "sha256": "4cffe81d4ddcff39b13b5562d10071aeae26411fa883e4b270700f111cb38082"
+    "bytes": 63436,
+    "sha256": "79c96057b2298c771c7764522a5fbaa459d43502b0b193915bc3b5fd0df021fb"
   },
   {
     "path": "BOOK_ASSETS/ANAS_WHATSAPP_CHAT/المستند (11).pdf",
@@ -1330,259 +1330,9 @@
     "sha256": "7e6ccd9a4a198d523984de1c3cdc52bd11c3bee91d8e7727014e77325b84214f"
   },
   {
-    "path": "Thmanyah-Font-Family/__MACOSX/._LICENSE.pdf",
-    "bytes": 868,
-    "sha256": "f3d51f5cd334708b9e5ded48af22083262ee912b4de66d8103863c0ca2255b7f"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/._thmanyah typeface",
-    "bytes": 170,
-    "sha256": "24e6a3d8be9e8743e95af7a3453dd710a2fca42436b0d2c45040ca8ce961c9e0"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/._╪¬╪▒╪«┘è╪╡ ╪«╪╖ ╪½┘à╪º┘å┘è╪⌐.pdf",
-    "bytes": 1065,
-    "sha256": "076c0444f741e1621e5835ef1402afc187b875317ebc5baad16e1593ea01bb69"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/._╪»┘ä┘è┘ä ╪¼┘à╪º┘ä┘è╪º╪¬ ╪«╪╖ ╪½┘à╪º┘å┘è╪⌐.pdf",
-    "bytes": 1163,
-    "sha256": "42acf8a7997f02a44d72f0426b570e7b1c63c07dfcf5c36d48a1ef66e324cb86"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._thmanyahsans",
-    "bytes": 313,
-    "sha256": "91831e6d13fa259dde0e8d0ccb0d6334f459b70c14860a94180f052720741016"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._thmanyahserifdisplay",
-    "bytes": 313,
-    "sha256": "91831e6d13fa259dde0e8d0ccb0d6334f459b70c14860a94180f052720741016"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/._thmanyahseriftext",
-    "bytes": 313,
-    "sha256": "91831e6d13fa259dde0e8d0ccb0d6334f459b70c14860a94180f052720741016"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Black.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Bold.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Light.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Medium.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/otf/._thmanyahsans-Regular.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Black.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Bold.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Light.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Medium.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahsans/woff2/._thmanyahsans-Regular.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Black.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Bold.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Light.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Medium.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/otf/._thmanyahserifdisplay-Regular.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Black.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Bold.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Light.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Medium.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahserifdisplay/woff2/._thmanyahserifdisplay-Regular.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Black.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Bold.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Light.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Medium.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/otf/._thmanyahseriftext-Regular.otf",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._.DS_Store",
-    "bytes": 120,
-    "sha256": "2f380f4a3d05a8d90c2106f50da75064e9ce57a598599dc5404f8f69a0223aa9"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Black.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Bold.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Light.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Medium.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
-    "path": "Thmanyah-Font-Family/__MACOSX/thmanyah typeface/thmanyahseriftext/woff2/._thmanyahseriftext-Regular.woff2",
-    "bytes": 221,
-    "sha256": "d23ee98983c9be53be311610e399e2c8ac6f4746ad9779ed13c536b4c824c594"
-  },
-  {
     "path": "Thmanyah-Font-Family/LICENSE.pdf",
     "bytes": 92927,
     "sha256": "07bbb2321bd2b944333c25f4d55140ca22625666132394d7399a365bd8b79a10"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/.DS_Store",
-    "bytes": 14340,
-    "sha256": "43c3aee2558b08ce5310e263d4c9a7c345db7598a36db6a77e98c9acb5608f2f"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/.DS_Store",
-    "bytes": 10244,
-    "sha256": "2ad581d9f4e913bdf4dd7f21fae0105efa1fffb08bcfa093487dd48380fd09d2"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/.DS_Store",
-    "bytes": 6148,
-    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
   },
   {
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/otf/thmanyahsans-Black.otf",
@@ -1610,11 +1360,6 @@
     "sha256": "f45a420632384b42a37ec9b24298ddc6502faa52d55d973144779262ebc023dc"
   },
   {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/.DS_Store",
-    "bytes": 6148,
-    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
-  },
-  {
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Black.woff2",
     "bytes": 77112,
     "sha256": "77e81ed0e4a199c29b22fe59b05ee5efb21c09775e5127abdcb2dd7938c82b3a"
@@ -1638,16 +1383,6 @@
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahsans/woff2/thmanyahsans-Regular.woff2",
     "bytes": 77776,
     "sha256": "5bb4fa412273ca31d5c7a165191568b099069cb74bf1fc1dfcdc6a3c2a97552e"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/.DS_Store",
-    "bytes": 10244,
-    "sha256": "2ad581d9f4e913bdf4dd7f21fae0105efa1fffb08bcfa093487dd48380fd09d2"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/.DS_Store",
-    "bytes": 6148,
-    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
   },
   {
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/otf/thmanyahserifdisplay-Black.otf",
@@ -1675,11 +1410,6 @@
     "sha256": "1f5c735a6c05cce9fe9b2459d5aedb1d039541d50b726304bd617a69587bf112"
   },
   {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/.DS_Store",
-    "bytes": 6148,
-    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
-  },
-  {
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Black.woff2",
     "bytes": 79212,
     "sha256": "a057be61138a74a590b9d4d0dce6f6b2926e1c443577ad30eb1d86f11efa0a0b"
@@ -1705,16 +1435,6 @@
     "sha256": "214a70d9dabcfa18649086841c25ccc67ef6630179837834bcffd3a149131ca6"
   },
   {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/.DS_Store",
-    "bytes": 10244,
-    "sha256": "2ad581d9f4e913bdf4dd7f21fae0105efa1fffb08bcfa093487dd48380fd09d2"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/.DS_Store",
-    "bytes": 6148,
-    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
-  },
-  {
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Black.otf",
     "bytes": 243332,
     "sha256": "dca14597277eade6ca471ca897070054aa64a55646299c466b22f6f0fb110e4a"
@@ -1738,11 +1458,6 @@
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/otf/thmanyahseriftext-Regular.otf",
     "bytes": 242952,
     "sha256": "db7294cfea2b2a537c028305dc142fb3b743da1c4738f0fac3a7dd31c0c47b5f"
-  },
-  {
-    "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/.DS_Store",
-    "bytes": 6148,
-    "sha256": "d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3"
   },
   {
     "path": "Thmanyah-Font-Family/thmanyah typeface/thmanyahseriftext/woff2/thmanyahseriftext-Black.woff2",
@@ -1786,8 +1501,8 @@
   },
   {
     "path": "AGENTS.md",
-    "bytes": 4824,
-    "sha256": "15f53e4d1cf3a4ff510371e8af2e740d9399c2c2c479309c6c5ff9234b47b825"
+    "bytes": 5004,
+    "sha256": "6a6f0d904618870afc27a6c3980d4f7ebc413a9be1e9c7283731e529facb0755"
   },
   {
     "path": "anasaq-me-prd-v1.md",
