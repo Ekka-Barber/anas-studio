@@ -1,6 +1,6 @@
 ---
 name: opus-worker-lite
-description: Mechanical worker (Opus 5, light brief). Small bounded tasks only — test fixtures, copy sync, dependency bumps, docs. Dispatched one at a time under the exclusive lock.
+description: NOT dispatched by default (D28) - Opus-level work is done by the orchestrator itself; use only on the owner's request. Mechanical worker (Opus 5, light brief). Small bounded tasks only — test fixtures, copy sync, dependency bumps, docs. Dispatched one at a time under the exclusive lock.
 model: opus
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---

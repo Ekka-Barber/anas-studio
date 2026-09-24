@@ -7,8 +7,10 @@ Read `PLANS/PREFLIGHT.md` and `PLANS/SKILLS.md` before that kickoff.
 ## Authority and scope
 
 - `PLANS/` is the plan of record. D01-D25 are settled; do not reopen them.
-- D24: Fable orchestrates and audits; `opus-worker` and `opus-worker-lite`
-  implement on Claude subscription auth. Definitions are in `.claude/agents/`.
+- D24 as amended by D28: the orchestrator (Opus 5.5, 1M) plans, audits, fixes and
+  does all major design work itself. `sonnet-worker` (Sonnet 5, 1M) does long,
+  well-specified work. Set `model` explicitly on every dispatch. Definitions are in
+  `.claude/agents/`. D29: a custom Supabase admin replaces Payload.
 - D25: the canonical domain is `anas.studio`; the folder name is historical.
 - Start P00 only and stop with evidence. P00 acceptance gates dependent work.
 - Preserve the frozen design. Before UI work, read `PLANS/DESIGN-AUDIT.md`;
@@ -18,20 +20,31 @@ Read `PLANS/PREFLIGHT.md` and `PLANS/SKILLS.md` before that kickoff.
 
 ## Execution contract
 
-- The orchestrator never edits product code. It directly writes only the lock,
-  `PLANS/EXECUTION-STATUS.md`, and `PLANS/ISSUES.md` during execution.
+- The orchestrator may edit product code for audit fixes and design work (D28). It
+  holds the lock while it writes; never at the same time as a worker.
 - Exactly one writer holds `.anasaq-execution.lock`, created exclusively with
   `fs.openSync(path, 'wx')`. Enumerate exact paths before writing.
 - Keep the lock through integration and independent audit. A writer never
   spawns another writer, self-accepts, or starts the next package.
 - An existing lock blocks dispatch. Prove its owner stopped, inspect the diff,
   record recovery, then release it. Time alone never makes a lock safe to remove.
-- Return audit fixes to a bounded worker task. Preserve unrelated user edits.
+- Fix small audit findings directly; send large ones to a fresh bounded worker.
+  Preserve unrelated user edits.
 - Never inspect `_archive/`, edit `deploy/design/`, or read/print `.env` contents.
   Secrets are consumed through environment variables only, never logged or copied
   into code, prompts, commits, evidence, or product output.
 - No invented prices, successful payments, approvals, or E-gate closure. No paid
   provisioning, live charges, or deployment authority is implied by the plan.
+
+## Token budget (I24)
+
+- A fresh worker for each task or fix round, with a short brief listing exact files.
+  Never resume one worker across rounds: its whole context is re-sent on every call.
+- No polling: no sleep, until, tail or wc loops, by any agent. Run long commands once,
+  with a timeout, or in the background with a single completion notification.
+- UI work: `pnpm dev` with hot reload and one screenshot pass (360 and 1440). Build the
+  Worker bundle and run the full visual suite only at acceptance.
+- When a session gets long, document the state and continue in a new session.
 
 ## Working style and context
 

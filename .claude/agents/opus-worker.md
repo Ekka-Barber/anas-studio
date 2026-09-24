@@ -1,6 +1,6 @@
 ---
 name: opus-worker
-description: Rigorous implementation worker (Opus 5). Delegate bounded implementation, review fixes, and ALL money/auth/runtime reasoning here. Dispatched one at a time under the exclusive lock.
+description: NOT dispatched by default (D28) - Opus-level work is done by the orchestrator itself; use only on the owner's request. Rigorous implementation worker (Opus 5). Delegate bounded implementation, review fixes, and ALL money/auth/runtime reasoning here. Dispatched one at a time under the exclusive lock.
 model: opus
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---

@@ -52,9 +52,9 @@ no API key, $0).
 ## ANASAQ execution contract (all agents)
 
 - Authority: `PLANS/` is the plan of record. Execute packages P00→P12 in order from `PLANS/WORK-PACKAGES.md`; P00 (runtime spike) gates everything after it. `PLANS/DECISIONS.md` D01–D25 are settled.
-- Orchestrator (main session, Fable per D24): plans, dispatches, audits, accepts. It NEVER edits product code. It direct-writes only `.anasaq-execution.lock`, `PLANS/EXECUTION-STATUS.md` and `PLANS/ISSUES.md`.
-- Builders: `opus-worker` (rigorous: money/auth/runtime) and `opus-worker-lite` (mechanical) from `.claude/agents/`. Exactly ONE active writer, holding the exclusive lock (fs.openSync 'wx'). No writer spawns a writer.
-- Fixes found in audit go back to a worker as a bounded redispatch. Never self-accept; the orchestrator accepts after independent inspection.
+- Orchestrator (main session, Claude Opus 5.5 per D28): plans, dispatches, audits, accepts, fixes, and does all major design work itself. It holds the lock whenever it writes product code.
+- Builder: `sonnet-worker` (Sonnet 5, 1M) from `.claude/agents/` for long, well-specified work; set `model` explicitly on every dispatch. `opus-worker`/`opus-worker-lite` only on the owner's request. Exactly ONE active writer, holding the exclusive lock (fs.openSync 'wx'). No writer spawns a writer.
+- The orchestrator fixes small audit findings itself; large ones go to a fresh bounded worker (never a resumed one). Token rules: CLAUDE.md "Token budget" (I24). Never self-accept; the orchestrator accepts after independent inspection.
 - Forbidden: editing `_archive/` or frozen sources under `deploy/design/`; inventing prices, approvals or E-gate closure; bypassing a failed gate; staging unrelated edits into a package commit; touching `.env` (read keys via environment only).
 - Secrets live only in `.env` (gitignored). Never in code, chat, commits, logs or artifacts.
 - Claude Code specifics: subscription auth — do not set ANTHROPIC_BASE_URL/AUTH_TOKEN for this project; Opus effort is xhigh globally (quota, not money, is the constraint).
