@@ -1189,6 +1189,80 @@ These facts come from the measurements in I19 and I20, applied to
    conflict, and the owner must reconcile them before live orders. They are
    recorded here, not resolved by an agent.
 
+## I23 — cache interception answers segment prefetches with the full page, and the router loops
+
+Found 2026-09-24 while auditing P01 part 1. **Severity: blocks launch of any page that renders a `next/link` with prefetch on.**
+
+**Symptom.** With one room page open in a browser, the Next router re-prefetches the visible nav links (`/`, `/started`, `/built`, `/passed`) forever: about 39 requests per second from one tab. The local preview sat at 97% CPU and 7.3 GB. `networkidle` never arrived, so every visual test waited out its timeout.
+
+On Workers Free this would spend the daily request allowance in under an hour from a single open tab. Look up the current allowance from live docs before quoting a number.
+
+**Cause, from evidence.**
+- Next 16 sends segment prefetches with `next-router-segment-prefetch: /_tree`.
+- OpenNext's cache interceptor (`@opennextjs/aws` 4.1.4, `core/routing/cacheInterceptor.js`, `getBodyForAppRouter`) should answer from `cachedValue.segmentData['/_tree']` with `x-nextjs-postponed: 2`.
+- Instead it returned the full-page RSC (18,687 bytes, `x-opennext-cache: HIT`, no postponed header). This reproduced on two fresh local previews.
+- The build output does contain `started.segments/_tree.segment.rsc`, and the cache file lists `segmentData` keys `/_tree`, `/_full` and the page segment. So the lookup fails at request time, not at build time.
+- Not yet isolated: whether the event header or the R2-populated entry loses the segment data.
+
+**P01 mitigation (in scope).** Set `prefetch={false}` on every public `Link`. Navigation then does one plain RSC fetch on click, which the interceptor answers correctly. It also removes one prefetch request per nav link per page view.
+
+**Open (P00 scope, owner decision).** Either isolate and fix the interceptor path in `worker-entry.ts`/`open-next.config.ts` (or upstream), or keep prefetch off site-wide as policy. Hosted verification needed either way: the P00 hosted proof used a page without links, so it never exercised this path.
+
+## I24 — the P01 worker spent about 218M cached input tokens in 10.7 hours
+
+Recorded 2026-09-24 at the owner's request, after the owner asked why the worker took so long.
+
+**Measured from the transcript** (worker a39fe0504de62680b, 2026-09-23T22:02Z to 2026-09-24T08:45Z):
+- 758 model calls, 238 of them shell commands.
+- About 218M cache-read tokens and 5.8M cache-write tokens, and about 293k output tokens.
+- An average context of about 295k tokens was re-sent on every call.
+
+**Where it went.**
+1. **One long-lived worker for three audit rounds.** Each round was resumed with SendMessage, so the context only grew. By the end, each call re-sent about 300k tokens, even for a one-line `wc -l`.
+2. **Polling.** 65 calls were waits or polls: `wc -l` on logs, `until grep` loops, tails. Two `until grep` watchers pointed at the wrong file and sat for about 1.5 hours.
+3. **Slow loops caused by I23.** The RSC prefetch loop kept `networkidle` from ever arriving, so each visual run hung until its timeouts (more than 25 minutes). It also held the container at 97% CPU and 7.3 GB.
+4. **Full rebuilds for small CSS fixes.** 31 docker build and preview commands. Each `pnpm build:worker` inside Docker takes minutes.
+5. **Two usage-limit stops** (429 twice). Each resume re-read the whole context.
+6. **The orchestrator's own share.** This orchestrator session is also very long, and each of its tool calls re-sends a large context.
+
+**Rules from now on** (orchestrator and worker briefs):
+- **Fresh bounded workers.** Use a new worker per fix round, with a short brief and exact files, and never resume a worker across rounds.
+- **No polling.** Run long commands in the foreground with a timeout, or in the background with one completion notification. No `sleep`/`wc -l`/`tail` loops.
+- **Visual evidence.** One scripted screenshot pass per round, at 360 and 1440 only. The full 20-shot suite runs only at acceptance.
+- **Iterate on CSS with `next dev`** (hot reload). Build the Worker bundle only for acceptance.
+- **Stop the session** before it gets long: document the state, then continue in a new session.
+
+## I25 — the owner rejected the long-scroll room design; open-book prototype requested
+
+Recorded 2026-09-24.
+- **Owner feedback:**
+  - "I do not like the long scrolling page."
+  - "I do not like the way these words from Anas are presented."
+  - "We need Anas's web app to be attractive and entertaining."
+  - "The generated photos do not represent Tabuk city at all."
+- **Impeccable critique** (dual-agent; snapshot `.impeccable/critique/2026-09-24T08-37-35Z__src-app-public.md`): 23/40.
+  - The four rooms add up to 30.8 phone screens.
+  - P0: no pacing or position indicator; Anas's cliffhangers are flattened.
+  - P0: the imagery is a generic "old Arab town" kit, not Tabuk.
+  - P1: Anas's words are set as a thin grey ribbon; media is detached from the text; broken crops.
+  - P2: the frozen design's tabs, count-up, pinboard and progress bar were dropped.
+  - Detector: clean apart from one false positive and the frozen cream token.
+- **Recommendation:** «الكتاب المفتوح». Each room becomes a paged chapter of 8–12 pages: swipe, arrows and a page counter; a question or colon line ends a page and the answer opens the next page; media faces its line; Anas's text stays verbatim.
+  - **Tabuk imagery:** Hisma sandstone, Jabal al-Lawz in snow, Wadi al-Disah, Tabuk Castle, the Hejaz Railway station, and the book's street-4 villas. Draw from real reference photos, and use real film frames for places he built.
+- **Owner decision so far:** try the idea on a two-page prototype first. Nothing else is approved.
+- **Deviation:** this departs from the frozen design (CLAUDE.md "Preserve the frozen design"). It is the owner's call and is recorded here.
+
+## I26 — owner questions Payload for a simple site; D02 names Payload in the printed offer
+
+Recorded 2026-09-24.
+- **Owner's direction:** run Payload fully locally until the whole project is finished, and decide deployment afterwards.
+- **Owner's question:** can we build our own instead of Payload, or borrow ideas from it? The owner's EKKa app (Vite, React, Supabase Auth and Postgres, a custom owner admin, Cloudflare) proves that pattern.
+- **Constraint to resolve with the owner:** D02 retains Payload "explicitly named by printed offer 1931 reaffirmed by user", and a prior replacement decision was withdrawn. Replacing Payload therefore changes what Anas was offered, and needs the owner's and possibly Anas's agreement.
+- **Technical facts** (from I17, I19 and I21):
+  - Payload's admin is what fails on Workers Free: 600k-iteration PBKDF2 login and cold-start CPU.
+  - A Supabase-Auth-based custom admin would keep password hashing off the Worker and remove the Oracle VM.
+  - Supabase Free limits (pausing, quotas) must be taken from live docs before any decision.
+
 ## Resolved
 
 **R01 — migration connection pointed at the pooled port.** `DATABASE_URL` is the

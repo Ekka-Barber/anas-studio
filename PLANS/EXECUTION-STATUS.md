@@ -263,3 +263,23 @@ the orchestrator's error stated plainly rather than quietly superseded.
 
 The cron path is untouched at 91 ms per delivery and is now the only CPU
 exposure. Public visitors are no longer the problem.
+
+## Pause, 2026-09-24
+
+The owner ordered a full stop. Everything below is recorded, and nothing is lost.
+
+**Stopped.** The P01 worker (it ended on a usage limit), all test runs, watcher shells and tunnels, and the containers `anasaq-p01-work` and `anasaq-p01-pg`. The lock is `paused`.
+
+**P01 part 1 is in the worktree, uncommitted.**
+- **Audited and passing:** the four rooms with verbatim content, rounds 1–2, and the prefetch fix (I23).
+- **Edited but not yet audited:** round 3.
+- **Evidence:** `artifacts/acceptance/P01/screenshots/`.
+
+**Owner decisions pending:**
+1. The open-book prototype, two pages (I25).
+2. Payload versus a Supabase custom admin, which involves D02 and the offer to Anas (I26).
+3. Running locally until the whole project is finished (I26).
+4. Tabuk imagery (I25).
+
+**Process fixes:** I24.
+
