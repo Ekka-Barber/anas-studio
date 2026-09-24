@@ -1,0 +1,167 @@
+{
+  "videos": {
+    "44-animated-kitchen": {
+      "room": "started",
+      "file": "media/44-animated-kitchen.mp4",
+      "bytes": 1408973,
+      "width": 480,
+      "height": 848,
+      "audioKept": false,
+      "poster": "images/started/44-animated-kitchen-poster.webp"
+    },
+    "45-animated-pottery-signature": {
+      "room": "started",
+      "file": "media/45-animated-pottery-signature.mp4",
+      "bytes": 3147408,
+      "width": 576,
+      "height": 1024,
+      "audioKept": false,
+      "poster": "images/started/45-animated-pottery-signature-poster.webp"
+    },
+    "46-kid-picnic-jam": {
+      "room": "started",
+      "file": "media/46-kid-picnic-jam.mp4",
+      "bytes": 1689416,
+      "width": 576,
+      "height": 1024,
+      "audioKept": false,
+      "poster": "images/started/46-kid-picnic-jam-poster.webp"
+    },
+    "47-kid-bisht-honey-jar": {
+      "room": "started",
+      "file": "media/47-kid-bisht-honey-jar.mp4",
+      "bytes": 2869213,
+      "width": 480,
+      "height": 848,
+      "audioKept": false,
+      "poster": "images/started/47-kid-bisht-honey-jar-poster.webp"
+    },
+    "48-kid-supermarket-tomato-pesto": {
+      "room": "started",
+      "file": "media/48-kid-supermarket-tomato-pesto.mp4",
+      "bytes": 3201841,
+      "width": 576,
+      "height": 1024,
+      "audioKept": false,
+      "poster": "images/started/48-kid-supermarket-tomato-pesto-poster.webp"
+    },
+    "49-kid-hotel-breakfast": {
+      "room": "started",
+      "file": "media/49-kid-hotel-breakfast.mp4",
+      "bytes": 4157767,
+      "width": 576,
+      "height": 1024,
+      "audioKept": false,
+      "poster": "images/started/49-kid-hotel-breakfast-poster.webp"
+    },
+    "50-kid-cafe-croissant-jam": {
+      "room": "started",
+      "file": "media/50-kid-cafe-croissant-jam.mp4",
+      "bytes": 4972701,
+      "width": 576,
+      "height": 1024,
+      "audioKept": false,
+      "poster": "images/started/50-kid-cafe-croissant-jam-poster.webp"
+    },
+    "raha-reel-community": {
+      "room": "built",
+      "file": "media/raha-reel-community.mp4",
+      "bytes": 5866168,
+      "width": 576,
+      "height": 1024,
+      "audioKept": false,
+      "poster": "images/built/raha-reel-community-poster.webp"
+    },
+    "raha-branch-walkthrough": {
+      "room": "built",
+      "file": "media/raha-branch-walkthrough.mp4",
+      "bytes": 3533085,
+      "width": 480,
+      "height": 848,
+      "audioKept": false,
+      "poster": "images/built/raha-branch-walkthrough-poster.webp"
+    },
+    "raha-coffee-roasting_HD": {
+      "room": "built",
+      "file": "media/raha-coffee-roasting_HD.mp4",
+      "bytes": 1993992,
+      "width": 720,
+      "height": 1280,
+      "audioKept": false,
+      "poster": "images/built/raha-coffee-roasting_HD-poster.webp"
+    },
+    "raha-roaster-drivethru-slogan": {
+      "room": "built",
+      "file": "media/raha-roaster-drivethru-slogan.mp4",
+      "bytes": 4504673,
+      "width": 576,
+      "height": 1024,
+      "audioKept": true,
+      "poster": "images/built/raha-roaster-drivethru-slogan-poster.webp"
+    },
+    "raha-drone-branch_vertical": {
+      "room": "built",
+      "file": "media/raha-drone-branch_vertical.mp4",
+      "bytes": 8170080,
+      "width": 720,
+      "height": 1280,
+      "audioKept": false,
+      "poster": "images/built/raha-drone-branch_vertical-poster.webp"
+    },
+    "raha-drone-opening_landscape": {
+      "room": "built",
+      "file": "media/raha-drone-opening_landscape.mp4",
+      "bytes": 11412723,
+      "width": 1280,
+      "height": 720,
+      "audioKept": false,
+      "poster": "images/built/raha-drone-opening_landscape-poster.webp"
+    },
+    "arm-modern-black-gold-dessert_HD": {
+      "room": "passed",
+      "file": "media/arm-modern-black-gold-dessert_HD.mp4",
+      "bytes": 285419,
+      "width": 720,
+      "height": 720,
+      "audioKept": false,
+      "poster": "images/passed/arm-modern-black-gold-dessert_HD-poster.webp"
+    },
+    "arm-modern-green-cube-dessert_HD": {
+      "room": "passed",
+      "file": "media/arm-modern-green-cube-dessert_HD.mp4",
+      "bytes": 333201,
+      "width": 720,
+      "height": 720,
+      "audioKept": false,
+      "poster": "images/passed/arm-modern-green-cube-dessert_HD-poster.webp"
+    },
+    "arm-modern-layered-drink_HD": {
+      "room": "passed",
+      "file": "media/arm-modern-layered-drink_HD.mp4",
+      "bytes": 214641,
+      "width": 720,
+      "height": 720,
+      "audioKept": false,
+      "poster": "images/passed/arm-modern-layered-drink_HD-poster.webp"
+    },
+    "arm-modern-purple-dessert_HD": {
+      "room": "passed",
+      "file": "media/arm-modern-purple-dessert_HD.mp4",
+      "bytes": 594691,
+      "width": 720,
+      "height": 720,
+      "audioKept": false,
+      "poster": "images/passed/arm-modern-purple-dessert_HD-poster.webp"
+    },
+    "arm-modern-red-drink_HD": {
+      "room": "passed",
+      "file": "media/arm-modern-red-drink_HD.mp4",
+      "bytes": 232170,
+      "width": 720,
+      "height": 720,
+      "audioKept": false,
+      "poster": "images/passed/arm-modern-red-drink_HD-poster.webp"
+    }
+  },
+  "totalBytes": 58588162
+}

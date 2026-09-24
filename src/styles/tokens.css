@@ -1,0 +1,33 @@
+/**
+ * Frozen design tokens, read from `deploy/design/Style Board.dc.html` and the
+ * eight room compositions (P01 read-only reference; values transcribed, never
+ * imported). Logical CSS properties only; no ltr/rtl-specific physical props.
+ */
+:root {
+  /* Palette — Style Board §01 PALETTE */
+  --color-paper: #f4ece0;
+  --color-sand: #e7d8c3;
+  --color-ink: #1c1a17;
+  --color-forest: #234a30; /* room jewel: بدأتُ من هنا */
+  --color-plum: #4a2740; /* room jewel: مررتُ من هنا */
+  --color-midnight: #20223f; /* room jewel: بُنيت هنا */
+  --color-oud: #6e4b33; /* room jewel: على الرف (الورشة) */
+  --color-muted: #6f5e4e;
+  --color-muted-strong: #5c4e3f;
+  --color-brass: #b28e5a;
+  --color-clay: #b65c43;
+  --color-hairline: #d9c9b4;
+  /* Reading-body ink at ~85%: >=7:1 on both paper and sand (muted-strong
+     alone only reaches 6.85/5.74) — DESIGN-AUDIT reading-comfort fix. */
+  --color-ink-85: color-mix(in srgb, var(--color-ink) 85%, transparent);
+
+  /* Type — Style Board §02 TYPE */
+  --font-display: 'Lyon Arabic Display', 'Amiri', serif;
+  --font-body: 'Thmanyah Sans', sans-serif;
+
+  /* Reading column measure (DESIGN-DIRECTION.md §1: ~62–68 Arabic characters) */
+  --measure-reading: 38rem;
+
+  /* Motion easing used by the frozen rooms' scroll reveal */
+  --ease-frozen: cubic-bezier(0.22, 0.61, 0.36, 1);
+}

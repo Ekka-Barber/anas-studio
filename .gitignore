@@ -31,3 +31,10 @@ __pycache__/
 
 # Playwright transient run output; kept evidence lives under artifacts/.
 /test-results/
+
+# Transcoded video derivatives (P01, scripts/prepare-media.mjs): large
+# binaries regenerated from BOOK_ASSETS/, not committed. R2 hosting is a
+# later task (see docs/design-direction.md). The manifest describing what
+# would be uploaded IS committed, so it stays out of this ignore rule.
+/public/media/*
+!/public/media/manifest.json

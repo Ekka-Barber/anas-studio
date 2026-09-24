@@ -75,6 +75,9 @@ importers:
       eslint-config-next:
         specifier: 16.3.5
         version: 16.3.5(@typescript-eslint/parser@8.70.1(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5)(typescript@5.9.3)
+      sharp:
+        specifier: 0.35.4
+        version: 0.35.4(@types/node@24.13.6)
       typescript:
         specifier: 5.9.3
         version: 5.9.3

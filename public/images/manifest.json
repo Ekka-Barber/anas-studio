@@ -1,0 +1,1261 @@
+{
+  "01-started-mothers-kitchen": {
+    "room": "started",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/started/01-started-mothers-kitchen-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/started/01-started-mothers-kitchen-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/started/01-started-mothers-kitchen-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/started/01-started-mothers-kitchen-1800.webp"
+      }
+    ]
+  },
+  "01b-started-supplying-cafes": {
+    "room": "started",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/started/01b-started-supplying-cafes-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/started/01b-started-supplying-cafes-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/started/01b-started-supplying-cafes-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/started/01b-started-supplying-cafes-1800.webp"
+      }
+    ]
+  },
+  "01c-started-story-becomes-product": {
+    "room": "started",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/started/01c-started-story-becomes-product-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/started/01c-started-story-becomes-product-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/started/01c-started-story-becomes-product-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/started/01c-started-story-becomes-product-1800.webp"
+      }
+    ]
+  },
+  "01d-started-not-yet-begun": {
+    "room": "started",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/started/01d-started-not-yet-begun-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/started/01d-started-not-yet-begun-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/started/01d-started-not-yet-begun-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/started/01d-started-not-yet-begun-1800.webp"
+      }
+    ]
+  },
+  "02-built-raha-millstone": {
+    "room": "built",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/built/02-built-raha-millstone-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/built/02-built-raha-millstone-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/built/02-built-raha-millstone-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/built/02-built-raha-millstone-1800.webp"
+      }
+    ]
+  },
+  "02b-built-teacher-trust": {
+    "room": "built",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/built/02b-built-teacher-trust-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/built/02b-built-teacher-trust-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/built/02b-built-teacher-trust-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/built/02b-built-teacher-trust-1800.webp"
+      }
+    ]
+  },
+  "02c-built-seven-lanterns": {
+    "room": "built",
+    "sourceWidth": 2688,
+    "sourceHeight": 1152,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 154,
+        "file": "images/built/02c-built-seven-lanterns-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 309,
+        "file": "images/built/02c-built-seven-lanterns-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 514,
+        "file": "images/built/02c-built-seven-lanterns-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 771,
+        "file": "images/built/02c-built-seven-lanterns-1800.webp"
+      }
+    ]
+  },
+  "03-passed-street-of-shops": {
+    "room": "passed",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/03-passed-street-of-shops-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/03-passed-street-of-shops-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/passed/03-passed-street-of-shops-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/passed/03-passed-street-of-shops-1800.webp"
+      }
+    ]
+  },
+  "03b-passed-doorstep-delivery": {
+    "room": "passed",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/03b-passed-doorstep-delivery-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/03b-passed-doorstep-delivery-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/passed/03b-passed-doorstep-delivery-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/passed/03b-passed-doorstep-delivery-1800.webp"
+      }
+    ]
+  },
+  "04-shelf-moonlit-shelf": {
+    "room": "shelf",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/shelf/04-shelf-moonlit-shelf-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/shelf/04-shelf-moonlit-shelf-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/shelf/04-shelf-moonlit-shelf-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/shelf/04-shelf-moonlit-shelf-1800.webp"
+      }
+    ]
+  },
+  "04b-shelf-thura-najdi-triangles": {
+    "room": "shelf",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/shelf/04b-shelf-thura-najdi-triangles-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/shelf/04b-shelf-thura-najdi-triangles-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/shelf/04b-shelf-thura-najdi-triangles-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/shelf/04b-shelf-thura-najdi-triangles-1800.webp"
+      }
+    ]
+  },
+  "04c-shelf-moonlight-shop-dream": {
+    "room": "shelf",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/shelf/04c-shelf-moonlight-shop-dream-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/shelf/04c-shelf-moonlight-shop-dream-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/shelf/04c-shelf-moonlight-shop-dream-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/shelf/04c-shelf-moonlight-shop-dream-1800.webp"
+      }
+    ]
+  },
+  "04d-shelf-boutique-open-book": {
+    "room": "shelf",
+    "sourceWidth": 2048,
+    "sourceHeight": 2048,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/shelf/04d-shelf-boutique-open-book-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/shelf/04d-shelf-boutique-open-book-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1200,
+        "file": "images/shelf/04d-shelf-boutique-open-book-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 1800,
+        "file": "images/shelf/04d-shelf-boutique-open-book-1800.webp"
+      }
+    ]
+  },
+  "90-divider-najdi-triangles": {
+    "room": "shelf",
+    "sourceWidth": 2688,
+    "sourceHeight": 1152,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 154,
+        "file": "images/shelf/90-divider-najdi-triangles-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 309,
+        "file": "images/shelf/90-divider-najdi-triangles-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 514,
+        "file": "images/shelf/90-divider-najdi-triangles-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 771,
+        "file": "images/shelf/90-divider-najdi-triangles-1800.webp"
+      }
+    ]
+  },
+  "raha-logo": {
+    "room": "built",
+    "sourceWidth": 793,
+    "sourceHeight": 793,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/built/raha-logo-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/built/raha-logo-720.webp"
+      }
+    ]
+  },
+  "soub": {
+    "room": "passed",
+    "sourceWidth": 792,
+    "sourceHeight": 792,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/soub-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/soub-720.webp"
+      }
+    ]
+  },
+  "arm": {
+    "room": "passed",
+    "sourceWidth": 791,
+    "sourceHeight": 791,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/arm-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/arm-720.webp"
+      }
+    ]
+  },
+  "murady": {
+    "room": "passed",
+    "sourceWidth": 791,
+    "sourceHeight": 791,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/murady-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/murady-720.webp"
+      }
+    ]
+  },
+  "falafel-baraka": {
+    "room": "passed",
+    "sourceWidth": 792,
+    "sourceHeight": 792,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/falafel-baraka-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/falafel-baraka-720.webp"
+      }
+    ]
+  },
+  "chaiat": {
+    "room": "passed",
+    "sourceWidth": 794,
+    "sourceHeight": 794,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/chaiat-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/chaiat-720.webp"
+      }
+    ]
+  },
+  "esar": {
+    "room": "passed",
+    "sourceWidth": 794,
+    "sourceHeight": 794,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/esar-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/esar-720.webp"
+      }
+    ]
+  },
+  "inuit-caffee": {
+    "room": "passed",
+    "sourceWidth": 794,
+    "sourceHeight": 794,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/inuit-caffee-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/inuit-caffee-720.webp"
+      }
+    ]
+  },
+  "berlanti": {
+    "room": "passed",
+    "sourceWidth": 790,
+    "sourceHeight": 790,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/berlanti-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/berlanti-720.webp"
+      }
+    ]
+  },
+  "fayyat-alshay": {
+    "room": "passed",
+    "sourceWidth": 794,
+    "sourceHeight": 794,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/fayyat-alshay-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/fayyat-alshay-720.webp"
+      }
+    ]
+  },
+  "blue-cups": {
+    "room": "passed",
+    "sourceWidth": 794,
+    "sourceHeight": 794,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/blue-cups-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/blue-cups-720.webp"
+      }
+    ]
+  },
+  "golden-deer": {
+    "room": "passed",
+    "sourceWidth": 794,
+    "sourceHeight": 794,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/passed/golden-deer-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 720,
+        "file": "images/passed/golden-deer-720.webp"
+      }
+    ]
+  },
+  "23-caramel-popcorn-cheesecake": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 984,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 294,
+        "file": "images/passed/23-caramel-popcorn-cheesecake-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 587,
+        "file": "images/passed/23-caramel-popcorn-cheesecake-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 979,
+        "file": "images/passed/23-caramel-popcorn-cheesecake-1200.webp"
+      }
+    ]
+  },
+  "24-boxed-loaf-cake": {
+    "room": "passed",
+    "sourceWidth": 1097,
+    "sourceHeight": 1148,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 377,
+        "file": "images/passed/24-boxed-loaf-cake-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 753,
+        "file": "images/passed/24-boxed-loaf-cake-720.webp"
+      }
+    ]
+  },
+  "26-murady-cake-and-coffee": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 778,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 232,
+        "file": "images/passed/26-murady-cake-and-coffee-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 464,
+        "file": "images/passed/26-murady-cake-and-coffee-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 774,
+        "file": "images/passed/26-murady-cake-and-coffee-1200.webp"
+      }
+    ]
+  },
+  "27-t-mark-brownie-white-sauce": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 1304,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 389,
+        "file": "images/passed/27-t-mark-brownie-white-sauce-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 779,
+        "file": "images/passed/27-t-mark-brownie-white-sauce-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1298,
+        "file": "images/passed/27-t-mark-brownie-white-sauce-1200.webp"
+      }
+    ]
+  },
+  "28-gold-tarts": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 1285,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 383,
+        "file": "images/passed/28-gold-tarts-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 767,
+        "file": "images/passed/28-gold-tarts-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1279,
+        "file": "images/passed/28-gold-tarts-1200.webp"
+      }
+    ]
+  },
+  "29-cheesecake-chocolate-hazelnut": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 1519,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 453,
+        "file": "images/passed/29-cheesecake-chocolate-hazelnut-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 907,
+        "file": "images/passed/29-cheesecake-chocolate-hazelnut-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1511,
+        "file": "images/passed/29-cheesecake-chocolate-hazelnut-1200.webp"
+      }
+    ]
+  },
+  "30-cheesecake-raspberry-lime": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 1239,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 370,
+        "file": "images/passed/30-cheesecake-raspberry-lime-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 740,
+        "file": "images/passed/30-cheesecake-raspberry-lime-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1233,
+        "file": "images/passed/30-cheesecake-raspberry-lime-1200.webp"
+      }
+    ]
+  },
+  "31-murady-french-toast-banana": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 873,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 260,
+        "file": "images/passed/31-murady-french-toast-banana-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 521,
+        "file": "images/passed/31-murady-french-toast-banana-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 869,
+        "file": "images/passed/31-murady-french-toast-banana-1200.webp"
+      }
+    ]
+  },
+  "32-arm-brownie-bites": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 1287,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 384,
+        "file": "images/passed/32-arm-brownie-bites-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 768,
+        "file": "images/passed/32-arm-brownie-bites-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1281,
+        "file": "images/passed/32-arm-brownie-bites-1200.webp"
+      }
+    ]
+  },
+  "33-brownie-vanilla-sauce": {
+    "room": "passed",
+    "sourceWidth": 1206,
+    "sourceHeight": 1245,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 371,
+        "file": "images/passed/33-brownie-vanilla-sauce-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 743,
+        "file": "images/passed/33-brownie-vanilla-sauce-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1239,
+        "file": "images/passed/33-brownie-vanilla-sauce-1200.webp"
+      }
+    ]
+  },
+  "thura-67": {
+    "room": "shelf",
+    "sourceWidth": 1059,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 544,
+        "file": "images/shelf/thura-67-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1088,
+        "file": "images/shelf/thura-67-720.webp"
+      },
+      {
+        "width": 1059,
+        "height": 1600,
+        "file": "images/shelf/thura-67-1059.webp"
+      }
+    ]
+  },
+  "thura-68": {
+    "room": "shelf",
+    "sourceWidth": 1027,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 561,
+        "file": "images/shelf/thura-68-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1122,
+        "file": "images/shelf/thura-68-720.webp"
+      },
+      {
+        "width": 1027,
+        "height": 1600,
+        "file": "images/shelf/thura-68-1027.webp"
+      }
+    ]
+  },
+  "thura-69": {
+    "room": "shelf",
+    "sourceWidth": 980,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 588,
+        "file": "images/shelf/thura-69-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1176,
+        "file": "images/shelf/thura-69-720.webp"
+      },
+      {
+        "width": 980,
+        "height": 1600,
+        "file": "images/shelf/thura-69-980.webp"
+      }
+    ]
+  },
+  "thura-70": {
+    "room": "shelf",
+    "sourceWidth": 1027,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 561,
+        "file": "images/shelf/thura-70-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1122,
+        "file": "images/shelf/thura-70-720.webp"
+      },
+      {
+        "width": 1027,
+        "height": 1600,
+        "file": "images/shelf/thura-70-1027.webp"
+      }
+    ]
+  },
+  "thura-75": {
+    "room": "shelf",
+    "sourceWidth": 1008,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 571,
+        "file": "images/shelf/thura-75-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1143,
+        "file": "images/shelf/thura-75-720.webp"
+      },
+      {
+        "width": 1008,
+        "height": 1600,
+        "file": "images/shelf/thura-75-1008.webp"
+      }
+    ]
+  },
+  "thura-77": {
+    "room": "shelf",
+    "sourceWidth": 1049,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 549,
+        "file": "images/shelf/thura-77-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1098,
+        "file": "images/shelf/thura-77-720.webp"
+      },
+      {
+        "width": 1049,
+        "height": 1600,
+        "file": "images/shelf/thura-77-1049.webp"
+      }
+    ]
+  },
+  "thura-81": {
+    "room": "shelf",
+    "sourceWidth": 980,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 588,
+        "file": "images/shelf/thura-81-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1176,
+        "file": "images/shelf/thura-81-720.webp"
+      },
+      {
+        "width": 980,
+        "height": 1600,
+        "file": "images/shelf/thura-81-980.webp"
+      }
+    ]
+  },
+  "render-83": {
+    "room": "shelf",
+    "sourceWidth": 1134,
+    "sourceHeight": 660,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 210,
+        "file": "images/shelf/render-83-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 419,
+        "file": "images/shelf/render-83-720.webp"
+      }
+    ]
+  },
+  "render-84": {
+    "room": "shelf",
+    "sourceWidth": 1134,
+    "sourceHeight": 641,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 203,
+        "file": "images/shelf/render-84-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 407,
+        "file": "images/shelf/render-84-720.webp"
+      }
+    ]
+  },
+  "factory-yellow-mug_upscaled": {
+    "room": "shelf",
+    "sourceWidth": 2160,
+    "sourceHeight": 2880,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 480,
+        "file": "images/shelf/factory-yellow-mug_upscaled-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 960,
+        "file": "images/shelf/factory-yellow-mug_upscaled-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1600,
+        "file": "images/shelf/factory-yellow-mug_upscaled-1200.webp"
+      },
+      {
+        "width": 1800,
+        "height": 2400,
+        "file": "images/shelf/factory-yellow-mug_upscaled-1800.webp"
+      }
+    ]
+  },
+  "factory-mug-inside_original-ONLY": {
+    "room": "shelf",
+    "sourceWidth": 960,
+    "sourceHeight": 1280,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 480,
+        "file": "images/shelf/factory-mug-inside_original-ONLY-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 960,
+        "file": "images/shelf/factory-mug-inside_original-ONLY-720.webp"
+      }
+    ]
+  },
+  "thura-film_1080p": {
+    "room": "shelf",
+    "poster": {
+      "width": 1200,
+      "height": 675,
+      "file": "images/shelf/thura-film_1080p-poster.webp"
+    }
+  },
+  "44-animated-kitchen-poster": {
+    "room": "started",
+    "poster": {
+      "width": 480,
+      "height": 848,
+      "file": "images/started/44-animated-kitchen-poster.webp"
+    }
+  },
+  "45-animated-pottery-signature-poster": {
+    "room": "started",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/started/45-animated-pottery-signature-poster.webp"
+    }
+  },
+  "46-kid-picnic-jam-poster": {
+    "room": "started",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/started/46-kid-picnic-jam-poster.webp"
+    }
+  },
+  "47-kid-bisht-honey-jar-poster": {
+    "room": "started",
+    "poster": {
+      "width": 480,
+      "height": 848,
+      "file": "images/started/47-kid-bisht-honey-jar-poster.webp"
+    }
+  },
+  "48-kid-supermarket-tomato-pesto-poster": {
+    "room": "started",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/started/48-kid-supermarket-tomato-pesto-poster.webp"
+    }
+  },
+  "49-kid-hotel-breakfast-poster": {
+    "room": "started",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/started/49-kid-hotel-breakfast-poster.webp"
+    }
+  },
+  "50-kid-cafe-croissant-jam-poster": {
+    "room": "started",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/started/50-kid-cafe-croissant-jam-poster.webp"
+    }
+  },
+  "raha-reel-community-poster": {
+    "room": "built",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/built/raha-reel-community-poster.webp"
+    }
+  },
+  "raha-branch-walkthrough-poster": {
+    "room": "built",
+    "poster": {
+      "width": 480,
+      "height": 848,
+      "file": "images/built/raha-branch-walkthrough-poster.webp"
+    }
+  },
+  "raha-coffee-roasting_HD-poster": {
+    "room": "built",
+    "poster": {
+      "width": 720,
+      "height": 1280,
+      "file": "images/built/raha-coffee-roasting_HD-poster.webp"
+    }
+  },
+  "raha-roaster-drivethru-slogan-poster": {
+    "room": "built",
+    "poster": {
+      "width": 576,
+      "height": 1024,
+      "file": "images/built/raha-roaster-drivethru-slogan-poster.webp"
+    }
+  },
+  "raha-drone-branch_vertical-poster": {
+    "room": "built",
+    "poster": {
+      "width": 720,
+      "height": 1280,
+      "file": "images/built/raha-drone-branch_vertical-poster.webp"
+    }
+  },
+  "raha-drone-opening_landscape-poster": {
+    "room": "built",
+    "poster": {
+      "width": 1200,
+      "height": 675,
+      "file": "images/built/raha-drone-opening_landscape-poster.webp"
+    }
+  },
+  "arm-modern-black-gold-dessert_HD-poster": {
+    "room": "passed",
+    "poster": {
+      "width": 720,
+      "height": 720,
+      "file": "images/passed/arm-modern-black-gold-dessert_HD-poster.webp"
+    }
+  },
+  "arm-modern-green-cube-dessert_HD-poster": {
+    "room": "passed",
+    "poster": {
+      "width": 720,
+      "height": 720,
+      "file": "images/passed/arm-modern-green-cube-dessert_HD-poster.webp"
+    }
+  },
+  "arm-modern-layered-drink_HD-poster": {
+    "room": "passed",
+    "poster": {
+      "width": 720,
+      "height": 720,
+      "file": "images/passed/arm-modern-layered-drink_HD-poster.webp"
+    }
+  },
+  "arm-modern-purple-dessert_HD-poster": {
+    "room": "passed",
+    "poster": {
+      "width": 720,
+      "height": 720,
+      "file": "images/passed/arm-modern-purple-dessert_HD-poster.webp"
+    }
+  },
+  "arm-modern-red-drink_HD-poster": {
+    "room": "passed",
+    "poster": {
+      "width": 720,
+      "height": 720,
+      "file": "images/passed/arm-modern-red-drink_HD-poster.webp"
+    }
+  },
+  "started-street-4": {
+    "room": "started",
+    "sourceWidth": 900,
+    "sourceHeight": 1125,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 450,
+        "file": "images/started/started-street-4-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 900,
+        "file": "images/started/started-street-4-720.webp"
+      },
+      {
+        "width": 900,
+        "height": 1125,
+        "file": "images/started/started-street-4-900.webp"
+      }
+    ]
+  },
+  "started-mothers-hands": {
+    "room": "started",
+    "sourceWidth": 520,
+    "sourceHeight": 520,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/started/started-mothers-hands-360.webp"
+      },
+      {
+        "width": 520,
+        "height": 520,
+        "file": "images/started/started-mothers-hands-520.webp"
+      }
+    ]
+  },
+  "started-child-door": {
+    "room": "started",
+    "sourceWidth": 520,
+    "sourceHeight": 520,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 360,
+        "file": "images/started/started-child-door-360.webp"
+      },
+      {
+        "width": 520,
+        "height": 520,
+        "file": "images/started/started-child-door-520.webp"
+      }
+    ]
+  },
+  "started-closed-door": {
+    "room": "started",
+    "sourceWidth": 900,
+    "sourceHeight": 1125,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 450,
+        "file": "images/started/started-closed-door-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 900,
+        "file": "images/started/started-closed-door-720.webp"
+      },
+      {
+        "width": 900,
+        "height": 1125,
+        "file": "images/started/started-closed-door-900.webp"
+      }
+    ]
+  }
+}
