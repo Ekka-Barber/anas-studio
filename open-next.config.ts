@@ -18,10 +18,10 @@ import d1NextTagCache from '@opennextjs/cloudflare/overrides/tag-cache/d1-next-t
  * data (I20).
  *
  * Replaces the read-only `staticAssetsIncrementalCache` used while the only
- * public page was static placeholder text. The public probe route
- * (`src/app/(public)/probe/[id]/page.tsx`) now reads through Payload, and the
- * admin that changes that data runs in a separate Node deployment (D27), so
- * the cache has to support on-demand revalidation from outside the Worker:
+ * public page was static placeholder text. D29's admin (browser to the
+ * Supabase Data API, outside this Worker) changes the data public pages
+ * read, so the cache has to support on-demand revalidation from outside the
+ * Worker:
  *
  * - `r2-incremental-cache`: stores rendered pages/data in the
  *   `NEXT_INC_CACHE_R2_BUCKET` binding (`wrangler.jsonc`).

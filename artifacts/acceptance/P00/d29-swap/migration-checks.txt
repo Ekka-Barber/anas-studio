@@ -1,0 +1,14 @@
+# Orchestrator migration checks, 2026-09-24T13:57:26Z, supabase CLI 2.106.0, Postgres 17 (local stack)
+# docker exec -i supabase_db_ANASAQ.ME psql -U postgres -d postgres -q < migration-checks.sql
+NOTICE:  PASS grants
+NOTICE:  PASS demote one of two owners
+NOTICE:  PASS last owner cannot be deactivated
+NOTICE:  PASS last owner cannot be demoted
+NOTICE:  PASS last owner auth user cannot be deleted
+NOTICE:  PASS editor sees only own row
+NOTICE:  PASS owner sees all staff
+NOTICE:  PASS revoked member has no role on next query
+# as app_server: select public.health(); select from staff; create table
+1
+ERROR:  permission denied for table staff
+ERROR:  permission denied for schema public

@@ -20,9 +20,7 @@ export const viewport: Viewport = {
 }
 
 /**
- * Public root layout. It is a separate root layout from `(payload)/layout.tsx`
- * on purpose: Payload's `RootLayout` emits its own `<html>`, so there must be no
- * `src/app/layout.tsx` wrapping it.
+ * Public root layout.
  *
  * Header/Footer/MotionPreference are the frozen site chrome (P01), transcribed
  * from `deploy/design/` into semantic React — never imported from there.

@@ -12,21 +12,10 @@
 const LOCAL_DB_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'host.docker.internal'])
 
 /**
- * The one runtime switch (I19/D27). `RUNTIME_TARGET=node` is set only by the
- * Docker image/VM's runtime environment, never inferred from the absence of
- * Cloudflare context — the CLI (migrations, type generation) also lacks that
- * context and must never select the node target's storage adapter or autoRun.
- */
-export function isNodeRuntimeTarget(): boolean {
-  return process.env.RUNTIME_TARGET === 'node'
-}
-
-/**
  * Length-independent comparison, so a wrong secret leaks no timing signal.
  *
- * Shared by `src/payload/jobs.ts` (`JOBS_SECRET`) and
- * `src/lib/revalidate.ts` (`REVALIDATE_SECRET`) — one implementation, not a
- * duplicate per caller.
+ * Used by `src/lib/revalidate.ts` (`REVALIDATE_SECRET`) and any other
+ * bearer-secret check — one implementation, not a duplicate per caller.
  */
 export function secretsMatch(provided: string, expected: string): boolean {
   const a = new TextEncoder().encode(provided)

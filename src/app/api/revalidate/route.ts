@@ -5,8 +5,8 @@ import { isAuthorizedRevalidateRequest, parseRevalidatePayload } from '@/lib/rev
 
 /**
  * On-demand cache invalidation for the Worker's R2/D1 incremental cache
- * (I20/D27). The node admin target calls this after a RuntimeProbe save or
- * delete; nothing else is expected to call it.
+ * (I20, D29). The Supabase admin calls this after a publish-affecting save
+ * or delete; nothing else is expected to call it.
  *
  * Unconfigured means unavailable: with no `REVALIDATE_SECRET` the route does
  * not exist (404), matching the rest of the Worker's `/api/*` surface — there
@@ -63,8 +63,8 @@ export async function POST(request: Request): Promise<Response> {
   // no queue (on-demand only, per `open-next.config.ts`). The edited page
   // kept serving the old cached title on the very next request. `{ expire: 0
   // }` instead makes the tag cache report the entry as revalidated
-  // immediately, so the next request always re-renders from Payload — which
-  // is what "an invalidation reaches a visitor within 60 seconds" (P02)
+  // immediately, so the next request always re-renders from the database —
+  // which is what "an invalidation reaches a visitor within 60 seconds" (P02)
   // needs without a queue.
   for (const tag of payload.tags) revalidateTag(tag, { expire: 0 })
   for (const path of payload.paths) revalidatePath(path)

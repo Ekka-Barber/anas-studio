@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const ROOTS = ['src']
 const EXTENSIONS = new Set(['.ts', '.tsx'])
-const GENERATED = new Set(['src/payload-types.ts', 'src/payload-generated.schema.ts'])
+const GENERATED = new Set()
 
 const ARABIC_INDIC_DIGITS = /[٠-٩۰-۹]/
 const PLACEHOLDERS = [/lorem ipsum/i, /\bTODO\b/, /\bFIXME\b/, /قريبا[ًا]?\s*\.\.\./, /coming soon/i]

@@ -41,8 +41,9 @@ export function runtimeProbeTag(id: string): string {
 const NOTIFY_TIMEOUT_MS = 5_000
 
 /**
- * Node target only: tells the public Worker which tags changed, so its
- * cached page falls stale and re-renders from the database on next visit.
+ * Tells the public Worker which tags changed, so its cached page falls stale
+ * and re-renders from the database on next visit. Called by the D29 admin
+ * after a save or delete that affects a published public page.
  *
  * Unconfigured means unavailable: if `SITE_URL` or `REVALIDATE_SECRET` is not
  * set, this logs and returns rather than guessing at the Worker's origin.

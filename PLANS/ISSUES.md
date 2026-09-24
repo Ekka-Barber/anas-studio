@@ -2,13 +2,9 @@
 
 Open items only. Closed items are listed at the end in one line each; their full records are in Git history before 2026-09-24.
 
-## I03 — unit tests for the environment and secret guards
-
-**Package:** P00 D29 swap. `pnpm test` now runs the P01 unit tests, but the safety helpers still have none: the local-database guard (`isLocalDatabaseUrl`, `assertLocalTestDatabase` in `src/lib/env.ts`) and the constant-time secret comparison. The swap rewrites `env.ts` for Supabase and adds these tests.
-
 ## I04 — CI builds the Worker but does not preview it
 
-**Package:** P00 D29 swap / P10. A preview without a migrated database asserts nothing while reporting green. A meaningful CI preview needs the local Supabase stack (or a Postgres service), applied migrations and a real smoke request.
+**Package:** P10. A preview without a migrated database asserts nothing while reporting green. A meaningful CI preview needs the local Supabase stack (or a Postgres service), applied migrations and a real smoke request.
 
 ## I05 — `pnpm build:worker` cannot run on Windows
 
@@ -24,7 +20,7 @@ Open items only. Closed items are listed at the end in one line each; their full
 
 ## I21 — cache hits on a fresh isolate cost 19–46 ms CPU
 
-**Launch gate (owner decision 2026-09-23, option A: wait and measure).** A low-traffic site mostly hits fresh isolates, and the first request cost more than the 10 ms Free limit in the P00 measurement (Payload-era bundle of 29.6 MB). Removing Payload should shrink this; P10 re-measures hosted. Before launch and after the first week of real traffic, read `exceededCpu`/`exceededResources` from Worker analytics; if any appear on public routes, the owner chooses static pages or Workers Paid with that data.
+**Launch gate (owner decision 2026-09-23, option A: wait and measure).** A low-traffic site mostly hits fresh isolates, and the first request cost more than the 10 ms Free limit in the P00 measurement (Payload-era upload of 25,338 KiB). The D29 swap cut the upload to 5,494 KiB; P10 re-measures hosted. Before launch and after the first week of real traffic, read `exceededCpu`/`exceededResources` from Worker analytics; if any appear on public routes, the owner chooses static pages or Workers Paid with that data.
 
 ## I23 — segment prefetches get the full page and the router loops
 
@@ -38,9 +34,10 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 The owner rejected the long-scroll rooms and then both open-book prototypes. Direction: the frozen handoff design (`deploy/design/`), improved only with Anas's full texts and real artwork, never a new metaphor. The orchestrator's `/started` rework was not accepted. Design is paused until the owner reopens it. Open owner question: Tabuk imagery (the generated photos do not represent Tabuk; real reference photos and film frames are preferred).
 
-## I27 — unknown URLs show Next's default English 404
+## Small UI items for when design reopens
 
-**Package:** P00 D29 swap (app root) / P01. Found in the P01 round 3 audit, 2026-09-24. `/no-such-page` returns status 404 but renders Next's built-in English page, not `src/app/(public)/not-found.tsx`. With one root layout per route group and no shared root, a group-level `not-found.tsx` only handles `notFound()` calls inside that group. Fix when the swap reshapes the app root (for example a global not-found page with its own `<html lang="ar" dir="rtl">`), then re-test. Same audit: there is no favicon, so every page logs one 404 for `/favicon.ico`; and `error.tsx` styles its button inline instead of through the CSS Module. These two are small UI items for when design reopens.
+- No favicon, so every page logs one 404 for `/favicon.ico`.
+- `src/app/(public)/error.tsx` styles its button inline instead of through the CSS Module.
 
 ## Closed
 
@@ -53,4 +50,6 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 - I19, I22 — the Oracle VM admin (proposed D27) and its impact analysis: withdrawn by D29; the VM files are removed in the P00 D29 swap.
 - I20 — public route measured with real data and on-demand ISR; accepted and committed.
 - I26 — owner questioned Payload: resolved by D29.
+- I03 — unit tests for the environment and secret guards: `tests/unit/env.test.ts` (P00 D29 swap).
+- I27 — unmatched URLs showed Next's English 404: `src/app/global-not-found.tsx` renders the Arabic page with status 404 (P00 D29 swap).
 - R01 — the migration connection now uses the session endpoint on 5432.

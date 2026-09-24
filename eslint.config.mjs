@@ -34,9 +34,6 @@ const config = [
       // Generated files with a single generator as their owner.
       'cloudflare-env.d.ts',
       'next-env.d.ts',
-      'src/payload-types.ts',
-      'src/payload-generated.schema.ts',
-      'src/app/(payload)/admin/importMap.js',
     ],
   },
   ...nextConfig,

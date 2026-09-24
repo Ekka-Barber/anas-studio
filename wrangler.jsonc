@@ -2,11 +2,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "anas-studio",
 
-  // `worker-entry.ts` wraps the generated OpenNext handler: it redirects
-  // `/admin` to the node admin target and refuses `/api/*` except
-  // `/api/health` and `POST /api/revalidate` (I19/I20/D27). The generated
-  // bundle is reached through the `alias` below so that `pnpm typecheck` does
-  // not depend on build output existing.
+  // `worker-entry.ts` wraps the generated OpenNext handler: it gates
+  // `POST /api/revalidate` (I20/I21, D29) before delegating everything else.
+  // The generated bundle is reached through the `alias` below so that
+  // `pnpm typecheck` does not depend on build output existing.
   "main": "worker-entry.ts",
   "alias": {
     "open-next-worker": "./.open-next/worker.js"
@@ -30,8 +29,8 @@
     }
   ],
 
-  // Private bucket: r2.dev public access is disabled and originals are served
-  // only through Payload's access-controlled file route.
+  // Private bucket: r2.dev public access is disabled; a later package owns
+  // access-controlled media serving.
   //
   // I20/D27: `NEXT_INC_CACHE_R2_BUCKET` is a second, separate bucket — the
   // OpenNext Cloudflare adapter's incremental cache for public ISR pages
@@ -76,23 +75,17 @@
     }
   ],
 
-  // Non-secret configuration only. PAYLOAD_SECRET is a Worker secret and is
-  // never written into this file. `REVALIDATE_SECRET` is also a Worker secret
+  // Non-secret configuration only. `REVALIDATE_SECRET` is a Worker secret
   // (`wrangler secret put`), read by `src/app/api/revalidate/route.ts` through
   // `process.env`, never through this `vars` block.
   //
   // P00 spike origin: `https://anas.studio` does not point at this Worker yet.
-  // `SITE_URL` is Payload's `serverURL` on this target (`payload.config.ts`)
-  // and the origin the node admin target's revalidation hook calls back into
+  // `SITE_URL` is the origin the D29 admin's revalidation call reaches
   // (`src/lib/revalidate.ts`). Worker name `anas-studio`, account subdomain
   // `anas-studio`, both confirmed via the Cloudflare API. The production
   // value (`https://anas.studio`) is used once the custom domain is attached.
-  //
-  // `ADMIN_URL` (I19/D27): the node admin target's own origin. `worker-entry.ts`
-  // redirects `/admin` and `/admin/*` here.
   "vars": {
-    "SITE_URL": "https://anas-studio.anas-studio.workers.dev",
-    "ADMIN_URL": "https://admin.anas.studio"
+    "SITE_URL": "https://anas-studio.anas-studio.workers.dev"
   },
 
   "observability": {

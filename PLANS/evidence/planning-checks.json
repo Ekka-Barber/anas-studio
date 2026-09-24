@@ -1,5 +1,5 @@
 ﻿{
-    "checked_at_utc":  "2026-09-22T02:31:33.1407625Z",
+    "checked_at_utc":  "2026-09-24T13:51:51.3392487Z",
     "result":  "pass",
     "required_documents":  13,
     "packages":  13,
@@ -7,10 +7,8 @@
     "unique_owner_per_row":  true,
     "package_owner_agreement":  true,
     "bonus_has_no_contract_owner":  true,
-    "frozen_files_verified":  360,
+    "frozen_files_verified":  303,
     "local_links":  "pass",
-    "research_json":  "pass",
-    "changed_paths":  "PLANS only",
     "diff_whitespace":  "pass",
     "application_runtime_tested":  false
 }

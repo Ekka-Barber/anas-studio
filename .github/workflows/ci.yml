@@ -61,15 +61,6 @@ jobs:
       - name: Copy rules
         run: pnpm check:copy
 
-      - name: Build-only Payload secret
-        # `next build` evaluates the Payload config while collecting page data,
-        # and the config refuses to load without PAYLOAD_SECRET — unconfigured
-        # means unavailable, with no fallback. CI builds against no database and
-        # signs nothing, so a throwaway value generated per run is the honest
-        # input. It is never a deployment secret: the deployed Worker reads its
-        # real secret from `wrangler secret`, which is not in this repository.
-        run: echo "PAYLOAD_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-
       - name: Build the Next.js application
         run: pnpm build
 
@@ -79,8 +70,8 @@ jobs:
 
 # Not run here, and deliberately so: `pnpm preview:worker` and `pnpm test:e2e`.
 # `wrangler dev` refuses to start the HYPERDRIVE binding without a local
-# connection string, and the end-to-end spec needs a migrated PostgreSQL
-# database, Payload secrets and a browser. That proof runs locally against the
-# disposable Docker database (see docs/development.md) and on the hosted
-# deployment; a CI job that started the preview without a database would prove
-# nothing about the runtime and would report a green check for an untested path.
+# connection string, and the end-to-end spec needs the local Supabase stack
+# and a browser. That proof runs locally against the disposable Docker stack
+# (see docs/development.md) and on the hosted deployment; a CI job that
+# started the preview without a database would prove nothing about the
+# runtime and would report a green check for an untested path.

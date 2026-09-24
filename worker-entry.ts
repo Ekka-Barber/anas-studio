@@ -3,32 +3,21 @@ import openNextWorker from 'open-next-worker'
 import { isAuthorizedRevalidateRequest } from './src/lib/revalidate'
 
 /**
- * The single deployed Worker (I20/D27).
+ * The single deployed Worker (D29).
  *
- * The Payload admin, authentication, REST/GraphQL writes and the job runner
- * all moved to a Node server on the Oracle VM — this file is Worker-only; the
- * node target never imports it. What is left here, before delegating to the
- * generated OpenNext handler:
+ * D29 replaced the Payload admin/REST/GraphQL surface and the Oracle VM node
+ * admin target with a custom Supabase admin (browser to the Data API,
+ * outside this Worker — see `PLANS/ARCHITECTURE.md` "Three data paths").
+ * There is no `/admin` route and no `/api/*` catch-all to guard against any
+ * more, so this file's only job before delegating to the generated OpenNext
+ * handler is:
  *
- * - `/admin` and `/admin/*` redirect (308) to the admin origin, same path and
- *   query.
- * - `/api/*` is refused (404) except `/api/health` and `POST /api/revalidate`.
- *   This is what keeps Payload's REST/GraphQL surface — and its broken
- *   PBKDF2 login path (I17) — unreachable through the Worker; the owner must
- *   never be lockable through it.
- * - `POST /api/revalidate` is checked here too (I21): unset secret -> 404,
- *   wrong bearer -> 401, both before the generated OpenNext handler runs.
- *   The route's own check in `src/app/api/revalidate/route.ts` stays as
- *   defence in depth — this is a second, earlier gate, not a replacement.
- * - Everything else is unchanged: public pages now read from the R2/D1
- *   incremental cache (`open-next.config.ts`) instead of booting Payload on
- *   every request.
- *
- * There is no `scheduled` handler any more: the Cron Trigger and its secret
- * handling are gone from this file and from `wrangler.jsonc`. Scheduled jobs
- * run on the node target's own `autoRun` timer (`src/payload/jobs.ts`),
- * which only works because that process is long-lived — a Worker isolate is
- * not.
+ * - `POST /api/revalidate` is checked here (I21): unset secret -> 404, wrong
+ *   bearer -> 401, both before the generated OpenNext handler runs. The
+ *   route's own check in `src/app/api/revalidate/route.ts` stays as defence
+ *   in depth — this is a second, earlier gate, not a replacement.
+ * - Everything else is unchanged: public pages read from the R2/D1
+ *   incremental cache (`open-next.config.ts`).
  *
  * `open-next-worker` is the build artifact `.open-next/worker.js`, mapped by
  * the `alias` entry in `wrangler.jsonc`. Types come from the adapter's own
@@ -58,29 +47,19 @@ const handler: ExportedHandler<WorkerEnv> = {
   fetch(request, env, ctx) {
     const url = new URL(request.url)
 
-    if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
-      return Response.redirect(new URL(`${url.pathname}${url.search}`, env.ADMIN_URL), 308)
-    }
-
-    if (url.pathname.startsWith('/api/')) {
-      const isHealth = url.pathname === '/api/health'
-      const isRevalidate = url.pathname === '/api/revalidate' && request.method === 'POST'
-      if (isRevalidate) {
-        const secret = env.REVALIDATE_SECRET
-        if (!secret) {
-          return new Response(null, { status: 404 })
-        }
-        if (!isAuthorizedRevalidateRequest(request.headers, secret)) {
-          return Response.json(
-            {
-              ok: false,
-              error: { code: 'UNAUTHORIZED', message: 'Invalid or missing revalidate secret.' },
-            },
-            { status: 401 },
-          )
-        }
-      } else if (!isHealth) {
+    if (url.pathname === '/api/revalidate' && request.method === 'POST') {
+      const secret = env.REVALIDATE_SECRET
+      if (!secret) {
         return new Response(null, { status: 404 })
+      }
+      if (!isAuthorizedRevalidateRequest(request.headers, secret)) {
+        return Response.json(
+          {
+            ok: false,
+            error: { code: 'UNAUTHORIZED', message: 'Invalid or missing revalidate secret.' },
+          },
+          { status: 401 },
+        )
       }
     }
 

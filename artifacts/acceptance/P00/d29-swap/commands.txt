@@ -1,0 +1,78 @@
+P00 D29 swap — proof commands, exit codes, key numbers
+Run 2026-09-24 on branch agent/p00-runtime-spike, base commit c98b091.
+
+a) pnpm install --frozen-lockfile -> exit 0
+   grep -i payload package.json pnpm-lock.yaml -> 0 matches
+
+b) pnpm lint -> exit 0
+   pnpm typecheck -> exit 0
+   pnpm test -> exit 0 (5 files, 48 tests passed, incl. new tests/unit/env.test.ts)
+   pnpm check:copy -> exit 0
+   pnpm check:frozen -> exit 0
+
+c) supabase db reset -> exit 0
+
+d) pnpm build (next build, Windows) -> exit 0
+
+e) next dev, CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=
+   postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres
+   set only in that command's environment.
+   - Ready in 502ms
+   - GET /api/health -> HTTP 200
+     {"ok":true,"data":{"status":"ok","checkedAt":"2026-09-24T16:26:07.774Z",
+      "database":{"ok":true,"latencyMs":28}}}
+   - pnpm exec playwright test tests/e2e/runtime.spec.ts tests/e2e/public.spec.ts
+     --reporter=list, PLAYWRIGHT_BASE_URL=http://localhost:3000 -> exit 0, 21 passed
+   - server stopped (taskkill /T /F on the listening PID)
+   - next dev rewrote next-env.d.ts (.next/types -> .next/dev/types); reverted with
+     `git checkout -- next-env.d.ts`. AGENTS.md was not rewritten (agentRules: false
+     in next.config.ts held).
+
+f) Linux Worker build, Docker (node:24-bookworm), working tree streamed via tar
+   (excludes node_modules, .next, .open-next, .git, .wrangler) into a docker volume,
+   no host node_modules touched:
+   - corepack prepare pnpm@10.33.0 --activate
+   - pnpm install --frozen-lockfile -> exit 0
+   - pnpm build:worker -> exit 0
+   - pnpm exec wrangler deploy --dry-run --outdir /work/out -> exit 0
+     Total Upload: 5495.82 KiB / gzip: 1112.54 KiB
+     (pre-D29 Payload baseline: 25338 KiB total upload -- 78% smaller)
+     Bindings confirmed present: HYPERDRIVE, R2, NEXT_INC_CACHE_R2_BUCKET,
+     NEXT_TAG_CACHE_D1, ASSETS, SITE_URL. No ADMIN_URL.
+   - grep -rl 'sb_secret_' /work/out -> 0 matches
+   - grep -rl 'service_role' /work/out -> 0 matches
+   - grep -rl require('sharp') or from 'sharp' /work/out -> 0 matches
+   - grep -rli 'payload' /work/out -> 2 files (worker-entry.js, worker-entry.js.map),
+     all matches are React/Next internal identifiers (_payload, generateETag payload
+     argument, send-payload.js from next/dist/server) and RevalidatePayload /
+     parseRevalidatePayload (this repo's own revalidate types) -- no Payload CMS code.
+   - docker volume removed after the run.
+
+g) This file.
+
+Open risks / notes:
+- Worker upload size (5495.82 KiB) is well under the 64 MiB Workers limit either way;
+  size drop is expected from removing Payload/GraphQL/Lexical.
+- Proof step f used a docker named volume, not a bind mount, specifically so the
+  Linux pnpm install could not write Linux-native binaries into the Windows host's
+  node_modules.
+
+## Orchestrator audit, 2026-09-24
+- Changed paths vs lock allowlist: 59 changed, 0 outside.
+- Audit fixes by the orchestrator: src/lib/db.ts client timeouts
+  (connectionTimeoutMillis/query_timeout 10 s); I27 via src/app/global-not-found.tsx
+  plus experimental.globalNotFound in next.config.ts.
+- Re-run after the fixes: pnpm lint 0, typecheck 0, test 0 (48 passed), check:copy 0,
+  check:frozen 0, next build 0.
+- next dev with the local app_server Hyperdrive string: /no-such-page -> 404,
+  html lang=ar dir=rtl, h1 "هذه الصفحة غير موجودة" (404-360-after.png).
+  /api/health -> 200 ok:true on three later runs. One earlier run, started straight
+  after `next build` on the same .next directory, returned 503 once; it did not
+  reproduce, and a direct pg connection as app_server succeeded with and without the
+  timeouts. Recorded, not explained.
+- Linux build (node:24-bookworm, tar-streamed tree) after the fixes: install 0,
+  build:worker 0, wrangler dry-run Total Upload 5494.36 KiB / gzip 1111.26 KiB.
+  grep counts in the upload: sb_secret_ 0, service_role 0, sharp import 0,
+  @payloadcms 0.
+- Not proven here: the hosted Worker (P10). The global 404 on the Worker preview is
+  unverified because preview:worker does not run on Windows (I05).

@@ -1,7 +1,7 @@
 /**
- * Typed loader for `content/initial-content.json` (P01: static fixture, no
- * Payload call — P04 replaces this with published CMS reads). Reads
- * Anas's texts verbatim; nothing here rewrites or trims his copy.
+ * Typed loader for `content/initial-content.json` (P01: static fixture — P04
+ * replaces this with published Supabase reads). Reads Anas's texts verbatim;
+ * nothing here rewrites or trims his copy.
  */
 import raw from '../../content/initial-content.json'
 

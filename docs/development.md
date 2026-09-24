@@ -1,7 +1,6 @@
 # Local development
 
-How to run this repository locally. Everything here was exercised while
-producing the P00 runtime-spike evidence; nothing in it is aspirational.
+How to run this repository locally (D29).
 
 ## Prerequisites
 
@@ -9,7 +8,8 @@ producing the P00 runtime-spike evidence; nothing in it is aspirational.
 | --- | --- | --- |
 | Node.js | 24.19.0 | `.node-version`, and `engines.node` (`>=24.9.0 <25`) in `package.json` |
 | pnpm | 10.33.0 | `packageManager` in `package.json` |
-| Docker | any recent release | used for the disposable local PostgreSQL database |
+| Docker | any recent release | runs the Supabase CLI stack |
+| Supabase CLI | 2.106.0 | `supabase.toolVersion` (see `supabase/config.toml`) |
 
 `.npmrc` sets `engine-strict=true`, `strict-peer-dependencies=true` and
 `save-exact=true`: a wrong Node version, an unresolved peer range or a floating
@@ -34,69 +34,41 @@ feature is unavailable instead of quietly wrong.
 What each variable is for:
 
 - `DATABASE_URL` — the **non-pooled** PostgreSQL connection used by the CLI:
-  migrations, type generation and local tooling (D26). It is never used to serve
-  a request.
-- `PAYLOAD_SECRET` — required whenever the Payload config is loaded. `next build`
-  loads it while collecting page data, so a build fails without it.
-- `SITE_URL` — the Worker's own origin. It is Payload's `serverURL` on that
-  target, and it is also the origin the node admin target's revalidation hook
-  calls back into (`src/lib/revalidate.ts`), so in local preview it must be the
+  migrations and local tooling (D26). It is never used to serve a request.
+- `SITE_URL` — the Worker's own origin, so in local preview it must be the
   preview origin (`http://127.0.0.1:8787`), not the production domain.
-- `JOBS_SECRET` — bearer secret for `GET /api/payload-jobs/run`
-  (`src/payload/jobs.ts`). I19/D27: the Worker no longer calls this path at all
-  (there is no `scheduled` handler, and `worker-entry.ts` refuses `/api/*`
-  except `/api/health` and `POST /api/revalidate`) — scheduled jobs run on the
-  node admin target's own `autoRun` timer instead. The bearer path still exists
-  for a manual/ops trigger against the node admin directly.
-- `REVALIDATE_SECRET` — bearer secret for `POST /api/revalidate` (I20/D27). The
-  Worker checks it; the node admin target sends it when a RuntimeProbe save or
-  delete needs the public cache invalidated. Unset on either side means no open
-  fallback — the endpoint does not exist, or the hook logs and skips.
-- `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` — the database that
-  wrangler points the `HYPERDRIVE` binding at during local development. Set it to
-  the local container, never to a hosted database.
+- `REVALIDATE_SECRET` — bearer secret for `POST /api/revalidate` (I20, D29).
+  The Worker checks it; the Supabase admin sends it when a publish-affecting
+  save or delete needs the public cache invalidated. Unset on either side
+  means no open fallback.
+- `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` — the local
+  `app_server` URL that wrangler points the `HYPERDRIVE` binding at during
+  local development. Never point it at the hosted project.
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the
+  public Supabase Data API, used by the browser admin and by public Worker
+  reads (`PLANS/ARCHITECTURE.md` "Three data paths").
 
 ## Local database
 
-A disposable PostgreSQL container, thrown away and recreated at will:
-
 ```sh
-docker run -d --name anasaq-p00-pg \
-  -e POSTGRES_USER=<local-user> \
-  -e POSTGRES_PASSWORD=<local-password> \
-  -e POSTGRES_DB=anasaq_p00 \
-  -p 55432:5432 \
-  postgres:17-alpine
+pnpm db:start            # supabase start — Postgres, Auth, Studio, Mailpit, ...
+pnpm db:reset            # supabase db reset — rebuilds from supabase/migrations/
 ```
 
-Then, in `.env`:
+`supabase/migrations/` is the only migration history; there is no second,
+hand-written schema stream. `supabase db reset` also applies `supabase/seed.sql`,
+which sets the local-only `app_server` login password
+(`app_server_local_only`) — never applied to the hosted project
+(`supabase db push --include-seed` must never be used). The hosted
+`app_server` password is set by the owner out of band and lives only in the
+Hyperdrive configuration.
 
-```
-DATABASE_URL=postgres://<local-user>:<local-password>@127.0.0.1:55432/anasaq_p00
-TEST_ENV=local
-```
-
-The application uses an explicit `cms` schema and UUID primary keys, with
-`push: false` — the schema is never mutated at runtime. The first migration
-creates the schema itself (`CREATE SCHEMA IF NOT EXISTS "cms"`), because
-Payload's experimental `schemaName` option emits fully qualified DDL but not the
-schema.
-
-## Migrations
-
-Payload owns migration history. There is no second, hand-written schema stream.
-
-```sh
-pnpm migrate            # apply pending migrations (uses DATABASE_URL)
-pnpm migrate:create     # generate a new migration from the config
-pnpm generate:types     # refresh src/payload-types.ts
-pnpm generate:schema    # refresh src/payload-generated.schema.ts
-```
-
-Migrations run over `DATABASE_URL`, a separate non-pooled connection, and never
-over the Hyperdrive/transaction-pooler path used by requests. This is not a
-style preference: the transaction pooler rejects named prepared statements,
-which is what migration DDL uses (see `docs/runtime-spike.md`).
+The Worker's only database login is `app_server`: no RLS bypass, no DDL, no
+table grants — EXECUTE on named `public` functions only (D26). Migrations run
+over `DATABASE_URL`, a separate non-pooled connection, and never over the
+Hyperdrive/transaction-pooler path used by requests — the transaction pooler
+rejects named prepared statements, which is what migration DDL uses (see
+`docs/runtime-spike.md`).
 
 ## Running the application
 
@@ -107,8 +79,11 @@ which is what migration DDL uses (see `docs/runtime-spike.md`).
 pnpm dev                # http://localhost:3000
 ```
 
-To run the artifact that actually ships — the OpenNext Worker — build it first;
-`preview:worker` serves an existing build and does not create one:
+To run the artifact that actually ships — the OpenNext Worker — build it
+first; `preview:worker` serves an existing build and does not create one.
+**`pnpm build:worker` fails on Windows (I05)**: OpenNext is not fully
+Windows-compatible and fails while copying traced files (`EPERM` on
+`symlink`). Build it on Linux — a container or CI:
 
 ```sh
 pnpm build
@@ -116,34 +91,13 @@ pnpm build:worker
 pnpm preview:worker     # http://127.0.0.1:8787
 ```
 
-`preview:worker` needs `.dev.vars` (at minimum `SITE_URL`, `PAYLOAD_SECRET`)
-and the Hyperdrive local connection string in the environment. It also runs
+`preview:worker` needs `.dev.vars` (at minimum `SITE_URL`) and the Hyperdrive
+local connection string in the environment. It also runs
 `opennextjs-cloudflare`'s own `populateCache` step first (local target): this
 creates the D1 `revalidations` table used by the tag cache in wrangler's local
 D1 simulation and uploads the built static/ISR cache entries to the local R2
 simulation, before `wrangler dev` starts — see
 `node_modules/@opennextjs/cloudflare/dist/cli/commands/{preview,populate-cache}.js`.
-
-There is no Worker `scheduled` handler any more (I19/D27): scheduled jobs run
-on the node admin target's own `autoRun` timer instead, which only this
-repository's Docker image/VM runs.
-
-### Running the preview in a Linux container
-
-The P00 evidence was produced with the build and the preview running in a Linux
-container, and Playwright driving it from the host. Reproduce it with:
-
-```sh
-docker run -d --name anasaq-build -p 8787:8787 -w /app node:24-bookworm-slim sleep infinity
-docker cp . anasaq-build:/app                      # or mount the repository
-docker exec -e PAYLOAD_SECRET=<throwaway> anasaq-build sh -c 'cd /app && pnpm install --frozen-lockfile && pnpm build && pnpm build:worker'
-docker exec -d \
-  -e CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgres://<local-user>:<local-password>@<pg-container-ip>:5432/anasaq_p00 \
-  anasaq-build sh -c 'cd /app && pnpm preview:worker -- --ip 0.0.0.0'
-```
-
-`--ip 0.0.0.0` matters: wrangler binds to `localhost` by default, which a
-container port mapping cannot reach.
 
 ## Tests and checks
 
@@ -175,7 +129,8 @@ The run fails, with a non-zero exit, unless **both** hold:
 
 The URL itself is never printed in the failure, because it carries credentials.
 Database tests are destructive; this is what keeps them away from a hosted
-database.
+database. The same applies to `pnpm db:reset`: never run it against the
+hosted Supabase project.
 
 ## Cloudflare MCP servers
 
@@ -203,4 +158,5 @@ Two things to know before using `cloudflare-api`:
   `pnpm check:frozen` fails on any change, addition or removal.
 - Never commit `.env`, `.dev.vars`, or any credential, and never write one into
   an evidence file.
+- Never seed or reset the hosted Supabase project from a local run.
 - Use synthetic data. The local database is disposable and must stay that way.

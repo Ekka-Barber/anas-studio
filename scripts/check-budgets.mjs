@@ -72,9 +72,10 @@ const workerRawBytes =
 
 // Initial public JavaScript: gzip of only the chunks the built public homepage
 // (.next/server/app/index.html) actually <script src> references — not every
-// chunk under .next/static/chunks (that sum includes bundles like the Payload
-// admin panel that a public visitor never downloads). The legacy `nomodule`
-// polyfill script, if present, is excluded: modern browsers never fetch it.
+// chunk under .next/static/chunks (that sum includes bundles other public
+// pages need that a visitor to this page never downloads). The legacy
+// `nomodule` polyfill script, if present, is excluded: modern browsers never
+// fetch it.
 const homepagePath = path.join(repoRoot, '.next', 'server', 'app', 'index.html')
 if (!existsSync(homepagePath)) {
   console.error(
