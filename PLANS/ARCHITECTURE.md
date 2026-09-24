@@ -15,7 +15,7 @@ P00 proved on Workers Free: the public route with the ISR cache (R2 incremental 
 ## Auth and roles
 
 - Supabase Auth, passwordless: a 6-digit email code, plus Google sign-in once Anas supplies a Google OAuth client. Public sign-up is disabled; only invited staff can sign in. P03 verifies that a Google identity links to an invited email with sign-up disabled.
-- Password hashing never runs on the Worker (I17). Admin pages check claims with `getClaims()` in the admin layout; there is no middleware.
+- Password hashing never runs on the Worker (I17). The admin is a client-rendered shell: it gates its UI on the session and `current_staff_role()`, while RLS and function checks are the enforcement. Server actions (P04) verify the caller's JWT with `getClaims()`. There is no middleware.
 - `staff (user_id, role owner|editor|operations, active)`. A `security definer` helper returns the caller's active role, and every policy uses it, so revocation applies to the next query (D13). A trigger keeps at least one active owner.
 - Owner step-up: refunds, role changes and invites require `aal = 'aal2'` and a TOTP entry in `amr` from the last 5 minutes, checked inside the SQL function or Edge Function. The MFA challenge limit is fixed by Supabase at 15 per minute per IP.
 - Team invites go through one Edge Function, `staff-admin`, which holds the secret key inside Supabase and checks that the caller is an owner at aal2. Revoking access sets `active = false`.
@@ -52,7 +52,7 @@ A `media` table records purpose, alt, rights, dimensions, crop, the private orig
 |---|---|
 | `supabase/config.toml`, `supabase/migrations/`, `supabase/seed.sql` | Local stack settings (auth providers, sign-up off, Mailpit), the only migration history, synthetic local seed |
 | `supabase/functions/staff-admin/index.ts` | Owner-only invite, role change and revoke; holds the secret key inside Supabase |
-| `src/lib/supabase/browser.ts`, `src/lib/supabase/server.ts` | Browser client for the admin; server client for public reads and claims checks |
+| `src/lib/supabase/browser.ts`, `src/lib/supabase/server.ts` | Browser client for the admin (P03); server client for public reads and claims checks (P04) |
 | `src/lib/db.ts` | `app_server` pg client through Hyperdrive; named-function calls only |
 | `src/admin/collections/*.ts` | Collection configs |
 | `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, inbox, team, orders, stats, backups, board |

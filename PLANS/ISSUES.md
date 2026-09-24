@@ -34,6 +34,10 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 The owner rejected the long-scroll rooms and then both open-book prototypes. Direction: the frozen handoff design (`deploy/design/`), improved only with Anas's full texts and real artwork, never a new metaphor. The orchestrator's `/started` rework was not accepted. Design is paused until the owner reopens it. Open owner question: Tabuk imagery (the generated photos do not represent Tabuk; real reference photos and film frames are preferred).
 
+## I28 — hosted Supabase Auth settings must match the local ones
+
+**Package:** P11 (hosted setup). In Supabase, the email section's "enable sign-up" switch (`[auth.email] enable_signup` locally) turns the whole email provider on or off, codes included; new sign-ups are blocked by the global switch (`[auth] enable_signup = false`). P03 lost sign-in to this once locally. On the hosted project: email provider ON, "Allow new users to sign up" OFF, email OTP length 6 and expiry 600 s, TOTP enroll/verify ON, the Arabic magic-link template, Resend as custom SMTP (the built-in sender allows 2 emails per hour), and `service_role` grants applied by the migrations. Verify with the same three refusal checks recorded in `artifacts/acceptance/P03/commands.txt`.
+
 ## Small UI items for when design reopens
 
 - No favicon, so every page logs one 404 for `/favicon.ico`.

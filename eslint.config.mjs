@@ -12,6 +12,8 @@ const config = [
       '.open-next/**',
       '.wrangler/**',
       'node_modules/**',
+      // Deno Edge Functions: checked by the Supabase edge runtime, not by the Next toolchain.
+      'supabase/functions/**',
       // Frozen or out-of-scope sources.
       '_archive/**',
       'deploy/**',

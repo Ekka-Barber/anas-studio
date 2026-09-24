@@ -70,6 +70,33 @@ Hyperdrive/transaction-pooler path used by requests — the transaction pooler
 rejects named prepared statements, which is what migration DDL uses (see
 `docs/runtime-spike.md`).
 
+## Staff admin (P03)
+
+```sh
+pnpm db:env              # writes .env.local from the running local stack
+pnpm bootstrap:owner --email owner@example.com --name "الاسم"
+```
+
+`db:env` refuses to run against anything but a local `supabase status` API
+host, and refuses to overwrite an `.env.local` it did not generate itself.
+`bootstrap:owner` refuses once any `staff` row exists — after that, invite
+further members from `/admin/team`.
+
+Sign in at `/admin/sign-in` with the bootstrapped email; the 6-digit code
+arrives at Mailpit, `http://127.0.0.1:54324` (`MAILPIT_URL`), not a real inbox.
+Enrol the authenticator app at `/admin/security` before using `/admin/team`:
+invite, role change and revoke all require a TOTP code from the last 5 minutes.
+
+```sh
+TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+```
+
+runs `tests/integration/{staff,staff-admin}.test.ts` — RLS and grants through
+real JWTs, and the `staff-admin` Edge Function end to end, against the running
+local stack (`supabase status`). `tests/e2e/auth.spec.ts` exercises sign-in,
+TOTP enrolment and an invite through the browser; it expects `next dev` and
+the local stack running, and creates its own owner with the local service key.
+
 ## Running the application
 
 `pnpm dev` runs Next.js with the Cloudflare bindings simulated by wrangler, so

@@ -7,10 +7,11 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `agent/p00-runtime-spike` |
-| Last commit | `c98b091` (P01 part 1) |
-| P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap built and audited, awaiting the owner's commit approval: Payload and the Oracle VM target removed, local Supabase stack with `staff` and `app_server`, Worker upload 25,338 → 5,494 KiB. |
+| Last commit | `6f09321` (P00 D29 swap) |
+| P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
+| P03 | Built and audited, awaiting the owner's commit approval (started before P02 with the owner's approval). |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
-| Lock | Held by the orchestrator for the P00 D29 swap. |
+| Lock | Held by the orchestrator for P03. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
 
 ## Owner decisions, 2026-09-24
@@ -37,15 +38,24 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 - Orchestrator fixes: pg client timeouts; I27 global 404.
 - Evidence: `artifacts/acceptance/P00/d29-swap/` (commands.txt, migration checks, 404 screenshot). All checks exit 0; 48 unit tests; Linux Worker upload 5,494 KiB; no secret key, sharp or Payload in the upload. One unexplained, non-reproducing health 503 is recorded.
 
+## P03 audit (orchestrator, 2026-09-25)
+
+- Orchestrator: migration (audit_events, staff_directory, service_role grants), auth config and Arabic code email, `staff-admin` Edge Function and its TOTP-freshness check with unit tests.
+- Worker (`sonnet-worker`, `claude-sonnet-5` on every call): admin shell (sign-in by email code, security/TOTP, team with step-up dialog), browser client, `db:env` and `bootstrap:owner` scripts, real-JWT integration tests, e2e.
+- Defects found and fixed: two in the orchestrator's own files (missing service_role grants; email provider switched off) and three in worker output (admin page overflow, a wrong e2e expectation, parallel DB tests). Details in `artifacts/acceptance/P03/commands.txt`.
+- Results: static checks and build exit 0; 53 unit and 11 integration tests; 5 e2e; 13 SQL checks; admin screenshots at 360 and 1440 without overflow. Google sign-in and hosted auth settings remain open (I28).
+
 ## Package ledger
 
 | Package | Status | Evidence |
 |---|---|---|
 | P00 | public runtime accepted and committed; D29 swap audited, awaiting commit | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
 | P01 | part 1 committed (`c98b091`); remaining rooms wait for design | `artifacts/acceptance/P01/` |
-| P02–P12 | not_started | — |
+| P02 | not_started; waits for design | — |
+| P03 | audited, awaiting commit | `artifacts/acceptance/P03/` |
+| P04–P12 | not_started | — |
 
 ## Next work, in order
 
-1. Commit the P00 D29 swap with the owner's approval.
-2. P02 (reader) needs public UI and waits for design to reopen. Starting P03 (staff auth, RLS, admin shell) before P02 changes the package order and needs the owner's approval.
+1. Commit P03 with the owner's approval.
+2. P04 (content tables, collections, drafts and versions, site binding) is admin work and can run while design is paused; the public rooms keep reading `content/initial-content.json` until P04 binds them. It follows P03 directly, so it needs no change of order, only the owner's go-ahead.

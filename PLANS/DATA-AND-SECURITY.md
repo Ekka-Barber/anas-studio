@@ -7,6 +7,7 @@ One Supabase PostgreSQL database. Content, staff and media tables live in `publi
 | Table | Required fields and invariants |
 |---|---|
 | staff | user_id (auth.users), display_name, role owner/editor/operations, active. No public sign-up; role and active are owner-only; the last active owner cannot be removed or demoted (trigger). Revocation applies to the next query. |
+| audit_events | immutable actor/action/entity/time/redacted summary; lives in `public` so the owner can read it through the Data API; no insert/update/delete for API roles; a trigger refuses update and delete for everyone. |
 | content_versions | collection (fixed allowlist), doc_id, seq, data jsonb, status draft/published/archived, publish_at, author, created_at. Append-only; restore appends a new row. Only staff with write access to that collection can read or insert. |
 | pages | slug unique, title_ar, typed sections (stable id/kind, texts, media, visible, sort_order), SEO/share image, version. Fixed section shapes preserve visual identity. |
 | posts | slug/title/excerpt, Lexical body, author, categories/tags, cover, published_at, visible, archived, version. |
@@ -44,7 +45,6 @@ Public read criteria, enforced by RLS for `anon`: published AND visible AND publ
 | calendar_tokens | owner/token hash/scope/rotation/revocation. Busy feed never includes customer notes. |
 | email_outbox | dedupe key unique/type/object/recipient/minimal data, pending/sending/sent/failed, retry/next_at/lease/provider ID/error. Availability key includes variant+availability revision+subscriber; recheck consent at dispatch. |
 | email_delivery_events / email_suppressions | Provider event ID unique, message ID/status/time and minimal redacted evidence; normalized recipient hash/reason/time for suppression. Provider acceptance (`sent` in outbox) is not confirmed delivery. Late delivery events cannot clear bounce/complaint suppression. |
-| audit_events | immutable actor/action/entity/time/redacted change summary. content_versions covers editorial recovery; audit adds the security and financial trail. |
 | backup_runs / job_runs / rate_limits | real operational state/hash/retention; leased work; expiring daily-salted throttle identifiers, no raw IP history. |
 
 ## Authorization and DB proof

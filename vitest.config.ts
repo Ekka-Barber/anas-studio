@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => {
           : ['tests/unit/**/*.test.ts'],
       // Playwright owns end-to-end specs.
       exclude: ['tests/e2e/**', 'node_modules/**'],
+      // Database tests share one local database and some mutate global state
+      // (the last-owner test deactivates other owners), so their files run one
+      // at a time.
+      fileParallelism: mode !== 'db',
     },
   }
 })

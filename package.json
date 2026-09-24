@@ -23,9 +23,12 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run check:frozen && pnpm run check:copy && pnpm run test",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
+    "db:env": "node scripts/local-env.mjs",
+    "bootstrap:owner": "node scripts/bootstrap-owner.mjs",
     "cf-typegen": "wrangler types cloudflare-env.d.ts --env-interface CloudflareEnv --env-file=wrangler-empty.env"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.117.1",
     "next": "16.3.5",
     "pg": "8.20.0",
     "pg-cloudflare": "1.4.0",

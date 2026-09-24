@@ -50,6 +50,7 @@
   ],
   "exclude": [
     "node_modules",
+    "supabase/functions",
     ".next",
     ".open-next",
     "artifacts",

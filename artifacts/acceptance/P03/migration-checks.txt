@@ -1,0 +1,8 @@
+# P03 migration checks, 2026-09-24T23:13:07Z, local stack
+NOTICE:  PASS audit update refused (even for postgres)
+NOTICE:  PASS audit delete refused (even for postgres)
+NOTICE:  PASS editor sees no audit rows
+NOTICE:  PASS editor cannot read directory
+NOTICE:  PASS owner reads audit and directory
+# P00 staff/app_server checks re-run
+PASS count: 8
