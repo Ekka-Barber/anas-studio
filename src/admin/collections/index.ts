@@ -23,6 +23,25 @@ export const collections = {
   taxonomies: { fields: taxonomyFields },
 } as const
 
+/** Arabic section labels for `/admin/content` (part 2). */
+export const COLLECTION_LABELS: Record<Collection, string> = {
+  rooms: 'الغرف',
+  site_settings: 'إعدادات الموقع',
+  posts: 'المقالات',
+  taxonomies: 'التصنيفات',
+}
+
+/** `site_settings` has exactly one document. */
+export const SITE_SETTINGS_DOC_ID = 'site'
+
+/** Arabic labels for the four fixed room documents. */
+export const ROOM_DOC_LABELS: Record<RoomSlug, string> = {
+  started: 'بدأتُ من هنا',
+  built: 'بنيتُ هنا',
+  passed: 'مررتُ من هنا',
+  shelf: 'على الرف',
+}
+
 function isRoomSlug(docId: string): docId is RoomSlug {
   return docId in roomSchemas
 }

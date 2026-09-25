@@ -7,12 +7,12 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `agent/p00-runtime-spike` |
-| Last commit | `4322ccc` (P03) |
+| Last commit | `ff67889` (P04 part 1) |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
-| P04 | Part 1 (data and binding) built and audited, awaiting the owner's commit approval; part 2 (admin editing) next. |
+| P04 | Part 1 committed (`ff67889`). Part 2 (admin editing) built and audited over two rounds, awaiting the owner's commit approval. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
-| Lock | Held by the orchestrator for P04 part 1. |
+| Lock | Held by the orchestrator for P04 part 2. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
 
 ## Owner decisions, 2026-09-24
@@ -53,6 +53,13 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 - Fixed by the orchestrator: the old verbatim test broke typecheck/build; the publish module skipped validation when it could not read the draft (now fails closed). Accepted: CI uses the official `supabase/setup-cli`, SHA verified against its v3.0.1 tag.
 - Results: static checks and build 0; 65 unit, 28 integration, 23 e2e; 24 SQL checks; the scheduled-publish chain proven end to end on `next dev`. Production-cache revalidation stays for P10. Evidence: `artifacts/acceptance/P04/`.
 
+## P04 part 2 audit (orchestrator, 2026-09-25)
+
+- Orchestrator: rich-text allowlist and safe renderer, `/api/preview` (staff token and role checked, httpOnly cookie, draft mode), draft reads in the loaders, `/started` data wiring (art keyed by year, hidden reels honoured).
+- Worker round 1: content screens, generic form, Lexical editor, publish bar, version history, server actions. It wrote `vitest.config.ts` outside the allowlist (reverted; the cause was an import style in the orchestrator's own file). Its e2e tests fell short of the brief and left test content live.
+- Worker round 2 (fresh): e2e rewritten to the brief; duplicate React key in the form fixed.
+- Results: static checks and build 0; 71 unit, 28 integration, 26 e2e. One unexplained, non-recurring e2e timeout is recorded. Evidence: `artifacts/acceptance/P04/`.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -61,10 +68,10 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | P01 | part 1 committed (`c98b091`); remaining rooms wait for design | `artifacts/acceptance/P01/` |
 | P02 | not_started; waits for design | — |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
-| P04 | part 1 audited, awaiting commit | `artifacts/acceptance/P04/` |
+| P04 | part 1 committed `ff67889`; part 2 audited, awaiting commit | `artifacts/acceptance/P04/` |
 | P05–P12 | not_started | — |
 
 ## Next work, in order
 
-1. Commit P04 part 1 with the owner's approval.
-2. P04 part 2: admin editing (generic list and form, Lexical editor, version history, preview, schedule, archive).
+1. Commit P04 part 2 with the owner's approval. P04 is then complete.
+2. P05 (media library: R2 uploads, browser-made WebP sizes, where-used guard) is admin work and can run while design is paused. It comes next in order.

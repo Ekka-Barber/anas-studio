@@ -190,7 +190,7 @@ describe('archiveDocument', () => {
       slug: uniqueSlug('post'),
       title: 'عنوان',
       excerpt: 'مقتطف',
-      body: { root: {} },
+      body: { root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: 'نص', format: 0 }] }] } },
       author: 'أنس',
       categories: [],
       tags: [],

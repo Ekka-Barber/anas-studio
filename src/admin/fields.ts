@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { richTextSchema, type RichTextDocument } from './richtext'
+
 import imageManifestRaw from '../../public/images/manifest.json'
 import mediaManifestRaw from '../../public/media/manifest.json'
 
@@ -56,7 +58,7 @@ type BaseValue<F extends Field> =
   F extends { type: 'paragraphs' | 'relation' } ? string[] :
   F extends { type: 'boolean' } ? boolean :
   F extends { type: 'select'; options: infer O } ? (O extends readonly (infer S extends string)[] ? S : string) :
-  F extends { type: 'richtext' } ? { root: unknown; [key: string]: unknown } :
+  F extends { type: 'richtext' } ? RichTextDocument :
   F extends { type: 'group'; fields: infer Fs } ? (Fs extends readonly Field[] ? ShapeValue<Fs> : Record<string, unknown>) :
   F extends { type: 'list'; fields: infer Fs; hideable: true } ? (Fs extends readonly Field[] ? Array<ShapeValue<Fs> & { hidden?: boolean }> : unknown[]) :
   F extends { type: 'list'; fields: infer Fs } ? (Fs extends readonly Field[] ? Array<ShapeValue<Fs>> : unknown[]) :
@@ -106,9 +108,8 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
     case 'date':
       return isoDateSchema
     case 'richtext':
-      // Loose on purpose: part 2 (the Lexical editor) tightens this to the
-      // D14 supported-node allowlist.
-      return z.looseObject({ root: z.unknown() })
+      // D14 allowlist (src/admin/richtext.ts).
+      return richTextSchema
     case 'group':
       return schemaFromFields(field.fields)
     case 'list': {

@@ -29,7 +29,12 @@
     "cf-typegen": "wrangler types cloudflare-env.d.ts --env-interface CloudflareEnv --env-file=wrangler-empty.env"
   },
   "dependencies": {
+    "@lexical/link": "0.51.0",
+    "@lexical/list": "0.51.0",
+    "@lexical/react": "0.51.0",
+    "@lexical/rich-text": "0.51.0",
     "@supabase/supabase-js": "2.117.1",
+    "lexical": "0.51.0",
     "next": "16.3.5",
     "pg": "8.20.0",
     "pg-cloudflare": "1.4.0",

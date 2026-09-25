@@ -7,6 +7,7 @@
  * source for `scripts/import-content.mjs` and a test fixture; a missing env
  * var, a missing document or invalid data throws.
  */
+import { cookies, draftMode } from 'next/headers'
 import { cache } from 'react'
 import type { z } from 'zod'
 
@@ -52,7 +53,47 @@ export type BoutiqueItem = z.infer<typeof boutiqueItemSchema>
 export type ShelfRoom = z.infer<typeof shelfRoomSchema>
 export type SiteContent = z.infer<typeof siteSettingsSchema>
 
+/** httpOnly cookie set by `POST /api/preview`: the staff access token. */
+export const PREVIEW_COOKIE = 'anasaq_preview'
+
+/**
+ * Preview (P04 part 2): with Next draft mode on and a staff token cookie, the
+ * latest version is read through RLS as that staff member, never cached. A
+ * missing, unreadable or invalid draft falls back to the published copy.
+ */
+async function fetchDraft<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T | null> {
+  // Outside a request (tests, scripts) there is no preview; draftMode()
+  // throws synchronously there, so treat that as preview off.
+  let preview = false
+  try {
+    preview = (await draftMode()).isEnabled
+  } catch {
+    return null
+  }
+  if (!preview) return null
+  const token = (await cookies()).get(PREVIEW_COOKIE)?.value
+  if (!token) return null
+  const params = new URLSearchParams({
+    collection: `eq.${collection}`,
+    doc_id: `eq.${docId}`,
+    select: 'data',
+    order: 'seq.desc',
+    limit: '1',
+  })
+  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/content_versions?${params}`, {
+    headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'), Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  })
+  if (!response.ok) return null
+  const rows = (await response.json()) as Array<{ data: unknown }>
+  const parsed = rows[0] ? schema.safeParse(rows[0].data) : null
+  return parsed?.success ? parsed.data : null
+}
+
 async function fetchPublished<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T> {
+  const draft = await fetchDraft(collection, docId, schema)
+  if (draft !== null) return draft
+
   const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL')
   const key = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
   const params = new URLSearchParams({ collection: `eq.${collection}`, doc_id: `eq.${docId}`, select: 'data' })

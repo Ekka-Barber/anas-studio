@@ -133,6 +133,28 @@ against the imported fixture, RLS on `content_versions`/`content_documents`,
 and `publishDocument`/`scheduleDocument`/`archiveDocument` end to end
 (success, `FORBIDDEN` for non-editors, `INVALID` drafts, stale-`seq` 409s).
 
+### Editing content (P04 part 2)
+
+Signed-in owners and editors see a "المحتوى" link in `/admin`'s nav, leading
+to `/admin/content`: the four collections (`rooms`, `site_settings`, `posts`,
+`taxonomies`). `/admin/content/[collection]` lists its documents — the four
+fixed rooms and the one `site_settings` document always appear even before
+they have been edited; `posts` and `taxonomies` add a "جديد" control that
+creates a new document id (a generated uuid for posts, a typed slug for
+taxonomies).
+
+`/admin/content/[collection]/[docId]` renders one field per the collection's
+config (`src/admin/fields.ts`, `src/admin/collections/`), including the
+Lexical rich-text editor for `posts.body` (only the nodes `src/admin/richtext.ts`
+allowlists). "حفظ" appends the next `content_versions` row; a save based on a
+document someone else changed since it was opened fails with a conflict
+message and keeps the typed text — reload to see the newer version. Once the
+saved draft validates, "نشر" publishes it; a document can also be scheduled
+for a future Riyadh time, unscheduled, and (for `posts`/`taxonomies`) archived.
+"معاينة" opens the draft on the live site through the existing preview cookie
+(`src/app/api/preview/`), for rooms and `site_settings` only. "سجل النسخ" lists
+every saved version and can restore an older one as a new version.
+
 ## Running the application
 
 `pnpm dev` runs Next.js with the Cloudflare bindings simulated by wrangler, so

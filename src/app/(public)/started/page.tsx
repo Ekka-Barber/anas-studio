@@ -14,26 +14,28 @@ import { getStartedRoom } from '@/lib/content'
  */
 type Art = { image: string; alt: string } | { films: string[] }
 
-// One entry per year, in the order of room.movements.
-const ART: Art[] = [
-  {
+// Keyed by year, not position, so reordering movements in the admin keeps
+// each text with its own art (P04).
+const ART: Record<string, Art> = {
+  '2013': {
     image: 'started-mothers-hands',
     alt: 'يدا امرأة تغطّيان طبق طعام بغطاء مجدول من الخوص، وإلى جانبه قدر صغير ومنديل مطرّز.',
   },
-  {
+  '2018': {
     image: 'started-child-door',
     alt: 'طفل يقف على عتبة باب خشبي وقد رفع يده ليطرقه، حاملاً بيده الأخرى طبقاً مغطّى.',
   },
-  { films: ['46-kid-picnic-jam', '47-kid-bisht-honey-jar', '50-kid-cafe-croissant-jam'] },
-  {
+  '2020': { films: ['46-kid-picnic-jam', '47-kid-bisht-honey-jar', '50-kid-cafe-croissant-jam'] },
+  'وشيء لم يبدأ بعد': {
     image: 'started-closed-door',
     alt: 'باب خشبي بنّي مغلق لبيت قديم تحت مظلّة خشبية مضلّعة، وقد نمت أمامه شجيرات وجذع نخلة حتى كاد يحجبه.',
   },
-]
+}
 
 export default async function StartedPage() {
   const room = await getStartedRoom()
-  const reelAlt = (id: string) => room.media.reels.find((reel) => reel.id === id)?.alt ?? ''
+  // Only films still in the room's reel list: a reel hidden in the admin disappears.
+  const reel = (id: string) => room.media.reels.find((entry) => entry.id === id)
   const last = room.movements.length - 1
 
   return (
@@ -56,7 +58,7 @@ export default async function StartedPage() {
 
       <div className={styles.stories}>
         {room.movements.map((movement, i) => {
-          const art = ART[i]
+          const art = ART[movement.year]
           const [lead, ...rest] = movement.paragraphs
           const classes = [styles.story, i % 2 ? styles.storyFlip : '', i === last ? styles.storyPending : '']
           return (
@@ -69,9 +71,10 @@ export default async function StartedPage() {
               <div className={styles.storyArt}>
                 {art && 'films' in art ? (
                   <div className={styles.filmTrio}>
-                    {art.films.map((id) => (
-                      <VideoReel key={id} id={id} alt={reelAlt(id)} className={styles.reel} />
-                    ))}
+                    {art.films.flatMap((id) => {
+                      const film = reel(id)
+                      return film ? [<VideoReel key={id} id={id} alt={film.alt} className={styles.reel} />] : []
+                    })}
                   </div>
                 ) : art ? (
                   <Picture id={art.image} alt={art.alt} sizes="(min-width: 1024px) 40vw, 100vw" className={styles.storyPlate} />
