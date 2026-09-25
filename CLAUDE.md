@@ -4,11 +4,13 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 
 ## Authority and scope
 
-- `PLANS/` is the plan of record. D01-D29 are settled (D02 superseded by D29); do not reopen them.
-- D24 as amended by D28: the orchestrator (Opus 5.5, 1M) plans, audits, fixes and
-  does all major design work itself. `sonnet-worker` (Sonnet 5, 1M) does long,
-  well-specified work. Set `model` explicitly on every dispatch. Definitions are in
-  `.claude/agents/`. D29: a custom Supabase admin replaces Payload.
+- `PLANS/` is the plan of record. D01-D30 are settled (D02 superseded by D29); do not reopen them.
+- D24 as amended by D28 and D30: the orchestrator (Opus 5.5, 1M) plans, audits, fixes
+  and does all major design work itself. `glm-worker` (Z.AI GLM-5.3, 1M, max effort)
+  does long, well-specified work, launched with `node scripts/glm-worker.mjs
+  <brief-file>`, never the Agent tool. Set `model` explicitly on every other sub-agent
+  dispatch. Definitions are in `.claude/agents/`. D29: a custom Supabase admin
+  replaces Payload.
 - D25: the canonical domain is `anas.studio`; the folder name is historical.
 - Follow "Next work" in `PLANS/EXECUTION-STATUS.md`, one package at a time, and stop with evidence.
 - Preserve the frozen design. Before UI work, read `PLANS/DESIGN-AUDIT.md`;
@@ -56,6 +58,7 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 - Read unindexed plans/configuration directly when needed. Refresh with `graft
   build` and `codegraph sync`; no paid/deep graph pass. Never let index results
   substitute for tests or broaden the task into archived/frozen source inspection.
-- Use Claude subscription auth. Do not set `ANTHROPIC_BASE_URL` or
-  `ANTHROPIC_AUTH_TOKEN` for this project. Clear inherited overrides in the launch
-  shell, not global settings. Never expose credentials while diagnosing auth.
+- The orchestrator uses Claude subscription auth. Do not set `ANTHROPIC_BASE_URL` or
+  `ANTHROPIC_AUTH_TOKEN` for its session; only `scripts/glm-worker.mjs` sets them, for
+  the worker process (D30). Clear inherited overrides in the launch shell, not global
+  settings. Never expose credentials while diagnosing auth.

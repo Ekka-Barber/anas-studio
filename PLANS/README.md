@@ -10,7 +10,7 @@ Packages run P00 to P11 in order, each accepted independently. Offer phases: P00
 
 ## Single-writer orchestration
 
-Roles are in D28: the orchestrator (Opus 5.5) plans, audits, fixes and designs; `sonnet-worker` does long, well-specified work, with the model set explicitly on every dispatch. Token rules are in CLAUDE.md (I24).
+Roles are in D28 as amended by D30: the orchestrator (Opus 5.5) plans, audits, fixes and designs; `glm-worker` (Z.AI GLM-5.3, launched by `node scripts/glm-worker.mjs <brief-file>`) does long, well-specified work. Token rules are in CLAUDE.md (I24).
 
 Before any write, the writer holds `.anasaq-execution.lock`, created exclusively with Node `fs.openSync(path, 'wx')`. It records package, agent, task, base commit, start time, dirty paths at start and the expanded exact allowed paths. An existing lock blocks dispatch. Never expire a lock by clock: prove the prior writer stopped, inspect the diff, record recovery, then release. The lock stays held through integration and the orchestrator's audit. A new path is added to the allowlist before it is written.
 

@@ -1,7 +1,7 @@
 ---
-name: sonnet-worker
-description: Cheap implementation worker (Sonnet 5, 1M). Long, well-specified, lower-judgement work under the exclusive lock. The orchestrator (Opus 5.5) audits every diff, fixes, and does all major design work itself (D28).
-model: claude-sonnet-5[1m]
+name: glm-worker
+description: Implementation worker on Z.AI GLM-5.3 (1M, max effort; D30). Launch only with `node scripts/glm-worker.mjs <brief-file>`, never with the Agent tool. Long, well-specified, lower-judgement work under the exclusive lock. The orchestrator (Opus 5.5) audits every diff, fixes, and does all major design work itself (D28).
+model: glm-5.3[1m]
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
@@ -20,7 +20,7 @@ Your whole context is re-sent on every tool call, so each call is expensive.
   - Run a long command once, in the foreground, with `timeout 600`.
   - If it can't finish, stop and report it.
 - **No background processes to poll.** If a server must run, start it, check it once, and move on.
-- **UI work.** Use `pnpm dev` (hot reload) and one screenshot script at 360 and 1440. Run `build:worker` or the full visual suite only when the task says "acceptance".
+- **UI work.** Use `pnpm dev` (hot reload) and one screenshot script at 360 and 1440. Run `build:worker` or the full visual suite only when the task says "acceptance". You cannot view images, so list the screenshot paths for the orchestrator to review.
 - **Don't repeat work.** Don't re-run a check that already passed on unchanged files.
 - **Two failures, then stop.** After two failed attempts at the same problem, stop and report.
 
