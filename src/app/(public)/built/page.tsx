@@ -11,8 +11,8 @@ import { getBuiltRoom } from '@/lib/content'
  * (DESIGN-DIRECTION.md §2): «لم أكن وحدي…», «سبعة فروع…», and the closing
  * «الشيخ آمن بي، وأنا آمنت برحى. وبين الإيمانين… بنينا.» at display size.
  */
-export default function BuiltPage() {
-  const room = getBuiltRoom()
+export default async function BuiltPage() {
+  const room = await getBuiltRoom()
   const jewelVar = `var(--color-${room.jewel})`
 
   return (

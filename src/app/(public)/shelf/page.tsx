@@ -10,8 +10,8 @@ import { getShelfRoom } from '@/lib/content'
  * §2): ذرى, كوب ضوء القمر, بوتيك أنس القرني. No purchase/notify controls yet
  * (P01 scope) — every status label here is the truthful current state.
  */
-export default function ShelfPage() {
-  const room = getShelfRoom()
+export default async function ShelfPage() {
+  const room = await getShelfRoom()
   const jewelVar = `var(--color-${room.jewel})`
   const { thura, moonlightCup, boutique } = room.items
 

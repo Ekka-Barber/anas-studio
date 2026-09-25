@@ -97,6 +97,42 @@ local stack (`supabase status`). `tests/e2e/auth.spec.ts` exercises sign-in,
 TOTP enrolment and an invite through the browser; it expects `next dev` and
 the local stack running, and creates its own owner with the local service key.
 
+## Content (P04)
+
+The four rooms, the site nav/footer and other public copy are no longer
+served from `content/initial-content.json` at request time — that file is
+only a fixture. Public pages and `Header`/`Footer` are async server
+components that read `published_documents` through the Data API
+(`src/lib/content.ts`), validated by the same Zod field model
+(`src/admin/collections/`, `src/admin/fields.ts`) the publish action and the
+admin form use. Because room pages are statically generated, `pnpm build`
+needs real published rows to fetch, not just a running stack:
+
+```sh
+pnpm db:reset
+pnpm db:import           # imports content/initial-content.json, skips already-published docs
+pnpm db:env
+pnpm build
+```
+
+`db:import` connects with `DATABASE_URL` (the local `postgres` superuser, not
+`app_server`) and calls `content_go_live()` directly, bypassing the
+actor-checked `publish_version()` path — a one-time bootstrap import has no
+real staff actor. Re-running it is a no-op unless `--force` is passed. Staff
+publish drafts afterwards through `src/lib/publish.ts` (`publishDocument`,
+`scheduleDocument`, `cancelSchedule`, `archiveDocument`), which verifies the
+caller's staff token, validates the draft with `schemaFor()`, and revalidates
+`content:<collection>` / `content:<collection>:<docId>` tags on success.
+
+```sh
+TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+```
+
+also runs `tests/integration/{content,publish}.test.ts` — the public loaders
+against the imported fixture, RLS on `content_versions`/`content_documents`,
+and `publishDocument`/`scheduleDocument`/`archiveDocument` end to end
+(success, `FORBIDDEN` for non-editors, `INVALID` drafts, stale-`seq` 409s).
+
 ## Running the application
 
 `pnpm dev` runs Next.js with the Cloudflare bindings simulated by wrangler, so

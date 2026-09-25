@@ -61,6 +61,26 @@ jobs:
       - name: Copy rules
         run: pnpm check:copy
 
+      - name: Install the Supabase CLI
+        uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.106.0
+
+      # Room and site-settings pages fetch published content at build time
+      # (P04, D29), so the local stack must be up before `pnpm build`. Only
+      # Postgres, the Data API (postgrest/kong) and Auth (gotrue) are needed;
+      # everything else is excluded to keep the job fast.
+      - name: Start the local Supabase stack
+        run: supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit
+
+      - name: Import content into the local database
+        run: pnpm db:import
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+      - name: Write .env.local from the local stack
+        run: pnpm db:env
+
       - name: Build the Next.js application
         run: pnpm build
 

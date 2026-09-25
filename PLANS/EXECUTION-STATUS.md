@@ -7,11 +7,12 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `agent/p00-runtime-spike` |
-| Last commit | `6f09321` (P00 D29 swap) |
+| Last commit | `4322ccc` (P03) |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
-| P03 | Built and audited, awaiting the owner's commit approval (started before P02 with the owner's approval). |
+| P03 | Committed (`4322ccc`). |
+| P04 | Part 1 (data and binding) built and audited, awaiting the owner's commit approval; part 2 (admin editing) next. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
-| Lock | Held by the orchestrator for P03. |
+| Lock | Held by the orchestrator for P04 part 1. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
 
 ## Owner decisions, 2026-09-24
@@ -45,6 +46,13 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 - Defects found and fixed: two in the orchestrator's own files (missing service_role grants; email provider switched off) and three in worker output (admin page overflow, a wrong e2e expectation, parallel DB tests). Details in `artifacts/acceptance/P03/commands.txt`.
 - Results: static checks and build exit 0; 53 unit and 11 integration tests; 5 e2e; 13 SQL checks; admin screenshots at 360 and 1440 without overflow. Google sign-in and hosted auth settings remain open (I28).
 
+## P04 part 1 audit (orchestrator, 2026-09-25)
+
+- Orchestrator: migration (versions, live copy, publishing functions for `app_server`, `publish_due()` on pg_cron, revalidation through pg_net with Vault values) and local Vault seed.
+- Worker (`sonnet-worker`): collection configs and Zod field model, database-backed loaders with cache tags, server-side publish module, idempotent local importer, CI with the local stack, tests.
+- Fixed by the orchestrator: the old verbatim test broke typecheck/build; the publish module skipped validation when it could not read the draft (now fails closed). Accepted: CI uses the official `supabase/setup-cli`, SHA verified against its v3.0.1 tag.
+- Results: static checks and build 0; 65 unit, 28 integration, 23 e2e; 24 SQL checks; the scheduled-publish chain proven end to end on `next dev`. Production-cache revalidation stays for P10. Evidence: `artifacts/acceptance/P04/`.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -52,10 +60,11 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | P00 | public runtime accepted and committed; D29 swap audited, awaiting commit | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
 | P01 | part 1 committed (`c98b091`); remaining rooms wait for design | `artifacts/acceptance/P01/` |
 | P02 | not_started; waits for design | — |
-| P03 | audited, awaiting commit | `artifacts/acceptance/P03/` |
-| P04–P12 | not_started | — |
+| P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
+| P04 | part 1 audited, awaiting commit | `artifacts/acceptance/P04/` |
+| P05–P12 | not_started | — |
 
 ## Next work, in order
 
-1. Commit P03 with the owner's approval.
-2. P04 (content tables, collections, drafts and versions, site binding) is admin work and can run while design is paused; the public rooms keep reading `content/initial-content.json` until P04 binds them. It follows P03 directly, so it needs no change of order, only the owner's go-ahead.
+1. Commit P04 part 1 with the owner's approval.
+2. P04 part 2: admin editing (generic list and form, Lexical editor, version history, preview, schedule, archive).

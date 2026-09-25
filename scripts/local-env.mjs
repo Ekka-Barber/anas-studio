@@ -26,6 +26,8 @@ const content = `${MARKER}
 NEXT_PUBLIC_SUPABASE_URL=${status.API_URL}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${status.PUBLISHABLE_KEY}
 CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres
+SITE_URL=http://localhost:3000
+REVALIDATE_SECRET=local-revalidate-secret-not-for-production
 `
 writeFileSync(path, content)
 console.log(`Wrote ${path}.`)

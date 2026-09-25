@@ -3,7 +3,12 @@ import path from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { getBuiltRoom, getPassedRoom, getShelfRoom, getStartedRoom } from '../../src/lib/content'
+import fixture from '../../content/initial-content.json'
+
+// The database is filled from this file by scripts/import-content.mjs, and
+// tests/integration/content.test.ts proves the loaders return it unchanged, so
+// checking the file against the source covers the public pages.
+const { started, built, passed, shelf } = fixture.rooms
 
 /**
  * Anas's texts must be carried verbatim (character for character) from
@@ -31,22 +36,22 @@ describe('content verbatim against source', () => {
     .join('\n')
 
   it('بدأتُ من هنا: a full paragraph matches the source', () => {
-    expect(source).toContain(getStartedRoom().heroLine)
-    expect(source).toContain(getStartedRoom().movements[2]?.paragraphs[3])
+    expect(source).toContain(started.heroLine)
+    expect(source).toContain(started.movements[2]?.paragraphs[3])
   })
 
   it('بنيتُ هنا: the closing display line matches the source', () => {
-    expect(source).toContain(getBuiltRoom().closing.displayLine)
-    expect(source).toContain(getBuiltRoom().intro.paragraphs[0])
+    expect(source).toContain(built.closing.displayLine)
+    expect(source).toContain(built.intro.paragraphs[0])
   })
 
   it('مررتُ من هنا: the hero line and closing line match the source', () => {
-    expect(source).toContain(getPassedRoom().heroLine)
-    expect(source).toContain(getPassedRoom().closingLine)
+    expect(source).toContain(passed.heroLine)
+    expect(source).toContain(passed.closingLine)
   })
 
   it('على الرف: the moonlight cup story and thura slogan match the source', () => {
-    expect(source).toContain(getShelfRoom().items.moonlightCup.paragraphs[0])
-    expect(source).toContain(getShelfRoom().items.thura.slogan.replace(/^«|»\.?$/g, ''))
+    expect(source).toContain(shelf.items.moonlightCup.paragraphs[0])
+    expect(source).toContain(shelf.items.thura.slogan.replace(/^«|»\.?$/g, ''))
   })
 })

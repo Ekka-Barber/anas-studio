@@ -5,8 +5,8 @@ import { getNav } from '@/lib/content'
 import { Navigation } from './Navigation'
 import styles from './site.module.css'
 
-export function Header() {
-  const items = getNav()
+export async function Header() {
+  const items = await getNav()
   return (
     <header className={styles.header}>
       <Link href="/" prefetch={false} className={styles.wordmark}>

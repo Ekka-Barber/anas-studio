@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { secretsMatch } from '../../src/lib/env'
-import { isAuthorizedRevalidateRequest, parseRevalidatePayload, runtimeProbeTag } from '../../src/lib/revalidate'
+import { isAuthorizedRevalidateRequest, parseRevalidatePayload } from '../../src/lib/revalidate'
 
 describe('secretsMatch', () => {
   it('matches identical strings', () => {
@@ -92,11 +92,5 @@ describe('parseRevalidatePayload', () => {
 
   it('rejects empty arrays for both fields', () => {
     expect(parseRevalidatePayload({ tags: [], paths: [] })).toBeNull()
-  })
-})
-
-describe('runtimeProbeTag', () => {
-  it('namespaces the id', () => {
-    expect(runtimeProbeTag('abc-123')).toBe('runtime-probe:abc-123')
   })
 })

@@ -31,8 +31,8 @@ const ART: Art[] = [
   },
 ]
 
-export default function StartedPage() {
-  const room = getStartedRoom()
+export default async function StartedPage() {
+  const room = await getStartedRoom()
   const reelAlt = (id: string) => room.media.reels.find((reel) => reel.id === id)?.alt ?? ''
   const last = room.movements.length - 1
 

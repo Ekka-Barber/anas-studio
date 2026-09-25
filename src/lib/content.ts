@@ -1,202 +1,136 @@
 /**
- * Typed loader for `content/initial-content.json` (P01: static fixture — P04
- * replaces this with published Supabase reads). Reads Anas's texts verbatim;
- * nothing here rewrites or trims his copy.
+ * Published-content loaders (P04, D29): every getter reads
+ * `published_documents` through the Data API with the publishable key,
+ * validates the row with the collection's Zod schema, and tags the fetch so
+ * `POST /api/revalidate` can invalidate it after a publish. There is no
+ * fallback to `content/initial-content.json` — that file is only the import
+ * source for `scripts/import-content.mjs` and a test fixture; a missing env
+ * var, a missing document or invalid data throws.
  */
-import raw from '../../content/initial-content.json'
+import { cache } from 'react'
+import type { z } from 'zod'
 
-export interface NavItem {
-  label: string
-  href: string
+import {
+  boutiqueItemSchema,
+  brandSchema,
+  builtMovementSchema,
+  builtRoomSchema,
+  footerSchema,
+  galleryPhotoSchema,
+  jewelSchema,
+  moonlightCupItemSchema,
+  navItemSchema,
+  passedRoomSchema,
+  reelMediaSchema,
+  roomVignetteSchema,
+  shelfRoomSchema,
+  siteSettingsSchema,
+  startedMovementSchema,
+  startedRoomSchema,
+  thuraFlavourSchema,
+  thuraItemSchema,
+} from '../admin/collections'
+
+import { requireEnv } from './env'
+
+export type NavItem = z.infer<typeof navItemSchema>
+export type FooterContent = z.infer<typeof footerSchema>
+export type RoomJewel = z.infer<typeof jewelSchema>
+export type RoomVignette = z.infer<typeof roomVignetteSchema>
+export type ReelMedia = z.infer<typeof reelMediaSchema>
+export type StartedMovement = z.infer<typeof startedMovementSchema>
+export type StartedRoom = z.infer<typeof startedRoomSchema>
+export type BuiltMovement = z.infer<typeof builtMovementSchema>
+export type BuiltRoom = z.infer<typeof builtRoomSchema>
+export type Brand = z.infer<typeof brandSchema>
+export type GalleryPhoto = z.infer<typeof galleryPhotoSchema>
+export type PassedRoom = z.infer<typeof passedRoomSchema>
+export type ThuraFlavour = z.infer<typeof thuraFlavourSchema>
+export type ThuraItem = z.infer<typeof thuraItemSchema>
+export type MoonlightCupItem = z.infer<typeof moonlightCupItemSchema>
+export type BoutiqueItem = z.infer<typeof boutiqueItemSchema>
+export type ShelfRoom = z.infer<typeof shelfRoomSchema>
+export type SiteContent = z.infer<typeof siteSettingsSchema>
+
+async function fetchPublished<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T> {
+  const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL')
+  const key = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
+  const params = new URLSearchParams({ collection: `eq.${collection}`, doc_id: `eq.${docId}`, select: 'data' })
+  const response = await fetch(`${url}/rest/v1/published_documents?${params}`, {
+    headers: { apikey: key },
+    cache: 'force-cache',
+    next: { tags: [`content:${collection}`, `content:${collection}:${docId}`] },
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${collection}/${docId}: ${response.status}`)
+  }
+  const rows = (await response.json()) as Array<{ data: unknown }>
+  const row = rows[0]
+  if (!row) {
+    throw new Error(`Missing published document: ${collection}/${docId}`)
+  }
+  return schema.parse(row.data)
 }
 
-export interface FooterContent {
-  poem: string[]
-  signature: string
-  domain: string
+/** Drops items a hideable list's admin control marked `hidden: true`. */
+function dropHidden<T extends { hidden?: boolean }>(items: readonly T[]): T[] {
+  return items.filter((item) => !item.hidden)
 }
 
-export type RoomJewel = 'forest' | 'midnight' | 'plum' | 'oud'
+// One fetch of `site_settings/site` per render, shared by Header and Footer.
+const fetchSiteSettings = cache(
+  async (): Promise<SiteContent> => fetchPublished('site_settings', 'site', siteSettingsSchema),
+)
 
-export interface RoomVignette {
-  id: string
+export async function getNav(): Promise<NavItem[]> {
+  return (await fetchSiteSettings()).nav
 }
 
-export interface ReelMedia {
-  id: string
-  alt: string
+export async function getFooter(): Promise<FooterContent> {
+  return (await fetchSiteSettings()).footer
 }
 
-export interface StartedMovement {
-  year: string
-  vignette: string | null
-  paragraphs: string[]
+export async function getHomeIntroAddition(): Promise<string> {
+  return (await fetchSiteSettings()).home.introAddition
 }
 
-export interface StartedRoom {
-  slug: 'started'
-  roomLabel: string
-  title: string
-  jewel: RoomJewel
-  vignette: RoomVignette
-  heroLine: string
-  movements: StartedMovement[]
-  pullLines: string[]
-  closingLine: string
-  signature: string
-  media: { reels: ReelMedia[] }
-}
-
-export interface BuiltMovement {
-  label: string
-  vignette: string | null
-  vignetteWide?: boolean
-  paragraphs: string[]
-}
-
-export interface BuiltRoom {
-  slug: 'built'
-  roomLabel: string
-  title: string
-  jewel: RoomJewel
-  vignette: RoomVignette
-  heroLine: string
-  intro: { vignette: string | null; paragraphs: string[] }
-  movements: BuiltMovement[]
-  closing: { paragraphs: string[]; displayLine: string }
-  refrain: string
-  signature: string
-  media: {
-    logo: { id: string; alt: string }
-    reels: ReelMedia[]
-    droneFilm: ReelMedia
+export async function getStartedRoom(): Promise<StartedRoom> {
+  const room = await fetchPublished('rooms', 'started', startedRoomSchema)
+  return {
+    ...room,
+    movements: dropHidden(room.movements),
+    media: { ...room.media, reels: dropHidden(room.media.reels) },
   }
 }
 
-export interface Brand {
-  id: string
-  name: string
-}
-
-export interface GalleryPhoto {
-  id: string
-  alt: string
-}
-
-export interface PassedRoom {
-  slug: 'passed'
-  roomLabel: string
-  title: string
-  jewel: RoomJewel
-  vignette: RoomVignette
-  heroLine: string
-  heroVignette: string
-  paragraphs: string[]
-  pullLines: string[]
-  closingLine: string
-  media: {
-    reels: ReelMedia[]
-    brandWall: Brand[]
-    gallery: GalleryPhoto[]
+export async function getBuiltRoom(): Promise<BuiltRoom> {
+  const room = await fetchPublished('rooms', 'built', builtRoomSchema)
+  return {
+    ...room,
+    movements: dropHidden(room.movements),
+    media: { ...room.media, reels: dropHidden(room.media.reels) },
   }
 }
 
-export interface ThuraFlavour {
-  name: string
-  description: string
-}
-
-export interface ThuraItem {
-  name: string
-  nameNote: string
-  meaning: string
-  definition: string
-  vision: string
-  goal: string
-  flavours: ThuraFlavour[]
-  inspiration: string
-  inspirers: string
-  slogan: string
-  comingSoonLine: string
-  vignette: string
-  divider: string
-  photos: GalleryPhoto[]
-  posterId: string
-}
-
-export interface MoonlightCupItem {
-  title: string
-  paragraphs: string[]
-  status: string
-  vignette: string
-  images: GalleryPhoto[]
-}
-
-export interface BoutiqueItem {
-  title: string
-  paragraphs: string[]
-  closingLine: string
-  vignette: string
-}
-
-export interface ShelfRoom {
-  slug: 'shelf'
-  roomLabel: string
-  title: string
-  jewel: RoomJewel
-  vignette: RoomVignette
-  items: {
-    thura: ThuraItem
-    moonlightCup: MoonlightCupItem
-    boutique: BoutiqueItem
+export async function getPassedRoom(): Promise<PassedRoom> {
+  const room = await fetchPublished('rooms', 'passed', passedRoomSchema)
+  return {
+    ...room,
+    media: {
+      ...room.media,
+      reels: dropHidden(room.media.reels),
+      brandWall: dropHidden(room.media.brandWall),
+      gallery: dropHidden(room.media.gallery),
+    },
   }
 }
 
-export interface SiteContent {
-  nav: NavItem[]
-  footer: FooterContent
-  home: { introAddition: string }
-  rooms: {
-    started: StartedRoom
-    built: BuiltRoom
-    passed: PassedRoom
-    shelf: ShelfRoom
-  }
-}
-
-const content = raw as unknown as SiteContent
-
-export function getNav(): NavItem[] {
-  return content.nav
-}
-
-export function getFooter(): FooterContent {
-  return content.footer
-}
-
-export function getHomeIntroAddition(): string {
-  return content.home.introAddition
-}
-
-export function getStartedRoom(): StartedRoom {
-  return content.rooms.started
-}
-
-export function getBuiltRoom(): BuiltRoom {
-  return content.rooms.built
-}
-
-export function getPassedRoom(): PassedRoom {
-  return content.rooms.passed
-}
-
-export function getShelfRoom(): ShelfRoom {
-  return content.rooms.shelf
+export async function getShelfRoom(): Promise<ShelfRoom> {
+  return fetchPublished('rooms', 'shelf', shelfRoomSchema)
 }
 
 // Media-manifest reads (getImage/getVideo) intentionally do NOT live here:
 // Picture and VideoReel are rendered from client components, and any
-// value-import from this module — even of an unrelated export — pulls this
-// file's top-level `content/initial-content.json` import (Anas's texts) into
-// the client bundle. Each of Picture.tsx/VideoReel.tsx reads its own manifest
-// JSON directly (P01 audit fix 10).
+// value-import from this module pulls its dependencies into the client
+// bundle. Each of Picture.tsx/VideoReel.tsx reads its own manifest JSON
+// directly (P01 audit fix 10).

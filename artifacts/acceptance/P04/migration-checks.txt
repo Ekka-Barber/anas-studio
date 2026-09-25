@@ -1,0 +1,15 @@
+# P04 part 1 migration checks, 2026-09-25T00:03:02Z, local stack (CLI 2.106.0)
+NOTICE:  PASS grants
+NOTICE:  PASS stale save conflicts
+NOTICE:  PASS skipped seq refused
+NOTICE:  PASS editor drafts, author and document list
+NOTICE:  PASS operations cannot read or write drafts
+NOTICE:  PASS non-publisher actor refused
+NOTICE:  PASS rooms cannot be archived
+NOTICE:  PASS past schedule refused
+NOTICE:  PASS anon reads version 1 live while version 2 is only scheduled
+NOTICE:  PASS publish_due publishes once and queues one revalidation
+NOTICE:  PASS archive removes the live copy; publish, schedule, due and archive are audited
+# earlier packages re-run
+P03 PASS: 5
+P00 PASS: 8

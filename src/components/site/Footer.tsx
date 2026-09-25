@@ -2,8 +2,8 @@ import { getFooter } from '@/lib/content'
 
 import styles from './site.module.css'
 
-export function Footer() {
-  const footer = getFooter()
+export async function Footer() {
+  const footer = await getFooter()
   const [firstLine, secondLine] = footer.poem
   return (
     <footer className={styles.footer}>

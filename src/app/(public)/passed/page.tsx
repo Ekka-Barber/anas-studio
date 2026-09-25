@@ -13,8 +13,8 @@ import { getPassedRoom } from '@/lib/content'
  * product gallery are the confirmed real relationships (item 113), rights
  * pending E05.
  */
-export default function PassedPage() {
-  const room = getPassedRoom()
+export default async function PassedPage() {
+  const room = await getPassedRoom()
   const jewelVar = `var(--color-${room.jewel})`
 
   return (

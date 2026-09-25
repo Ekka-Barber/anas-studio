@@ -1,0 +1,72 @@
+# P04 part 1 (data and binding) proof, 2026-09-25, local stack (Supabase CLI 2.106.0)
+
+pnpm install --frozen-lockfile                          → 0
+supabase db reset                                        → 0  (3 migrations applied, supabase/seed.sql applied)
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:import
+                                                           → 0  "Imported 5 document(s), skipped 0 already published."
+pnpm db:import (2nd run, idempotency check)               → 0  "Imported 0 document(s), skipped 5 already published."
+pnpm db:env                                               → 0  "Wrote .env.local."
+pnpm lint                                                 → 0  (1 pre-existing warning, unrelated file: src/components/admin/MfaEnroll.tsx)
+pnpm typecheck                                             → 2  fails ONLY on tests/unit/content.test.ts (pre-existing, not in my
+                                                                 allowlist): 8x TS2339, calls the now-async content getters
+                                                                 (getStartedRoom() etc.) synchronously. All allowlisted files
+                                                                 typecheck clean.
+pnpm vitest run tests/unit/collections.test.ts tests/unit/revalidate.test.ts
+                                                           → 0  31/31 passed
+pnpm test (full unit suite)                                → 1  61/65 passed; the 4 failures are all in the same out-of-scope
+                                                                 tests/unit/content.test.ts (sync calls against async getters)
+pnpm check:copy                                            → 0  "check:copy OK — 51 source files."
+pnpm check:frozen                                          → 0  "check:frozen OK — 59 files under deploy/ unchanged."
+TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+                                                           → 0  4 files, 28/28 passed (content.test.ts, publish.test.ts,
+                                                                 staff.test.ts, staff-admin.test.ts)
+pnpm build                                                 → 1  BLOCKED — same out-of-scope tests/unit/content.test.ts fails
+                                                                 next build's project-wide `tsc` pass (tsconfig.json has no
+                                                                 test-file exclusion), so `next build` cannot complete until
+                                                                 that file is fixed or excluded. `next.config.ts` compiles the
+                                                                 app itself successfully in 13.5s before the typecheck step.
+pnpm dev + one-off Playwright screenshot pass               → 0  8/8 screenshots captured (started/built/passed/shelf at
+                                                                 360px and 1440px), pages render via live Supabase data,
+                                                                 no visual regression vs. the prior JSON-backed content.
+
+## Evidence
+- artifacts/acceptance/P04/screenshots/{started,built,passed,shelf}-{360,1440}.png
+- artifacts/acceptance/P04/migration-checks.txt, migration-checks.sql (orchestrator's, pre-existing)
+
+## Open blocker for the orchestrator
+tests/unit/content.test.ts is not in my P04-part-1 write allowlist. It predates
+this package and calls src/lib/content.ts's getters synchronously
+(`getStartedRoom().heroLine`), which this package's required change (async
+loaders reading published_documents via the Data API, per the P04 brief) made
+incompatible: both `pnpm typecheck` and `pnpm build`'s type-check step fail on
+it, and 4 of its own test cases throw at runtime. It needs either an async
+rewrite (small, mirrors tests/integration/content.test.ts's pattern) or
+removal now that tests/integration/content.test.ts covers the same getters
+against a real database. This blocks `pnpm build` from completing; every other
+proof step passed.
+
+## Orchestrator audit, 2026-09-25
+Scope: 43 changed paths, 0 outside the lock allowlist. Page edits are async/await only.
+Fixes by the orchestrator:
+1. tests/unit/content.test.ts (old P01 verbatim check) called the now-async getters and broke
+   typecheck and build. It now checks content/initial-content.json directly; the
+   integration test proves the loaders return that file unchanged.
+2. src/lib/publish.ts skipped validation when the draft could not be read, so a failed
+   read published unvalidated data. It now fails closed (FAILED / NOT_FOUND / INVALID) and
+   reads with no-store. The operations test now expects NOT_FOUND (RLS hides drafts from
+   operations) and checks nothing went live; the SQL-level actor check is proven in
+   migration-checks.sql.
+Accepted deviation: CI uses supabase/setup-cli pinned to 45a513f8 (verified: the v3.0.1
+tag object is that exact commit in supabase/setup-cli), because the scripts call
+`supabase` from PATH, which `pnpm dlx` would not provide.
+
+Re-run after the fixes (local stack, CLI 2.106.0):
+- supabase db reset 0; db:import 0 (5 imported), again 0 (0 imported, 5 skipped); db:env 0.
+- lint 0; typecheck 0; test 0 (65); check:copy 0; check:frozen 0; build 0 (the four rooms
+  prerender static, refreshed on demand by tag).
+- test:db 0 (4 files, 28 tests). SQL checks: P04 11 PASS, P03 5, P00 8.
+- next dev: public, runtime and auth e2e 23 passed; room screenshots 360/1440 in screenshots/.
+- Scheduled publish end to end: a due version of rooms/started -> publish_due() = 1 ->
+  pg_net POST /api/revalidate answered 200 with tags content:rooms, content:rooms:started ->
+  the new hero line shows on /started. Database then reset and re-imported.
+Not proven here: tag revalidation against the production cache (Worker, R2/D1) - P10.
