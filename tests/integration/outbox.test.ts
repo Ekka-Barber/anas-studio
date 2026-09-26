@@ -160,31 +160,33 @@ describe('claiming', () => {
     await result(row.id, second[0]!.lease_id, 'accepted', 'test-provider-id')
   })
 
-  it('two claims racing on one pending row: exactly one wins', async () => {
+  it('a claim never waits for or takes a row another open claim holds (skip locked)', async () => {
     await parkOthers()
     const row = await insertRow({ label: 'race' })
+    const holder = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
     const other = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
+    await holder.connect()
     await other.connect()
+    let committed = false
     try {
-      // Two separate direct clients (127.0.0.1:54322 is the direct port, not
-      // a pooler), each claiming with an in-statement 0.2 s sleep: the sleep
-      // is an initplan that runs inside the statement's transaction even when
-      // the claim returns no row, so serialized sessions would need >= 0.4 s.
-      // Finishing under 0.35 s proves the two claims really overlapped.
-      const racingClaim =
-        'select c.id, c.lease_id, (select pg_sleep(0.2)) from public.outbox_claim($1, $2, $3, $4, $5) as c'
-      const startedAt = Date.now()
-      const [mine, theirs] = await Promise.all([
-        app.query<{ id: string; lease_id: string }>(racingClaim, [1, 120, 100, 20, 3000]),
-        other.query<{ id: string; lease_id: string }>(racingClaim, [1, 120, 100, 20, 3000]),
-      ])
-      expect(Date.now() - startedAt).toBeLessThan(350)
-      const winners = [...mine.rows, ...theirs.rows].filter((r) => r.id === row.id)
-      expect(winners).toHaveLength(1)
+      // Overlap by construction, not by timing: the holder's claim runs
+      // inside an open transaction, so its row lock is held while the second
+      // claim runs. lock_timeout turns a wait into an error, so the test also
+      // fails if the claim ever blocks instead of skipping the locked row.
+      await holder.query('begin')
+      const held = await claim(1, holder)
+      expect(held.map((r) => r.id)).toEqual([row.id])
+      await other.query("set lock_timeout = '2s'")
+      const second = await claim(1, other)
+      expect(second.find((r) => r.id === row.id)).toBeUndefined()
+      await holder.query('commit')
+      committed = true
       // The attempt counter moved exactly once.
       expect((await rowState(row.id)).attempts).toBe(1)
-      await result(row.id, winners[0]!.lease_id, 'accepted', 'test-provider-id')
+      await result(row.id, held[0]!.lease_id, 'accepted', 'test-provider-id')
     } finally {
+      if (!committed) await holder.query('rollback').catch(() => undefined)
+      await holder.end()
       await other.end()
     }
     await postgres.query('delete from finance.email_outbox where id = $1', [row.id])
