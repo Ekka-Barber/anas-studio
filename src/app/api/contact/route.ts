@@ -47,6 +47,11 @@ function toAsciiAddress(email: string): string {
   if (at === -1) return email
   const domain = email.slice(at + 1)
   if (/^[\x00-\x7F]*$/.test(domain)) return email
+  // The URL parser would silently drop a path, query, fragment or port after
+  // the host (`x@ü.test/…` → `x@xn--tda.test`) and decode `%xx`; such a
+  // "domain" is left untouched so the grammar refuses it rather than storing
+  // an address the visitor never typed.
+  if (/[\s/\\?#:@%]/.test(domain)) return email
   try {
     return `${email.slice(0, at)}@${new URL(`http://${domain}`).hostname}`
   } catch {
