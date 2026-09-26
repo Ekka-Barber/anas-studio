@@ -1,5 +1,11 @@
 # P00 runtime spike — local evidence
 
+> **Historical (D32, 2026-09-26).** The OpenNext Worker measured here is gone:
+> the site is now a static export on Cloudflare Pages and server work runs in
+> Supabase Edge Functions (`PLANS/ARCHITECTURE.md`). This record stays as the
+> evidence behind that decision (I21: 19–46 ms CPU per cold request against
+> Workers Free's 10 ms).
+
 What this document is: the recorded result of the **local half** of the P00
 exact-runtime spike. It states what was executed, what was measured, and what
 each measurement does and does not prove.

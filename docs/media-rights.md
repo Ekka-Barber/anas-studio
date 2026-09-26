@@ -1,7 +1,8 @@
 # Media library: rights and limits (P05)
 
 A short guide for staff who upload images to the library. The library stores
-its objects in Cloudflare R2, never in Supabase Storage, and there is no
+its objects in Supabase Storage (D32: a private bucket for originals, a
+public one for the checked WebP sizes), and there is no
 server-side image processing: the browser generates the WebP sizes at upload
 time, and the server only verifies what arrived.
 

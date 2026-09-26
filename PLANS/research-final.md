@@ -19,27 +19,29 @@ Revised 2026-09-24 for D29. The original research cutoff was 2026-09-21; Payload
 
 MFA: TOTP is enforced in RLS through the JWT `aal` claim; `amr` lists methods with timestamps, newest first; the challenge/verify limit is fixed at 15 per minute per IP ([MFA](https://supabase.com/docs/guides/auth/auth-mfa), [rate limits](https://supabase.com/docs/guides/auth/rate-limits)). The MFA page does not state plan availability; P03 confirms it. pg_cron schedules from every second to once a year, with at most 8 concurrent jobs recommended ([cron](https://supabase.com/docs/guides/cron)).
 
-Consequences: staff are the only Auth users (about 3 MAU). Media stays in R2, so Supabase Storage limits do not apply. The real Free risks are pausing and the absence of backups; neither matters locally, and both are covered by E07 (Pro before live orders) and P06 (own off-site backup). Hosted staff mail needs Resend SMTP.
+Consequences: staff are the only Auth users (about 3 MAU). Media library objects live in Supabase Storage (D32): on Free that is 1 GB in all and 50 MB per file, ample for library images (originals are capped at 15 MiB, derivatives are small WebP), but a paid PDF over 50 MB needs Pro (P08 checks the real file size). Storage downloads count against the project's egress quota (P10 records it); the site's committed images are served by Pages. Edge Functions stay far inside 500,000 invocations: pg_cron calls the outbox only while an email is due. The real Free risks are pausing and the absence of backups; neither matters locally, and both are covered by E07 (Pro before live orders) and P06 (own off-site backup). Hosted staff mail needs Resend SMTP.
 
 ## Platform choices
 
 | Area | Choice | Reason |
 |---|---|---|
-| Runtime | Next 16 with OpenNext for Cloudflare on Workers | Proven in P00 for the public route, ISR cache and revalidate gate. |
-| Staff auth | Supabase Auth, passwordless (email code, Google) | Hashing runs on Supabase, not the Worker (I17). Sign-up disabled. |
-| Data API | `@supabase/supabase-js` with RLS | Per-person authorization in the database, EKKa pattern; the admin costs almost no Worker CPU. |
-| Server writes | `pg` through Hyperdrive as `app_server` | EXECUTE-only least privilege; pooler behaviour proven in P00. |
+| Runtime | Next 16 static export (`output: 'export'`) on Cloudflare Pages (D32) | Static files cost no server CPU; P00 measured the OpenNext Worker at 19–46 ms CPU per cold request against Free's 10 ms (I21). The owner's Ekka-Rekaz runs the same way. |
+| Server work | Supabase Edge Functions (Deno) with shared `_shared/` code; pg_cron + pg_net for schedules | Ekka-Rekaz pattern; the service-role key never leaves Supabase. Free: 500,000 invocations, 2 s CPU per request. |
+| Staff auth | Supabase Auth, passwordless (email code, Google) | Hashing runs on Supabase. Sign-up disabled. |
+| Data API | `@supabase/supabase-js` with RLS | Per-person authorization in the database, EKKa pattern. |
+| Server writes | Named SQL functions called by the Edge Functions as `service_role` | Least privilege at the function level: API roles cannot execute them. |
+| Media | Supabase Storage, private and public buckets | Local in the CLI stack, so every media path is testable offline; replaces R2. |
 | Rich text | Lexical packages directly | Keeps the planned JSON format and D14 allowlist renderer; no Tiptap. |
 | Email/abuse | Resend over HTTP with durable outbox; Turnstile plus bounded DB throttles | Free development quotas; sender domain is external (E01). |
-| Tests | Vitest, Playwright, axe, LHCI | Real DB, real JWT and Worker checks. |
+| Tests | Vitest, Playwright, axe, LHCI | Real DB, real JWT, Edge Function handler and static-export checks. |
 
 ## Media without Sharp or Images
 
 Baseline is upload-time browser processing, not on-request optimization. `react-easy-crop` provides the crop UI; native `createImageBitmap` plus canvas `toBlob('image/webp')` generates the bounded widths without upscaling. Generate automatically before upload, fail with an actionable message when the browser cannot encode, and never publish the raw original as a fallback. Preserve crop coordinates for deliberate regeneration.
 
-The server does not trust browser claims. `image-size` checks the type from magic bytes and the bounded dimensions before promotion (P05 dropped `file-type`: its single entry imports `strtok3` for file reading, which the Worker bundle cannot resolve); enforce an authenticated short-lived upload ticket, byte and pixel limits, allowed exact widths/aspect ratios, server-generated keys and ownership. Reject SVG, HTML, archives and mismatched declared MIME. Canvas output normally removes source metadata, but header/type checks do not fully decode or sterilize a hostile image. Keep originals private, serve derivatives from an isolated origin with `nosniff`, and require alt text and rights.
+The server does not trust browser claims. `image-size` checks the type from magic bytes and the bounded dimensions before promotion (P05 dropped `file-type`: its single entry imports `strtok3` for file reading, which the Worker bundle could not resolve; the check now runs in the `admin` Edge Function); enforce an authenticated short-lived upload ticket, byte and pixel limits, allowed exact widths/aspect ratios, server-generated keys and ownership. Reject SVG, HTML, archives and mismatched declared MIME. Canvas output normally removes source metadata, but header/type checks do not fully decode or sterilize a hostile image. Keep originals private, serve derivatives from an isolated origin (the Storage host; `nosniff` there is a hosted check, I32), and require alt text and rights.
 
-Do not add Sharp, Cloudflare Images, a WASM codec or an image proxy to the baseline. Sharp is unsupported on Workers. A WASM encoder adds large code and CPU risk against Free's 10 ms budget. Cloudflare Images remains a separately cost-approved post-launch choice.
+Do not add Sharp, Cloudflare Images, a WASM codec or an image proxy to the baseline. Sharp is not part of the Edge Functions. A WASM encoder adds large code and CPU against the functions' 2 s CPU limit for no gain over the browser. Cloudflare Images remains a separately cost-approved post-launch choice.
 
 ## Owner statistics
 
@@ -57,9 +59,9 @@ Orders, revenue and customers come from the database. Traffic comes from Cloudfl
 
 ## Operations and security
 
-Sentry Free for checkout, webhook and scheduler failures, replay disabled, `beforeSend` scrubbing tokens, bodies, payment payloads, emails and addresses. One UptimeRobot Free HTTPS check against a read-only health endpoint; it is neither an SLA nor proof of payment correctness.
+Sentry Free for checkout, webhook and scheduler failures, replay disabled, `beforeSend` scrubbing tokens, bodies, payment payloads, emails and addresses. One UptimeRobot Free HTTPS check against the home page (D32: there is no health endpoint); it is neither an SLA nor proof of payment correctness.
 
-Development runs on the local Supabase stack, Workers Free, R2 Free, Resend Free and Turnstile Free. Free allocations are test envelopes, not launch economics. Workers Free allows 10 ms CPU per invocation. Live orders wait for explicit recurring-cost approval, a non-pausable database with backups, and measured Worker headroom (E07).
+Development runs on the local Supabase stack, Cloudflare Pages, Resend Free and Turnstile Free. Free allocations are test envelopes, not launch economics. Pages serves static files without a CPU limit; each publish costs one build, coalesced to at most one per two minutes (the monthly build quota is a hosted check, I32). Live orders wait for explicit recurring-cost approval and a non-pausable database with backups (E07).
 
 Exact-version advisory checks do not cover every transitive package or future disclosure. Commit the lockfile, run dependency, secret and SAST checks, and review Next/Supabase advisories at each release.
 

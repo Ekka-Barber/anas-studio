@@ -506,3 +506,84 @@ Pending local verification (after pulling):
 5. Re-capture the P06 screenshots (home, email, stats, settings at 360 and 1440) and check the
    home has no الوارد block and settings shows the Email Routing step.
 6. Unchanged: Linux build:worker and the cron CPU measurement (I30).
+
+2026-09-26 D32–D34 — static site on Pages, server work in Supabase, Thmanyah only, no tax
+(owner decisions; cloud writer, plan approved by the owner in the session)
+
+Why: the owner asked why this project struggles on the free Cloudflare tier while his
+Ekka-Rekaz (100k+ lines) runs on Pages without issues. Ekka (shallow clone at 92ad7e3) is a
+Vite build served as static files on Pages, with 15 Supabase Edge Functions over `_shared/`
+code and pg_cron calling them. This project ran the whole Next server on an OpenNext Worker:
+19–46 ms CPU per cold request against Free's 10 ms (I21), plus Hyperdrive, an R2 + D1 page
+cache, a per-minute cron through the full app (I30) and the prefetch loop (I23).
+
+Commits:
+- b284451 feat(fonts): Thmanyah only (D33). Lyon deleted from public/, Lyon_Arabic_FONT/,
+  deploy/fonts and deploy/design/fonts (owner override); check-frozen and the source manifest
+  drop those rows; the display face is Thmanyah Serif Display 300/400/500.
+- fcad3fd feat(d32): see PLANS/WORK-PACKAGES.md "P00 D32 replatform" for the file list.
+- the docs commit: DECISIONS D32–D34 (and the amended D01/D03/D04/D06/D20/D23/D26 and
+  E01/E02/E03/E06/E07/E08), ARCHITECTURE, DATA-AND-SECURITY, WORK-PACKAGES, VERIFICATION,
+  COVERAGE, research-final, ISSUES (I04/I05/I08/I09/I21/I23/I30 closed as moot; I29 restated;
+  I32, I33 opened), EXECUTION-STATUS, docs/{development,operations,media-rights,
+  design-direction,runtime-spike}.md, .env.example, CLAUDE.md.
+
+Checks run in the cloud (Node 22 with engine-strict off; CI runs Node 24):
+- eslint 0 (the same 3 old <img> warnings); tsc --noEmit 0; check:frozen OK (50 files);
+  check:copy OK (100 files: it now also scans supabase/functions, whose messages are
+  user-facing).
+- vitest unit: 14 files, 204 passed + 1 skipped. New tests/unit/admin-function.test.ts (16):
+  role gates, status without secret values, ticket paths all in private quarantine, the
+  complete happy path (public WebP, original moved out of quarantine, MD5 recorded as hex),
+  dimension/type mismatch refusals with nothing public, cleanup after a database refusal, and
+  the outbox bearer gate. The moved handlers keep their tests (contact 14, webhook, email,
+  turnstile, media, analytics).
+- Deno 2.9.6 (from npm, scratchpad): `deno check` of contact, resend-webhook, outbox, admin
+  (with their deno.json import maps) and staff-admin: all pass. Generated deno.lock files
+  deleted (a newer lock format than the hosted runtime may read).
+- `next build` (Next 16.3.5, Turbopack) against a local stand-in of the Data API serving the
+  imported fixture: 29 static pages; out/ holds index/started/built/passed/shelf.html, the
+  admin shells (content/*/edit, preview, sign-in, ...), 404.html and _headers.
+- check:export OK: 12 required files, 181 text files scanned, no secret. Proven to fail on a
+  planted `sb_secret_…` value and a planted service_role JWT (then removed).
+- check:budgets OK: largest initial public JS 142.2 KiB gzip (passed.html), budget 150 KiB.
+- Static smoke of out/ served like Pages (x -> x.html, else 404.html), Chromium at 360 and
+  1440: /, /started, /built, /passed, /shelf answer 200 with no horizontal overflow and no
+  broken image; room titles compute to "Thmanyah Serif Display", 4–5 Thmanyah faces loaded;
+  /no-such-page is 404 with the Arabic title; /admin/sign-in renders its email field; no page
+  errors. Screenshots reviewed (scratchpad, not committed).
+- Throwaway PostgreSQL 16.13 with Supabase stubs (roles, default privileges, auth.uid,
+  cron.schedule, net.http_post, vault, storage.buckets/objects), `create extension` lines
+  stubbed: all 6 migrations and the seed apply fresh, including the named revokes and
+  `drop role app_server`.
+- test:db, SQL-direct subset: static-site 23/23 (service_role-only grants for the 11
+  server-only functions, publishing for authenticated and never anon, internal functions for
+  no API role, the p_actor functions/app_server/health() gone, both bucket rows, rebuild
+  coalescing, publish_due requesting a rebuild only when something went live, outbox_kick only
+  while due and configured); staff "server roles (D32)" 1/1; forms + email-delivery + outbox
+  31 passed, 9 need Supabase Auth (each fails at `createStaff: fetch failed`, no assertion
+  reached). The grant test fails as intended after `grant execute on outbox_claim to
+  authenticated` (then revoked).
+
+Not run here (no Docker daemon, no Supabase CLI): anything needing Auth, Storage, the edge
+runtime or Mailpit.
+
+Pending local verification (after pulling; Node 24):
+1. pnpm install --frozen-lockfile (OpenNext, wrangler and pg-cloudflare are gone).
+2. supabase stop && supabase start (Storage and the edge runtime now serve the app), then
+   pnpm db:reset, pnpm db:import, pnpm db:env (writes supabase/functions/.env; restart the
+   stack so the functions read it, or run `supabase functions serve`).
+3. TEST_ENV=local pnpm test:db — includes the new static-site file and the ported publish
+   test (admin-publish through signed-in clients; operations refused by RLS and by the
+   function with 42501; anon refused; publish and archive set finance.site_builds.requested_at).
+4. pnpm check, pnpm build, pnpm check:export, pnpm check:budgets.
+5. Playwright on localhost:3000 (PLAYWRIGHT_BASE_URL unset starts pnpm dev): auth, cms (edit?id=
+   URLs; the preview tab at /admin/preview shows the draft while /started still shows the
+   published line; publish sets the rebuild request), media (ticket → signed Storage uploads →
+   complete; public URLs under /storage/v1/object/public/media-public/; late staging uploads
+   never reach the public object; oversize is SIZE_MISMATCH at completion), owner-operations
+   (contact, outbox and resend-webhook at /functions/v1/…; another Origin is 403; the notice in
+   Mailpit with Reply-To; /admin/inbox 404; operations gets 403 from the admin function's stats).
+   First real runs of: the functions reaching Mailpit through host.docker.internal; the
+   `cf-connecting-ip` header passing through the local gateway.
+6. Screenshots: the rooms at 360 and 1440 (Thmanyah titles) and the P06 screens.

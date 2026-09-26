@@ -20,7 +20,7 @@ Your whole context is re-sent on every tool call, so each call is expensive.
   - Run a long command once, in the foreground, with `timeout 600`.
   - If it can't finish, stop and report it.
 - **No background processes to poll.** If a server must run, start it, check it once, and move on.
-- **UI work.** Use `pnpm dev` (hot reload) and one screenshot script at 360 and 1440. Run `build:worker` or the full visual suite only when the task says "acceptance". You cannot view images, so list the screenshot paths for the orchestrator to review.
+- **UI work.** Use `pnpm dev` (hot reload) and one screenshot script at 360 and 1440. Run `pnpm build` (the static export) or the full visual suite only when the task says "acceptance". You cannot view images, so list the screenshot paths for the orchestrator to review.
 - **Don't repeat work.** Don't re-run a check that already passed on unchanged files.
 - **Two failures, then stop.** After two failed attempts at the same problem, stop and report.
 

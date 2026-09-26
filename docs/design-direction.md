@@ -114,15 +114,14 @@ lightbox, built with an accessible dialog (Radix) and keyboard support.
   reduced motion.
 - There are no scroll-jacking effects and no parallax on text.
 
-### 5. Performance (Workers Free, I20/I21)
+### 5. Performance (static on Cloudflare Pages, D32)
 
-- Rooms are static or ISR-cached.
+- Rooms are static HTML, rebuilt after a publish.
 - Images are WebP derivatives at 360, 720, 1200 and 1800 px widths through
   `<picture>`/`srcset`, with dimensions set to prevent layout shift.
 - Videos are transcoded to H.264 at 720p, around 1.5–2.5 Mbps, with a poster
-  frame. They are served from R2 public derivatives, never through Payload on
-  the Worker and never inlined into the Worker bundle. Workers static assets
-  cap each file at 25 MiB.
+  frame. They are static files served by Pages, which caps each file at
+  25 MiB.
 
 ## Room order (from Anas, line 857)
 
@@ -271,14 +270,10 @@ flagged here as the single item on this page most likely to need the
 owner's explicit confirmation before this diff is shown to anyone outside
 the immediate working group, separately from the general E05 rights gate.
 
-### R2 video hosting (I20/I21, DESIGN-DIRECTION §5)
+### Video hosting (DESIGN-DIRECTION §5; D32)
 
-DESIGN-DIRECTION.md's performance section says videos should be "served from
-R2 public derivatives, never... inlined into the Worker bundle." That hosting
-step is not part of this task ("Hosting the videos (R2) is a later task, so
-note it in the docs" — the task's own instruction). `public/media/*.mp4` is
-served as static Worker assets for now (git-ignored; regenerate with
-`scripts/prepare-media.mjs`), which keeps them out of the Worker script bundle
-already (Cloudflare serves static assets separately from the Worker script,
-each capped at 25 MiB — every file here is well under that), but does not yet
-move them to R2. Total transcoded weight: 55.9 MiB across 18 videos.
+`public/media/*.mp4` is served as static files (git-ignored; regenerate with
+`scripts/prepare-media.mjs`), each well under the 25 MiB per-file limit.
+Total transcoded weight: 55.9 MiB across 18 videos. Because the files are
+git-ignored, a Pages build from the repository has none of them; where they
+live at launch is open (I33).

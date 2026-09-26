@@ -4,8 +4,8 @@ How a contact message reaches the owner's mailbox, and what to do when an
 automatic email gets stuck. There is no admin inbox (D31): the owner reads
 and answers contact messages in his own mailbox. The SQL contract lives in
 `supabase/migrations/20260926120000_contacts_and_email.sql`; the dispatcher
-is `src/lib/outbox.ts`, run by the Worker's Cron Trigger through
-`POST /api/jobs/run`.
+is `supabase/functions/_shared/outbox.ts`, the `outbox` Edge Function, which
+pg_cron calls while an email is due (D32).
 
 ## The owner's routine
 
@@ -36,14 +36,18 @@ is refused). No API role can read `public.contacts`, the owner included.
 
 ## The contact flow
 
-1. The public form posts JSON (≤ 8 KiB, same origin) to `POST /api/contact`:
+1. The public form posts JSON (≤ 8 KiB) to the `contact` Edge Function
+   (`<supabase>/functions/v1/contact`), which answers only the `SITE_URL`
+   origin (CORS; any other `Origin` is 403):
    `name`, `email`, `message`, `submissionKey` (a fresh browser uuid),
    `turnstileToken`, and the hidden `website` honeypot.
-2. The route verifies the Turnstile token (action `contact`, hostname from
+2. The function verifies the Turnstile token (action `contact`, hostname from
    `SITE_URL`) and hashes the caller — sha256 of
-   `${TOKEN_HASH_PEPPER}:${utc-date}:${cf-connecting-ip}` — so no raw IP is
-   ever stored or logged. Under `next dev` (no Cloudflare header) the IP is
-   the literal `local`.
+   `${TOKEN_HASH_PEPPER}:${utc-date}:${ip}`, where the IP is
+   `cf-connecting-ip`, else the first `x-forwarded-for` hop — so no raw IP is
+   ever stored or logged. With neither header (the local stack) the IP is the
+   literal `local`; which header the hosted project delivers is checked at
+   P11 (I32).
 3. `contact_submit(ip_hash, …)` commits, in one transaction: the throttle
    checks, the message row, and one `contact_notice` outbox row per **active
    owner or operations member**. Editors and inactive staff get no notice.
@@ -129,7 +133,7 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
 
 ### Quota
 
-`src/lib/outbox.ts` claims with `DAILY_QUOTA = 100`, `RESERVE = 20` and
+`supabase/functions/_shared/outbox.ts` claims with `DAILY_QUOTA = 100`, `RESERVE = 20` and
 `MONTHLY_QUOTA = 3000`:
 
 - 100/day and 3,000/month are Resend's **free plan** quotas — "daily email
@@ -150,7 +154,7 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
 emails travel through Supabase Auth's SMTP (I28), not through the outbox, but
 the same Resend account absorbs them — and the outbox's sent-today count sees
 only outbox rows. The 20-send reserve must therefore absorb auth traffic too:
-keep sign-in volume low, and raise `RESERVE` in `src/lib/outbox.ts` if auth
+keep sign-in volume low, and raise `RESERVE` in `supabase/functions/_shared/outbox.ts` if auth
 traffic grows. If Supabase Auth ever changes its sending path (a different
 provider or subaccount), this shared-limit assumption breaks silently —
 re-check I28's mail routing then.
@@ -178,7 +182,7 @@ stops receiving codes from both paths.
 ## Delivery events
 
 Resend webhooks are Svix-signed (`svix-id`, `svix-timestamp`,
-`svix-signature`). `POST /api/email/resend/webhook` verifies the HMAC
+`svix-signature`). The `resend-webhook` Edge Function verifies the HMAC
 against the **raw** body (≤ 256 KiB) with a 5-minute timestamp tolerance,
 then records the event through `email_event_record`, which deduplicates on
 the provider's event id (`svix-id`) — a redelivered event is recorded once.
@@ -208,22 +212,30 @@ caused by the event's own data.
 
 Webhook setup (P11, launch): in the Resend dashboard
 (`https://resend.com/webhooks`) add an endpoint for
-`https://anas.studio/api/email/resend/webhook` with the delivery/bounce/
-complaint events, and store its signing secret as the Worker secret
-`RESEND_WEBHOOK_SECRET` (`wrangler secret put RESEND_WEBHOOK_SECRET`).
-With the secret unset the endpoint answers 404 — it does not exist.
+`https://<project-ref>.supabase.co/functions/v1/resend-webhook` with the
+delivery/bounce/complaint events, and store its signing secret as the
+function secret `RESEND_WEBHOOK_SECRET` (`supabase secrets set`). With the
+secret unset the endpoint answers 404 — it does not exist.
 
-## The cron trigger
+## The outbox schedule
 
-`wrangler.jsonc` runs one Worker Cron Trigger every minute;
-`worker-entry.ts`'s `scheduled` handler turns it into one authenticated
-`POST /api/jobs/run` (`Authorization: Bearer ${JOBS_SECRET}`, a Worker
-secret). The minute cadence is deliberate — the outbox's own `next_at`
-backoff and quota checks decide whether anything is actually sent, so the
-frequent trigger only keeps dispatch latency small. Each run is recorded in
-`finance.job_runs` (visible to owner/operations through `job_runs_latest`,
-purged after 30 days). With `JOBS_SECRET` unset the trigger does nothing
-and the endpoint answers 404.
+pg_cron runs `outbox_kick()` every minute (D32). It calls the `outbox` Edge
+Function (`Authorization: Bearer <jobs_secret>`, with `functions_url` and
+`jobs_secret` read from Vault) **only while a row is due**, so an idle site
+makes no calls. The minute cadence is deliberate — the outbox's own
+`next_at` backoff and quota checks decide whether anything is actually sent,
+so the frequent check only keeps dispatch latency small. Each run is recorded
+in `finance.job_runs` (visible to owner/operations through
+`job_runs_latest`, purged after 30 days). With `JOBS_SECRET` unset the
+function answers 404; with the Vault values unset (the local stack)
+`outbox_kick()` does nothing, and the owner home shows the job as never run
+or stale.
+
+Hosted setup (P11): `supabase secrets set JOBS_SECRET=…`, then in the SQL
+editor `select vault.create_secret('<the same value>', 'jobs_secret')` and
+`select vault.create_secret('https://<project-ref>.supabase.co/functions/v1', 'functions_url')`.
+The same Vault holds `pages_deploy_hook`, the Cloudflare Pages deploy hook
+that `site_build_trigger()` calls after a publish.
 
 ### Uncertain-send reconciliation, in one paragraph
 
@@ -238,22 +250,21 @@ replays with `accept_duplicate_risk`.
 
 ## Statistics: sources and the E11 gate
 
-`/admin/stats` (owner only) reads `GET /api/admin/stats`, which verifies the
-staff token and role server-side and caches one answer per isolate for 5
-minutes (the cache is read only after authorization; the reply is
-`cache-control: private, no-store` and carries no PII).
+`/admin/stats` (owner only) calls the `admin` Edge Function's `stats`
+action, which verifies the staff token and role and caches one answer per
+isolate for 5 minutes (the cache is read only after authorization; the reply
+is `cache-control: no-store` and carries no PII).
 
 - **Visits and top pages** come from the Cloudflare GraphQL Analytics API
   (`httpRequestsAdaptiveGroups`, `sum.visits` and path counts, filtered to
   `requestSource: "eyeball"` and the production host, a 7-day UTC window).
   A sampled answer (`avg.sampleInterval` above 1) is refused, not estimated.
-  It needs the Worker secrets `ANALYTICS_TOKEN` and `CLOUDFLARE_ZONE_ID`
-  (set both before the launch build); with either missing the screen says
+  It needs the function secrets `ANALYTICS_TOKEN` and `CLOUDFLARE_ZONE_ID`; with either missing the screen says
   «غير متاح — غير مُعدّة بعد», never 0. **The live account proof is gate
   E11 (P11)**: until the real zone is queried against the live account, the
   numbers are proven only against fixtures, and the schema/dimension names
   are re-checked then.
 - **Commerce** says «غير مُعدّ بعد — يبدأ مع المتجر» until the order and
   payment tables exist (P07/P08); the exact paid/refund/net/customer SQL
-  counts land with them (`// P08:` in `src/lib/stats.ts`). No invented
+  counts land with them (`// P08:` in `supabase/functions/_shared/stats.ts`). No invented
   zeros.

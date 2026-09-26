@@ -4,7 +4,7 @@ Scope source is `offer-site-v3/index.html`; line references refer to the unchang
 
 | ID | Source and full requirement | Sole owner / supporting proof |
 |---|---|---|
-| C01 | 1539–1557: React + TypeScript inside Next.js; real PostgreSQL, admin, R2 and Saudi payments | **P00**; supporting proof: P00/P03/P08; real Worker build, DB integration and sandbox gateway; custom Supabase admin under D29; exact runtime spike first|
+| C01 | 1539–1557: React + TypeScript inside Next.js; real PostgreSQL, admin, R2 and Saudi payments | **P00**; supporting proof: P00/P03/P08; real static export (D32), DB integration and sandbox gateway; custom Supabase admin under D29; images and files in Supabase Storage instead of the offer's R2 (D32, Anas to be told); exact runtime spike first|
 | C02 | 1529–1531,1699: versioned production repository; preserve existing design as input | **P00**; supporting proof: P00; keep current Git, frozen hashes, one accepted commit per package|
 | C03 | 1464–1465,1817–1821: personal digital home, portrait/tagline and ordered rooms | **P01**; supporting proof: P01/P04/P06; home route + owner edits all visible texts/media/order|
 | C04 | 1465,1825–1844: بدأت هنا, بُنيت هنا, مرّت من هنا; private projects and upcoming work; Rahha branches/campaigns/products/achievements; brands/philosophy/images and contribution stories | **P01**; supporting proof: P01/P04; three routes, project detail, room taxonomy, metrics/rights and working filters|
@@ -53,10 +53,10 @@ Historical timelines, the one deliberate tools sentence at 1365, old prototype c
 
 ## Explicit deviations and gates, never silent omissions
 
-1. Custom Supabase admin (D29) for content and catalog, passwordless staff auth, RLS per person and EXECUTE-only server roles. P00 proves exact Workers runtime before dependent work.
+1. Custom Supabase admin (D29) for content and catalog, passwordless staff auth, RLS per person and server-only functions for `service_role` alone. D32: a static site on Pages with server work in Supabase Edge Functions, after P00's Worker measurements.
 2. Free entry-tier claim is not an uptime guarantee: E07 requires cost acceptance or actual free-tier measurement/risk acceptance before live operation.
 3. Calendar integration is a functioning one-way iCalendar feed and export, D12, not an unsupported claim of bidirectional provider synchronization.
-4. Final manuscript, font/content rights, owner-configured prices/stock/tax/shipping/policies and merchant activation remain human inputs. Local implementations and tests continue, but these gates must not be marked closed without evidence.
+4. Final manuscript, font/content rights, owner-configured prices/stock/shipping/policies (no tax, D34) and merchant activation remain human inputs. Local implementations and tests continue, but these gates must not be marked closed without evidence.
 5. A 30-day support obligation cannot be completed during implementation; P11 distinguishes launch handoff from subsequent commercial closure.
 
 ## Added scope and unique accountability

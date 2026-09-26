@@ -4,13 +4,14 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 
 ## Authority and scope
 
-- `PLANS/` is the plan of record. D01-D30 are settled (D02 superseded by D29); do not reopen them.
+- `PLANS/` is the plan of record. D01-D34 are settled (D02 superseded by D29); do not reopen them.
 - D24 as amended by D28 and D30: the orchestrator (Opus 5.5, 1M) plans, audits, fixes
   and does all major design work itself. `glm-worker` (Z.AI GLM-5.3, 1M, max effort)
   does long, well-specified work, launched with `node scripts/glm-worker.mjs
   <brief-file>`, never the Agent tool. Set `model` explicitly on every other sub-agent
   dispatch. Definitions are in `.claude/agents/`. D29: a custom Supabase admin
-  replaces Payload.
+  replaces Payload. D32: a static export on Cloudflare Pages, server work in
+  Supabase Edge Functions.
 - D25: the canonical domain is `anas.studio`; the folder name is historical.
 - Follow "Next work" in `PLANS/EXECUTION-STATUS.md`, one package at a time, and stop with evidence.
 - Preserve the frozen design. Before UI work, read `PLANS/DESIGN-AUDIT.md`;
@@ -43,7 +44,7 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 - No polling: no sleep, until, tail or wc loops, by any agent. Run long commands once,
   with a timeout, or in the background with a single completion notification.
 - UI work: `pnpm dev` with hot reload and one screenshot pass (360 and 1440). Build the
-  Worker bundle and run the full visual suite only at acceptance.
+  static export and run the full visual suite only at acceptance.
 - When a session gets long, document the state and continue in a new session.
 
 ## Working style and context
