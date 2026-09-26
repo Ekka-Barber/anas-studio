@@ -179,19 +179,16 @@
     padding-block: 0.25rem;
   }
 
-  /* The label always renders RTL, even inside a dir="auto" Latin cell. */
+  /* The label always renders RTL, even inside a dir="auto" Latin cell: an
+     RLI…PDI isolate (U+2067, U+2069) around «label:». The space stays outside
+     the isolate, so it falls between label and value whichever way the cell
+     resolves; inside it, a Latin cell (an email, an error code) pushed it to
+     the outer edge and glued the label to the value. Not `:dir(ltr)`: Next's
+     CSS compiler lowers it to `:not(:lang(ar…))` for its default browser
+     targets, which never matches on this lang="ar" page. */
   .responsive td::before {
-    content: attr(data-label) ': ';
-    direction: rtl;
-    unicode-bidi: isolate;
+    content: '\2067' attr(data-label) ':\2069' ' ';
     font-weight: 600;
-  }
-
-  /* In a Latin cell (dir="auto" resolved to ltr: an email, an error code)
-     the label sits at the line's left and its trailing space falls on the
-     outer edge, gluing the label to the value; pad the side facing it. */
-  .responsive td:dir(ltr)::before {
-    padding-inline-start: 0.3em;
   }
 
   /* Cards show the full text wrapped, not the one-line ellipsis. */
