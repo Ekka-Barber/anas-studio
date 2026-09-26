@@ -44,8 +44,9 @@ export function InboxView() {
   const [notesEdit, setNotesEdit] = useState('')
   const [assigned, setAssigned] = useState<string | null>(null)
   const [myUserId, setMyUserId] = useState<string | null>(null)
-  // R2: only an owner can see every row; for anyone else an empty list may
-  // just be RLS, so the empty-state copy must not claim "no messages at all".
+  // R2: owners and operations read every row (RLS); an editor's list is
+  // always empty by RLS, so only the editor's empty state avoids claiming
+  // there are no messages at all.
   const [role, setRole] = useState<StaffRole | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -155,7 +156,13 @@ export function InboxView() {
         </div>
       )}
       {!loadError && contacts !== null && contacts.length === 0 && (
-        <p className={styles.message}>{role && role !== 'owner' ? 'لا توجد رسائل متاحة لك.' : 'لا توجد رسائل بعد.'}</p>
+        <p className={styles.message}>
+          {role === 'editor'
+            ? 'لا توجد رسائل متاحة لك.'
+            : filter === 'all'
+              ? 'لا توجد رسائل بعد.'
+              : 'لا توجد رسائل بهذه الحالة.'}
+        </p>
       )}
 
       {contacts !== null && contacts.length > 0 && (
