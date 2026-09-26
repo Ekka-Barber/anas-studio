@@ -8,8 +8,10 @@ import { verifyTurnstile } from '@/lib/turnstile'
 /**
  * The public contact form endpoint (P06 round 1; the P01 form posts here once
  * design reopens). Nothing is emailed directly: `contact_submit` throttles,
- * stores the message and queues the staff notices in one transaction, so the
- * inbox survives an email outage (DATA "Email delivery and retries").
+ * stores the message and queues the staff notices in one transaction, so a
+ * message survives an email outage: its notice waits in the outbox (DATA
+ * "Email delivery and retries"). The notice is the owner's inbox (D31): it
+ * reaches their own mailbox with Reply-To set to the visitor.
  *
  * Order of checks: origin → content type → size → JSON → schema → honeypot →
  * Turnstile → throttle+store. The honeypot runs before Turnstile so a bot
@@ -36,9 +38,10 @@ const NO_STORE = { 'cache-control': 'no-store' }
  * part of header-safe characters, a bounded domain, and a TLD that is either
  * purely alphabetic or a punycode label (`xn--…`) — the only form in which an
  * internationalised domain like `.السعودية` reaches storage (`toAsciiAddress`
- * below converts it first). Loose grammars let an address like
- * `x@evil.test?bcc=…&body=…` flow into the inbox's mailto: links, so only
- * this shape reaches storage.
+ * below converts it first). The stored address becomes the notice's
+ * Reply-To, so a loose grammar would let an address like
+ * `x@evil.test?bcc=…&body=…` reach the owner's reply; only this shape
+ * reaches storage.
  */
 const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})$/
 

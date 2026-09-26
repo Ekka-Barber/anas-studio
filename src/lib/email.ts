@@ -83,6 +83,7 @@ async function sendWithResend(params: {
   text: string
   idempotencyKey: string
   from: string
+  replyTo?: string
 }): Promise<SendOutcome> {
   let response: Response
   try {
@@ -93,7 +94,13 @@ async function sendWithResend(params: {
         'content-type': 'application/json',
         'idempotency-key': params.idempotencyKey,
       },
-      body: JSON.stringify({ from: params.from, to: [params.to], subject: params.subject, text: params.text }),
+      body: JSON.stringify({
+        from: params.from,
+        to: [params.to],
+        subject: params.subject,
+        text: params.text,
+        ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+      }),
       signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
     })
   } catch {
@@ -126,6 +133,7 @@ async function sendWithMailpit(params: {
   text: string
   mailpitUrl: string
   from: string
+  replyTo?: string
 }): Promise<SendOutcome> {
   const url = new URL(params.mailpitUrl)
   if (!LOOPBACK_HOSTS.has(url.hostname)) {
@@ -140,6 +148,7 @@ async function sendWithMailpit(params: {
       body: JSON.stringify({
         From: { Email: from.email, ...(from.name ? { Name: from.name } : {}) },
         To: [{ Email: params.to }],
+        ...(params.replyTo ? { ReplyTo: [{ Email: params.replyTo }] } : {}),
         Subject: params.subject,
         Text: params.text,
       }),
@@ -179,11 +188,17 @@ export function emailProvider(): 'resend' | 'mailpit' | null {
   return optionalEnv('EMAIL_DEV_MAILPIT_URL') ? 'mailpit' : null
 }
 
+/**
+ * `replyTo` must be an address already validated by a strict grammar (the
+ * contact route's, shared with the database CHECK); providers take it as a
+ * JSON field, never as a raw header.
+ */
 export async function sendEmail(params: {
   to: string
   subject: string
   text: string
   idempotencyKey: string
+  replyTo?: string
 }): Promise<SendOutcome> {
   const provider = emailProvider()
   if (provider === 'resend') return sendWithResend({ ...params, from: requireEnv('EMAIL_FROM') })
@@ -212,10 +227,13 @@ export interface ContactNoticeData {
   email: string
   message: string
   createdAt: string
-  siteUrl: string
 }
 
-/** The staff notice about one contact message: plain text, isolates around every user line. */
+/**
+ * The staff notice about one contact message: plain text, isolates around
+ * every user line. It is the whole inbox (D31): the full message, sent with
+ * Reply-To set to the visitor, so the owner answers from their own mailbox.
+ */
 export function renderContactNotice(data: ContactNoticeData): { subject: string; text: string } {
   const message = data.message.slice(0, NOTICE_MESSAGE_LIMIT)
   const lines = [
@@ -228,7 +246,7 @@ export function renderContactNotice(data: ContactNoticeData): { subject: string;
     'نص الرسالة:',
     ...message.split('\n').map((line) => isolated(line)),
     '',
-    `صندوق الوارد: ${data.siteUrl.replace(/\/$/, '')}/admin/inbox`,
+    'للرد: اضغط «رد»، ويوصل ردّك للمرسل مباشرة.',
   ]
   return { subject: 'رسالة جديدة من نموذج التواصل', text: lines.join('\n') }
 }

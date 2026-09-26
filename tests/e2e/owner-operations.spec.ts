@@ -1,6 +1,6 @@
 // P06 e2e: the contact API, the jobs run and the delivery webhook (round 1,
-// API-level), plus the owner home, inbox, email problems, statistics,
-// settings and role boundaries (round 2, browser) — against `next dev`
+// API-level), plus the owner home, email problems, statistics, settings and
+// role boundaries (round 2, browser) — against `next dev`
 // (`PLAYWRIGHT_BASE_URL=http://localhost:3000`). Local-only values come from
 // `.env.local` (never `.env`); Turnstile uses Cloudflare's always-pass test
 // secret and the dummy token, so no real challenge is solved and no real
@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Client } from 'pg'
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 
 import { createStaff, localEnv, signInByCode, staffAccessToken, status, svixHeaders } from './helpers'
 
@@ -23,18 +23,9 @@ let contactId: string
 let noticeProviderId: string
 let noticeRecipient: string
 
-// Round 2 (browser) state: the message the home test submits and the email
-// fixture rows this spec inserts (removed in afterAll).
-let round2Marker = ''
+// Round 2 (browser) state: the email fixture rows this spec inserts (removed
+// in afterAll).
 const fixtureRecipients: string[] = []
-
-/** Parses the digits out of a Latin-digit home count line like «رسائل جديدة: 1,234». */
-async function homeCount(page: Page, label: string): Promise<number> {
-  const text = (await page.getByText(label, { exact: false }).first().textContent()) ?? ''
-  const digits = text.replace(/,/g, '').match(/\d+/)
-  if (!digits) throw new Error(`No count found in: ${text}`)
-  return Number(digits[0])
-}
 
 /** Inserts one attention-worthy outbox row directly (local postgres fixture). */
 async function insertOutboxRow(rowStatus: string, firstAttemptAgoSeconds: number | null): Promise<string> {
@@ -105,12 +96,9 @@ test('a contact submission is stored and its notices queued', async ({ request }
   expect(await response.json()).toEqual({ ok: true, data: { received: true } })
 
   const contact = (
-    await db.query<{ id: string; status: string }>('select id, status from public.contacts where submission_key = $1', [
-      submissionKey,
-    ])
+    await db.query<{ id: string }>('select id from public.contacts where submission_key = $1', [submissionKey])
   ).rows[0]
   expect(contact).toBeDefined()
-  expect(contact!.status).toBe('new')
   contactId = contact!.id
 
   const notices = (
@@ -123,9 +111,19 @@ test('a contact submission is stored and its notices queued', async ({ request }
   expect(notices[0]!.status).toBe('pending')
 })
 
-test('with no jobs run the message is still in the inbox, so the inbox survives an email outage', async () => {
-  const row = (await db.query<{ status: string }>('select status from public.contacts where id = $1', [contactId])).rows[0]!
-  expect(row.status).toBe('new')
+test('with no jobs run the message is stored and its notice waits, so an email outage loses nothing', async () => {
+  // D31: the notice is the owner's inbox. Until a jobs run sends it, the
+  // message sits in the database and its notice stays queued for the retry.
+  const stored = (await db.query<{ n: number }>('select count(*)::int as n from public.contacts where id = $1', [contactId]))
+    .rows[0]!
+  expect(stored.n).toBe(1)
+  const waiting = (
+    await db.query<{ n: number }>(
+      "select count(*)::int as n from finance.email_outbox where payload->>'contactId' = $1 and status = 'pending'",
+      [contactId],
+    )
+  ).rows[0]!
+  expect(waiting.n).toBeGreaterThanOrEqual(1)
 })
 
 test('a jobs run delivers the notices through Mailpit, sent but not yet delivered', async ({ request }) => {
@@ -152,7 +150,8 @@ test('a jobs run delivers the notices through Mailpit, sent but not yet delivere
   noticeProviderId = sent!.provider_id!
   noticeRecipient = sent!.recipient
 
-  // The notice itself is in Mailpit: search for the unique marker.
+  // The notice itself is in Mailpit: search for the unique marker. It carries
+  // the whole message and replies to the visitor (D31: no admin inbox).
   const mailpit = env.EMAIL_DEV_MAILPIT_URL ?? status.MAILPIT_URL
   let found = false
   for (let attempt = 0; attempt < 20 && !found; attempt += 1) {
@@ -161,8 +160,13 @@ test('a jobs run delivers the notices through Mailpit, sent but not yet delivere
     ).json()) as { messages?: Array<{ ID: string }> }
     const latest = search.messages?.[0]
     if (latest) {
-      const message = (await (await fetch(`${mailpit}/api/v1/message/${latest.ID}`)).json()) as { Text?: string }
-      expect(message.Text ?? '').toContain(marker)
+      const message = (await (await fetch(`${mailpit}/api/v1/message/${latest.ID}`)).json()) as {
+        Text?: string
+        ReplyTo?: Array<{ Address?: string }>
+      }
+      expect(message.Text ?? '').toContain(`رسالة اختبار ${marker}`)
+      expect(message.Text ?? '').not.toContain('/admin')
+      expect(message.ReplyTo?.map((address) => address.Address)).toEqual([`guest-${marker}@example.com`])
       found = true
     } else {
       await new Promise((resolve) => setTimeout(resolve, 500))
@@ -259,109 +263,37 @@ test('the jobs endpoint refuses a missing or wrong bearer', async ({ request }) 
 })
 
 // ---------------------------------------------------------------------------
-// Round 2: the admin screens (owner home, inbox, email problems, stats,
-// settings, role boundaries). Browser tests against `next dev`.
+// Round 2: the admin screens (owner home, email problems, stats, settings,
+// role boundaries). Browser tests against `next dev`. There is no inbox
+// screen (D31): contact messages reach the owner's mailbox.
 
-test('the owner home shows real counts and rises after a contact submission', async ({ page, request }) => {
+test('the owner home shows real counts and no inbox (D31)', async ({ page }) => {
   const owner = await createStaff('owner')
   await signInByCode(page, owner.email)
   await page.goto('/admin')
-  await expect(page.getByText('رسائل جديدة:', { exact: false })).toBeVisible()
-  const before = await homeCount(page, 'رسائل جديدة:')
-
-  round2Marker = `p06r2-${Date.now()}`
-  const response = await request.post('/api/contact', {
-    headers: { 'cf-connecting-ip': `198.51.100.${Math.floor(Math.random() * 254) + 1}` },
-    data: {
-      name: `زائر ${round2Marker}`,
-      email: `guest-${round2Marker}@example.com`,
-      message: `رسالة الجولة الثانية ${round2Marker}`,
-      submissionKey: randomUUID(),
-      turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX',
-    },
-  })
-  expect(response.status()).toBe(201)
-
-  await page.goto('/admin')
-  await expect(page.getByText('رسائل جديدة:', { exact: false })).toBeVisible()
-  await expect.poll(() => homeCount(page, 'رسائل جديدة:')).toBe(before + 1)
+  await expect(page.getByText(/مشكلات تحتاج انتباهًا: [\d,]+\+?/)).toBeVisible()
   // The other real blocks answer too: no invented numbers, no error state.
   await expect(page.getByText('تعذّر التحميل')).toHaveCount(0)
   await expect(page.getByText('مهام التشغيل')).toBeVisible()
   await expect(page.getByText('إرسال البريد:')).toBeVisible()
   await expect(page.getByText('غير متاحة', { exact: false })).toBeVisible() // analytics: not configured locally
+  // Contact messages are not an admin concern any more.
+  await expect(page.getByText('رسائل جديدة', { exact: false })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'الوارد' })).toHaveCount(0)
 })
 
-test('the inbox: opening marks read, closing with a note persists', async ({ page }) => {
-  const owner = await createStaff('owner')
-  await signInByCode(page, owner.email)
-  await page.goto('/admin/inbox')
-
-  const row = page.getByRole('button', { name: new RegExp(round2Marker) })
-  await expect(row).toBeVisible()
-  await row.click()
-
-  // Everything shows: full message, mailto with the encoded reply subject and
-  // the M1-encoded address (`@` arrives as %40 in the href).
-  await expect(page.getByText(`رسالة الجولة الثانية ${round2Marker}`).last()).toBeVisible()
-  const mailtoEmail = encodeURIComponent(`guest-${round2Marker}@example.com`)
-  await expect(page.locator(`a[href^="mailto:${mailtoEmail}?subject="]`)).toHaveAttribute(
-    'href',
-    new RegExp(`mailto:${mailtoEmail}\\?subject=${encodeURIComponent('رد: رسالتك إلى أنس')}$`),
-  )
-
-  // Opening a new message marked it read automatically.
-  await expect(page.getByLabel('الحالة', { exact: true })).toHaveValue('read')
-
-  await page.getByLabel('الحالة', { exact: true }).selectOption('closed')
-  await page.getByLabel('ملاحظات').fill('ملاحظة اختبار الجولة الثانية')
-  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
-  await expect(page.getByText('حُفظ')).toBeVisible()
-
-  // Reload: the values persist.
-  await page.goto('/admin/inbox')
-  await page.getByRole('button', { name: new RegExp(round2Marker) }).click()
-  await expect(page.getByLabel('الحالة', { exact: true })).toHaveValue('closed')
-  await expect(page.getByLabel('ملاحظات')).toHaveValue('ملاحظة اختبار الجولة الثانية')
-
-  const saved = await db.query<{ status: string; notes: string | null; assigned_to: string | null }>(
-    'select status, notes, assigned_to from public.contacts where email = $1',
-    [`guest-${round2Marker}@example.com`],
-  )
-  expect(saved.rows[0]!.status).toBe('closed')
-  expect(saved.rows[0]!.notes).toBe('ملاحظة اختبار الجولة الثانية')
-
-  // Assignment: تعيين لي writes the signed-in user, إلغاء التعيين clears it.
-  await page.getByRole('button', { name: 'تعيين لي' }).click()
-  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
-  await expect(page.getByText('حُفظ')).toBeVisible()
-  const assigned = await db.query<{ assigned_to: string | null }>(
-    'select assigned_to from public.contacts where email = $1',
-    [`guest-${round2Marker}@example.com`],
-  )
-  expect(assigned.rows[0]!.assigned_to).toBe(owner.userId)
-  await page.getByRole('button', { name: 'إلغاء التعيين' }).click()
-  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
-  await expect(page.getByText('حُفظ')).toBeVisible()
-  const unassigned = await db.query<{ assigned_to: string | null }>(
-    'select assigned_to from public.contacts where email = $1',
-    [`guest-${round2Marker}@example.com`],
-  )
-  expect(unassigned.rows[0]!.assigned_to).toBeNull()
-})
-
-test('an operations member sees inbox and email but not stats or settings', async ({ page, request }) => {
+test('an operations member sees email but not stats or settings, and there is no inbox', async ({ page, request }) => {
   const operations = await createStaff('operations')
   await signInByCode(page, operations.email)
   await page.goto('/admin')
-  await expect(page.getByRole('link', { name: 'الوارد' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'البريد', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'الوارد' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'الإحصاءات' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'الإعدادات' })).toHaveCount(0)
 
-  await page.goto('/admin/inbox')
-  await expect(page.getByRole('heading', { name: 'الوارد' })).toBeVisible()
-  await expect(page.getByText('تعذّر تحميل الرسائل.')).toHaveCount(0)
+  // D31: the inbox screen is gone, not hidden.
+  const inbox = await page.goto('/admin/inbox')
+  expect(inbox?.status()).toBe(404)
   await page.goto('/admin/email')
   await expect(page.getByRole('heading', { name: 'البريد' })).toBeVisible()
 
@@ -370,13 +302,9 @@ test('an operations member sees inbox and email but not stats or settings', asyn
   expect(response.status()).toBe(403)
 })
 
-test('an editor sees neither inbox rows nor the email RPC', async ({ page }) => {
+test('an editor gets no email RPC', async ({ page }) => {
   const editor = await createStaff('editor')
   await signInByCode(page, editor.email)
-  await page.goto('/admin/inbox')
-  // RLS returns nothing: the role-aware empty state, not an error and not rows.
-  await expect(page.getByText('لا توجد رسائل متاحة لك.')).toBeVisible()
-  await expect(page.locator('tbody tr')).toHaveCount(0)
   await page.goto('/admin/email')
   // The RPC itself is refused for an editor.
   await expect(page.getByText('تعذّر تحميل مشكلات البريد.')).toBeVisible()
@@ -524,19 +452,15 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
   await insertOutboxRow('exhausted', null)
 
   const shots = mkdirScreenshots()
-  // Waits must be visible at BOTH widths: at 360px the responsive tables hide
-  // their `thead`, so column headers like «أول الرسالة» can't be wait targets.
-  // Two targets must wait for the DATA, not the chrome: the inbox's «الكل»
-  // filter renders before its rows (an empty table would be screenshot), so
-  // it waits for a row locator, and settings' «حالة الإعداد» renders while
-  // the status still shows «يحمّل...», so it waits for the resolved status
-  // (locally «Mailpit (محلي)»).
-  // The home and email waits target data too: the home count line reads
-  // «يحمّل...» until its query returns, and «إعادة الإرسال» also matches the
-  // (hidden) replay dialog, so the email wait is a row's own replay button.
+  // Waits must be visible at BOTH widths: at 360px the responsive table hides
+  // its `thead`, so column headers can't be wait targets. Every target waits
+  // for the DATA, not the chrome: settings' «حالة الإعداد» renders while the
+  // status still shows «يحمّل...», so it waits for the resolved status
+  // (locally «Mailpit (محلي)»); the home count line reads «يحمّل...» until
+  // its query returns; and «إعادة الإرسال» also matches the (hidden) replay
+  // dialog, so the email wait is a row's own replay button.
   const targets: Array<{ name: string; path: string; wait: string | Locator }> = [
-    { name: 'home', path: '/admin', wait: page.getByText(/رسائل جديدة: [\d,]+/) },
-    { name: 'inbox', path: '/admin/inbox', wait: page.locator('tbody tr').first() },
+    { name: 'home', path: '/admin', wait: page.getByText(/مشكلات تحتاج انتباهًا: [\d,]+/) },
     {
       name: 'email',
       path: '/admin/email',
@@ -579,11 +503,6 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
       expect(offscreenControls, `${target.name}-${viewport.width}: row controls off screen`).toBe(0)
       await page.screenshot({ path: join(shots, `${target.name}-${viewport.width}.png`), fullPage: true })
     }
-    // The inbox with a message open.
-    await page.goto('/admin/inbox')
-    await page.locator('tbody tr').first().getByRole('button').click()
-    await expect(page.getByLabel('الحالة', { exact: true })).toBeVisible()
-    await page.screenshot({ path: join(shots, `inbox-open-${viewport.width}.png`), fullPage: true })
   }
 })
 

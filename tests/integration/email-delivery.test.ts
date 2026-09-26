@@ -264,10 +264,14 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     )
   }
 
-  async function pendingNotice(label: string, message: string): Promise<{ id: string; recipient: string }> {
+  async function pendingNotice(
+    label: string,
+    message: string,
+  ): Promise<{ id: string; recipient: string; visitor: string }> {
+    const visitor = `${unique(label)}@example.com`
     const contact = await postgres.query<{ id: string }>(
       'insert into public.contacts (name, email, message, submission_key) values ($1, $2, $3, $4) returning id',
-      ['زائر', `${unique(label)}@example.com`, message, randomUUID()],
+      ['زائر', visitor, message, randomUUID()],
     )
     const contactId = contact.rows[0]!.id
     created.contacts.push(contactId)
@@ -279,7 +283,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     )
     created.outbox.push(row.rows[0]!.id)
     created.suppressions.push(hashOf(recipient))
-    return { id: row.rows[0]!.id, recipient }
+    return { id: row.rows[0]!.id, recipient, visitor }
   }
 
   function stubFetch(handler: () => Response | Promise<Response>) {
@@ -292,7 +296,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     return { fn, calls }
   }
 
-  it('accepted end to end: sent with the provider id, delivery null, a plain-text notice with the message', async () => {
+  it('accepted end to end: sent with the provider id, delivery null, a plain-text notice with the message and Reply-To', async () => {
     await parkOthers()
     const marker = unique('accepted')
     const row = await pendingNotice('accepted', `رسالة العميل ${marker}`)
@@ -309,10 +313,17 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     ).rows[0]!
     expect(state).toEqual({ status: 'sent', provider_id: 'prov-accepted-1', delivery: null })
 
-    const payload = JSON.parse(String(calls[0]!.init.body)) as { to: string[]; subject: string; text: string }
+    const payload = JSON.parse(String(calls[0]!.init.body)) as {
+      to: string[]
+      subject: string
+      text: string
+      reply_to?: string
+    }
     expect(payload.to).toEqual([row.recipient])
     expect(payload.subject).toBe('رسالة جديدة من نموذج التواصل')
     expect(payload.text).toContain(marker)
+    // D31: the notice is the owner's inbox; Reply answers the visitor.
+    expect(payload.reply_to).toBe(row.visitor)
 
     const run = (
       await postgres.query<{ status: string; detail: Record<string, number> }>(

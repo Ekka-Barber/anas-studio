@@ -1,10 +1,11 @@
 // P06: the contact form's SQL surface (`supabase/migrations/
 // 20260926120000_contacts_and_email.sql`) against the real local database.
 // `contact_submit` is called as `app_server` (the Worker's path through
-// `src/lib/db.ts`); RLS on `public.contacts` goes through real JWTs at the
-// Data API, like `tests/integration/media-security.test.ts`. The route
-// handler's email grammar is exercised directly at the bottom (M1: an
-// address must not be able to smuggle mailto headers into the inbox).
+// `src/lib/db.ts`); the Data API refusal of `public.contacts` goes through
+// real JWTs, like `tests/integration/media-security.test.ts` (D31: there is
+// no admin inbox, the table is server-only). The route handler's email
+// grammar is exercised directly at the bottom (M1: an address must not be
+// able to smuggle mailto headers into the notice's Reply-To).
 import { createHash, randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
@@ -87,12 +88,11 @@ describe('contact_submit', () => {
     expect(stored.id).toMatch(/^[0-9a-f-]{36}$/)
 
     const contact = (
-      await postgres.query<{ status: string; email: string; submission_key: string }>(
-        'select status, email, submission_key from public.contacts where id = $1',
+      await postgres.query<{ email: string; submission_key: string }>(
+        'select email, submission_key from public.contacts where id = $1',
         [stored.id],
       )
     ).rows[0]!
-    expect(contact.status).toBe('new')
     expect(contact.submission_key).toBe(submissionKey)
 
     // The local database is shared, so the expected recipient set is every
@@ -167,80 +167,54 @@ describe('contact_submit', () => {
   })
 })
 
-describe('contacts RLS through real JWTs', () => {
+describe('contacts are server-only (D31: no admin inbox)', () => {
   let contactId: string
-  let ownerId: string
-  let ownerEmail: string
 
   beforeAll(async () => {
-    const owner = await createStaff('owner')
-    ownerId = owner.userId
-    ownerEmail = owner.email
     const result = await submit({})
     contactId = result.id!
   })
 
-  it('the owner reads the inbox and updates status, notes and assignment', async () => {
-    const client = await signIn(ownerEmail)
-    const read = await client.from('contacts').select('id,status').eq('id', contactId)
-    expect(read.error).toBeNull()
-    expect(read.data?.[0]?.id).toBe(contactId)
-
-    const { error } = await client
-      .from('contacts')
-      .update({ status: 'read', notes: 'تم الاطلاع', assigned_to: ownerId })
-      .eq('id', contactId)
-    expect(error).toBeNull()
-
-    const row = (
-      await postgres.query<{ status: string; notes: string; assigned_to: string | null }>(
-        'select status, notes, assigned_to from public.contacts where id = $1',
-        [contactId],
+  it('no API role holds any privilege on the table', async () => {
+    const grants = (
+      await postgres.query<{ role: string; privilege: string; held: boolean }>(
+        `select r.role, p.privilege, has_table_privilege(r.role, 'public.contacts', p.privilege) as held
+         from (values ('anon'), ('authenticated')) as r(role),
+              (values ('select'), ('insert'), ('update'), ('delete')) as p(privilege)`,
       )
-    ).rows[0]!
-    expect(row.status).toBe('read')
-    expect(row.notes).toBe('تم الاطلاع')
-    expect(row.assigned_to).toBe(ownerId)
+    ).rows
+    expect(grants.filter((row) => row.held)).toEqual([])
   })
 
-  it('operations can update too, and a column outside the grant refuses', async () => {
-    const operations = await createStaff('operations')
-    const client = await signIn(operations.email)
-    const { error } = await client.from('contacts').update({ status: 'closed' }).eq('id', contactId)
-    expect(error).toBeNull()
-
-    // Only status, notes, assigned_to were granted for update.
-    const { error: messageError } = await client.from('contacts').update({ message: 'معدّل' }).eq('id', contactId)
-    expect(messageError).not.toBeNull()
+  it('owner, operations, editor, revoked and anonymous callers read nothing through the Data API', async () => {
+    const callers = [
+      await signIn((await createStaff('owner')).email),
+      await signIn((await createStaff('operations')).email),
+      await signIn((await createStaff('editor')).email),
+      await signIn((await createStaff('operations', { active: false })).email),
+      anonClient(),
+    ]
+    for (const client of callers) {
+      const read = await client.from('contacts').select('id').eq('id', contactId)
+      // No grant: PostgREST answers permission denied (42501) before RLS runs.
+      if (read.error) expect(read.error.code).toBe('42501')
+      else expect(read.data).toEqual([])
+    }
   })
 
-  it('editors, anonymous visitors and revoked members see nothing', async () => {
-    const editor = await createStaff('editor')
-    const editorRead = await (await signIn(editor.email)).from('contacts').select('id').eq('id', contactId)
-    expect(editorRead.error).toBeNull()
-    expect(editorRead.data).toEqual([])
-
-    // The migration grants select to authenticated only; anon is refused by
-    // table privileges (42501) before RLS could even return an empty set.
-    const anonRead = await anonClient().from('contacts').select('id').eq('id', contactId)
-    if (anonRead.error) expect(anonRead.error.code).toBe('42501')
-    else expect(anonRead.data).toEqual([])
-
-    const revoked = await createStaff('operations', { active: false })
-    const revokedRead = await (await signIn(revoked.email)).from('contacts').select('id').eq('id', contactId)
-    expect(revokedRead.error).toBeNull()
-    expect(revokedRead.data).toEqual([])
-  })
-
-  it('no API role inserts or deletes contacts', async () => {
-    const owner = await createStaff('owner')
-    const client = await signIn(owner.email)
+  it('not even the owner updates, inserts or deletes a contact', async () => {
+    const client = await signIn((await createStaff('owner')).email)
+    const { error: updateError } = await client.from('contacts').update({ message: 'معدّل' }).eq('id', contactId)
+    expect(updateError).not.toBeNull()
     const { error: insertError } = await client
       .from('contacts')
       .insert({ name: 'x', email: 'x@example.com', message: 'y', submission_key: randomUUID() })
     expect(insertError).not.toBeNull()
     const { error: deleteError } = await client.from('contacts').delete().eq('id', contactId)
     expect(deleteError).not.toBeNull()
+    const kept = (await postgres.query<{ message: string }>('select message from public.contacts where id = $1', [contactId]))
+      .rows[0]!
+    expect(kept.message).toBe('رسالة اختبار')
   })
 
   it('no API role executes the app_server functions or reads finance', async () => {

@@ -5,7 +5,7 @@
  * `outbox_claim` (as `app_server`), send each, and record the outcome under
  * the same lease. Durable writes always precede the provider call — a message
  * and its notice are committed together in `contact_submit`, so an email
- * outage never loses the inbox.
+ * outage never loses a message: its notice is sent once the provider is back.
  */
 
 import { optionalEnv } from './env'
@@ -79,26 +79,25 @@ function emailConfigured(): boolean {
   }
 }
 
-/** Renders one claimed row's email. Unknown kinds never reach the provider. */
+/**
+ * Renders one claimed row's email. Unknown kinds never reach the provider. A
+ * contact notice replies to the visitor (D31); the address is the one the
+ * contact route validated and the database CHECK re-checked.
+ */
 function renderFor(
   kind: string,
   payload: { contactId?: string },
   contact: { name: string; email: string; message: string; created_at: Date | string } | undefined,
-) {
+): { subject: string; text: string; replyTo?: string } | null {
   if (kind !== 'contact_notice' || !payload.contactId || !contact) return null
   const createdAt =
     contact.created_at instanceof Date ? contact.created_at.toISOString() : new Date(contact.created_at).toISOString()
-  return renderContactNotice({
-    name: contact.name,
-    email: contact.email,
-    message: contact.message,
-    createdAt,
-    siteUrl: optionalEnv('SITE_URL') ?? '',
-  })
+  const notice = renderContactNotice({ name: contact.name, email: contact.email, message: contact.message, createdAt })
+  return { ...notice, replyTo: contact.email }
 }
 
 async function processRow(client: Client, row: ClaimedRow): Promise<SendOutcome | { outcome: 'permanent'; error: string }> {
-  let rendered: { subject: string; text: string } | null = null
+  let rendered: { subject: string; text: string; replyTo?: string } | null = null
   if (row.kind === 'contact_notice') {
     const result = await client.query<{ name: string; email: string; message: string; created_at: Date }>(
       'select name, email, message, created_at from public.contact_for_notice($1)',
@@ -110,7 +109,13 @@ async function processRow(client: Client, row: ClaimedRow): Promise<SendOutcome 
     rendered = null
   }
   if (!rendered) return { outcome: 'permanent', error: 'RENDER_FAILED' }
-  return sendEmail({ to: row.recipient, subject: rendered.subject, text: rendered.text, idempotencyKey: row.idempotency_key })
+  return sendEmail({
+    to: row.recipient,
+    subject: rendered.subject,
+    text: rendered.text,
+    idempotencyKey: row.idempotency_key,
+    replyTo: rendered.replyTo,
+  })
 }
 
 /** One dispatch run. Never throws: a failure is recorded as a failed run. */

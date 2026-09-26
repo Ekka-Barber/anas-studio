@@ -4,6 +4,8 @@
  * The owner home (P06 round 2): real pending work, each count from a real
  * query under RLS, each item linking to its screen. A failed query shows
  * «تعذّر التحميل» — never 0 (D21: unavailable is unavailable, not zero).
+ * Contact messages are not counted here: they arrive in the owner's own
+ * mailbox (D31).
  */
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -53,7 +55,6 @@ function isStaleRun(run: JobRun): boolean {
 
 export function AdminHome() {
   const [own, setOwn] = useState<{ display_name: string; role: StaffRole } | null>(null)
-  const [inboxNew, setInboxNew] = useState<Count>(LOADING)
   const [emailProblems, setEmailProblems] = useState<Count>(LOADING)
   const [jobRuns, setJobRuns] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[] }>({
     state: 'loading',
@@ -70,13 +71,6 @@ export function AdminHome() {
 
   useEffect(() => {
     let active = true
-
-    async function loadInbox() {
-      const supabase = getSupabaseBrowserClient()
-      const { count, error } = await supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('status', 'new')
-      if (!active) return
-      setInboxNew(error || count === null ? { state: 'error' } : { state: 'ok', value: count })
-    }
 
     async function loadEmail() {
       const supabase = getSupabaseBrowserClient()
@@ -131,7 +125,7 @@ export function AdminHome() {
       const role = data.role as StaffRole
       setOwn({ display_name: data.display_name, role })
 
-      const jobs = [loadInbox(), loadEmail(), loadJobs()]
+      const jobs = [loadEmail(), loadJobs()]
       if (role === 'owner' || role === 'editor') jobs.push(loadScheduled())
       if (role === 'owner' && sessionData.session) jobs.push(loadVisits(sessionData.session.access_token))
       await Promise.all(jobs)
@@ -149,14 +143,6 @@ export function AdminHome() {
         <p>
           مرحبًا <bdi>{own.display_name}</bdi> — {ROLE_LABEL[own.role] ?? own.role}
         </p>
-      )}
-
-      {(own?.role === 'owner' || own?.role === 'operations') && (
-        <section>
-          <h2>الوارد</h2>
-          <p>رسائل جديدة: {countText(inboxNew)}</p>
-          <Link href="/admin/inbox">فتح الوارد</Link>
-        </section>
       )}
 
       {(own?.role === 'owner' || own?.role === 'operations') && (

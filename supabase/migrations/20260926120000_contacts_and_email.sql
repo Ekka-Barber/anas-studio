@@ -1,4 +1,4 @@
--- P06 round 1: the contact inbox, the email outbox, delivery events,
+-- P06 round 1: contact messages, the email outbox, delivery events,
 -- suppression, form throttles and job runs (D16, DATA "Email delivery and
 -- retries", "Unpaid reservation abuse" throttle rules).
 --
@@ -12,10 +12,10 @@
 create schema if not exists finance;
 revoke all on schema finance from public, anon, authenticated;
 
--- 1. Contact messages: the inbox. Owners and operations read them and set
---    status, notes and assignment; nobody inserts or deletes through the API.
-create type public.contact_status as enum ('new', 'read', 'closed', 'spam');
-
+-- 1. Contact messages. Server-only storage for the owner's notice (D31: the
+--    owner's own mailbox is the inbox, so there is no admin inbox): RLS on,
+--    no grant and no policy, so no API role reads, writes or deletes a row.
+--    Only `contact_submit` writes and `contact_for_notice` reads, as app_server.
 create table public.contacts (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(btrim(name)) between 1 and 120),
@@ -29,9 +29,6 @@ create table public.contacts (
     and email ~ '^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.([A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})$'
   ),
   message text not null check (char_length(btrim(message)) between 1 and 5000),
-  status public.contact_status not null default 'new',
-  notes text check (notes is null or char_length(notes) <= 5000),
-  assigned_to uuid references auth.users (id) on delete set null,
   -- The privacy policy revision shown with the form; null until policies
   -- exist (E08).
   policy_revision text check (policy_revision is null or char_length(policy_revision) <= 80),
@@ -40,36 +37,9 @@ create table public.contacts (
   submission_key uuid not null unique,
   -- Set by the approved retention rule (E08); nothing purges before then.
   retain_until timestamptz,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  created_at timestamptz not null default now()
 );
-create index contacts_status_created on public.contacts (status, created_at desc);
 alter table public.contacts enable row level security;
-
-grant select on public.contacts to authenticated;
-grant update (status, notes, assigned_to) on public.contacts to authenticated;
-create policy contacts_inbox_read on public.contacts
-  for select to authenticated
-  using ((select public.current_staff_role()) in ('owner', 'operations'));
-create policy contacts_inbox_update on public.contacts
-  for update to authenticated
-  using ((select public.current_staff_role()) in ('owner', 'operations'))
-  with check ((select public.current_staff_role()) in ('owner', 'operations'));
-
-create function public.contacts_touch()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  new.updated_at := now();
-  return new;
-end
-$$;
-revoke all on function public.contacts_touch() from public, anon, authenticated;
-create trigger contacts_touch
-  before update on public.contacts
-  for each row execute function public.contacts_touch();
 
 -- 2. Form throttles: counts per bucket, hashed key and fixed window. Keys
 --    arrive already hashed with a daily salt (the Worker never sends a raw
@@ -585,7 +555,6 @@ end
 $$;
 
 -- 7. Grants.
-revoke all on function public.contacts_touch() from public, anon, authenticated;
 revoke all on function public.contact_submit(text, text, text, text, uuid, text) from public, anon, authenticated;
 revoke all on function public.outbox_claim(integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke all on function public.outbox_result(bigint, uuid, text, text, text) from public, anon, authenticated;

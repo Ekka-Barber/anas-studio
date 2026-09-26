@@ -35,9 +35,9 @@
   padding: 1.5rem 1rem;
 }
 
-/* M5: the inbox and email-problems tables have 5 and 8 columns, which the
-   38rem reading measure cannot hold — the table then scrolled sideways inside
-   its box and hid the date and replay columns. Those two pages widen instead. */
+/* M5: the email-problems table has 8 columns, which the 38rem reading
+   measure cannot hold — the table then scrolled sideways inside its box and
+   hid the date and replay columns. That page widens instead. */
 .pageWide {
   max-inline-size: 72rem;
 }
@@ -128,9 +128,8 @@
 /* M5 round 2: `overflow-wrap: anywhere` on every cell let auto table-layout
    shrink a column to one character — Arabic words split mid-word (breaking
    letter joining) and Latin-digit dates scrambled. Now cells opt in:
-   free text wraps at word boundaries (.cellWrap — min-content is the longest
-   word, so columns can't collapse), compact cells never wrap (.cellNowrap),
-   verbose cells cap with .cellEllipsis below. */
+   compact cells never wrap (.cellNowrap), verbose cells cap with
+   .cellEllipsis below. */
 
 /* A verbose one-line cell: capped width, ellipsis, full text in title. */
 .cellEllipsis {
@@ -138,11 +137,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Free text that isn't ellipsized: wraps at word boundaries only. */
-.cellWrap {
-  overflow-wrap: break-word;
 }
 
 /* Compact cells (kind, status, dates, counts, actions): one line. */
@@ -402,25 +396,4 @@
   overflow: hidden;
   border-radius: 0.25rem;
   background: var(--color-sand);
-}
-
-/* Owner operations (P06 round 2). */
-.preWrap {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.rowSelected {
-  background: var(--color-sand);
-}
-
-/* A table row's open action, plain text like a link. */
-.linkButton {
-  border: none;
-  padding: 0;
-  background: transparent;
-  color: var(--color-ink);
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
 }

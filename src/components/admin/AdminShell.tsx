@@ -20,8 +20,9 @@ type Gate =
  * Gates the admin UI on the session and `current_staff_role()`. RLS and the
  * Edge Function checks are the real enforcement (P03); this only shapes the
  * screen. The sign-in page renders outside this gate. `wide` is for the
- * data-table screens (inbox, email problems): their tables cannot fit the
- * reading measure without hiding columns.
+ * email-problems table: it cannot fit the reading measure without hiding
+ * columns. Contact messages have no screen here: they reach the owner's own
+ * mailbox (D31).
  */
 export function AdminShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   const router = useRouter()
@@ -80,7 +81,6 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
     <div className={styles.shell}>
       <nav className={styles.nav}>
         <Link href="/admin">الرئيسية</Link>
-        {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/inbox">الوارد</Link>}
         {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/email">البريد</Link>}
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/content">المحتوى</Link>}
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/media">المكتبة</Link>}

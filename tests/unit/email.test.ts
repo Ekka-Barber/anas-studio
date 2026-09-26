@@ -67,6 +67,15 @@ describe('sendEmail with Resend', () => {
     expect(Object.keys(payload).sort()).toEqual(['from', 'subject', 'text', 'to'])
   })
 
+  it('a reply-to address is sent as reply_to (D31: the owner answers the visitor from their mailbox)', async () => {
+    productionResendEnv()
+    const { calls } = resend(200, { id: 'prov-2' })
+    await sendEmail({ ...LETTER, replyTo: 'guest@example.com' })
+    const payload = JSON.parse(String(calls[0]!.init.body)) as Record<string, unknown>
+    expect(payload.reply_to).toBe('guest@example.com')
+    expect(payload.to).toEqual(['staff@example.com'])
+  })
+
   it('409 concurrent_idempotent_requests is a retry', async () => {
     const { outcome } = await viaResend({ name: 'concurrent_idempotent_requests' }, 409)
     expect(outcome).toEqual({ outcome: 'retry', error: 'CONCURRENT_IDEMPOTENT' })
@@ -143,6 +152,20 @@ describe('sendEmail with Mailpit (local development)', () => {
     expect(body.Text).toBe('نص الرسالة')
     expect(body.HTML).toBeUndefined()
     expect(body.From).toEqual({ Email: 'noreply@anas.studio', Name: 'أنس' })
+    expect(body.ReplyTo).toBeUndefined()
+  })
+
+  it('passes a reply-to address as ReplyTo', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: URL | string, init: RequestInit) => {
+        bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+        return new Response(JSON.stringify({ ID: 'mailpit-2' }), { status: 200, headers: jsonHeaders })
+      }),
+    )
+    await sendEmail({ ...LETTER, replyTo: 'guest@example.com' })
+    expect(bodies[0]!.ReplyTo).toEqual([{ Email: 'guest@example.com' }])
   })
 
   it('refuses a non-loopback Mailpit URL', async () => {
@@ -213,7 +236,6 @@ describe('renderContactNotice', () => {
     email: 'guest@example.com',
     message: 'سطر أول\nsecond line',
     createdAt: '2026-09-26T10:00:00.000Z',
-    siteUrl: 'https://anas.studio/',
   }
 
   it('wraps every user-supplied line in Unicode isolates (FSI/PDI)', () => {
@@ -233,9 +255,10 @@ describe('renderContactNotice', () => {
     expect(text).not.toContain('أ'.repeat(NOTICE_MESSAGE_LIMIT + 1))
   })
 
-  it('links to the admin inbox from the site URL, without doubling the slash', () => {
+  it('is the whole inbox: no admin link, a hint to answer by Reply (D31)', () => {
     const { text, subject } = renderContactNotice(data)
-    expect(text).toContain('https://anas.studio/admin/inbox')
+    expect(text).not.toContain('/admin')
+    expect(text).toContain('اضغط «رد»')
     expect(subject).toBe('رسالة جديدة من نموذج التواصل')
   })
 })
