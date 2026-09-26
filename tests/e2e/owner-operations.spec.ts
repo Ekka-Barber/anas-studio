@@ -63,11 +63,13 @@ test.beforeAll(async () => {
   ownerEmail = owner.email
   // Park every older due notice so the single jobs run below dispatches only
   // this spec's notice (the shared local database has pending rows from the
-  // integration suites; the claim takes at most 10 rows per run).
+  // integration suites; the claim takes at most 10 rows per run). Only rows
+  // due right now can be claimed, so only those are touched — other suites'
+  // parked or backed-off fixtures stay as they are.
   await db.query(
     `update finance.email_outbox set next_at = now() + interval '1 day',
        first_attempt_at = now() - interval '2 days'
-     where status in ('pending', 'uncertain', 'sending')`,
+     where status in ('pending', 'uncertain', 'sending') and next_at <= now()`,
   )
 })
 
