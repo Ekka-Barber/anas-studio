@@ -137,6 +137,10 @@ export function SettingsView() {
         <h2>خطوات النطاق والبريد</h2>
         <ol className={styles.metaList}>
           <li>
+            بريدك الرسمي: في Cloudflare من Email Routing أضف <span dir="ltr">help@anas.studio</span> ووجّهه لبريدك
+            الشخصي بعد ما توثّقه. رسائل نموذج التواصل توصل بريدك مباشرة، وتردّ عليها بزر «رد».
+          </li>
+          <li>
             توثيق النطاق <span dir="ltr">anas.studio</span> في Resend: من صفحة Domains أضف النطاق، ثم انسخ سجلات
             التحقق التي تظهرها (DKIM و SPF؛ سجلات TXT و MX أو CNAME) إلى DNS في Cloudflare. لا تفعّل البروكسي
             (السحابة البرتقالية) على سجل CNAME. يكتمل التوثيق عادة خلال دقائق وقد يصل إلى 72 ساعة.
