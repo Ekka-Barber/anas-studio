@@ -186,3 +186,26 @@ Round 2 (glm-worker) — 2026-09-26/27
 - .env.example does not list CLOUDFLARE_ZONE_ID (outside this round's writable paths); the
   analytics module reads it from the environment. The orchestrator may want to add it.
 - CLOUDFLARE_ZONE_ID is not in .env.example either as a name; noted in docs/development.md.
+
+== 2026-09-26 independent-audit fix pass (H1–H2, M1–M7, L1–L12; coordinator + 4 parallel agents) ==
+- Four agents with disjoint file ownership (libs/SQL, routes/e2e, admin UI, evidence/ledger);
+  one cross-agent seam reconciled by the coordinator: email_event_record gained a defaulted
+  7th param p_bounce_type (coalesce with evidence bounceType; revoke/grant signatures updated).
+- pnpm typecheck → 0; pnpm lint → 0 (3 pre-existing <img> warnings, untouched files).
+- pnpm test → 0 (189 unit, up from 173: +analytics shape cases, +webhook bounce-type/L2 cases).
+- pnpm db:reset → 0 (edited migration reapplied); pnpm db:import → 5 documents.
+- TEST_ENV=local DATABASE_URL=<loopback postgres> pnpm test:db → 0 (89 integration, up from 84:
+  +concurrent-claim proof, +replay audit-row assertion, +contact grammar cases, +privilege check).
+- pnpm dev + PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test
+  owner-operations.spec.ts cms.spec.ts auth.spec.ts → 22/22 after three test-side reconciliations:
+  mailto href now expects the encodeURIComponent'd address (M1), WhatsApp validator normalizes
+  dashes/spaces so stored `050-123-4567` stays publishable (L5), and screenshot wait targets no
+  longer use thead text hidden by the 360px card layout (M5). Screenshots re-captured in
+  artifacts/acceptance/P06/screenshots/ (still `next dev` — production-build capture is round-3
+  evidence, per the audit's M7).
+- pnpm check → 0 (lint, typecheck, check:frozen, check:copy, 189 unit).
+- pnpm build:worker → 1 on Windows: EPERM creating a symlink inside .open-next
+  (node_modules/@next/env → server-functions copy); unprivileged Windows cannot create symlinks
+  (needs Developer Mode/admin). Same blocker the earlier rounds recorded — the Linux pass owns
+  this build (I30). A stale .open-next/assets handle from a sandboxed earlier run had to be
+  released first (dev-server tree killed, takeown+grant, rm).

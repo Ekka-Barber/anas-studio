@@ -80,11 +80,11 @@ interface Claimed {
   attempts: number
 }
 
-async function claim(limit = 10): Promise<Claimed[]> {
-  const result = await app.query<Claimed>(
-    'select id, lease_id, kind, recipient, idempotency_key, attempts from public.outbox_claim($1, $2, $3, $4)',
-    [limit, 120, 100, 20],
-  )
+const CLAIM_SQL =
+  'select id, lease_id, kind, recipient, idempotency_key, attempts from public.outbox_claim($1, $2, $3, $4, $5)'
+
+async function claim(limit = 10, client: Client = app): Promise<Claimed[]> {
+  const result = await client.query<Claimed>(CLAIM_SQL, [limit, 120, 100, 20, 3000])
   return result.rows
 }
 
@@ -128,7 +128,7 @@ describe('claiming', () => {
     await postgres.query('delete from finance.email_outbox where id = any($1)', [[high.id, low.id]])
   })
 
-  it('an expired lease turns the row uncertain (never pending), and it is re-claimed inside 23 hours with the same idempotency key', async () => {
+  it('an expired lease turns the row uncertain (never pending) with a backed-off next attempt, and it is re-claimed inside 23 hours with the same idempotency key', async () => {
     await parkOthers()
     const row = await insertRow({ label: 'lease' })
     const first = await claim(1)
@@ -143,16 +143,47 @@ describe('claiming', () => {
     )
     const flipped = await claim(1)
     expect(flipped.find((r) => r.id === row.id)).toBeUndefined()
-    expect((await rowState(row.id)).status).toBe('uncertain')
+    const afterFlip = await rowState(row.id)
+    expect(afterFlip.status).toBe('uncertain')
+    // The flip backs off exponentially (2^attempts minutes, capped 60) so the
+    // row is not reclaimed every minute.
+    expect(afterFlip.next_at.getTime()).toBeGreaterThan(Date.now())
 
     // Inside the 23-hour window the same key is reused, so a retry cannot
-    // send twice.
-    await postgres.query('update finance.email_outbox set first_attempt_at = now() where id = $1', [row.id])
+    // send twice. (next_at is reset with first_attempt_at to simulate the
+    // backoff having elapsed.)
+    await postgres.query('update finance.email_outbox set first_attempt_at = now(), next_at = now() where id = $1', [row.id])
     const second = await claim(1)
     expect(second.map((r) => r.id)).toEqual([row.id])
     expect(second[0]!.idempotency_key).toBe(row.idempotency_key)
     expect(second[0]!.attempts).toBe(first[0]!.attempts + 1)
     await result(row.id, second[0]!.lease_id, 'accepted', 'test-provider-id')
+  })
+
+  it('two claims racing on one pending row: exactly one wins', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'race' })
+    const other = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
+    await other.connect()
+    try {
+      const [mine, theirs] = await Promise.all([claim(1), claim(1, other)])
+      const winners = [...mine, ...theirs].filter((r) => r.id === row.id)
+      expect(winners).toHaveLength(1)
+      // The attempt counter moved exactly once.
+      expect((await rowState(row.id)).attempts).toBe(1)
+      await result(row.id, winners[0]!.lease_id, 'accepted', 'test-provider-id')
+    } finally {
+      await other.end()
+    }
+    await postgres.query('delete from finance.email_outbox where id = $1', [row.id])
+  })
+
+  it('a pending row at the attempt cap is never claimed again', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'capped' })
+    await postgres.query('update finance.email_outbox set attempts = max_attempts where id = $1', [row.id])
+    const claimed = await claim(10)
+    expect(claimed.find((r) => r.id === row.id)).toBeUndefined()
   })
 
   it('an uncertain row older than 23 hours is not claimed again (its key may have expired at the provider)', async () => {
@@ -210,6 +241,31 @@ describe('outbox_result', () => {
     expect(state.status).toBe('exhausted')
     expect(state.last_error).toBe('RATE_LIMIT')
   })
+
+  it('an uncertain outcome backs off and, at the attempt cap, exhausts with an audit row', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'uncertain-cap' })
+    let claimed = await claim(1)
+    expect(await result(row.id, claimed[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    const state = await rowState(row.id)
+    expect(state.status).toBe('uncertain')
+    // Same exponential backoff as a retry (2^attempts minutes, capped 60).
+    expect(state.next_at.getTime()).toBeGreaterThan(Date.now() + 60_000)
+
+    // Make it due again, then force the attempt cap on the live lease: the
+    // same outcome is now terminal, never another retry.
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+    claimed = await claim(1)
+    await postgres.query('update finance.email_outbox set attempts = max_attempts where id = $1', [row.id])
+    expect(await result(row.id, claimed[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    expect((await rowState(row.id)).status).toBe('exhausted')
+    const audit = await postgres.query<{ summary: Record<string, unknown> }>(
+      "select summary from public.audit_events where action = 'email.exhausted' and entity = 'email_outbox' and entity_id = $1",
+      [row.id],
+    )
+    expect(audit.rows).toHaveLength(1)
+    expect(audit.rows[0]!.summary).toMatchObject({ status: 'uncertain', attempts: 8 })
+  })
 })
 
 describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts sources)', () => {
@@ -252,7 +308,7 @@ describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts source
     claimed = await claim(10)
     expect(claimed).toEqual([])
     // Leave the shared local database with a free quota for later suites.
-    await postgres.query("delete from finance.email_outbox where dedupe_key like $1", [`${MY_PREFIX}quota`])
+    await postgres.query('delete from finance.email_outbox where dedupe_key like $1', [`${MY_PREFIX}quota%`])
   })
 })
 
@@ -297,6 +353,14 @@ describe('operations views through real JWTs', () => {
     const state = await rowState(row.id)
     expect(state.status).toBe('pending')
     expect(state.idempotency_key).not.toBe(row.idempotency_key)
+
+    // The replay itself is audited (outbox_replay's audit_events insert).
+    const audit = await postgres.query<{ summary: Record<string, unknown> }>(
+      "select summary from public.audit_events where action = 'email.replay' and entity = 'email_outbox' and entity_id = $1",
+      [row.id],
+    )
+    expect(audit.rows).toHaveLength(1)
+    expect(audit.rows[0]!.summary).toEqual({ status: 'uncertain', acceptedDuplicateRisk: true })
 
     // The dedupe key (the business identity) never changed.
     const stored = (await postgres.query<{ dedupe_key: string }>('select dedupe_key from finance.email_outbox where id = $1', [row.id]))

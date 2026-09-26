@@ -6,15 +6,15 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 
 | Field | Value |
 |---|---|
-| Branch | `agent/p00-runtime-spike` |
-| Last commit | `79d8cf6` (P05); `d5c7ceb` moved the worker to GLM-5.3 (D30) |
+| Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |
+| Last product commit | `9b6d1e5`: P06 rounds 1 and 2 as an unaudited work-in-progress snapshot. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
 | P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
 | P05 | Committed (`79d8cf6`). |
-| P06 | Round 1 (contacts, email outbox, delivery webhook, jobs) audited; uncommitted. Round 2 (admin screens) next. |
+| P06 | Rounds 1 and 2 committed in `9b6d1e5` as an unaudited snapshot. Round 1 (contacts, email outbox, delivery webhook, jobs) has the orchestrator audit below; round 2 (owner home, inbox, email problems, settings, statistics) is not audited. Independent review of `9b6d1e5`: NEEDS WORK. Round 3 not started. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
-| Lock | Held by the orchestrator for P05. |
+| Lock | Held by the orchestrator for P06; kept through the round 2 audit, the audit fixes and round 3. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
 
 ## Owner decisions, 2026-09-24
@@ -87,17 +87,17 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 
 | Package | Status | Evidence |
 |---|---|---|
-| P00 | public runtime accepted and committed; D29 swap audited, awaiting commit | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
+| P00 | public runtime accepted; D29 swap audited and committed `6f09321` | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
 | P01 | part 1 committed (`c98b091`); remaining rooms wait for design | `artifacts/acceptance/P01/` |
 | P02 | not_started; waits for design | — |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
 | P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |
-| P06 | building: round 1 audited, uncommitted | `artifacts/acceptance/P06/` |
+| P06 | building: rounds 1–2 committed unaudited in `9b6d1e5` (round 1 audited by the orchestrator; round 2 not audited); round 3 not started; independent-audit fixes applied 2026-09-26 | `artifacts/acceptance/P06/` |
 | P07–P12 | not_started | — |
 
 ## Next work, in order
 
-1. P06 round 2 (`glm-worker`): admin screens for the owner home, inbox, email problems (replay), settings and statistics (unavailable until E11).
+1. finish P06: apply independent-audit fixes (H1–H2, M1–M7, L1–L12 from the 2026-09-26 review), re-capture round 2 evidence from a production build, then round 3 (backups, privacy runbook, notify routes, commerce settings, docs/costs.md, phase-2 gate).
 2. P06 round 3: backups (destination and key holder need the owner's decision) and the privacy-request runbook; then the Linux Worker build and the phase 2 gate walk-through.
 3. Commit P06 with the owner's approval.

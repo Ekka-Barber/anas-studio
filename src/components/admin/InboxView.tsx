@@ -142,12 +142,19 @@ export function InboxView() {
         ))}
       </div>
 
-      {loadError && <p className={styles.error}>تعذّر تحميل الرسائل.</p>}
+      {loadError && (
+        <div className={styles.row}>
+          <p className={styles.error}>تعذّر تحميل الرسائل.</p>
+          <button type="button" className={styles.buttonSecondary} onClick={() => void loadPage([], 0)}>
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
       {!loadError && contacts !== null && contacts.length === 0 && <p className={styles.message}>لا توجد رسائل.</p>}
 
       {contacts !== null && contacts.length > 0 && (
         <div className={styles.tableWrap}>
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.responsive}`}>
             <thead>
               <tr>
                 <th>الاسم</th>
@@ -160,15 +167,24 @@ export function InboxView() {
             <tbody>
               {contacts.map((contact) => (
                 <tr key={contact.id} className={contact.id === selectedId ? styles.rowSelected : undefined}>
-                  <td>
+                  <td data-label="الاسم">
                     <button type="button" className={styles.linkButton} onClick={() => open(contact)}>
                       <span dir="auto">{contact.name}</span>
                     </button>
                   </td>
-                  <td dir="auto">{contact.email}</td>
-                  <td dir="auto">{contact.message.split('\n')[0]}</td>
-                  <td>{formatRiyadh(contact.created_at)}</td>
-                  <td>{STATUS_LABEL[contact.status]}</td>
+                  <td dir="auto" data-label="البريد">
+                    {contact.email}
+                  </td>
+                  <td
+                    dir="auto"
+                    data-label="أول الرسالة"
+                    className={styles.cellEllipsis}
+                    title={contact.message.split('\n')[0] || undefined}
+                  >
+                    {contact.message.split('\n')[0]}
+                  </td>
+                  <td data-label="الوقت">{formatRiyadh(contact.created_at)}</td>
+                  <td data-label="الحالة">{STATUS_LABEL[contact.status]}</td>
                 </tr>
               ))}
             </tbody>
@@ -186,7 +202,7 @@ export function InboxView() {
         <div className={styles.fieldset} ref={selectedRef}>
           <h2 dir="auto">{selected.name}</h2>
           <p>
-            <a dir="auto" href={`mailto:${selected.email}?subject=${MAILTO_SUBJECT}`}>
+            <a dir="auto" href={`mailto:${encodeURIComponent(selected.email)}?subject=${MAILTO_SUBJECT}`}>
               {selected.email}
             </a>
           </p>

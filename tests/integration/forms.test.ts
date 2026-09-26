@@ -2,13 +2,28 @@
 // 20260926120000_contacts_and_email.sql`) against the real local database.
 // `contact_submit` is called as `app_server` (the Worker's path through
 // `src/lib/db.ts`); RLS on `public.contacts` goes through real JWTs at the
-// Data API, like `tests/integration/media-security.test.ts`.
+// Data API, like `tests/integration/media-security.test.ts`. The route
+// handler's email grammar is exercised directly at the bottom (M1: an
+// address must not be able to smuggle mailto headers into the inbox).
 import { createHash, randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { POST as contactPost } from '../../src/app/api/contact/route'
 import { anonClient, createStaff, signIn } from './support'
+
+// The route handler is imported above, but vitest resolves no `@/` alias, so
+// every `@/lib/*` specifier the route imports is mocked here: the database
+// with a guard that must never be reached, the rest with the real modules.
+vi.mock('@/lib/db', () => ({
+  withDb: () => {
+    throw new Error('unexpected database call')
+  },
+}))
+vi.mock('@/lib/env', async () => vi.importActual('../../src/lib/env'))
+vi.mock('@/lib/rate-limit', async () => vi.importActual('../../src/lib/rate-limit'))
+vi.mock('@/lib/turnstile', async () => vi.importActual('../../src/lib/turnstile'))
 
 let app: Client
 let postgres: Client
@@ -242,7 +257,60 @@ describe('contacts RLS through real JWTs', () => {
     expect(submitError).not.toBeNull()
     const { error: claimError } = await client.rpc('outbox_claim', { p_limit: 1, p_lease_seconds: 60, p_daily_quota: 100, p_reserve: 20 })
     expect(claimError).not.toBeNull()
-    const { error: outboxError } = await client.from('email_outbox').select('id')
-    expect(outboxError).not.toBeNull()
+
+    // The relation the contact insert path writes to is `finance.email_outbox`
+    // — the actual table, in the unexposed `finance` schema. No API role can
+    // read it: the migration's `revoke all` left anon and authenticated with
+    // no privilege on the real relation.
+    const outboxGrants = (
+      await postgres.query<{ authenticated: boolean; anon: boolean }>(
+        `select has_table_privilege('authenticated', 'finance.email_outbox', 'select') as authenticated,
+                has_table_privilege('anon', 'finance.email_outbox', 'select') as anon`,
+      )
+    ).rows[0]!
+    expect(outboxGrants.authenticated).toBe(false)
+    expect(outboxGrants.anon).toBe(false)
+  })
+})
+
+describe('contact route email grammar', () => {
+  beforeEach(() => {
+    // No Turnstile credentials: a grammatical address then stops at the
+    // verifier, which is exactly the proof of acceptance these tests need.
+    vi.stubEnv('SITE_URL', '')
+    vi.stubEnv('TURNSTILE_SECRET_KEY', '')
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  function contactRequest(email: string): Request {
+    return new Request('http://localhost/api/contact', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'زائر',
+        email,
+        message: 'رسالة اختبار',
+        submissionKey: randomUUID(),
+        turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX',
+      }),
+    })
+  }
+
+  it('refuses an address that smuggles mailto headers', async () => {
+    const response = await contactPost(contactRequest('x@evil.test?bcc=attacker%40evil.test&body=hello'))
+    expect(response.status).toBe(422)
+    const body = (await response.json()) as { error: { code: string; fields?: { fieldErrors?: { email?: string[] } } } }
+    expect(body.error.code).toBe('INVALID')
+    expect(body.error.fields?.fieldErrors?.email).toBeDefined()
+  })
+
+  it('accepts a normal address', async () => {
+    const response = await contactPost(contactRequest('guest@example.com'))
+    expect(response.status).toBe(503)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('TURNSTILE_UNAVAILABLE')
   })
 })

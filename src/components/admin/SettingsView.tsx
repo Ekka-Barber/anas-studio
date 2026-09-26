@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { settingsStatusAction, type SettingsStatus } from '@/app/(admin)/admin/actions'
+import { WHATSAPP_ERROR, WHATSAPP_PATTERN } from '@/admin/collections/site-settings'
 import { whatsappLink } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
@@ -65,7 +66,11 @@ export function SettingsView() {
         return
       }
       const url = whatsappLink(raw)
-      setWhatsapp(url ? { state: 'ok', url } : { state: 'invalid' })
+      // The same Saudi-mobile rule the settings schema enforces server-side
+      // (L5), so the preview's message matches the form's validation exactly
+      // (dashes/spaces are typing aids: validate the compact form).
+      const compact = String(raw).trim().replace(/[\s-]/g, '')
+      setWhatsapp(url && WHATSAPP_PATTERN.test(compact) ? { state: 'ok', url } : { state: 'invalid' })
     })()
 
     void (async () => {
@@ -103,7 +108,7 @@ export function SettingsView() {
             </a>
           </p>
         )}
-        {whatsapp.state === 'invalid' && <p className={styles.error}>رقم غير صالح</p>}
+        {whatsapp.state === 'invalid' && <p className={styles.error}>{WHATSAPP_ERROR}</p>}
       </section>
 
       <section>

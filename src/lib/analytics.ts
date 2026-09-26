@@ -34,7 +34,13 @@ export interface TopPath {
   count: number
 }
 
-export type AnalyticsUnavailableReason = 'NOT_CONFIGURED' | 'HTTP_ERROR' | 'TIMEOUT' | 'GRAPHQL_ERROR' | 'SAMPLED'
+export type AnalyticsUnavailableReason =
+  | 'NOT_CONFIGURED'
+  | 'HTTP_ERROR'
+  | 'TIMEOUT'
+  | 'GRAPHQL_ERROR'
+  | 'SAMPLED'
+  | 'UNEXPECTED_SHAPE'
 
 export type AnalyticsResult =
   | {
@@ -122,12 +128,19 @@ interface GroupShape {
   dimensions?: { clientRequestPath?: unknown } | null
 }
 
-function groupsOf(body: unknown): GroupShape[] {
-  const data = body as { data?: { viewer?: { zones?: Array<{ httpRequestsAdaptiveGroups?: unknown }> } } } | null
-  const zones = data?.data?.viewer?.zones
-  if (!Array.isArray(zones) || zones.length === 0) return []
-  const groups = zones[0]?.httpRequestsAdaptiveGroups
-  return Array.isArray(groups) ? (groups as GroupShape[]) : []
+/**
+ * The one zone's groups, shape-validated: an answer is usable only when the
+ * response carries exactly one zone (`data.viewer.zones` of length 1) whose
+ * `httpRequestsAdaptiveGroups` is an Array — an empty array is a real zero.
+ * Anything else (no zone — a wrong zone id or a bad token — `data: null`, or
+ * an unexpected shape like `{}`) is not an answer, so it returns null instead
+ * of an invented empty result.
+ */
+function groupsOf(body: unknown): GroupShape[] | null {
+  const zones = (body as { data?: { viewer?: { zones?: unknown } } } | null)?.data?.viewer?.zones
+  if (!Array.isArray(zones) || zones.length !== 1) return null
+  const groups = (zones[0] as { httpRequestsAdaptiveGroups?: unknown }).httpRequestsAdaptiveGroups
+  return Array.isArray(groups) ? (groups as GroupShape[]) : null
 }
 
 /** `avg.sampleInterval > 1` anywhere means the numbers are sampled estimates. */
@@ -138,8 +151,9 @@ function isSampled(groups: GroupShape[]): boolean {
   })
 }
 
-export function parseVisits(body: unknown): { visits: number; sampled: boolean } {
+export function parseVisits(body: unknown): { visits: number; sampled: boolean } | null {
   const groups = groupsOf(body)
+  if (groups === null) return null
   let visits = 0
   for (const group of groups) {
     const value = group.sum?.visits
@@ -148,19 +162,21 @@ export function parseVisits(body: unknown): { visits: number; sampled: boolean }
   return { visits, sampled: isSampled(groups) }
 }
 
-export function parseTopPaths(body: unknown): { topPaths: TopPath[]; sampled: boolean } {
-  const groups = groupsOf(body).filter((group) => {
-    const path = group.dimensions?.clientRequestPath
-    return typeof path === 'string' && path.length > 0 && isRealPage(path)
-  })
+export function parseTopPaths(body: unknown): { topPaths: TopPath[]; sampled: boolean } | null {
+  const groups = groupsOf(body)
+  if (groups === null) return null
   const topPaths = groups
+    .filter((group) => {
+      const path = group.dimensions?.clientRequestPath
+      return typeof path === 'string' && path.length > 0 && isRealPage(path)
+    })
     .map((group) => {
       const count = typeof group.count === 'number' && Number.isFinite(group.count) ? group.count : 0
       return { path: group.dimensions?.clientRequestPath as string, count }
     })
     .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))
     .slice(0, TOP_PATHS_SHOWN)
-  return { topPaths, sampled: isSampled(groupsOf(body)) }
+  return { topPaths, sampled: isSampled(groups) }
 }
 
 function hasGraphqlErrors(body: unknown): boolean {
@@ -223,6 +239,9 @@ export async function fetchAnalytics(now: Date = new Date()): Promise<AnalyticsR
   }
   const visits = parseVisits(visitsBody)
   const paths = parseTopPaths(pathsBody)
+  // An answer that is not exactly one zone with a groups array (wrong zone
+  // id, bad token, `data: null`, a shape change) is not a zero.
+  if (!visits || !paths) return { status: 'unavailable', reason: 'UNEXPECTED_SHAPE' }
   if (visits.sampled || paths.sampled) return { status: 'unavailable', reason: 'SAMPLED' }
   return {
     status: 'ok',

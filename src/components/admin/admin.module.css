@@ -118,6 +118,70 @@
   text-align: start;
 }
 
+/* M5: the operations tables (inbox, email problems). Long unbroken Latin
+   text (emails, provider errors) wraps instead of forcing the table wider
+   than its box, so the action columns stay visible with no horizontal
+   scrolling from ~1024px up. Scoped to .responsive so the other admin tables
+   (versions, team…) keep their plain scroll box. */
+.responsive th,
+.responsive td {
+  overflow-wrap: anywhere;
+}
+
+/* A verbose one-line cell: capped width, ellipsis, full text in title. */
+.cellEllipsis {
+  max-inline-size: 14rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* M5: at phone widths each row becomes a stacked card labelled by its
+   td[data-label], so every control is reachable with no horizontal scroll. */
+@media (max-width: 480px) {
+  .responsive {
+    display: block;
+  }
+
+  .responsive tbody,
+  .responsive tr,
+  .responsive td {
+    display: block;
+  }
+
+  .responsive thead {
+    display: none;
+  }
+
+  .responsive tr {
+    margin-block-end: 0.75rem;
+    padding: 0.5rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: 0.25rem;
+  }
+
+  .responsive td {
+    border-block-end: none;
+    padding-block: 0.25rem;
+  }
+
+  /* The label always renders RTL, even inside a dir="auto" Latin cell. */
+  .responsive td::before {
+    content: attr(data-label) ': ';
+    direction: rtl;
+    unicode-bidi: isolate;
+    font-weight: 600;
+  }
+
+  /* Cards show the full text wrapped, not the one-line ellipsis. */
+  .responsive .cellEllipsis {
+    max-inline-size: none;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
 .dialog {
   border: 1px solid var(--color-hairline);
   border-radius: 0.5rem;

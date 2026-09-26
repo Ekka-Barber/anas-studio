@@ -42,6 +42,10 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 **Package:** P11 (hosted setup), from P05. The public derivative bucket `anas-studio-media-public-test` (binding `MEDIA_PUBLIC`) does not exist yet; the owner creates it with a custom domain of its own (not the site origin), sets `NEXT_PUBLIC_MEDIA_ORIGIN` to it at build time (it is inlined into the server and admin bundles), and adds a response-header rule for `X-Content-Type-Options: nosniff` on that domain, because R2 custom domains do not add it. Housekeeping has no job yet: an R2 lifecycle rule should expire `quarantine/` in the private bucket after 1 day. Originals of tickets that expired or failed, and old `media_upload_tickets` rows, stay until a P06 cleanup job removes them. Known limit: an AVIF whose `irot` rotation swaps width and height is refused with a dimension mismatch.
 
+## I30 — P06 cron CPU cost on Workers Free unmeasured
+
+**Package:** P06 (from the 2026-09-26 round 2 audit), hosted measurement with I21. The every-minute cron runs through the full OpenNext handler (wrangler.jsonc ~:105, worker-entry.ts ~:98-110). I21 measured 19–46 ms CPU for public routes on a fresh isolate against the 10 ms Free limit, and no measurement exists for the cron path. The `build:worker` attempt on Windows fails on symlink creation (EPERM without Developer Mode/admin — recorded in `artifacts/acceptance/P06/commands.txt`), so the Linux pass owns both the build and the hosted measurement. The owner home now flags stale job runs (UI fix applied).
+
 ## Small UI items for when design reopens
 
 - No favicon, so every page logs one 404 for `/favicon.ico`.

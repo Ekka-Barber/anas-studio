@@ -38,7 +38,8 @@ const REASON_LABEL: Record<string, string> = {
 
 export function StatsView() {
   const [stats, setStats] = useState<StatsPayload | null>(null)
-  const [error, setError] = useState(false)
+  // L6: 401/403 (role) is an owner-only note; anything else is a real failure.
+  const [error, setError] = useState<'forbidden' | 'failed' | null>(null)
 
   useEffect(() => {
     let active = true
@@ -50,14 +51,14 @@ export function StatsView() {
         const response = await fetch('/api/admin/stats', { headers: { authorization: `Bearer ${token}` } })
         if (!active) return
         if (!response.ok) {
-          setError(true)
+          setError(response.status === 401 || response.status === 403 ? 'forbidden' : 'failed')
           return
         }
         const body = (await response.json()) as { data?: StatsPayload }
         if (body.data) setStats(body.data)
-        else setError(true)
+        else setError('failed')
       } catch {
-        if (active) setError(true)
+        if (active) setError('failed')
       }
     })()
     return () => {
@@ -65,11 +66,19 @@ export function StatsView() {
     }
   }, [])
 
-  if (error) {
+  if (error === 'forbidden') {
     return (
       <div>
         <h1>الإحصاءات</h1>
         <p className={styles.error}>غير متاحة — الإحصاءات للمالك فقط.</p>
+      </div>
+    )
+  }
+  if (error === 'failed') {
+    return (
+      <div>
+        <h1>الإحصاءات</h1>
+        <p className={styles.error}>تعذّر تحميل الإحصاءات — حدّث الصفحة وجرّب مرة ثانية.</p>
       </div>
     )
   }

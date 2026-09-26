@@ -21,6 +21,9 @@ import type { Client, QueryResult } from 'pg'
  */
 export const DAILY_QUOTA = 100
 
+/** The same free plan's monthly quota (a UTC calendar month). */
+export const MONTHLY_QUOTA = 3_000
+
 /**
  * Sends kept free of notices at the top of the priority order: once the day
  * has used `DAILY_QUOTA - RESERVE` sends, priority 2 (availability notices)
@@ -125,12 +128,18 @@ export async function runOutbox(): Promise<OutboxSummary> {
   const summary: OutboxSummary = { job: 'email_outbox', status: 'ok', claimed: 0, accepted: 0, retry: 0, permanent: 0, uncertain: 0 }
   try {
     await withDb(async (client) => {
-      const claimed: QueryResult<ClaimedRow> = await client.query(
-        'select id, lease_id, kind, recipient, payload, idempotency_key, attempts from public.outbox_claim($1, $2, $3, $4)',
-        [CLAIM_LIMIT, LEASE_SECONDS, DAILY_QUOTA, RESERVE],
-      )
-      summary.claimed = claimed.rows.length
-      for (const row of claimed.rows) {
+      // One row per claim: every claim recounts the day and the month, so
+      // both quotas are checked immediately before each send (one batch claim
+      // could overshoot by the whole batch), and when a cap is hit the rows
+      // never claimed simply stay pending for the next run.
+      for (let slot = 0; slot < CLAIM_LIMIT; slot += 1) {
+        const claimed: QueryResult<ClaimedRow> = await client.query(
+          'select id, lease_id, kind, recipient, payload, idempotency_key, attempts from public.outbox_claim($1, $2, $3, $4, $5)',
+          [1, LEASE_SECONDS, DAILY_QUOTA, RESERVE, MONTHLY_QUOTA],
+        )
+        if (claimed.rows.length === 0) break
+        const row = claimed.rows[0]!
+        summary.claimed += 1
         let outcome: SendOutcome | { outcome: 'permanent'; error: string }
         try {
           outcome = await processRow(client, row)

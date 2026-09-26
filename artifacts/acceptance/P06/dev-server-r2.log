@@ -1,10 +1,10 @@
 
-> anas-studio@0.0.0 dev C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME
+> anas-studio@0.0.0 dev C:\Users\<user>\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME
 > next dev
 
 ▲ Next.js 16.3.5 (Turbopack)
 - Local:         http://localhost:3000
-- Network:       http://172.25.112.1:3000
+- Network:       http://[lan-ip]:3000
 - Environments: .env.local, .env
 ✓ Ready in 745ms
 ✓ Running next.config.ts took 983ms

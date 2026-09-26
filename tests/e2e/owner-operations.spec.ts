@@ -299,11 +299,13 @@ test('the inbox: opening marks read, closing with a note persists', async ({ pag
   await expect(row).toBeVisible()
   await row.click()
 
-  // Everything shows: full message, mailto with the encoded reply subject.
+  // Everything shows: full message, mailto with the encoded reply subject and
+  // the M1-encoded address (`@` arrives as %40 in the href).
   await expect(page.getByText(`رسالة الجولة الثانية ${round2Marker}`).last()).toBeVisible()
-  await expect(page.locator(`a[href^="mailto:guest-${round2Marker}@example.com?subject="]`)).toHaveAttribute(
+  const mailtoEmail = encodeURIComponent(`guest-${round2Marker}@example.com`)
+  await expect(page.locator(`a[href^="mailto:${mailtoEmail}?subject="]`)).toHaveAttribute(
     'href',
-    new RegExp(`mailto:guest-${round2Marker}@example.com\\?subject=${encodeURIComponent('رد: رسالتك إلى أنس')}$`),
+    new RegExp(`mailto:${mailtoEmail}\\?subject=${encodeURIComponent('رد: رسالتك إلى أنس')}$`),
   )
 
   // Opening a new message marked it read automatically.
@@ -434,6 +436,33 @@ test('email problems: replay exhausted, confirm uncertain, suppressed is refused
   expect(still.rows[0]!.status).toBe('exhausted')
 })
 
+test('an operations member can replay a failed outbox row through the risk-acceptance flow', async ({ page }) => {
+  const operations = await createStaff('operations')
+  await signInByCode(page, operations.email)
+
+  // An uncertain row past the provider's idempotency window: replaying it
+  // must demand the explicit duplicate-risk confirmation, from operations
+  // just as from an owner.
+  const recipient = await insertOutboxRow('uncertain', 24 * 60 * 60)
+  await page.goto('/admin/email')
+  const row = page.getByRole('row').filter({ hasText: recipient })
+  await expect(row).toBeVisible()
+  await row.getByRole('button', { name: 'إعادة الإرسال' }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  const confirmButton = dialog.getByRole('button', { name: 'إعادة الإرسال' })
+  await expect(confirmButton).toBeDisabled()
+  await dialog.getByRole('checkbox').check()
+  await confirmButton.click()
+  await expect(row).toHaveCount(0)
+
+  const replayed = await db.query<{ status: string }>('select status from finance.email_outbox where recipient = $1', [
+    recipient,
+  ])
+  expect(replayed.rows[0]!.status).toBe('pending')
+})
+
 test('settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets', async ({ page }) => {
   const owner = await createStaff('owner')
   await signInByCode(page, owner.email)
@@ -478,10 +507,12 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
   await insertOutboxRow('exhausted', null)
 
   const shots = mkdirScreenshots()
+  // Waits must be visible at BOTH widths: at 360px the responsive tables hide
+  // their `thead`, so column headers like «أول الرسالة» can't be wait targets.
   const targets: Array<{ name: string; path: string; wait: string }> = [
     { name: 'home', path: '/admin', wait: 'رسائل جديدة:' },
-    { name: 'inbox', path: '/admin/inbox', wait: 'أول الرسالة' },
-    { name: 'email', path: '/admin/email', wait: 'المحاولات' },
+    { name: 'inbox', path: '/admin/inbox', wait: 'الكل' },
+    { name: 'email', path: '/admin/email', wait: 'إعادة الإرسال' },
     { name: 'stats', path: '/admin/stats', wait: 'المتجر' },
     { name: 'settings', path: '/admin/settings', wait: 'حالة الإعداد' },
   ]

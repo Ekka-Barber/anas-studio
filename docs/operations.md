@@ -65,6 +65,16 @@ Fixed windows, enforced inside `contact_submit` (SQLSTATE 54000 → HTTP 429
 
 pg_cron purges the rate-limit windows nightly (`rate-limits-purge`).
 
+**Residual abuse risk (accepted):** the `contact:all` cap is global, so an
+attacker who passes Turnstile can spend the whole 200/day budget (40 rotating
+IPs at 5/hour each) and lock the form for everyone else for the rest of the
+UTC day. Accepted because nothing is lost — messages already stored stay in
+the inbox, real visitors still have the published email address, and the
+window resets at the next UTC midnight. Manual mitigation when it happens:
+look at `public.contacts` for the burst, then delete the day's `contact:all`
+row from `finance.rate_limits` (its `key_hash` is 64 zeros) — the same
+deliberate manual-database-action standard as un-suppressing a recipient.
+
 ## The outbox
 
 One row per message (`finance.email_outbox`). Priorities: **0** sign-in
@@ -81,11 +91,21 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
 ```
 
 - **Claim** (`outbox_claim`): up to 10 rows per run, most important first,
-  each leased for 120 s. An expired lease never returns the row to
-  `pending` — it becomes `uncertain`, because the send may have left.
+  each leased for 120 s. The dispatcher claims **one row at a time**, so every
+  send is preceded by its own claim — and its own quota recount. An expired
+  lease never returns the row to `pending` — it becomes `uncertain`, because
+  the send may have left.
+- **Bounded retries**: a row is claimed only while `attempts < max_attempts`
+  (default 8), and the counter is incremented at claim time — so every path,
+  including `uncertain` ones, is bounded. Reaching the cap makes the row
+  `exhausted` (terminal) wherever it happens — the claim's expired-lease flip
+  or `outbox_result` — and each such transition is written to `audit_events`
+  as `email.exhausted`.
 - **Retry backoff**: `next_at = now() + 2^attempts` minutes
-  (2, 4, 8, 16 …). After `max_attempts` (default 5) a retry makes the row
-  `exhausted`.
+  (2, 4, 8, 16 …). Every path that lands in `uncertain` (send timeout,
+  unknown reply, expired lease, a pre-send dispatch failure) gets the same
+  exponential backoff capped at 60 minutes, so a stuck row converges to
+  `exhausted` instead of being retried every minute for 23 hours.
 - **Uncertain sends** are retried only inside 23 hours of the first attempt:
   the row's `idempotency_key` is sent as Resend's `Idempotency-Key`, which
   Resend keeps for 24 hours (resend.com/docs/dashboard/emails/
@@ -104,23 +124,42 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
 
 ### Quota
 
-`src/lib/outbox.ts` claims with `DAILY_QUOTA = 100` and `RESERVE = 20`:
+`src/lib/outbox.ts` claims with `DAILY_QUOTA = 100`, `RESERVE = 20` and
+`MONTHLY_QUOTA = 3000`:
 
-- 100/day is Resend's **free plan** daily quota — "daily email quota of 100
-  emails/day and 3,000 emails/month", a UTC calendar day resetting at
-  midnight UTC (resend.com/docs/knowledge-base/account-quotas-and-limits,
-  fetched 2026-09-26). Raise the constant when the plan changes.
+- 100/day and 3,000/month are Resend's **free plan** quotas — "daily email
+  quota of 100 emails/day and 3,000 emails/month", a UTC calendar day
+  (resetting at midnight UTC) and a UTC calendar month
+  (resend.com/docs/knowledge-base/account-quotas-and-limits,
+  fetched 2026-09-26). Raise the constants when the plan changes.
+- Both caps are enforced by the outbox and checked **immediately before each
+  send**: the dispatcher claims one row at a time and every claim recounts
+  the day and the month, so one run can never overshoot either cap. When a
+  cap is hit the run stops cleanly — rows never claimed simply stay
+  `pending` for the next run.
 - Once 80 sends (quota − reserve) are used today, priority 2 (availability
   notices) waits so sign-in codes, receipts and staff notices still go; at
   100 nothing is claimed until midnight UTC.
 
-Exceeding the quota at the provider returns 429, which the dispatcher
+**Sign-in codes are not covered by the reserve (residual risk):** sign-in
+emails travel through Supabase Auth's SMTP (I28), not through the outbox, but
+the same Resend account absorbs them — and the outbox's sent-today count sees
+only outbox rows. The 20-send reserve must therefore absorb auth traffic too:
+keep sign-in volume low, and raise `RESERVE` in `src/lib/outbox.ts` if auth
+traffic grows. If Supabase Auth ever changes its sending path (a different
+provider or subaccount), this shared-limit assumption breaks silently —
+re-check I28's mail routing then.
+
+Exceeding a quota at the provider returns 429, which the dispatcher
 classifies as `retry`.
 
 ### Suppression
 
-A verified hard bounce (`email.bounced`), complaint (`email.complained`) or
-provider suppression (`email.suppressed`) adds the recipient's hash to
+A verified bounce whose type is missing or **hard/permanent**
+(`email.bounced`, the type read from the event's evidence — a soft/transient
+bounce only records the event, because the address may deliver later), a
+complaint (`email.complained`) or a provider suppression
+(`email.suppressed`) adds the recipient's hash to
 `finance.email_suppressions`. Every sender consults it: a suppressed
 recipient is never claimed again, and replaying a suppressed row is refused.
 A later `delivered` never clears a suppression, and never overwrites a
@@ -142,7 +181,9 @@ the provider's event id (`svix-id`) — a redelivered event is recorded once.
 Event handling (`email.sent`, `email.delivered`,
 `email.delivery_delayed`, `email.bounced`, `email.complained`,
 `email.failed`, `email.suppressed`; anything else is acknowledged and
-ignored): bounces/complaints/suppressions suppress the recipient;
+ignored): hard/permanent or untyped bounces, complaints and suppressions
+suppress the recipient; a soft/transient bounce records the event (and sets
+the row's `delivery`) without suppressing;
 `delivered`/`delayed`/`bounced`/`complained`/`failed` set the row's
 `delivery`. **Provider acceptance is not delivery**: a `sent` row keeps
 `delivery` null until an event arrives.

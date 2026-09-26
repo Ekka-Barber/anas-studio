@@ -156,6 +156,43 @@ describe('analytics fixtures', () => {
     }
   })
 
+  it('an empty zones array is unavailable, not an invented zero (wrong zone id or bad token)', async () => {
+    configure()
+    const emptyZones = { data: { viewer: { zones: [] } }, errors: null }
+    stubFetch(emptyZones, emptyZones)
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
+  it('data null with no errors is unavailable, not an invented zero', async () => {
+    configure()
+    const nullData = { data: null, errors: null }
+    stubFetch(nullData, nullData)
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
+  it('an unexpected {} shape is unavailable, not an invented zero', async () => {
+    configure()
+    stubFetch({}, {})
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
+  it('a response with more than one zone is unavailable', async () => {
+    configure()
+    const twoZones = {
+      data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: [] }, { httpRequestsAdaptiveGroups: [] }] } },
+      errors: null,
+    }
+    stubFetch(twoZones, twoZones)
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
+  it('one zone whose groups are not an array is unavailable', async () => {
+    configure()
+    const noGroups = { data: { viewer: { zones: [{ httpRequestsAdaptiveGroups: null }] } }, errors: null }
+    stubFetch(noGroups, noGroups)
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
   it('sampled data (avg.sampleInterval above 1) is refused', async () => {
     configure()
     stubFetch(
@@ -203,6 +240,15 @@ describe('parsers against raw shapes', () => {
     expect(parsed).toEqual({ visits: 10, sampled: false })
   })
 
+  it('an unusable shape parses to null, never to an invented zero', () => {
+    expect(parseVisits({ data: { viewer: { zones: [] } }, errors: null })).toBeNull()
+    expect(parseVisits({ data: null, errors: null })).toBeNull()
+    expect(parseVisits({})).toBeNull()
+    expect(parseTopPaths({ data: { viewer: { zones: [] } }, errors: null })).toBeNull()
+    expect(parseTopPaths({ data: null, errors: null })).toBeNull()
+    expect(parseTopPaths({})).toBeNull()
+  })
+
   it('parseTopPaths drops assets and admin/api/_next paths, then takes the top 10', () => {
     const groups = [
       ...Array.from({ length: 12 }, (_, index) => ({
@@ -217,9 +263,10 @@ describe('parsers against raw shapes', () => {
       { count: 999, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/media/photo.avif' } },
     ]
     const parsed = parseTopPaths(topPathsBody(groups))
-    expect(parsed.topPaths).toHaveLength(10)
-    expect(parsed.topPaths[0]).toEqual({ path: '/page-0', count: 100 })
-    expect(parsed.topPaths.some((entry) => entry.path.startsWith('/page-1'))).toBe(true)
-    expect(parsed.topPaths.some((entry) => entry.count === 999)).toBe(false)
+    expect(parsed).not.toBeNull()
+    expect(parsed!.topPaths).toHaveLength(10)
+    expect(parsed!.topPaths[0]).toEqual({ path: '/page-0', count: 100 })
+    expect(parsed!.topPaths.some((entry) => entry.path.startsWith('/page-1'))).toBe(true)
+    expect(parsed!.topPaths.some((entry) => entry.count === 999)).toBe(false)
   })
 })

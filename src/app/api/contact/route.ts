@@ -20,11 +20,18 @@ export const dynamic = 'force-dynamic'
 
 /** The contact body limit (ARCHITECTURE: "contact to 8 KiB"). */
 const MAX_BODY_BYTES = 8_192
+/** Requests that declare more than this via content-length are refused before the body is read. */
+const MAX_DECLARED_BODY_BYTES = 32_768
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const NO_STORE = { 'cache-control': 'no-store' }
 
-/** A deliberately simple shape; the database re-checks its own constraint. */
-const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/**
+ * The email grammar, shared verbatim with the database's own check: a local
+ * part of header-safe characters, a bounded domain, a purely alphabetic TLD.
+ * Loose grammars let an address like `x@evil.test?bcc=…&body=…` flow into the
+ * inbox's mailto: links, so only this shape reaches storage.
+ */
+const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,63}$/
 
 const contactSchema = z.strictObject({
   name: z.string().trim().min(1).max(120),
@@ -58,6 +65,13 @@ export async function POST(request: Request): Promise<Response> {
   const contentType = request.headers.get('content-type')
   if (!contentType || !contentType.toLowerCase().includes('application/json')) {
     return fail(415, 'UNSUPPORTED_MEDIA_TYPE', 'أرسل الطلب بصيغة JSON.')
+  }
+
+  // Refuse an oversized request before reading the body; the post-read check
+  // below stays as the backstop when content-length is absent or understates.
+  const declaredLength = Number(request.headers.get('content-length'))
+  if (declaredLength > MAX_DECLARED_BODY_BYTES) {
+    return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
   }
 
   const text = await request.text()
@@ -120,6 +134,12 @@ export async function POST(request: Request): Promise<Response> {
   } catch (error) {
     if ((error as { code?: string } | null)?.code === '54000') {
       return fail(429, 'RATE_LIMITED', 'أرسلت رسائل كثيرة؛ حاول لاحقًا.')
+    }
+    if ((error as { code?: string } | null)?.code === '23505') {
+      // A simultaneous double submit raced past the submission-key lookup and
+      // lost the unique insert: its twin already stored the message. Same
+      // generic reply shape as every other refusal — no internal detail.
+      return fail(409, 'CONFLICT', 'تعذّر إكمال الإجراء.')
     }
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }

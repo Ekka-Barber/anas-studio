@@ -117,7 +117,10 @@ create table finance.email_outbox (
     check (status in ('pending', 'sending', 'sent', 'uncertain', 'exhausted', 'suppressed')),
   delivery text check (delivery in ('delivered', 'delayed', 'bounced', 'complained', 'failed')),
   attempts integer not null default 0,
-  max_attempts integer not null default 5 check (max_attempts between 1 and 10),
+  -- The retry cap: a row is claimable only while attempts < max_attempts, so
+  -- every path (retry, uncertain, an expired lease) is bounded and converges
+  -- to "exhausted" instead of retrying forever.
+  max_attempts integer not null default 8 check (max_attempts between 1 and 10),
   next_at timestamptz not null default now(),
   lease_id uuid,
   lease_until timestamptz,
@@ -229,15 +232,25 @@ $$;
 -- 5. Dispatch, app_server only.
 --
 -- outbox_claim leases up to p_limit due rows, most important first:
+-- - a row is claimable only while attempts < max_attempts (8 by default):
+--   every path is bounded, and a row at the cap becomes "exhausted" with an
+--   audit_events row, never a silent forever-retry;
 -- - a lease that ran out while "sending" means the send may or may not have
---   reached the provider, so the row becomes "uncertain", never "pending";
+--   reached the provider, so the row becomes "uncertain" ("exhausted" at the
+--   cap), never "pending", and gets the same exponential backoff as a retry
+--   (2^attempts minutes, capped at 60) so it converges instead of being
+--   reclaimed every minute;
 -- - an uncertain row is retried only while its idempotency key is still
 --   inside the provider's 24-hour window (23 hours, for margin), so the retry
 --   cannot send twice; after that only an owner can replay it;
 -- - a suppressed recipient is never claimed; the row becomes "suppressed";
 -- - when the day's sends reach p_daily_quota - p_reserve, priority 2
---   (availability notices) waits and 0 and 1 still go.
-create function public.outbox_claim(p_limit integer, p_lease_seconds integer, p_daily_quota integer, p_reserve integer)
+--   (availability notices) waits and 0 and 1 still go; the month's sends stop
+--   at p_monthly_quota (Resend's free plan: 3,000/month).
+create function public.outbox_claim(
+  p_limit integer, p_lease_seconds integer, p_daily_quota integer, p_reserve integer,
+  p_monthly_quota integer default 3000
+)
 returns table (
   id bigint, lease_id uuid, kind text, recipient text, payload jsonb, idempotency_key uuid, attempts integer
 )
@@ -248,10 +261,21 @@ as $$
 declare
   v_lease uuid := gen_random_uuid();
   v_sent_today integer;
+  v_sent_month integer;
 begin
-  update finance.email_outbox o
-  set status = 'uncertain', lease_id = null, lease_until = null, updated_at = now()
-  where o.status = 'sending' and o.lease_until < now();
+  with expired as (
+    update finance.email_outbox o
+    set status = case when o.attempts >= o.max_attempts then 'exhausted' else 'uncertain' end,
+        next_at = now() + make_interval(mins => least(power(2, o.attempts), 60)::integer),
+        lease_id = null, lease_until = null, updated_at = now()
+    where o.status = 'sending' and o.lease_until < now()
+    returning o.id, o.status, o.attempts, o.last_error
+  )
+  insert into public.audit_events (action, entity, entity_id, summary)
+  select 'email.exhausted', 'email_outbox', e.id::text,
+         jsonb_build_object('status', 'sending', 'attempts', e.attempts, 'lastError', e.last_error)
+  from expired e
+  where e.status = 'exhausted';
 
   update finance.email_outbox o
   set status = 'suppressed', updated_at = now()
@@ -260,20 +284,23 @@ begin
       select 1 from finance.email_suppressions s where s.recipient_hash = finance.recipient_hash(o.recipient)
     );
 
-  select count(*) into v_sent_today
-  from finance.email_outbox o
-  where o.sent_at >= date_trunc('day', now());
+  select count(*) filter (where o.sent_at >= date_trunc('day', now())),
+         count(*) filter (where o.sent_at >= date_trunc('month', now()))
+  into v_sent_today, v_sent_month
+  from finance.email_outbox o;
 
   return query
   with due as (
     select o.id from finance.email_outbox o
     where o.next_at <= now()
+      and o.attempts < o.max_attempts
       and (
         o.status = 'pending'
         or (o.status = 'uncertain' and o.first_attempt_at > now() - interval '23 hours')
       )
       and (o.priority < 2 or v_sent_today < p_daily_quota - p_reserve)
       and v_sent_today < p_daily_quota
+      and v_sent_month < p_monthly_quota
     order by o.priority, o.next_at, o.id
     limit p_limit
     for update skip locked
@@ -294,7 +321,9 @@ $$;
 -- Records one send's outcome under its lease; a stale lease changes nothing.
 -- p_outcome: 'accepted' (the provider took it), 'retry' (a transient error:
 -- backoff, then exhausted after max_attempts), 'permanent' (exhausted now),
--- 'uncertain' (the request may have reached the provider).
+-- 'uncertain' (the request may have reached the provider: backoff, then
+-- exhausted after max_attempts). Every exhaustion is terminal and is written
+-- to audit_events as 'email.exhausted'.
 create function public.outbox_result(
   p_id bigint, p_lease_id uuid, p_outcome text, p_provider_id text, p_error text
 )
@@ -315,9 +344,18 @@ begin
     set status = 'sent', sent_at = now(), provider_id = p_provider_id, last_error = null,
         lease_id = null, lease_until = null, updated_at = now()
     where id = p_id;
+  elsif p_outcome = 'uncertain' and o.attempts >= o.max_attempts then
+    update finance.email_outbox
+    set status = 'exhausted', last_error = left(p_error, 120),
+        lease_id = null, lease_until = null, updated_at = now()
+    where id = p_id;
+    insert into public.audit_events (action, entity, entity_id, summary)
+    values ('email.exhausted', 'email_outbox', p_id::text,
+            jsonb_build_object('status', 'uncertain', 'attempts', o.attempts, 'lastError', left(p_error, 120)));
   elsif p_outcome = 'uncertain' then
     update finance.email_outbox
-    set status = 'uncertain', last_error = left(p_error, 120), next_at = now() + interval '5 minutes',
+    set status = 'uncertain', last_error = left(p_error, 120),
+        next_at = now() + make_interval(mins => least(power(2, o.attempts), 60)::integer),
         lease_id = null, lease_until = null, updated_at = now()
     where id = p_id;
   elsif p_outcome = 'retry' and o.attempts < o.max_attempts then
@@ -331,6 +369,9 @@ begin
     set status = 'exhausted', last_error = left(p_error, 120),
         lease_id = null, lease_until = null, updated_at = now()
     where id = p_id;
+    insert into public.audit_events (action, entity, entity_id, summary)
+    values ('email.exhausted', 'email_outbox', p_id::text,
+            jsonb_build_object('status', p_outcome, 'attempts', o.attempts, 'lastError', left(p_error, 120)));
   else
     raise exception 'Unknown outcome.' using errcode = 'invalid_parameter_value';
   end if;
@@ -338,12 +379,16 @@ begin
 end
 $$;
 
--- A verified provider event, recorded once. Bounces, complaints and provider
--- suppressions suppress the recipient for every sender; a later "delivered"
--- never clears that, and never overwrites a bounce or complaint on the row.
+-- A verified provider event, recorded once. Complaints and provider
+-- suppressions suppress the recipient for every sender. A bounce suppresses
+-- only when its type is missing or hard/permanent (case-insensitive, from the
+-- webhook's `p_bounce_type` argument or the evidence `bounceType` key): a
+-- soft/transient bounce only records the
+-- event, because the address may deliver later. A later "delivered" never
+-- clears a suppression, and never overwrites a bounce or complaint on the row.
 create function public.email_event_record(
   p_event_id text, p_type text, p_provider_message_id text, p_recipient text,
-  p_occurred_at timestamptz, p_evidence jsonb
+  p_occurred_at timestamptz, p_evidence jsonb, p_bounce_type text default null
 )
 returns text
 language plpgsql
@@ -352,17 +397,28 @@ set search_path = ''
 as $$
 declare
   v_hash text := case when p_recipient is null then null else finance.recipient_hash(p_recipient) end;
+  v_evidence jsonb := coalesce(p_evidence, '{}'::jsonb);
+  v_bounce_type text := coalesce(
+    nullif(lower(btrim(v_evidence->>'bounceType')), ''),
+    nullif(lower(btrim(p_bounce_type)), '')
+  );
   v_delivery text;
 begin
   insert into finance.email_delivery_events
     (provider_event_id, provider_message_id, type, recipient_hash, occurred_at, evidence)
-  values (p_event_id, p_provider_message_id, p_type, v_hash, p_occurred_at, coalesce(p_evidence, '{}'::jsonb))
+  values (p_event_id, p_provider_message_id, p_type, v_hash, p_occurred_at, v_evidence)
   on conflict (provider_event_id) do nothing;
   if not found then
     return 'duplicate';
   end if;
 
-  if v_hash is not null and p_type in ('email.bounced', 'email.complained', 'email.suppressed') then
+  if v_hash is not null and (
+    p_type in ('email.complained', 'email.suppressed')
+    or (
+      p_type = 'email.bounced'
+      and coalesce(v_bounce_type, '') in ('', 'hard', 'permanent')
+    )
+  ) then
     insert into finance.email_suppressions (recipient_hash, reason)
     values (
       v_hash,
@@ -507,9 +563,9 @@ $$;
 -- 7. Grants.
 revoke all on function public.contacts_touch() from public, anon, authenticated;
 revoke all on function public.contact_submit(text, text, text, text, uuid, text) from public, anon, authenticated;
-revoke all on function public.outbox_claim(integer, integer, integer, integer) from public, anon, authenticated;
+revoke all on function public.outbox_claim(integer, integer, integer, integer, integer) from public, anon, authenticated;
 revoke all on function public.outbox_result(bigint, uuid, text, text, text) from public, anon, authenticated;
-revoke all on function public.email_event_record(text, text, text, text, timestamptz, jsonb) from public, anon, authenticated;
+revoke all on function public.email_event_record(text, text, text, text, timestamptz, jsonb, text) from public, anon, authenticated;
 revoke all on function public.job_run_record(text, text, jsonb, timestamptz) from public, anon, authenticated;
 revoke all on function public.contact_for_notice(uuid) from public, anon, authenticated;
 revoke all on function public.outbox_attention() from public, anon;
@@ -517,9 +573,9 @@ revoke all on function public.outbox_replay(bigint, boolean) from public, anon;
 revoke all on function public.job_runs_latest() from public, anon;
 
 grant execute on function public.contact_submit(text, text, text, text, uuid, text) to app_server;
-grant execute on function public.outbox_claim(integer, integer, integer, integer) to app_server;
+grant execute on function public.outbox_claim(integer, integer, integer, integer, integer) to app_server;
 grant execute on function public.outbox_result(bigint, uuid, text, text, text) to app_server;
-grant execute on function public.email_event_record(text, text, text, text, timestamptz, jsonb) to app_server;
+grant execute on function public.email_event_record(text, text, text, text, timestamptz, jsonb, text) to app_server;
 grant execute on function public.job_run_record(text, text, jsonb, timestamptz) to app_server;
 grant execute on function public.contact_for_notice(uuid) to app_server;
 grant execute on function public.outbox_attention() to authenticated;

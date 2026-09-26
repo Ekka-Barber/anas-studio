@@ -23,6 +23,13 @@ const JOB_STATUS_LABEL: Record<string, string> = { ok: 'سليم', partial: 'ج�
 /** Jobs that exist in code today; a job with no run yet shows «لم يعمل بعد». */
 const KNOWN_JOBS = ['email_outbox'] as const
 
+/** A last completion older than 10 minutes means the cron probably died and
+ * the recorded «سليم» is stale (M4). */
+const STALE_JOB_MS = 10 * 60 * 1000
+/** `outbox_attention()` caps its result at 200 rows (its SQL limit), so once
+ * the count reaches the cap it renders «200+» instead of a silent 200 (L6). */
+const ATTENTION_CAP = 200
+
 const LOADING: Count = { state: 'loading' }
 
 interface JobRun {
@@ -37,6 +44,13 @@ function countText(count: Count): string {
   return formatNumber(count.value)
 }
 
+/** True when the job's last completion is older than STALE_JOB_MS — compared
+ * client-side from the run's own finished_at (M4). */
+function isStaleRun(run: JobRun): boolean {
+  const finished = Date.parse(run.finished_at)
+  return !Number.isNaN(finished) && Date.now() - finished > STALE_JOB_MS
+}
+
 export function AdminHome() {
   const [own, setOwn] = useState<{ display_name: string; role: StaffRole } | null>(null)
   const [inboxNew, setInboxNew] = useState<Count>(LOADING)
@@ -48,6 +62,11 @@ export function AdminHome() {
   const [visits, setVisits] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'unavailable' } | { state: 'ok'; value: number }
   >({ state: 'loading' })
+  // L8: the owner home states «المتجر غير مُهيأ» like the stats screen, from
+  // the same `/api/admin/stats` response's commerce status.
+  const [store, setStore] = useState<{ state: 'loading' } | { state: 'not-configured' } | { state: 'ok' }>({
+    state: 'loading',
+  })
 
   useEffect(() => {
     let active = true
@@ -91,9 +110,12 @@ export function AdminHome() {
           setVisits({ state: 'unavailable' })
           return
         }
-        const body = (await response.json()) as { data?: { analytics?: { status: string; visits?: number } } }
+        const body = (await response.json()) as {
+          data?: { analytics?: { status: string; visits?: number }; commerce?: { status?: string } }
+        }
         const analytics = body.data?.analytics
         setVisits(analytics?.status === 'ok' ? { state: 'ok', value: analytics.visits ?? 0 } : { state: 'unavailable' })
+        setStore(body.data?.commerce?.status === 'not_configured' ? { state: 'not-configured' } : { state: 'ok' })
       } catch {
         if (active) setVisits({ state: 'error' })
       }
@@ -125,7 +147,7 @@ export function AdminHome() {
       <h1>لوحة أنس</h1>
       {own && (
         <p>
-          مرحبًا {own.display_name} — {ROLE_LABEL[own.role] ?? own.role}
+          مرحبًا <bdi>{own.display_name}</bdi> — {ROLE_LABEL[own.role] ?? own.role}
         </p>
       )}
 
@@ -140,7 +162,12 @@ export function AdminHome() {
       {(own?.role === 'owner' || own?.role === 'operations') && (
         <section>
           <h2>البريد</h2>
-          <p>مشكلات تحتاج انتباهًا: {countText(emailProblems)}</p>
+          <p>
+            مشكلات تحتاج انتباهًا:{' '}
+            {emailProblems.state === 'ok' && emailProblems.value >= ATTENTION_CAP
+              ? `${ATTENTION_CAP}+`
+              : countText(emailProblems)}
+          </p>
           <Link href="/admin/email">فتح البريد</Link>
         </section>
       )}
@@ -157,7 +184,15 @@ export function AdminHome() {
                 return (
                   <li key={job}>
                     {JOB_LABEL[job] ?? job}:{' '}
-                    {run ? `${JOB_STATUS_LABEL[run.status] ?? run.status} — ${formatRiyadh(run.finished_at)}` : 'لم يعمل بعد'}
+                    {run ? (
+                      isStaleRun(run) ? (
+                        <span className={styles.error}>آخر تشغيل قديم — تأكد من الجدولة</span>
+                      ) : (
+                        `${JOB_STATUS_LABEL[run.status] ?? run.status} — ${formatRiyadh(run.finished_at)}`
+                      )
+                    ) : (
+                      'لم يعمل بعد'
+                    )}
                   </li>
                 )
               })}
@@ -177,6 +212,7 @@ export function AdminHome() {
       {own?.role === 'owner' && (
         <section>
           <h2>الإحصاءات</h2>
+          {store.state === 'not-configured' && <p className={styles.message}>المتجر غير مُهيأ — يبدأ مع المتجر.</p>}
           <p>
             زيارات آخر 7 أيام:{' '}
             {visits.state === 'ok' ? formatNumber(visits.value) : visits.state === 'loading' ? 'يحمّل...' : 'غير متاحة'}

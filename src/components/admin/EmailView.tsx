@@ -32,6 +32,9 @@ const KIND_LABEL: Record<string, string> = { receipt: 'إيصال', contact_noti
 const STATUS_LABEL: Record<string, string> = { exhausted: 'مستنفد', uncertain: 'غير مؤكد', suppressed: 'محظور' }
 const DELIVERY_LABEL: Record<string, string> = { bounced: 'ارتد', complained: 'شكوى', failed: 'فشل' }
 const SUPPRESSED_MESSAGE = 'المستلم محظور بعد ارتداد أو شكوى؛ لا يمكن الإرسال إليه.'
+/** `outbox_replay()` refuses anything but exhausted/uncertain rows (the
+ * suppressed are hard-blocked), so the replay button only appears for them. */
+const REPLAYABLE_STATUSES = new Set(['exhausted', 'uncertain'])
 
 export function EmailView() {
   const [rows, setRows] = useState<AttentionRow[] | null>(null)
@@ -95,12 +98,19 @@ export function EmailView() {
         قبول المزوّد للرسالة لا يعني وصولها؛ الوصول يتأكد فقط بحدث التسليم من المزوّد.
       </p>
 
-      {loadError && <p className={styles.error}>تعذّر تحميل مشكلات البريد.</p>}
+      {loadError && (
+        <div className={styles.row}>
+          <p className={styles.error}>تعذّر تحميل مشكلات البريد.</p>
+          <button type="button" className={styles.buttonSecondary} onClick={() => void load()}>
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
       {!loadError && rows !== null && rows.length === 0 && <p className={styles.message}>لا توجد مشكلات في البريد.</p>}
 
       {rows !== null && rows.length > 0 && (
         <div className={styles.tableWrap}>
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.responsive}`}>
             <thead>
               <tr>
                 <th>المستلم</th>
@@ -116,22 +126,37 @@ export function EmailView() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td dir="auto">{row.recipient}</td>
-                  <td>{KIND_LABEL[row.kind] ?? row.kind}</td>
-                  <td>{STATUS_LABEL[row.status] ?? row.status}</td>
-                  <td>{row.delivery ? (DELIVERY_LABEL[row.delivery] ?? row.delivery) : '—'}</td>
-                  <td>{row.attempts}</td>
-                  <td dir="auto">{row.last_error ?? '—'}</td>
-                  <td>{row.first_attempt_at ? formatRiyadh(row.first_attempt_at) : '—'}</td>
-                  <td>
-                    <button
-                      type="button"
-                      className={styles.buttonSecondary}
-                      disabled={busyId === row.id}
-                      onClick={() => startReplay(row)}
-                    >
-                      إعادة الإرسال
-                    </button>
+                  <td dir="auto" data-label="المستلم" className={styles.cellEllipsis} title={row.recipient}>
+                    {row.recipient}
+                  </td>
+                  <td data-label="النوع">{KIND_LABEL[row.kind] ?? row.kind}</td>
+                  <td data-label="الحالة">{STATUS_LABEL[row.status] ?? row.status}</td>
+                  <td data-label="التسليم">{row.delivery ? (DELIVERY_LABEL[row.delivery] ?? row.delivery) : '—'}</td>
+                  <td data-label="المحاولات">{row.attempts}</td>
+                  <td
+                    dir="auto"
+                    data-label="آخر خطأ"
+                    className={styles.cellEllipsis}
+                    title={row.last_error ?? undefined}
+                  >
+                    {row.last_error ?? '—'}
+                  </td>
+                  <td data-label="تاريخ المحاولة الأولى">
+                    {row.first_attempt_at ? formatRiyadh(row.first_attempt_at) : '—'}
+                  </td>
+                  <td data-label="إجراء">
+                    {REPLAYABLE_STATUSES.has(row.status) ? (
+                      <button
+                        type="button"
+                        className={styles.buttonSecondary}
+                        disabled={busyId === row.id}
+                        onClick={() => startReplay(row)}
+                      >
+                        إعادة الإرسال
+                      </button>
+                    ) : (
+                      '—'
+                    )}
                     {rowError?.id === row.id && <p className={styles.error}>{rowError.message}</p>}
                   </td>
                 </tr>

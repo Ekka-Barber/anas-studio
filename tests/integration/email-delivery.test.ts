@@ -174,14 +174,22 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
   })
 
-  /** Parks every currently due row so a claim sees only this test's fixture,
-   * and moves this suite's earlier synthetic "sent" quota rows out of today
-   * so the free-plan daily quota in `outbox_claim` is not already consumed. */
+  /** Parks every foreign due row so a claim sees only this test's fixture,
+   * removes this suite's own unfinished leftovers (an earlier test's or a
+   * crashed run's backed-off row can never be claimed by a later test), and
+   * moves the outbox suite's synthetic "sent" quota rows out of today so the
+   * free-plan daily quota in `outbox_claim` is not already consumed. This
+   * suite's own rows are only ever deleted, never rewritten. */
   async function parkOthers(): Promise<void> {
     await postgres.query(
       `update finance.email_outbox set next_at = now() + interval '1 day',
          first_attempt_at = now() - interval '2 days'
-       where status in ('pending', 'uncertain', 'sending')`,
+       where dedupe_key not like $1 and status in ('pending', 'uncertain', 'sending')`,
+      [`${PREFIX}%`],
+    )
+    await postgres.query(
+      `delete from finance.email_outbox where dedupe_key like $1 and status in ('pending', 'uncertain', 'sending')`,
+      [`${PREFIX}%`],
     )
     await postgres.query(
       `update finance.email_outbox set sent_at = now() - interval '2 days'
