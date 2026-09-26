@@ -7,7 +7,7 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |
-| Last product commit | `c789418`: timezone-independent webhook timestamps + local verification of the cloud pass (db 93, unit 215, e2e 22/22, screenshots reviewed). Before it `bc3b915`…`2325466`: the cloud audit of `efa0e45` (see the process note); `efa0e45` audit fix pass 2; `a324577` fix pass 1. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
+| Last product commit | `0086cff`: timezone-independent webhook timestamps + local verification of the cloud pass (db 93, unit 215, e2e 22/22, screenshots reviewed). Before it `bc3b915`…`2325466`: the cloud audit of `efa0e45` (see the process note); `efa0e45` audit fix pass 2; `a324577` fix pass 1. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
 | P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
