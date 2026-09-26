@@ -437,3 +437,27 @@ Pending local verification (after pulling 87ebd1c):
    every card label and its Latin value, labels still on the right in Arabic rows.
 2. Linux build:worker and the cron CPU measurement (I30), production-build screenshots
    (unchanged from the earlier list).
+
+Local verification of 87ebd1c (D18) — run 2026-09-26, the pending list above:
+
+1. Owner-operations spec: 17/17 passed on `next dev` via
+   PLAYWRIGHT_BASE_URL=http://localhost:3000, screenshots rewritten (17:00 local).
+   Two environment findings cost time first and are NOT product regressions:
+   - Next 16 dev blocks cross-origin dev resources from "127.0.0.1" (allowedDevOrigins):
+     the HMR socket is refused and the admin sign-in form never hydrates — clicking
+     «أرسل الرمز» becomes a native GET submit and the page reloads. Browsing by
+     http://localhost:3000 avoids it. Round 3 should add 127.0.0.1 to allowedDevOrigins
+     or pin the localhost recipe in docs/operations.md.
+   - Local Supabase auth caps OTP emails at 60/hour (config.toml email_sent); a day of
+     e2e runs exhausts it and sign-in shows «حاول بعد قليل.». A stack stop/start resets
+     the in-memory counter.
+2. D18 verified from the running app, not just the source: a throwaway probe spec (since
+   deleted) signed in, opened /admin/email at 360 and read getComputedStyle for every
+   card label's ::before — all serve '⁧label:⁩ ' (FSI-isolated label, colon, trailing
+   space; e.g. المستلم, آخر خطأ, البريد). An independent vision pass over 3x crops saw
+   the gap on «آخر خطأ: HTTP_422»; its «المستلم glued» readings contradict the computed
+   content and vary row-to-row under one identical rule, so they are recorded as image
+   compression noise, not a defect.
+3. The e2e runs overwrote the accepted P00 playwright report a fourth time; restored with
+   `git checkout --` and the untracked run dirs cleaned. H2 stays the first round-3 task.
+   next-env.d.ts churn reverted. settings screenshots were unchanged (no cards there).
