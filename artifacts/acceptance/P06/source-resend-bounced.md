@@ -2,6 +2,14 @@
 Fetched 2026-09-26 from https://resend.com/docs/webhooks/emails/bounced.md
 (curated excerpt replaces the deleted page-fetch caches; see the L10 note.)
 
+Auditor note (2026-09-26, cloud audit D14): this is a paraphrase, not a
+verbatim copy — the example payload's `created_at` (2026-11-22) postdates the
+fetch date, so it was edited. The page could not be re-fetched from the cloud
+session (resend.com is blocked by its egress policy). The suppression rule
+does not depend on the example: only an explicit `Temporary` (or
+soft/transient) bounce skips suppression, so a wrong vocabulary can only
+over-suppress, never let a hard bounce through.
+
 Event triggered whenever the recipient's mail server **permanently rejected
 the email**.
 

@@ -48,7 +48,7 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I31 — Append-only `audit_events` blocks deleting auth users
 
-**Package:** P06 (recorded 2026-09-26 from the independent audit, L9). During round 1's local run the worker deleted 710 `auth.users` rows as superuser and found that the append-only `audit_events` trigger refuses to delete any auth user who has audit rows — a deletion a privacy request ("delete my account") must be able to perform. The round 3 privacy runbook must define the path: either the runbook archives/pseudonymizes instead of deleting, or the trigger gains an owner-executable purge procedure with its own audit record. Nothing in the current plan covers it; `docs/operations.md` should state the chosen path once decided.
+**Package:** P06 (recorded 2026-09-26 from the independent audit, L9). During round 2's local run the worker deleted 710 `auth.users` rows as superuser and found that the append-only `audit_events` trigger refuses to delete any auth user who has audit rows — a deletion a privacy request ("delete my account") must be able to perform. The round 3 privacy runbook must define the path: either the runbook archives/pseudonymizes instead of deleting, or the trigger gains an owner-executable purge procedure with its own audit record. Nothing in the current plan covers it; `docs/operations.md` should state the chosen path once decided.
 
 ## Small UI items for when design reopens
 
