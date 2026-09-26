@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { describe, expect, it } from 'vitest'
 
 import { schemaFor } from '../../src/admin/collections'
@@ -34,6 +36,12 @@ describe('schemaFor: rejects malformed data', () => {
     const bad = structuredClone(content.rooms.started)
     bad.vignette.id = 'not-a-real-image-id'
     expect(schemaFor('rooms', 'started').safeParse(bad).success).toBe(false)
+  })
+
+  it('accepts a media-library id for an image field (P05)', () => {
+    const doc = structuredClone(content.rooms.started)
+    doc.vignette.id = randomUUID()
+    expect(schemaFor('rooms', 'started').safeParse(doc).success).toBe(true)
   })
 
   it('rejects an unknown video id', () => {

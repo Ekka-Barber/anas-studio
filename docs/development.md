@@ -155,6 +155,42 @@ for a future Riyadh time, unscheduled, and (for `posts`/`taxonomies`) archived.
 (`src/app/api/preview/`), for rooms and `site_settings` only. "سجل النسخ" lists
 every saved version and can restore an older one as a new version.
 
+## Media library (P05)
+
+Images live in two R2 buckets, not Supabase Storage, and no server-side
+processing ever touches them (D15: no Sharp, no Cloudflare Images, no WASM
+codec in `src/`; Sharp is a devDependency for tests and scripts only):
+
+- `R2` (private): `originals/<id>` — the uploaded original, never served — and
+  `quarantine/<id>/<width>.webp`, where derivatives wait until
+  `POST /api/media/complete` verifies every part (magic bytes, type,
+  dimensions, exact byte counts) before promotion.
+- `MEDIA_PUBLIC` (public): `m/<id>/<width>.webp` — the verified derivatives.
+
+Locally both are wrangler's simulated buckets, so `pnpm dev` exercises the
+same binding path as the Worker. The `MEDIA_PUBLIC` bucket
+(`anas-studio-media-public-test`) does not exist in Cloudflare yet; the
+owner's P11 deploy step creates it. No `wrangler` remote command is used
+before that.
+
+`GET /media/<...>` is a local stand-in for the production media origin: it
+serves only `m/<uuid>/<width>.webp` from `MEDIA_PUBLIC`, with `nosniff` and a
+sandboxing CSP. When `NEXT_PUBLIC_MEDIA_ORIGIN` is set (the custom domain on
+the public bucket, configured in P11), the route stops answering — production
+serves media from that isolated origin instead. The variable is read through
+the literal `process.env.NEXT_PUBLIC_MEDIA_ORIGIN` access
+(`MEDIA_ORIGIN` in `src/lib/media-ref.ts`), so Next inlines it **at build
+time** in both server and client bundles: unset at build, the local stand-in
+`/media` route is what the build serves. A production build must therefore be
+made with the real origin set.
+
+Uploads go through `POST /api/media/upload` (a 5-minute server-owned ticket,
+then `PUT ?ticket=<uuid>&part=<original|wNNN>` per part) and
+`POST /api/media/complete`; the ticket id becomes the media id. Public pages
+resolve media ids to derivatives through `src/lib/content.ts`, and publishing
+a document that references a deleted library image is refused. Staff-facing
+rules are in `docs/media-rights.md`.
+
 ## Running the application
 
 `pnpm dev` runs Next.js with the Cloudflare bindings simulated by wrangler, so

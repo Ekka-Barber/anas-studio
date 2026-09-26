@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isMediaId } from '../lib/media-ref'
+
 import { richTextSchema, type RichTextDocument } from './richtext'
 
 import imageManifestRaw from '../../public/images/manifest.json'
@@ -79,7 +81,11 @@ export type ShapeValue<Fields extends readonly Field[]> = {
 const imageManifest = imageManifestRaw as unknown as Record<string, unknown>
 const videoManifest = (mediaManifestRaw as unknown as { videos: Record<string, unknown> }).videos
 
-const imageIdSchema = z.string().refine((id) => id in imageManifest, { message: 'معرّف صورة غير معروف.' })
+// P05: an image field accepts a manifest id (the committed originals) or a
+// media-library id (uploaded through /api/media). Videos stay manifest-only.
+const imageIdSchema = z
+  .string()
+  .refine((id) => id in imageManifest || isMediaId(id), { message: 'معرّف صورة غير معروف.' })
 const videoIdSchema = z.string().refine((id) => id in videoManifest, { message: 'معرّف فيديو غير معروف.' })
 const slugSchema = z.string().regex(/^[a-z0-9-]+$/, { message: 'يجب أن يتكوّن من حروف لاتينية صغيرة وأرقام وشرطات.' })
 const isoDateSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), { message: 'تاريخ غير صالح.' })

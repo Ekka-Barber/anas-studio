@@ -1,9 +1,15 @@
 import imageManifestRaw from '../../../public/images/manifest.json'
+import { isMediaId, parseMediaRef } from '../../lib/media-ref'
 
 /**
  * `<picture>`/`srcset` from the widths `scripts/prepare-media.mjs` actually
  * generated (never upscaled past the source), with explicit width/height on
  * the fallback `<img>` so the layout never shifts while it loads.
+ *
+ * P05: a `media|…` reference (a resolved media-library id, substituted by
+ * `src/lib/content.ts`) renders the same structure from the media origin; a
+ * bare media-library id is an unresolved image and renders nothing. Manifest
+ * ids render exactly as before.
  *
  * Reads the image manifest directly rather than via `@/lib/content`: Picture
  * is rendered from client components (Gallery), and any value-import from
@@ -37,6 +43,26 @@ export function Picture({
   className?: string
   loading?: 'lazy' | 'eager'
 }) {
+  const mediaRef = parseMediaRef(id)
+  if (mediaRef) {
+    const srcSet = mediaRef.widths.map((w) => `${mediaRef.base}/${w}.webp ${w}w`).join(', ')
+    const largest = Math.max(...mediaRef.widths)
+    return (
+      <picture className={className}>
+        <source type="image/webp" srcSet={srcSet} sizes={sizes} />
+        <img
+          src={`${mediaRef.base}/${largest}.webp`}
+          width={mediaRef.width}
+          height={mediaRef.height}
+          alt={alt}
+          loading={loading}
+        />
+      </picture>
+    )
+  }
+  // An unresolved media-library id: nothing to render (never a broken img).
+  if (isMediaId(id)) return null
+
   const entry = getImage(id)
   const derivatives = entry.derivatives ?? []
   const largest = derivatives[derivatives.length - 1]

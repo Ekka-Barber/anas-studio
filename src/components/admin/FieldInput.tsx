@@ -5,17 +5,169 @@
  * field type in `src/admin/fields.ts` is handled here, recursively for
  * `group` and `list`. Values flow up through `onChange`; the parent
  * (`CollectionForm`) owns the document state.
+ *
+ * P05 round 2: an `image` field accepts a manifest id (typed, with the
+ * datalist) or a media-library id chosen through `MediaPicker`; a chosen
+ * library id shows a small preview of its 360 derivative instead of the raw
+ * UUID. Videos are unchanged (manifest ids only).
  */
+import { useEffect, useState } from 'react'
+
 import { type Field } from '@/admin/fields'
+import { isMediaId, mediaUrl } from '../../lib/media-ref'
 
 import imageManifestRaw from '../../../public/images/manifest.json'
 import mediaManifestRaw from '../../../public/media/manifest.json'
 
 import styles from './admin.module.css'
+import { fetchMediaRow, smallestDerivative } from './MediaLibrary'
+import { MediaPicker } from './MediaPicker'
 import { RichTextEditor } from './RichTextEditor'
 
 const imageIds = Object.keys(imageManifestRaw as Record<string, unknown>)
 const videoIds = Object.keys((mediaManifestRaw as { videos: Record<string, unknown> }).videos)
+
+interface ImagePreview {
+  name: string
+  src: string
+  alt: string
+  width: number
+  height: number
+}
+
+/** An `image` field: manifest input and datalist, or a picked library image. */
+function ImageFieldInput({
+  field,
+  value,
+  onChange,
+  id,
+}: {
+  field: Field
+  value: unknown
+  onChange: (value: unknown) => void
+  id: string
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  // Only the fetch result for the value currently in the field counts, so a
+  // stale fetch can never show the wrong image. `preview: null` means the
+  // fetch finished with nothing (unreadable id) and the raw input shows.
+  const [fetched, setFetched] = useState<{ id: string; preview: ImagePreview | null } | null>(null)
+  const clearable = field.nullable || field.required === false
+  const emptyValue = field.nullable ? null : undefined
+  const isId = typeof value === 'string' && isMediaId(value)
+  const current = isId && fetched?.id === value ? fetched : null
+
+  useEffect(() => {
+    if (!isId) return
+    const mediaId = value
+    let active = true
+    void fetchMediaRow(mediaId).then((row) => {
+      if (!active) return
+      if (!row) {
+        setFetched({ id: mediaId, preview: null })
+        return
+      }
+      const derivative = row.derivatives.find((candidate) => candidate.width === 360) ?? smallestDerivative(row)
+      setFetched({
+        id: mediaId,
+        preview: {
+          name: row.name,
+          src: mediaUrl(derivative.key),
+          alt: row.alt_ar,
+          width: derivative.width,
+          height: derivative.height,
+        },
+      })
+    })
+    return () => {
+      active = false
+    }
+  }, [value, isId])
+
+  if (clearable && (value === null || value === undefined)) {
+    return (
+      <div className={styles.field}>
+        <span className={styles.label}>{field.label}</span>
+        <button type="button" className={styles.buttonSecondary} onClick={() => onChange('')}>
+          إضافة صورة
+        </button>
+      </div>
+    )
+  }
+
+  // A library id shows a short loading state, then its preview — the raw
+  // UUID input only appears if the row cannot be read at all.
+  if (isId && current === null) {
+    return (
+      <div className={styles.field}>
+        <span className={styles.label}>{field.label}</span>
+        <p className={styles.message}>يحمّل...</p>
+      </div>
+    )
+  }
+
+  if (isId && current?.preview) {
+    return (
+      <div className={styles.field}>
+        <span className={styles.label}>{field.label}</span>
+        <div className={styles.previewRow}>
+          <img
+            className={styles.previewImg}
+            src={current.preview.src}
+            alt={current.preview.alt}
+            width={current.preview.width}
+            height={current.preview.height}
+            loading="lazy"
+          />
+          <span>{current.preview.name}</span>
+        </div>
+        <div className={styles.row}>
+          <button type="button" className={styles.buttonSecondary} onClick={() => setPickerOpen(true)}>
+            تغيير
+          </button>
+          {clearable && (
+            <button type="button" className={styles.buttonSecondary} onClick={() => onChange(emptyValue)}>
+              إزالة
+            </button>
+          )}
+        </div>
+        <MediaPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onChoose={onChange} />
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {field.label}
+      </label>
+      <input
+        id={id}
+        className={styles.input}
+        list={`${id}-list`}
+        type="text"
+        value={typeof value === 'string' ? value : ''}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <datalist id={`${id}-list`}>
+        {imageIds.map((optionId) => (
+          <option key={optionId} value={optionId} />
+        ))}
+      </datalist>
+      <div className={styles.row}>
+        <button type="button" className={styles.buttonSecondary} onClick={() => setPickerOpen(true)}>
+          اختر من المكتبة
+        </button>
+        {clearable && (
+          <button type="button" className={styles.buttonSecondary} onClick={() => onChange(emptyValue)}>
+            إزالة
+          </button>
+        )}
+      </div>
+      <MediaPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onChoose={onChange} />
+    </div>
+  )
+}
 
 export interface Taxonomy {
   slug: string
@@ -161,9 +313,9 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
         </div>
       )
     case 'image':
+      return <ImageFieldInput field={field} value={value} onChange={onChange} id={id} />
     case 'video': {
       const listId = `${id}-list`
-      const ids = field.type === 'image' ? imageIds : videoIds
       const clearable = field.nullable || field.required === false
       const emptyValue = field.nullable ? null : undefined
       if (clearable && (value === null || value === undefined)) {
@@ -190,7 +342,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
             onChange={(event) => onChange(event.target.value)}
           />
           <datalist id={listId}>
-            {ids.map((optionId) => (
+            {videoIds.map((optionId) => (
               <option key={optionId} value={optionId} />
             ))}
           </datalist>

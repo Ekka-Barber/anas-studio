@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
   // per `node_modules/next/dist/server/lib/app-info-log.js`). This repository
   // already has its own AGENTS.md/CLAUDE.md as the plan of record.
   agentRules: false,
+  // Server actions take the staff access token as an argument, and Next
+  // logs every server-function call with its arguments by default, which put
+  // tokens into `next dev` logs and acceptance evidence (P05 audit).
+  logging: { serverFunctions: false },
   // Unmatched URLs have no single root layout to render inside (each route
   // group has its own), so `src/app/global-not-found.tsx` serves them (I27).
   experimental: { globalNotFound: true },

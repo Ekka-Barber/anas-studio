@@ -1,0 +1,14 @@
+run 2026-09-26T00:30:04.174Z
+360px: scrollWidth - innerWidth = 0 OK
+1440px: scrollWidth - innerWidth = 0 OK
+run 2026-09-26T00:41:19.529Z
+run 2026-09-26T00:45:27.096Z
+run 2026-09-26T00:49:04.056Z
+360px: scrollWidth - innerWidth = 0 OK
+1440px: scrollWidth - innerWidth = 0 OK
+run 2026-09-26T00:51:20.540Z
+360px: scrollWidth - innerWidth = 0 OK
+1440px: scrollWidth - innerWidth = 0 OK
+run 2026-09-26T01:02:01.192Z
+360px: scrollWidth - innerWidth = 0 OK
+1440px: scrollWidth - innerWidth = 0 OK

@@ -6,6 +6,11 @@
  * fallback to `content/initial-content.json` — that file is only the import
  * source for `scripts/import-content.mjs` and a test fixture; a missing env
  * var, a missing document or invalid data throws.
+ *
+ * P05: after parsing, in the draft and the published path alike, media-library
+ * ids in the document are resolved against `media` and replaced with
+ * `formatMediaRef` strings; an unresolved id stays as it is and `<Picture>`
+ * renders it as nothing.
  */
 import { cookies, draftMode } from 'next/headers'
 import { cache } from 'react'
@@ -33,6 +38,7 @@ import {
 } from '../admin/collections'
 
 import { requireEnv } from './env'
+import { collectMediaIds, formatMediaRef, MEDIA_ORIGIN } from './media-ref'
 
 export type NavItem = z.infer<typeof navItemSchema>
 export type FooterContent = z.infer<typeof footerSchema>
@@ -87,7 +93,66 @@ async function fetchDraft<T>(collection: string, docId: string, schema: z.ZodTyp
   if (!response.ok) return null
   const rows = (await response.json()) as Array<{ data: unknown }>
   const parsed = rows[0] ? schema.safeParse(rows[0].data) : null
-  return parsed?.success ? parsed.data : null
+  return parsed?.success ? await resolveMedia(parsed.data, token) : null
+}
+
+/** A media row's derivatives, as `media_complete` recorded them. */
+interface MediaDerivative {
+  width: number
+  height: number
+}
+
+/**
+ * Replaces media-library ids in a parsed document with `formatMediaRef`
+ * strings (P05). Published documents resolve with the publishable key,
+ * cached and tagged `media`; drafts resolve with the preview token and are
+ * never cached. An id anon may not read (no published document references
+ * it) simply stays a bare string — an unreadable library is an error.
+ */
+async function resolveMedia<T>(data: T, token: string | undefined): Promise<T> {
+  const ids = collectMediaIds(data)
+  if (ids.length === 0) return data
+  const params = new URLSearchParams({ select: 'id,derivatives', id: `in.(${ids.join(',')})` })
+  const headers: Record<string, string> = { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {
+    headers,
+    ...(token
+      ? { cache: 'no-store' as const }
+      : { cache: 'force-cache' as const, next: { tags: ['media'] } }),
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to fetch media: ${response.status}`)
+  }
+  const rows = (await response.json()) as Array<{ id: string; derivatives: MediaDerivative[] }>
+  const byId = new Map(rows.map((row) => [row.id, row.derivatives]))
+  return replaceMediaIds(data, byId, MEDIA_ORIGIN)
+}
+
+/** Deep-walks `value`, swapping each resolved media id for its reference string. */
+function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]>, origin: string): T {
+  function walk(node: unknown): unknown {
+    if (typeof node === 'string') {
+      const derivatives = byId.get(node)
+      if (!derivatives || derivatives.length === 0) return node
+      const largestWidth = Math.max(...derivatives.map((d) => d.width))
+      const largest = derivatives.find((d) => d.width === largestWidth)!
+      return formatMediaRef({
+        base: `${origin}/m/${node}`,
+        width: largest.width,
+        height: largest.height,
+        widths: derivatives.map((d) => d.width).sort((a, b) => a - b),
+      })
+    }
+    if (Array.isArray(node)) return node.map(walk)
+    if (node !== null && typeof node === 'object') {
+      const out: Record<string, unknown> = {}
+      for (const [key, item] of Object.entries(node)) out[key] = walk(item)
+      return out
+    }
+    return node
+  }
+  return walk(value) as T
 }
 
 async function fetchPublished<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T> {
@@ -110,7 +175,7 @@ async function fetchPublished<T>(collection: string, docId: string, schema: z.Zo
   if (!row) {
     throw new Error(`Missing published document: ${collection}/${docId}`)
   }
-  return schema.parse(row.data)
+  return resolveMedia(schema.parse(row.data), undefined)
 }
 
 /** Drops items a hideable list's admin control marked `hidden: true`. */

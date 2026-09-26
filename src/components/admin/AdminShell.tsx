@@ -79,6 +79,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <nav className={styles.nav}>
         <Link href="/admin">الرئيسية</Link>
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/content">المحتوى</Link>}
+        {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/media">المكتبة</Link>}
         <Link href="/admin/security">الأمان</Link>
         {gate.role === 'owner' && <Link href="/admin/team">الفريق</Link>}
         <button type="button" className={styles.buttonSecondary} onClick={signOut}>

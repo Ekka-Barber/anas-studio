@@ -1,9 +1,21 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import fixture from '../../content/initial-content.json'
+
+// `src/lib/content.ts` reads next/headers for preview; outside a request that
+// throws, which the loaders treat as preview off (the published path).
+vi.mock('next/headers', () => ({
+  draftMode: async () => {
+    throw new Error('outside a request')
+  },
+  cookies: async () => {
+    throw new Error('outside a request')
+  },
+}))
 
 // The database is filled from this file by scripts/import-content.mjs, and
 // tests/integration/content.test.ts proves the loaders return it unchanged, so
@@ -53,5 +65,52 @@ describe('content verbatim against source', () => {
   it('على الرف: the moonlight cup story and thura slogan match the source', () => {
     expect(source).toContain(shelf.items.moonlightCup.paragraphs[0])
     expect(source).toContain(shelf.items.thura.slogan.replace(/^«|»\.?$/g, ''))
+  })
+})
+
+describe('media references in the published path (P05)', () => {
+  const mediaId = randomUUID()
+  const unresolvedId = randomUUID()
+
+  beforeAll(() => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.local'
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'test-key'
+    delete process.env.NEXT_PUBLIC_MEDIA_ORIGIN
+  })
+  afterAll(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('replaces a media id with its reference and leaves an unresolved id as it is', async () => {
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes('/published_documents')) {
+        const nav = fixture.nav.map((item, index) =>
+          index === 0 ? { ...item, label: mediaId } : index === 1 ? { ...item, label: unresolvedId } : item,
+        )
+        return new Response(JSON.stringify([{ data: { nav, footer: fixture.footer, home: fixture.home } }]), {
+          status: 200,
+        })
+      }
+      if (url.includes('/media?')) {
+        return new Response(
+          JSON.stringify([
+            { id: mediaId, derivatives: [{ width: 360, height: 240 }, { width: 720, height: 480 }] },
+          ]),
+          { status: 200 },
+        )
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { getNav } = await import('../../src/lib/content')
+    const nav = await getNav()
+    expect(nav[0]?.label).toBe(`media|/media/m/${mediaId}|720x480|360,720`)
+    expect(nav[1]?.label).toBe(unresolvedId)
+
+    // The published media read is cached and tagged, never no-store.
+    const mediaCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/media?'))
+    expect(mediaCall?.[1]).toMatchObject({ cache: 'force-cache', next: { tags: ['media'] } })
   })
 })

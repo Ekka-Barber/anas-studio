@@ -11,6 +11,7 @@ import { schemaFor, type Collection } from '../admin/collections'
 
 import { withDb } from './db'
 import { requireEnv } from './env'
+import { collectMediaIds } from './media-ref'
 import { getSupabaseServerClient } from './supabase/server'
 
 export interface PublishActionError {
@@ -68,7 +69,29 @@ async function validateDraft(
     return { ok: false, error: { code: 'INVALID', message: 'مستند غير معروف.' } }
   }
   const parsed = schema.safeParse(row.data)
-  if (parsed.success) return null
+  if (parsed.success) {
+    // P05: a document may reference media-library images. Every referenced id
+    // must still exist, and an unreadable library fails closed — a broken
+    // image reference never goes live.
+    const ids = collectMediaIds(parsed.data)
+    if (ids.length > 0) {
+      const params = new URLSearchParams({ select: 'id', id: `in.(${ids.join(',')})` })
+      const mediaResponse = await fetch(`${url}/rest/v1/media?${params}`, {
+        headers: { apikey: key, Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      })
+      if (!mediaResponse.ok) {
+        return { ok: false, error: { code: 'FAILED', message: 'تعذّر التحقق من صور المكتبة.' } }
+      }
+      const mediaRows = (await mediaResponse.json()) as Array<{ id: string }>
+      const present = new Set(mediaRows.map((row) => row.id))
+      const missing = ids.filter((id) => !present.has(id))
+      if (missing.length > 0) {
+        return { ok: false, error: { code: 'INVALID', message: 'صورة من المكتبة لم تعد موجودة.', fields: { missing } } }
+      }
+    }
+    return null
+  }
   return { ok: false, error: { code: 'INVALID', message: 'البيانات غير صالحة.', fields: parsed.error.flatten() } }
 }
 

@@ -72,6 +72,34 @@ export async function createOwner(displayName: string): Promise<string> {
   return email
 }
 
+/** Creates a staff member directly with the local service key (P05 media spec). */
+export async function createStaff(role: 'owner' | 'editor' | 'operations'): Promise<{ userId: string; email: string }> {
+  const email = uniqueEmail(`e2e-${role}`)
+  const { data, error } = await serviceClient.auth.admin.createUser({ email, email_confirm: true })
+  if (error || !data.user) throw new Error(`createStaff: ${error?.message}`)
+  const { error: staffError } = await serviceClient
+    .from('staff')
+    .insert({ user_id: data.user.id, display_name: email, role })
+  if (staffError) throw new Error(`createStaff: ${staffError.message}`)
+  return { userId: data.user.id, email }
+}
+
+/** A staff member's access token, obtained the way the browser does: email code. */
+export async function staffAccessToken(email: string): Promise<string> {
+  const { data, error } = await serviceClient.auth.admin.generateLink({ type: 'magiclink', email })
+  if (error || !data) throw new Error(`staffAccessToken: ${error?.message}`)
+  const client = anonClient()
+  const { error: verifyError } = await client.auth.verifyOtp({
+    email,
+    token: data.properties.email_otp,
+    type: 'email',
+  })
+  if (verifyError) throw new Error(`staffAccessToken: ${verifyError.message}`)
+  const { data: session } = await client.auth.getSession()
+  if (!session.session) throw new Error('staffAccessToken: no session after verifyOtp')
+  return session.session.access_token
+}
+
 /**
  * Reads the 6-digit sign-in code Supabase Auth just sent through Mailpit.
  * Pass the previous code to wait for a newer email instead of re-reading it.

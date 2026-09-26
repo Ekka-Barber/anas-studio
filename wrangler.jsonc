@@ -42,6 +42,13 @@
       "bucket_name": "anas-studio-media-test"
     },
     {
+      // P05: public derivatives (`m/<id>/<width>.webp`) served from an
+      // isolated origin. The bucket does not exist yet — the owner's P11
+      // deploy step creates it; local development uses the simulation.
+      "binding": "MEDIA_PUBLIC",
+      "bucket_name": "anas-studio-media-public-test"
+    },
+    {
       "binding": "NEXT_INC_CACHE_R2_BUCKET",
       // Does not exist yet: the orchestrator's tooling could not create it, so
       // the owner's deploy step creates it. bucket_name needs no id and is

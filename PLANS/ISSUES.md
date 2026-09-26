@@ -38,6 +38,10 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 **Package:** P11 (hosted setup). In Supabase, the email section's "enable sign-up" switch (`[auth.email] enable_signup` locally) turns the whole email provider on or off, codes included; new sign-ups are blocked by the global switch (`[auth] enable_signup = false`). P03 lost sign-in to this once locally. On the hosted project: email provider ON, "Allow new users to sign up" OFF, email OTP length 6 and expiry 600 s, TOTP enroll/verify ON, the Arabic magic-link template, Resend as custom SMTP (the built-in sender allows 2 emails per hour), and `service_role` grants applied by the migrations. Verify with the same three refusal checks recorded in `artifacts/acceptance/P03/commands.txt`.
 
+## I29 — hosted media origin and R2 housekeeping
+
+**Package:** P11 (hosted setup), from P05. The public derivative bucket `anas-studio-media-public-test` (binding `MEDIA_PUBLIC`) does not exist yet; the owner creates it with a custom domain of its own (not the site origin), sets `NEXT_PUBLIC_MEDIA_ORIGIN` to it at build time (it is inlined into the server and admin bundles), and adds a response-header rule for `X-Content-Type-Options: nosniff` on that domain, because R2 custom domains do not add it. Housekeeping has no job yet: an R2 lifecycle rule should expire `quarantine/` in the private bucket after 1 day. Originals of tickets that expired or failed, and old `media_upload_tickets` rows, stay until a P06 cleanup job removes them. Known limit: an AVIF whose `irot` rotation swaps width and height is refused with a dimension mismatch.
+
 ## Small UI items for when design reopens
 
 - No favicon, so every page logs one 404 for `/favicon.ico`.

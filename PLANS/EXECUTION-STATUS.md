@@ -2,17 +2,18 @@
 
 What has actually been run and accepted, not what is planned. Orchestrator per D28; one writer at a time under `.anasaq-execution.lock`. Preparation, account existence and passing structural checks never close a runtime, payment, rights, launch, training or support gate. Earlier detail (P00 measurements, the Oracle VM episode, audits) is in Git history before 2026-09-24.
 
-## Current state (2026-09-24)
+## Current state (2026-09-26)
 
 | Field | Value |
 |---|---|
 | Branch | `agent/p00-runtime-spike` |
-| Last commit | `ff67889` (P04 part 1) |
+| Last commit | `4ffc78f` (P04 part 2); `d5c7ceb` moved the worker to GLM-5.3 (D30) |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
-| P04 | Part 1 committed (`ff67889`). Part 2 (admin editing) built and audited over two rounds, awaiting the owner's commit approval. |
+| P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
+| P05 | Built by `glm-worker` in two rounds and audited; Linux Worker build passes. Awaiting the owner's commit approval. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
-| Lock | Held by the orchestrator for P04 part 2. |
+| Lock | Held by the orchestrator for P05. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
 
 ## Owner decisions, 2026-09-24
@@ -60,6 +61,19 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 - Worker round 2 (fresh): e2e rewritten to the brief; duplicate React key in the form fixed.
 - Results: static checks and build 0; 71 unit, 28 integration, 26 e2e. One unexplained, non-recurring e2e timeout is recorded. Evidence: `artifacts/acceptance/P04/`.
 
+## P05 round 1 audit (orchestrator, 2026-09-26)
+
+- Orchestrator: migration `20260926090000_media_library.sql` (media table with RLS; anon reads only id and derivatives of media a published document uses; server-owned tickets; claim, complete and delete functions for `app_server`; where-used over live, scheduled and latest versions; folder rename).
+- Worker (`glm-worker`, GLM-5.3, first run under D30; 29 minutes): ticket, part upload and completion routes, magic-byte and dimension checks from bounded reads (`image-size`; `file-type` was dropped in the round 2 audit because it breaks the Worker bundle), promotion to the public bucket, the local `/media` stand-in with nosniff and a sandbox CSP, media references in the loaders and `Picture`, the publish check for missing media, tests and docs.
+- Fixed by the orchestrator: a second completion could delete the first one's objects, and a part could be swapped between check and promotion (fix: a one-time claim, and each derivative verified and promoted from the same bytes); md5 stored as `{}`; an oversized range read; an unmeasured CPU claim. Hosted media origin and R2 housekeeping are recorded as I29.
+- Results: `pnpm check` 0 (104 unit); `test:db` 0 (46); media and CMS e2e 8 passed on `next dev`. Evidence: `artifacts/acceptance/P05/commands.txt`.
+
+## P05 round 2 audit and acceptance (orchestrator, 2026-09-26)
+
+- Worker (`glm-worker`, 51 minutes): the library screen (folders, search, paging, details, where-used, guarded delete), the upload dialog (`react-easy-crop`, canvas WebP at 360/720/1200/1800 without upscaling, a new ticket on retry), the image picker in collection forms, the browser e2e proof and screenshots. It caught a wrong URL shape in the orchestrator's brief.
+- Fixed by the orchestrator: the details column squeezed the grid to one column inside the reading-width admin page (details now sit above the grid and take focus); the next upload inherited the previous image's alt and rights; delete was enabled before where-used loaded; `file-type` broke the Linux Worker bundle (it imports `strtok3`), so `image-size` now does the type check alone.
+- Results: `pnpm check` 0 (109 unit); `test:db` 0 (46); media, CMS and auth e2e 13 passed; screenshots at 360 and 1440 without overflow; Linux `build:worker` and dry-run 0, 10,460 KiB upload (P04 commit 9,653 KiB, so P05 adds 8%), no Sharp, no secret key. Every P05 proof item is mapped in `artifacts/acceptance/P05/commands.txt`. Open: I29 (hosted media origin and R2 housekeeping, P11); upload CPU and the grown Worker's startup, with I21 at P10.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -68,10 +82,11 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | P01 | part 1 committed (`c98b091`); remaining rooms wait for design | `artifacts/acceptance/P01/` |
 | P02 | not_started; waits for design | — |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
-| P04 | part 1 committed `ff67889`; part 2 audited, awaiting commit | `artifacts/acceptance/P04/` |
-| P05–P12 | not_started | — |
+| P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
+| P05 | audited, awaiting commit | `artifacts/acceptance/P05/` |
+| P06–P12 | not_started | — |
 
 ## Next work, in order
 
-1. Commit P04 part 2 with the owner's approval. P04 is then complete.
-2. P05 (media library: R2 uploads, browser-made WebP sizes, where-used guard) is admin work and can run while design is paused. It comes next in order.
+1. Commit P05 with the owner's approval.
+2. P06 (owner operations: forms, inbox, email outbox, statistics) comes next in order.

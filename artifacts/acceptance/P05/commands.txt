@@ -1,0 +1,271 @@
+Round 1 (glm-worker) — P05 media library, data and server
+=========================================================
+
+Environment: Windows 11, Node 24.19.0, pnpm 10.33.0, local Supabase stack
+(supabase status API_URL = http://127.0.0.1:54321; the media migration
+20260926090000_media_library.sql was already applied by the orchestrator).
+
+Commands (run 2026-09-26, repo root):
+
+- pnpm view file-type version                          → exit 0 (22.1.1)
+- pnpm view image-size version                         → exit 0 (2.0.4)
+- pnpm add file-type@22.1.1 image-size@2.0.4           → exit 0 (exact, no ^; save-exact is on)
+- pnpm cf-typegen                                      → exit 0 (regenerated cloudflare-env.d.ts; MEDIA_PUBLIC: R2Bucket present)
+- pnpm lint                                            → exit 0 (1 pre-existing warning: MfaEnroll.tsx <img>, untouched by this round)
+- pnpm typecheck                                       → exit 0
+- pnpm test                                            → exit 0 (10 files, 104 tests: includes new tests/unit/media.test.ts,
+                                                              tests/unit/media-ref.test.ts, content/collections additions)
+- TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+                                                       → exit 0 (5 files, 43 tests: includes tests/integration/media-security.test.ts, 15 tests)
+- pnpm check:frozen                                    → exit 0 (59 files under deploy/ unchanged)
+- pnpm check:copy                                      → exit 0 (70 source files)
+- pnpm dev (background; dev-server.log in this folder) → up; curl http://localhost:3000/api/health → 200
+- PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm test:e2e tests/e2e/media.spec.ts
+                                                       → exit 0 (5 passed). Run against next dev, API level only,
+                                                         per the brief; build:worker intentionally not run (I05, Windows).
+
+Iteration failures during development (all resolved):
+- First e2e run: 2 failed. PUT /api/media/upload returned 500: workerd R2
+  put() raised TypeError "Provided readable stream must have a known length"
+  for request.body handed over by the local next dev binding proxy
+  (artifacts/acceptance/P05/dev-server.log). Fixed by buffering the part with
+  arrayBuffer() before put() — the brief's sanctioned fallback; the part size
+  is already capped by the declared bytes (<= 15 MiB) and the copy stays
+  within Workers Free's 10 ms CPU ceiling. Same reason for buffering the
+  quarantine -> public promote copy (object.body also loses its known length
+  across the proxy); a derivative is at most 4 MiB. Both carry ponytail:
+  comments in the two routes.
+- Second e2e run: 1 failed (happy path). complete returned 422 MISSING_PART
+  from the promote step: my catch conflated a missing object with any put
+  error. Fixed by separating the null check (422 MISSING_PART) from other
+  errors (500 FAILED) and buffering the copy (see above).
+- test:db iterations: service_role has no data privileges on the P04/P05
+  tables (only `staff` has explicit grants), so fixtures go through a direct
+  local postgres connection; published_documents requires a matching
+  content_versions row (FK) and a seq; publish_at is not insertable by the
+  authenticated role, so scheduled-version fixtures also use postgres.
+  Final run: all green.
+- One incidental edit: the Playwright HTML reporter overwrote
+  artifacts/acceptance/P00/playwright-report/index.html (its configured output
+  folder) when the media spec ran; next dev also rewrote next-env.d.ts
+  (.next/types -> .next/dev/types). Both are generated files, not hand edits.
+
+Evidence in this folder:
+- commands.txt      this file
+- dev-server.log    the pnpm dev console for the e2e run (includes the
+                    R2 known-length TypeError before the fix)
+- ../P00/playwright/media-*/trace.zip  Playwright traces for the failed runs
+  (kept by trace: retain-on-failure)
+
+Round 1 audit (orchestrator, Opus 5.5)
+======================================
+Read every new and changed file. Reverted two generated files outside the
+allowlist (next-env.d.ts, P00 playwright-report/index.html). Findings fixed by
+the orchestrator:
+1. Data loss: two completions of one ticket. The second failed at
+   media_complete and its cleanup deleted the first one's public derivatives
+   and private original. Fix (migration): media_claim(actor, ticket) claims a
+   ticket once at the start of completion; media_ticket (PUT) refuses a claimed
+   ticket; media_complete requires the claim. No cleanup can touch another
+   request's result, and a failed ticket is not retried (the browser takes a
+   new ticket).
+2. Check-then-swap: derivatives were verified from one read and promoted from
+   a second read, so a parallel PUT could swap bytes between them. Fixed twice
+   over: the claim blocks PUTs, and each derivative is now verified and
+   promoted from the same buffer.
+3. md5: R2 checksums.md5 is an ArrayBuffer; the route passed it raw, so rows
+   held '{}'. Now hex, and the column checks ^[0-9a-f]{32}$.
+4. The original's head read now asks for min(size, 1 MiB), not always 1 MiB.
+5. The worker's "stays within the 10 ms CPU ceiling" claim was unmeasured;
+   both ponytail comments now say P10 measures it.
+6. /media route reads MEDIA_PUBLIC_ORIGIN through optionalEnv, like the rest.
+Tests added: claim is one-shot, claimed tickets refuse parts, cross-actor and
+expired claims, unclaimed completion refused, media_claim not callable by API
+roles; e2e second completion 410 with the first result still served, PUT after
+use 410, stored md5 equals the original's md5. The HTML-spoof e2e no longer
+retries on the same ticket (by design); private deletion after a failed
+completion is proven by code reading, not over HTTP.
+
+Commands after the fixes (migration dropped and re-applied locally; it is not
+committed):
+- supabase migration up --local → applied; EXECUTE: media_claim, media_ticket,
+  media_complete, media_create_ticket, media_delete → app_server only;
+  media_where_used, media_rename_folder → authenticated; media_is_published →
+  anon (policy helper)
+- pnpm check → 0 (lint 1 pre-existing warning; 10 files, 104 unit tests)
+- TEST_ENV=local DATABASE_URL=<local postgres> pnpm test:db → 0 (5 files, 46)
+- pnpm dev + PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright
+  test tests/e2e/media.spec.ts tests/e2e/cms.spec.ts → 0 (8 passed; cms.spec
+  rerun because content.ts and publish.ts changed)
+Not run: pnpm build:worker (I05, Windows). At P05 acceptance it runs in Linux
+and must show file-type/image-size bundle for workerd and no sharp in the upload.
+
+
+Round 2 (glm-worker) — P05 media library admin screens and the P05 proof
+=========================================================================
+
+Environment: Windows 11, Node 24.19.0, pnpm 10.33.0, local Supabase stack
+(supabase status API_URL = http://127.0.0.1:54321), next dev on :3000.
+
+Dependency evidence (live lookup):
+- pnpm view react-easy-crop version peerDependencies  → exit 0
+  version 6.2.3; peerDependencies { react: '>=16.4.0', 'react-dom': '>=16.4.0' }
+  → supports the project's React 19.3.0. Installed exactly: react-easy-crop@6.2.3.
+
+Checks (repo root):
+- pnpm lint                → exit 0 (3 warnings, 0 errors: @next/next/no-img-element
+                             in MfaEnroll.tsx (pre-existing), FieldInput.tsx and
+                             MediaLibrary.tsx (new, deliberate — R2 derivative URLs
+                             cannot go through next/image's optimizer on the Worker;
+                             explicit width/height and loading=lazy are set))
+- pnpm typecheck           → exit 0 (one iteration failure first: TS2741 'id' missing
+                             in ImagePreview after the tri-state refactor; fixed by
+                             removing the stale 'id' from the interface)
+- pnpm test                → exit 0 (10 files, 109 tests; includes new media-ref
+                             tests for MEDIA_ORIGIN/mediaUrl/widths/folder rules and
+                             the mediaMetaSchema↔mediaFields sync). One iteration
+                             failure first: the mediaUrl test caught that the brief's
+                             naive 'strip m/' shape produced /media/<id>/1200.webp
+                             while the loaders and the /media route use
+                             /media/m/<id>/1200.webp — the helper now keeps the key
+                             whole (mediaUrl('m/<id>/<w>.webp') = MEDIA_ORIGIN +
+                             '/m/<id>/<w>.webp'), exactly the URLs content.ts builds.
+- TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+                             → exit 0 (5 files, 46 tests)
+- pnpm check:frozen        → exit 0 (59 files under deploy/ unchanged)
+- pnpm check:copy          → exit 0 (76 source files; all UI digits Latin)
+
+E2E (pnpm dev once in the background, log: dev-server-round2.log in this folder;
+curl http://localhost:3000/api/health → 200; stopped with taskkill afterwards):
+- PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test
+  tests/e2e/media.spec.ts tests/e2e/cms.spec.ts
+                             → exit 0, 11 passed (cms 3, media 8: round-1 API suite
+                             unchanged + round-2 browser suite). build:worker NOT
+                             run (I05, per the brief).
+
+E2E iteration failures during development (all resolved):
+1. react-hooks/set-state-in-effect lint errors (3): fixed by deriving keyed state
+   (preview valid only while fetched.id === value; where-used keyed by selected id)
+   and deferring MediaUpload's folder sync to a microtask, matching CollectionForm.
+2. Strict-mode locator matches: the intro field's preview text also matched the
+   closed picker dialog's hidden tile → assert the preview <img> by role/alt
+   instead; the paging test used the hashed CSS-module class → locate tiles by
+   role; where-used lists the room twice (live document + latest draft version,
+   which is what media_where_used returns) → expect exactly 2 links.
+3. Race: interacting with the built form before CollectionForm finished loading
+   detached buttons; and a media-id field first showed the raw-UUID input, then
+   flipped to its preview. Fixed in the UI: a library id now shows a short
+   'يحمّل...' state, then the preview — the raw input only appears when the row
+   cannot be read at all — plus the test waits for the form data and for either
+   'تغيير' or 'اختر من المكتبة' before acting, and uses per-run unique image
+   names (leftovers from partially-failed runs stay in the local database).
+
+Evidence in this folder:
+- screenshots/            library-, details-, upload-, picker- at 360 and 1440
+                          (final full-run outputs; the orchestrator reviews the PNGs)
+- screenshots/overflow.txt  scrollWidth - innerWidth = 0 (OK) at both 360 and 1440
+                          for every state measured (library, details, upload dialog,
+                          picker dialog)
+- dev-server-round2.log   the pnpm dev console for the e2e runs
+- next-env.d.ts.pre-e2e, p00-report-index.html.pre-e2e
+                          snapshots taken before the runs; both generated files were
+                          restored from them afterwards (verified via git status:
+                          next-env.d.ts and the P00 report show no diff).
+
+Local-database residue (local stack only): the media rows uploaded by the tests
+remain in public.media (their R2 objects too), and rooms/built carries the extra
+version rows from the edit/restore cycle, with its published content equal to the
+imported original (same pattern as cms.spec.ts). A stale 'supabase CLI: Stopped
+services' banner appears in some Playwright console output; supabase status
+afterwards still reported the local stack up (API_URL 127.0.0.1:54321) and all
+tests passed against it.
+
+Round 2 audit (orchestrator, Opus 5.5)
+======================================
+Worker run: glm-worker, GLM-5.3, 51 minutes, 194 turns; one permission denial
+(a Read of a mistyped path, harmless). supabase/ untouched (migration mtime is
+before the round 2 brief). Published rooms and settings hold no media ids after
+the e2e restore; the published posts that do are integration-test fixtures.
+The worker correctly caught that mediaUrl must keep the `m/` prefix (the
+brief was wrong there).
+
+Findings fixed by the orchestrator:
+1. Layout: the admin page is capped at --measure-reading, so the 60rem
+   viewport query put a 22rem details column beside the grid and squeezed the
+   grid to one column (1440 page 8426 px tall; at 360 the details sat below 40
+   tiles). Now the details sit above the grid, scroll into view and take focus
+   on selection; the grid is 4 columns at 1440 and 2 at 360 (page 3229 px).
+2. The next upload inherited the previous image's alt text, name, caption and
+   rights (reset kept them). Now only the folder carries over.
+3. Delete was enabled while where-used was still loading. Now disabled until
+   where-used answers (the server guard is unchanged).
+Accepted as is: the where-used error state still allows delete because the
+server refuses used media (23503); the picker imports the library module, so
+content forms load react-easy-crop (admin only); two new no-img-element lint
+warnings (D15: no Next image optimizer).
+
+Commands after the fixes:
+- pnpm check → 0 (3 warnings: 1 pre-existing, 2 deliberate <img>; 109 unit)
+- TEST_ENV=local DATABASE_URL=<local postgres> pnpm test:db → 0 (46)
+- pnpm dev + PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright
+  test tests/e2e/media.spec.ts tests/e2e/cms.spec.ts tests/e2e/auth.spec.ts
+  → 0 (13 passed, 2.4 min); screenshots regenerated; overflow.txt: 0 at 360
+  and 1440.
+
+Acceptance: Linux Worker build (orchestrator)
+=============================================
+Recipe as P00 d29-swap step f: node:24-bookworm, working tree tar-streamed into
+a named Docker volume (no host node_modules touched, volume removed after).
+.env is never copied; the generated local-only .env.local (pnpm db:env) is, and
+the container reaches the host's local Supabase stack, as CI does (pages read
+published content at build time since P04).
+- Attempt 1: `next build` failed with MissingEnvError NEXT_PUBLIC_SUPABASE_URL
+  (both env files had been excluded). Not a P05 defect.
+- Attempt 2: bundling failed: Could not resolve "strtok3". `file-type`'s only
+  entry imports strtok3 at runtime for file reading, which the Worker bundle
+  cannot resolve and never needs. Fix: `file-type` removed; `verifyObjectHead`
+  now takes the type from `image-size` (magic bytes: jpg, png, webp, avif
+  allowed; svg and everything else refused; html, text and zip throw). pnpm
+  check → 0 (109 unit, including the svg, html, zip and png-declared-as-jpeg
+  refusals). PLANS/research-final.md updated.
+- Attempt 3: pnpm install --frozen-lockfile → 0; pnpm build:worker → 0;
+  wrangler deploy --dry-run → 0.
+  Total Upload 10459.96 KiB / gzip 2025.58 KiB. Bindings: HYPERDRIVE, R2,
+  MEDIA_PUBLIC. sharp imports 0; strtok3/file-type 0; image-size detector
+  present; react-easy-crop 0 (admin client only); service_role 0; sb_secret_ 2
+  files, both supabase-js's own key-prefix check (no key: 0 matches for
+  sb_secret_ followed by 20+ key characters).
+- Size against the P04 commit, same recipe: 4ffc78f → 9653.36 KiB; P05 →
+  10459.97 KiB (+807 KiB, +8%). The growth since P00 (5494 KiB) came mostly
+  in P04. The Workers Free limit is 64 MiB uncompressed; the compressed limit
+  was removed on 2026-09-04 (developers.cloudflare.com/workers/platform/limits,
+  changelog 2026-09-04, fetched through the cloudflare-docs MCP server this
+  session). Startup (1 s) and first-request CPU stay with I21 for P10.
+
+P05 proof coverage (WORK-PACKAGES P05):
+- actual crop visible publicly: e2e, 1:1 crop of a 2400x1600 JPEG, /built
+  srcset serves /media/m/<id>/1200.webp (200).
+- normal EXIF removed by re-encode: e2e, the 1200 derivative is WebP 1200x1200
+  with no EXIF.
+- spoof, size, key, expiry and cross-user failures: e2e API suite and
+  test:db (HTML as JPEG 422, Content-Length 413, unknown part 422, other
+  actor 404, expired 410, used ticket 410, no token 401, operations 403).
+- private original unreadable: /media/originals/<id> 404; only m/<uuid>/<w>.webp
+  is served; anon cannot select original_key.
+- folder move, reuse, delete-in-use: e2e and test:db (where-used live, draft,
+  scheduled; delete refused while used; delete removes the public derivative).
+- no Sharp in the Worker bundle, no hidden transform costs: dry-run bundle
+  above; derivatives are made in the browser.
+Not proven here: hosted R2 and the isolated media origin (I29, P11); CPU of
+the buffered part upload on Workers Free (P10).
+
+Pre-commit secret scan (orchestrator)
+=====================================
+The staged diff was scanned for JWTs and secret keys before committing.
+Found: dev-server-round2.log held 17 local staff access tokens (expired,
+issuer 127.0.0.1). Cause: `next dev` logs every server-function call with its
+arguments, and the admin server actions take the access token as their first
+argument. No commit in this branch's history contains a JWT (every commit
+scanned). Fixes: the 17 tokens replaced with <redacted-jwt> in the log;
+next.config.ts sets logging.serverFunctions: false. Check: pnpm typecheck 0;
+next dev + cms.spec.ts → 0 (3 passed); JWTs in that dev log: 0.
