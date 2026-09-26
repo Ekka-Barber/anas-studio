@@ -299,10 +299,15 @@ begin
       select 1 from finance.email_suppressions s where s.recipient_hash = finance.recipient_hash(o.recipient)
     );
 
-  select count(*) filter (where o.sent_at >= date_trunc('day', now())),
-         count(*) filter (where o.sent_at >= date_trunc('month', now()))
+  -- One range scan of email_outbox_sent_at_idx: today lies inside this
+  -- month, so the month bound covers both counts (a bare FILTER with no WHERE
+  -- read every row). Resend's quotas are UTC days and months, so the bounds
+  -- are pinned to UTC, not the session time zone.
+  select count(*) filter (where o.sent_at >= date_trunc('day', now(), 'UTC')),
+         count(*)
   into v_sent_today, v_sent_month
-  from finance.email_outbox o;
+  from finance.email_outbox o
+  where o.sent_at >= date_trunc('month', now(), 'UTC');
 
   return query
   with due as (
