@@ -3,7 +3,7 @@ import { InboxView } from '@/components/admin/InboxView'
 
 export default function InboxPage() {
   return (
-    <AdminShell>
+    <AdminShell wide>
       <InboxView />
     </AdminShell>
   )

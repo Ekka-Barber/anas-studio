@@ -3,7 +3,7 @@ import { EmailView } from '@/components/admin/EmailView'
 
 export default function EmailPage() {
   return (
-    <AdminShell>
+    <AdminShell wide>
       <EmailView />
     </AdminShell>
   )

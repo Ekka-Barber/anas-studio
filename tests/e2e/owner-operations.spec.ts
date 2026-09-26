@@ -514,10 +514,17 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
   // it waits for a row locator, and settings' «حالة الإعداد» renders while
   // the status still shows «يحمّل...», so it waits for the resolved status
   // (locally «Mailpit (محلي)»).
+  // The home and email waits target data too: the home count line reads
+  // «يحمّل...» until its query returns, and «إعادة الإرسال» also matches the
+  // (hidden) replay dialog, so the email wait is a row's own replay button.
   const targets: Array<{ name: string; path: string; wait: string | Locator }> = [
-    { name: 'home', path: '/admin', wait: 'رسائل جديدة:' },
+    { name: 'home', path: '/admin', wait: page.getByText(/رسائل جديدة: [\d,]+/) },
     { name: 'inbox', path: '/admin/inbox', wait: page.locator('tbody tr').first() },
-    { name: 'email', path: '/admin/email', wait: 'إعادة الإرسال' },
+    {
+      name: 'email',
+      path: '/admin/email',
+      wait: page.locator('tbody tr').getByRole('button', { name: 'إعادة الإرسال' }).first(),
+    },
     { name: 'stats', path: '/admin/stats', wait: 'المتجر' },
     { name: 'settings', path: '/admin/settings', wait: 'Mailpit' },
   ]
@@ -530,14 +537,29 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
       await page.goto(target.path)
       const ready = typeof target.wait === 'string' ? page.getByText(target.wait, { exact: false }).first() : target.wait
       await ready.waitFor()
-      const { scroll, inner } = await page.evaluate(() => ({
+      const { scroll, inner, tableOverflow, offscreenControls } = await page.evaluate(() => ({
         scroll: document.documentElement.scrollWidth,
         inner: window.innerWidth,
+        // A table that scrolls inside its own box hides columns even while the
+        // page itself does not overflow — how the M5 regression passed the
+        // page-level check below. Every row control must also sit on screen.
+        tableOverflow: Math.max(
+          0,
+          ...[...document.querySelectorAll('table')].map(
+            (table) => (table.parentElement?.scrollWidth ?? 0) - (table.parentElement?.clientWidth ?? 0),
+          ),
+        ),
+        offscreenControls: [...document.querySelectorAll('tbody button')].filter((button) => {
+          const box = button.getBoundingClientRect()
+          return box.left < 0 || box.right > window.innerWidth
+        }).length,
       }))
       // Recorded per page and viewport: scrollWidth must never exceed innerWidth.
       expect(scroll, `${target.name}-${viewport.width}: scrollWidth ${scroll}, innerWidth ${inner}`).toBeLessThanOrEqual(
         inner,
       )
+      expect(tableOverflow, `${target.name}-${viewport.width}: a table scrolls sideways by ${tableOverflow}px`).toBe(0)
+      expect(offscreenControls, `${target.name}-${viewport.width}: row controls off screen`).toBe(0)
       await page.screenshot({ path: join(shots, `${target.name}-${viewport.width}.png`), fullPage: true })
     }
     // The inbox with a message open.

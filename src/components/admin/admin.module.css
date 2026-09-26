@@ -35,6 +35,13 @@
   padding: 1.5rem 1rem;
 }
 
+/* M5: the inbox and email-problems tables have 5 and 8 columns, which the
+   38rem reading measure cannot hold — the table then scrolled sideways inside
+   its box and hid the date and replay columns. Those two pages widen instead. */
+.pageWide {
+  max-inline-size: 72rem;
+}
+
 .form {
   display: flex;
   flex-direction: column;
@@ -127,7 +134,7 @@
 
 /* A verbose one-line cell: capped width, ellipsis, full text in title. */
 .cellEllipsis {
-  max-inline-size: 14rem;
+  max-inline-size: 12rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
