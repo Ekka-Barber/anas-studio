@@ -241,3 +241,112 @@ Round 2 (glm-worker) — 2026-09-26/27
 - pnpm check → 0 (201 unit, up from 189); db:reset + db:import → 0; test:db → 0 (93, up from 89);
   playwright owner-operations + cms + auth → 22/22; screenshots re-captured (next dev; production
   capture remains round-3 evidence).
+
+== 2026-09-26 cloud audit of efa0e45 + fixes (pass 3; cloud Claude Code session, writer by owner authorization) ==
+Writer: the cloud reviewer, made writer by the owner for this pass while the local machine stayed
+idle (one writer). Branch claude/keen-mayer-iuyfz0 cut from efa0e45; commits 2325466..f5fe74d plus
+the ledger/evidence commit that adds this section. Scope: 9b6d1e5..efa0e45 and P06 seams. The
+model is named in each commit's Co-Authored-By trailer.
+
+Findings (D1–D17), fix and commit:
+- D1 LOW (evidence): efa0e45 rewrote PLANS/EXECUTION-STATUS.md, PLANS/ISSUES.md and
+  tests/e2e/owner-operations.spec.ts with CRLF endings (whole-file diffs hid the real edits).
+  Stripped back to LF, content identical ignoring CR. 2325466
+- D2 MEDIUM (evidence): efa0e45 overwrote the accepted P00 playwright-report/index.html again.
+  Restored from 79d8cf6; P00, P01 and P05 evidence trees are identical to 79d8cf6. d44ca70
+- D3 HIGH (M5 still regressed): inside the 38rem reading measure the 8-column email table
+  scrolled sideways inside its box — pass 2's own email-1440.png shows no date and no replay
+  column, inbox-1440.png no time and no status. The page-level overflow check cannot see a table
+  scrolling inside its wrapper. AdminShell `wide` (72rem) for the inbox and email pages,
+  .cellEllipsis 12rem; the e2e screenshot test now fails on any table wrapper overflow or an
+  off-screen row control, and waits for data (resolved home count, a row's replay button).
+  a9bd91c
+- D4 MEDIUM: formatRiyadh used 'ar-SA-u-nu-latn', which current Chromium (141) resolves to the
+  Hijri Umm al-Qura calendar («15 ربيع الآخر 1448 هـ») while Node gives Gregorian — admin dates
+  differed per browser. Pinned 'ar-SA-u-ca-gregory-nu-latn' there and in src/lib/format.ts. 3d0fdeb
+- D5 MEDIUM: the email-problems filter «تحتاج تدخل» kept uncertain/sending and filed exhausted
+  under «انتهت» — the actionable rows were hidden and "ended" rows carried replay buttons.
+  Both filters now use REPLAYABLE_STATUSES; e2e step 4 exercises them. c7aa839
+- D6 LOW: the inbox's role-aware empty state treated operations like an editor although RLS
+  gives operations the full read; a filtered empty view claimed "no messages yet". 24f59d3
+- D7 MEDIUM (webhook state machine): (a) created_at went to timestamptz whenever Date.parse
+  accepted it — "1" or a year past 9999 made a signed event 503 on every redelivery (endpoint
+  disable loop), contrary to the code comment; now ISO for 1970–9999, else null. (b) the
+  malformed path deduped on the payload `id` when present, the normal path on svix-id; both use
+  svix-id now. (c) a malformed signed event whose record failed was answered 200 and the bounce
+  lost; with every value bounded a failure can only be the database, so it is now 503. Unit tests
+  and the operations.md response table updated. 5338b07
+- D8 LOW-MEDIUM: toAsciiAddress kept only the URL hostname, so `x@ü.test/extra`, `#frag`, `:25`
+  and `%41` forms were silently rewritten and accepted. Domains with whitespace or / \ ? # : @ %
+  now fail the grammar. New tests/unit/contact-route.test.ts asserts the stored value (lowercase,
+  punycode) and 11 grammar cases; 4 fail without the fix. 38cbe17
+- D9 LOW: the N6 sent_at index was unused — the quota recount used FILTER with no WHERE (full
+  scan per claim). One month-bounded range now (index-only scan), bounds pinned to UTC. e8c2105
+- D10 MEDIUM (test quality): the pass-2 race test's `(select pg_sleep(0.2))` initplan never runs
+  for a claim that returns no row (measured 1 ms), so serialized sessions also finished under the
+  350 ms bound — the "overlap proof" proved nothing, and the bound was flaky. Rewritten: the first
+  claim holds its row lock in an open transaction and the second claim, under lock_timeout 2s,
+  must return without the row. 8484333
+- D11 LOW (test hygiene): the e2e beforeAll still rewrote every pending/uncertain/sending row in
+  the shared database (pass 2 fixed only email-delivery.test.ts); now only rows due now. 7e0b618
+- D12 LOW: normalizeSaudiMobile refused `+966 050…` (trunk 0 kept) while whatsappLink turned it
+  into the broken wa.me/9660501234567; numbers copied out of RTL text (LRM/RLM/ALM, no-break
+  spaces) were refused. Both now normalize to 9665XXXXXXXX. cb558a5
+- D13 MEDIUM: pass 2's dir="ltr" on the date cells scrambles the Arabic-locale date — its own
+  inbox-360.png reads «/2026/09. 2:08 م26». The cells inherit RTL again («2026/09/26، 7:54 ص»);
+  360px card labels in Latin cells no longer run into the value. 51a1b9f
+- D14 LOW (evidence): source-resend-bounced.md is a paraphrase (its example payload is dated
+  2026-11-22, after the stated fetch); now marked so. I31 named round 1 for the round 2 user
+  cleanup. f5fe74d
+- D15 LOW (evidence): pass 2's section above claims "M5 desktop regression fixed", intact dates
+  and a race "proof"; its own screenshots and the D10 measurement contradict all three. The
+  committed P06 screenshots (email/inbox 360 and 1440, inbox-open) still show D3 and D13 and are
+  superseded until re-captured. Recorded here; the section above is left as written.
+- D16 LOW (ledger): EXECUTION-STATUS said "this commit" for efa0e45 and "independent
+  verification pending"; updated in the commit that adds this section.
+- D17 LOW (left, recommendation): the 8 KiB contact body limit (ARCHITECTURE) is reached near
+  4,000 Arabic characters, before the schema's 5,000; the route comment now says so and the 413
+  copy names the message (d81d8cd). The P01 form should cap its textarea; changing the limit is
+  a plan decision.
+
+Improvements applied: clearer contact 413 copy and an accurate SettingsView comment (d81d8cd);
+the webhook response table and Temporary-bounce rule in docs/operations.md (5338b07).
+Recommended only (not done): an owner-facing un-suppress path (still a manual DB action); purge
+of old sent outbox rows (round 3 retention); outbox_result's false return (lost lease) is not
+reflected in the run summary; a production-build screenshot pass; confirming Resend's bounce
+vocabulary against the live page from a machine that can reach resend.com.
+
+Checks run in the cloud sandbox (Node 22 with engine-strict off; the repo pins Node 24):
+- pnpm typecheck → 0; pnpm lint → 0 (the 3 pre-existing <img> warnings).
+- pnpm vitest run (unit) → 211 passed, 1 skipped (15 files). The skip is the CONTENT.md drift
+  check (BOOK_ASSETS source absent here); with it a local run should count 215. Baseline at
+  efa0e45 in the same sandbox: 197 passed, 1 skipped (= the 201 recorded above).
+- pnpm check:copy → OK (97 files); pnpm check:frozen → OK (59 files under deploy/).
+- Throwaway PostgreSQL 16 (not the Supabase stack): all five migrations applied in order with
+  stand-ins for auth.users/auth.uid()/auth.mfa_factors, a no-op cron.schedule and the pg_cron
+  create-extension line stubbed; app_server password as in seed.sql. SQL-direct integration
+  tests (outbox claiming/outbox_result/quota, email-delivery all, forms contact_submit + route
+  grammar/body-limit) → 30 passed, 11 skipped (the skipped need Supabase Auth/Data API). Race
+  test negative control: with `skip locked` removed from outbox_claim it fails with "canceling
+  statement due to lock timeout". EXPLAIN of the quota count: Index Only Scan using
+  email_outbox_sent_at_idx. Route vs SQL CHECK email grammar: 4,023 addresses (23 boundary
+  cases + random), 0 mismatches.
+- Static Chromium 141 harness (real admin.module.css, tokens, Thmanyah fonts, realistic rows):
+  before D3 the email table overflowed its box by 446 px at 1024–1440 with the replay buttons off
+  screen; after D3 zero internal overflow and every row control on screen at 1024, 1280, 1440,
+  and 360px cards unchanged; D13 dates checked in both layouts.
+- Not run: build:worker (I30), the real Supabase stack.
+
+Pending local verification (after pulling; none of these ran in the cloud):
+1. pnpm db:reset (the P06 migration changed in place again: outbox_claim quota count) and
+   pnpm db:import.
+2. TEST_ENV=local … pnpm test:db — all 9 files; expect 93 (unchanged count; the race test is a
+   rewrite). The API-backed cases (RLS, staff, stats, operations views) have not run since efa0e45.
+3. pnpm test (expect 215 with the local drift check) and pnpm check.
+4. Playwright owner-operations + cms + auth on next dev (expect 22): the screenshot test's new
+   table-overflow/off-screen-control assertions and data waits, email-problems step 4 (filters),
+   the editor inbox copy, the settings wait.
+5. Re-capture artifacts/acceptance/P06/screenshots (email/inbox at 360 and 1440, inbox-open) and
+   review: no letter-split Arabic, dates as «2026/09/26، h:mm ص», replay column visible, cards
+   with a gap after each label.
+6. Linux build:worker and the cron CPU measurement (I30), production-build screenshots (round 3).
