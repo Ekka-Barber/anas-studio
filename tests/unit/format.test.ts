@@ -96,5 +96,22 @@ describe('normalizeSaudiMobile', () => {
     expect(normalizeSaudiMobile('15551234567')).toBeNull() // a non-Saudi international number
     expect(normalizeSaudiMobile('96650123')).toBeNull() // 8 digits, not the 12-digit Saudi form
     expect(normalizeSaudiMobile('05123456789')).toBeNull() // 11 digits after the 0
+    expect(normalizeSaudiMobile('9665')).toBeNull()
+    expect(normalizeSaudiMobile('   ')).toBeNull()
+    expect(normalizeSaudiMobile('+966 050 123 45678')).toBeNull() // trunk 0 kept, but one digit too many
+  })
+
+  it('the local trunk 0 kept after the country code is still the same mobile', () => {
+    expect(normalizeSaudiMobile('+966 050 123 4567')).toBe('966501234567')
+    expect(normalizeSaudiMobile('009660501234567')).toBe('966501234567')
+    // Before: the gate refused it and whatsappLink built the broken wa.me/9660501234567.
+    expect(whatsappLink('+9660501234567')).toBe('https://wa.me/966501234567')
+  })
+
+  it('invisible direction marks and no-break spaces from a copied number are separators', () => {
+    expect(normalizeSaudiMobile('‏0501234567')).toBe('966501234567') // RLM
+    expect(normalizeSaudiMobile('‎+966 50 123 4567‏')).toBe('966501234567') // LRM … RLM
+    expect(normalizeSaudiMobile('050 123 4567')).toBe('966501234567') // no-break spaces
+    expect(normalizeSaudiMobile('؜05٠١234567')).toBe('966501234567') // ALM, mixed digits
   })
 })
