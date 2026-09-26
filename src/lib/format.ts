@@ -1,9 +1,10 @@
 /**
- * Arabic-locale formatting that keeps Latin digits (ar-SA-u-nu-latn).
- * Plain `ar-SA` renders Arabic-Indic digits by default; the `-u-nu-latn`
- * Unicode extension is what forces 0-9.
+ * Arabic-locale formatting that keeps Latin digits and the Gregorian
+ * calendar. Plain `ar-SA` renders Arabic-Indic digits by default (`-u-nu-latn`
+ * forces 0-9), and current Chromium defaults it to the Hijri Umm al-Qura
+ * calendar (`-u-ca-gregory` pins Gregorian, which Node already uses).
  */
-const LOCALE = 'ar-SA-u-nu-latn'
+const LOCALE = 'ar-SA-u-ca-gregory-nu-latn'
 
 /** Formats an integer/decimal with Arabic grouping and Latin digits. */
 export function formatNumber(value: number): string {

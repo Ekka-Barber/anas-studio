@@ -14,8 +14,14 @@ import { archiveAction, cancelScheduleAction, publishAction, scheduleAction } fr
 
 import styles from './admin.module.css'
 
+/**
+ * Riyadh wall-clock date and time for every admin screen. The calendar is
+ * pinned: current Chromium defaults `ar-SA` to Umm al-Qura (Hijri) while Node
+ * and older browsers give Gregorian, so without `-u-ca-gregory` the same
+ * timestamp read differently per viewer.
+ */
 export function formatRiyadh(iso: string): string {
-  return new Intl.DateTimeFormat('ar-SA-u-nu-latn', {
+  return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
     timeZone: 'Asia/Riyadh',
     dateStyle: 'medium',
     timeStyle: 'short',
