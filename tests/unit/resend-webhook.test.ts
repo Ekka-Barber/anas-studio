@@ -314,11 +314,15 @@ describe('webhook route (POST)', () => {
   it('passes only a timestamp Postgres accepts: ISO, or null when unusable', async () => {
     // `Date.parse('1')` is a date to JavaScript but not to timestamptz, and a
     // year past 9999 serializes in a form Postgres refuses — either would fail
-    // every redelivery of a well-formed event.
-    const cases: Array<[string, string | null]> = [
+    // every redelivery of the same event. Zone-naive ISO inputs are pinned to
+    // UTC by the route, so these expectations hold on any machine timezone.
+    const cases: Array<[string, string | null | 'iso']> = [
       ['2026-09-26T10:00:00Z', '2026-09-26T10:00:00.000Z'],
+      ['2026-09-26T10:00:00', '2026-09-26T10:00:00.000Z'],
       ['Sat, 26 Sep 2026 10:00:00 GMT', '2026-09-26T10:00:00.000Z'],
-      ['1', '2001-01-01T00:00:00.000Z'],
+      // '1' parses implementation-defined, machine-local — garbage in, so only
+      // the Postgres-safe shape is asserted, never the exact instant.
+      ['1', 'iso'],
       ['not a date', null],
       ['+275760-09-13T00:00:00Z', null],
     ]
@@ -327,7 +331,9 @@ describe('webhook route (POST)', () => {
       const rawBody = JSON.stringify({ type: 'email.delivered', created_at: createdAt, data: { email_id: 'msg-t', to: ['a@example.com'] } })
       const response = await webhookPost(webhookRequest(rawBody))
       expect(response.status).toBe(200)
-      expect(recorded.queries[0]![4]).toBe(expected)
+      const stored = recorded.queries[0]![4] as string | null
+      if (expected === 'iso') expect(stored).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+      else expect(stored).toBe(expected)
     }
   })
 

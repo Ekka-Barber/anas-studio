@@ -7,12 +7,12 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |
-| Last product commit | `d81d8cd`: the last code change of the cloud audit of `efa0e45` (fixes `2325466`…`f5fe74d`, see the process note). Before it: `efa0e45` audit fix pass 2 and `a324577` fix pass 1. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
+| Last product commit | `c789418`: timezone-independent webhook timestamps + local verification of the cloud pass (db 93, unit 215, e2e 22/22, screenshots reviewed). Before it `bc3b915`…`2325466`: the cloud audit of `efa0e45` (see the process note); `efa0e45` audit fix pass 2; `a324577` fix pass 1. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
 | P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
 | P05 | Committed (`79d8cf6`). |
-| P06 | Rounds 1 and 2 committed in `9b6d1e5`; audit fix pass 1 `a324577`; fix pass 2 `efa0e45`; cloud audit of `efa0e45` with 14 fixes in `2325466`…`f5fe74d` (desktop tables, calendar, email filter, webhook timestamps and outage handling, IDN delimiters, quota index, race test, dates in RTL, WhatsApp spellings, evidence). The database, e2e and screenshot runs for those fixes are pending local verification (list in `artifacts/acceptance/P06/commands.txt`). Round 3 not started. |
+| P06 | Rounds 1 and 2 committed in `9b6d1e5`; audit fix pass 1 `a324577`; fix pass 2 `efa0e45`; cloud audit of `efa0e45` with 14 fixes in `2325466`…`f5fe74d` (desktop tables, calendar, email filter, webhook timestamps and outage handling, IDN delimiters, quota index, race test, dates in RTL, WhatsApp spellings, evidence). Local verification of those fixes is done (details at the end of `artifacts/acceptance/P06/commands.txt`): `db:reset`/`db:import`, `test:db` 93, `pnpm test` 215, Playwright 22/22, screenshots re-captured and reviewed. One timezone-dependent timestamp test surfaced and was fixed on both sides (route treats zone-naive ISO as UTC; test asserts shape for `Date.parse('1')`). Round 3 not started. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
 | Lock | The CLI orchestrator's `.anasaq-execution.lock` (P06 round 2) is on the owner's machine and unknown from the repo. The cloud writer of `2325466`…`f5fe74d` wrote only while the local machine was idle, by owner authorization, and holds nothing after its push. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
@@ -46,7 +46,9 @@ plus the commit that records this note; the model is named in each commit's
 Co-Authored-By trailer. It edited the P06 migration in place once more
 (`outbox_claim`'s quota count), under the same resettable-local-only
 reasoning as above. It could not run the Supabase stack: the database, e2e
-and screenshot items it lists as pending local verification have not run.
+and screenshot items it lists as pending local verification were run after
+its push by the local session and all passed (one timezone-dependent test
+fixed on top, recorded in `artifacts/acceptance/P06/commands.txt`).
 
 ## Owner decisions, 2026-09-24
 
@@ -124,11 +126,11 @@ and screenshot items it lists as pending local verification have not run.
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
 | P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |
-| P06 | building: rounds 1–2 committed unaudited in `9b6d1e5` (round 1 audited by the orchestrator; round 2 not audited); fix passes `a324577` and `efa0e45`; cloud audit fixes `2325466`…`f5fe74d`, pending local DB/e2e/screenshot verification; round 3 not started | `artifacts/acceptance/P06/` |
+| P06 | rounds 1–2 in `9b6d1e5` (round 1 audited by the orchestrator); fix passes `a324577`/`efa0e45`; cloud audit fixes `2325466`…`f5fe74d` locally verified (db 93, unit 215, e2e 22/22, screenshots reviewed; one TZ-dependent test fixed on top); round 3 not started | `artifacts/acceptance/P06/` |
 | P07–P12 | not_started | — |
 
 ## Next work, in order
 
-1. Local verification of the cloud-audit commits after pulling: `db:reset`, `test:db` (93), `pnpm test` (215 with the drift check), the three Playwright specs (22) and a screenshot re-capture — the exact list is at the end of `artifacts/acceptance/P06/commands.txt`. Then production-build evidence for round 2.
-2. P06 round 3: backups (destination and key holder need the owner's decision), the privacy-request runbook (I31's auth-user deletion blocker), notify routes, commerce settings, docs/costs.md; then the Linux Worker build and the phase 2 gate walk-through.
+1. Production-build evidence for round 2 on Linux (`build:worker`, I30 cron CPU measurement) — the only piece the Windows machine cannot produce.
+2. P06 round 3: backups (destination and key holder need the owner's decision), the privacy-request runbook (I31's auth-user deletion blocker), notify routes, commerce settings, docs/costs.md; then the Linux Worker build and the phase 2 gate walk-through. Split the Playwright report dir per package (H2 recurred a third time during local verification).
 3. Commit P06 with the owner's approval.

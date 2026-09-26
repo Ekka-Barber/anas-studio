@@ -350,3 +350,41 @@ Pending local verification (after pulling; none of these ran in the cloud):
    review: no letter-split Arabic, dates as «2026/09/26، h:mm ص», replay column visible, cards
    with a gap after each label.
 6. Linux build:worker and the cron CPU measurement (I30), production-build screenshots (round 3).
+
+Local verification of the cloud pass (bc3b915, commits 2325466…f5fe74d + docs) — run
+2026-09-26 on Windows (Git Bash, Node 24), the pending list above, in order:
+
+1. pnpm db:reset + pnpm db:import — OK; the changed P06 migration (outbox_claim quota count)
+   applied on the fresh stack, seed imported.
+2. TEST_ENV=local pnpm test:db — 9 files, 93 passed, 0 failed (RLS, staff, stats, operations
+   views and the rewritten race test all green against the real local Supabase).
+3. pnpm test — first run: 214 passed, 1 failed. The D7 timestamp test expected
+   2001-01-01T00:00:00.000Z for `Date.parse('1')`, which is machine-local: on Asia/Riyadh it
+   is 2000-12-31T21:00:00.000Z (the dev machine's zone), so the test — and the route with
+   zone-naive ISO strings like `2026-09-26T10:00:00` — was timezone-dependent while the
+   Worker always runs UTC. Fixed both sides:
+   - src/app/api/email/resend/webhook/route.ts eventTime(): a zone-naive ISO timestamp is
+     treated as UTC before parsing (regex + 'Z'); anything else unchanged.
+   - tests/unit/resend-webhook.test.ts: '1' now asserts only the ISO shape (a sentinel), and
+     an exact case for the zone-naive '2026-09-26T10:00:00' → '2026-09-26T10:00:00.000Z'
+     was added.
+   After the fix: 215 passed. Re-confirmed TZ-independent: `TZ=Asia/Riyadh pnpm vitest run
+   tests/unit/resend-webhook.test.ts` → 19 passed; `pnpm check` green.
+4. Playwright owner-operations + cms + auth on next dev — 22/22, screenshots re-captured by
+   the test (email/inbox at 360 and 1440, inbox-open).
+5. Visual review of the re-captured 1440px screenshots (independent vision pass):
+   - email-1440: every column on screen including the replay buttons, Arabic properly joined,
+     dates readable in order; no overflow.
+   - inbox-1440: all five columns visible, joined Arabic, ellipsized previews only.
+   - settings-1440: Mailpit (محلي) status resolved, no loading state left, no raw codes; the
+     «غير مُعدّ بعد» line is the asserted not-set state, not a stuck spinner.
+   One cosmetic note: the date/time separator read as a "." in two reviews — it is the Arabic
+   comma «،» of «2026/09/26، 4:11 م» at a small size; no action taken, flagged for the next
+   design pass if the owner finds it unclear.
+6. Not run here (as the list itself says): Linux build:worker + cron CPU measurement (I30) and
+   production-build screenshots — round 3.
+
+Verdict: pending local items 1–5 pass; P06 round 2 is locally verified. next-env.d.ts churn
+from the dev server was reverted. The accepted P00 playwright report was overwritten once more
+by this e2e run (third occurrence of H2) and restored with `git checkout --`; the recurring
+cause is the shared playwright output dir, and it needs a per-package report dir in round 3.

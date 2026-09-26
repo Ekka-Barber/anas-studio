@@ -51,11 +51,17 @@ const eventSchema = z.object({
  * The event's own timestamp as ISO 8601, or null. `Date.parse` accepts
  * strings that Postgres's timestamptz input refuses (for example "1"), and a
  * value the database refuses would fail every redelivery the same way; the
- * ISO form of a date in years 1970–9999 is always accepted.
+ * ISO form of a date in years 1970–9999 is always accepted. Zone-naive ISO
+ * strings are read as UTC — Workers runs UTC, and a machine-local read would
+ * store a different instant per environment. Non-standard strings ("1") keep
+ * V8's implementation-defined parse; their exact instant is garbage-in
+ * anyway, the year window and toISOString() still guarantee Postgres shape.
  */
 function eventTime(value: unknown): string | null {
   if (typeof value !== 'string') return null
-  const ms = Date.parse(value)
+  const trimmed = value.trim()
+  const zoneNaiveIso = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/.test(trimmed)
+  const ms = Date.parse(zoneNaiveIso ? `${trimmed}Z` : trimmed)
   if (Number.isNaN(ms)) return null
   const date = new Date(ms)
   const year = date.getUTCFullYear()
