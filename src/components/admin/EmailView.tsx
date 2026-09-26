@@ -36,14 +36,15 @@ const SUPPRESSED_MESSAGE = 'المستلم محظور بعد ارتداد أو �
  * suppressed are hard-blocked), so the replay button only appears for them. */
 const REPLAYABLE_STATUSES = new Set(['exhausted', 'uncertain'])
 
-/** R3: the attention list is capped at 200 rows, so it is filtered locally:
- * non-terminal statuses (uncertain, or a send still in flight) still need a
- * person; everything else (exhausted, suppressed, or a terminal delivery
- * event) is done. */
+/** R3: the attention list is capped at 200 rows, so it is filtered locally.
+ * «تحتاج تدخل» is exactly the rows a person can act on — the replayable ones
+ * (exhausted, uncertain), the same rule as the replay button; «انتهت» is the
+ * rest (suppressed recipients, sent rows with a bounce, complaint or
+ * failure), where nothing is left to do. `outbox_attention()` never returns
+ * a `sending` row. */
 type ProblemFilter = 'all' | 'attention' | 'ended'
 const PROBLEM_FILTERS: ProblemFilter[] = ['all', 'attention', 'ended']
 const PROBLEM_FILTER_LABEL: Record<ProblemFilter, string> = { all: 'الكل', attention: 'تحتاج تدخل', ended: 'انتهت' }
-const NEEDS_ATTENTION_STATUSES = new Set(['uncertain', 'sending'])
 
 export function EmailView() {
   const [rows, setRows] = useState<AttentionRow[] | null>(null)
@@ -107,7 +108,7 @@ export function EmailView() {
       : problemFilter === 'all'
         ? rows
         : rows.filter((row) =>
-            problemFilter === 'attention' ? NEEDS_ATTENTION_STATUSES.has(row.status) : !NEEDS_ATTENTION_STATUSES.has(row.status),
+            problemFilter === 'attention' ? REPLAYABLE_STATUSES.has(row.status) : !REPLAYABLE_STATUSES.has(row.status),
           )
 
   return (

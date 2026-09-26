@@ -434,6 +434,21 @@ test('email problems: replay exhausted, confirm uncertain, suppressed is refused
     [suppressedRecipient],
   )
   expect(still.rows[0]!.status).toBe('exhausted')
+
+  // 4. The filters follow the replay rule: «تحتاج تدخل» keeps the replayable
+  //    rows (the still-exhausted one above), «انتهت» the rows with nothing left
+  //    to do (a row already marked suppressed), which show no replay button.
+  const endedRecipient = await insertOutboxRow('suppressed', null)
+  await page.goto('/admin/email')
+  const filters = page.getByRole('group', { name: 'تصفية المشكلات' })
+  await filters.getByRole('button', { name: 'تحتاج تدخل' }).click()
+  await expect(page.getByRole('row').filter({ hasText: suppressedRecipient })).toBeVisible()
+  await expect(page.getByRole('row').filter({ hasText: endedRecipient })).toHaveCount(0)
+  await filters.getByRole('button', { name: 'انتهت' }).click()
+  const endedRow = page.getByRole('row').filter({ hasText: endedRecipient })
+  await expect(endedRow).toBeVisible()
+  await expect(endedRow.getByRole('button', { name: 'إعادة الإرسال' })).toHaveCount(0)
+  await expect(page.getByRole('row').filter({ hasText: suppressedRecipient })).toHaveCount(0)
 })
 
 test('an operations member can replay a failed outbox row through the risk-acceptance flow', async ({ page }) => {
