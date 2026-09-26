@@ -1,7 +1,7 @@
 // P06: the contact form's SQL surface (`supabase/migrations/
 // 20260926120000_contacts_and_email.sql`) against the real local database.
-// `contact_submit` is called as `app_server` (the Worker's path through
-// `src/lib/db.ts`); the Data API refusal of `public.contacts` goes through
+// `contact_submit` is called as `service_role` (the `contact` Edge Function's
+// role, D32); the Data API refusal of `public.contacts` goes through
 // real JWTs, like `tests/integration/media-security.test.ts` (D31: there is
 // no admin inbox, the table is server-only). The route handler's email
 // grammar is exercised directly at the bottom (M1: an address must not be
@@ -11,27 +11,20 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { POST as contactPost } from '../../src/app/api/contact/route'
-import { anonClient, createStaff, signIn } from './support'
+import { handleContact } from '../../supabase/functions/_shared/contact.ts'
+import { anonClient, createStaff, serviceRoleDb, signIn } from './support'
 
-// The route handler is imported above, but vitest resolves no `@/` alias, so
-// every `@/lib/*` specifier the route imports is mocked here: the database
-// with a guard that must never be reached, the rest with the real modules.
-vi.mock('@/lib/db', () => ({
-  withDb: () => {
+// The grammar and size cases below never reach the database.
+const contactPost = (request: Request) =>
+  handleContact(request, async () => {
     throw new Error('unexpected database call')
-  },
-}))
-vi.mock('@/lib/env', async () => vi.importActual('../../src/lib/env'))
-vi.mock('@/lib/rate-limit', async () => vi.importActual('../../src/lib/rate-limit'))
-vi.mock('@/lib/turnstile', async () => vi.importActual('../../src/lib/turnstile'))
+  })
 
 let app: Client
 let postgres: Client
 
 beforeAll(async () => {
-  app = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
-  await app.connect()
+  app = await serviceRoleDb()
   postgres = new Client({
     connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   })
@@ -217,7 +210,7 @@ describe('contacts are server-only (D31: no admin inbox)', () => {
     expect(kept.message).toBe('رسالة اختبار')
   })
 
-  it('no API role executes the app_server functions or reads finance', async () => {
+  it('no API role executes the server-only functions or reads finance', async () => {
     const editor = await createStaff('editor')
     const client = await signIn(editor.email)
     const { error: submitError } = await client.rpc('contact_submit', {
@@ -247,11 +240,13 @@ describe('contacts are server-only (D31: no admin inbox)', () => {
   })
 })
 
-describe('contact route email grammar', () => {
+const SITE = 'http://localhost:3000'
+
+describe('contact function email grammar', () => {
   beforeEach(() => {
-    // No Turnstile credentials: a grammatical address then stops at the
-    // verifier, which is exactly the proof of acceptance these tests need.
-    vi.stubEnv('SITE_URL', '')
+    // No Turnstile secret: a grammatical address then stops at the verifier,
+    // which is exactly the proof of acceptance these tests need.
+    vi.stubEnv('SITE_URL', SITE)
     vi.stubEnv('TURNSTILE_SECRET_KEY', '')
   })
 
@@ -260,9 +255,9 @@ describe('contact route email grammar', () => {
   })
 
   function contactRequest(email: string): Request {
-    return new Request('http://localhost/api/contact', {
+    return new Request('http://127.0.0.1:54321/functions/v1/contact', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', origin: SITE },
       body: JSON.stringify({
         name: 'زائر',
         email,
@@ -299,15 +294,20 @@ describe('contact route email grammar', () => {
   })
 })
 
-describe('contact route body limits', () => {
+describe('contact function body limits', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('refuses a body past the 8 KiB limit when no content-length is declared', async () => {
+    vi.stubEnv('SITE_URL', SITE)
     // A Request built from a string carries no content-length header (Node
     // adds one only at dispatch), so this is the chunked-request shape: the
     // pre-read gate sees nothing and the post-read guard alone must refuse.
     const response = await contactPost(
-      new Request('http://localhost/api/contact', {
+      new Request('http://127.0.0.1:54321/functions/v1/contact', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', origin: SITE },
         body: JSON.stringify({
           name: 'زائر',
           email: 'guest@example.com',

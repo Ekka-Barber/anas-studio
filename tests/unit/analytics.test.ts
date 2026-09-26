@@ -11,7 +11,7 @@ import {
   parseVisits,
   TOP_PATHS_QUERY,
   VISITS_QUERY,
-} from '../../src/lib/analytics'
+} from '../../supabase/functions/_shared/analytics.ts'
 
 const NOW = new Date('2026-09-26T12:00:00Z')
 

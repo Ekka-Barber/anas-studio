@@ -21,8 +21,7 @@ __pycache__/
 # Node and build output (P00).
 /node_modules/
 /.next/
-/.open-next/
-/.wrangler/
+/out/
 *.tsbuildinfo
 
 # Local Worker secrets consumed by `wrangler dev`. Never committed.

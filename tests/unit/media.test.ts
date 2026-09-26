@@ -13,7 +13,7 @@ import {
   quarantineKey,
   ticketRequestSchema,
   verifyObjectHead,
-} from '../../src/lib/media'
+} from '../../supabase/functions/_shared/media.ts'
 
 function baseRequest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

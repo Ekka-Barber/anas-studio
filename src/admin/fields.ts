@@ -82,7 +82,8 @@ const imageManifest = imageManifestRaw as unknown as Record<string, unknown>
 const videoManifest = (mediaManifestRaw as unknown as { videos: Record<string, unknown> }).videos
 
 // P05: an image field accepts a manifest id (the committed originals) or a
-// media-library id (uploaded through /api/media). Videos stay manifest-only.
+// media-library id (uploaded through the `admin` Edge Function). Videos stay
+// manifest-only.
 const imageIdSchema = z
   .string()
   .refine((id) => id in imageManifest || isMediaId(id), { message: 'معرّف صورة غير معروف.' })

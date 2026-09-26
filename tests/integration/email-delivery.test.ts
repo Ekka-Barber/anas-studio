@@ -1,38 +1,27 @@
 // P06: delivery events and suppression (`email_event_record`) against the
-// real local database, then `runOutbox()` end to end with `@/lib/db` mocked
-// to the local `app_server` login (as `tests/integration/publish.test.ts`
-// does) and `fetch` stubbed per outcome. Provider acceptance alone is never
-// delivery: a sent row keeps `delivery` null until a verified event arrives.
+// real local database, then `runOutbox()` end to end as `service_role` (the
+// `outbox` Edge Function's role, D32) through a direct session, with `fetch`
+// stubbed per outcome. Provider acceptance alone is never delivery: a sent
+// row keeps `delivery` null until a verified event arrives.
 import { createHash, randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { runOutbox } from '../../src/lib/outbox'
-
-vi.mock('../../src/lib/db', () => ({
-  withDb: async (query: (client: Client) => Promise<unknown>) => {
-    const client = new Client({
-      connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres',
-    })
-    await client.connect()
-    try {
-      return await query(client)
-    } finally {
-      await client.end()
-    }
-  },
-}))
+import type { Rpc } from '../../supabase/functions/_shared/db.ts'
+import { runOutbox } from '../../supabase/functions/_shared/outbox.ts'
+import { pgRpc, serviceRoleDb } from './support'
 
 let app: Client
+let rpc: Rpc
 let postgres: Client
 
 const PREFIX = 'p06-delivery-test-'
 const created = { outbox: [] as string[], contacts: [] as string[], events: [] as string[], suppressions: [] as string[] }
 
 beforeAll(async () => {
-  app = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
-  await app.connect()
+  app = await serviceRoleDb()
+  rpc = pgRpc(app)
   postgres = new Client({
     connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   })
@@ -227,10 +216,9 @@ describe('email_event_record', () => {
   })
 })
 
-describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
+describe('runOutbox (fetch stubbed, service_role through a direct session)', () => {
   beforeEach(() => {
-    // Resend is chosen only by a production build with a non-local SITE_URL.
-    vi.stubEnv('NODE_ENV', 'production')
+    // Resend is chosen only for a hosted site (a non-local SITE_URL).
     vi.stubEnv('RESEND_API_KEY', 're_test_key')
     vi.stubEnv('EMAIL_FROM', 'Anas <noreply@anas.studio>')
     vi.stubEnv('SITE_URL', 'https://anas.studio')
@@ -301,7 +289,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     const marker = unique('accepted')
     const row = await pendingNotice('accepted', `رسالة العميل ${marker}`)
     const { fn, calls } = stubFetch(() => new Response(JSON.stringify({ id: 'prov-accepted-1' }), { status: 200 }))
-    const summary = await runOutbox()
+    const summary = await runOutbox(rpc)
     expect(summary).toMatchObject({ job: 'email_outbox', status: 'ok', claimed: 1, accepted: 1 })
     expect(fn).toHaveBeenCalledTimes(1)
 
@@ -338,7 +326,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     await parkOthers()
     const row = await pendingNotice('retry', 'رسالة إعادة')
     stubFetch(() => new Response(JSON.stringify({ name: 'application_error' }), { status: 500 }))
-    const summary = await runOutbox()
+    const summary = await runOutbox(rpc)
     expect(summary).toMatchObject({ status: 'failed', claimed: 1, retry: 1 })
     const state = (
       await postgres.query<{ status: string; next_at: Date; last_error: string }>(
@@ -355,7 +343,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     await parkOthers()
     const row = await pendingNotice('permanent', 'رسالة فاشلة')
     stubFetch(() => new Response(JSON.stringify({ name: 'validation_error' }), { status: 400 }))
-    const summary = await runOutbox()
+    const summary = await runOutbox(rpc)
     expect(summary).toMatchObject({ status: 'failed', claimed: 1, permanent: 1 })
     expect(
       (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [row.id])).rows[0]!
@@ -369,7 +357,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     stubFetch(() => {
       throw new Error('network down')
     })
-    const summary = await runOutbox()
+    const summary = await runOutbox(rpc)
     expect(summary).toMatchObject({ status: 'failed', claimed: 1, uncertain: 1 })
     expect(
       (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [row.id])).rows[0]!
@@ -384,7 +372,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
     vi.stubEnv('EMAIL_FROM', '')
     const { fn } = stubFetch(() => new Response('{}', { status: 200 }))
-    const summary = await runOutbox()
+    const summary = await runOutbox(rpc)
     expect(summary).toMatchObject({ status: 'skipped', claimed: 0, reason: 'EMAIL_NOT_CONFIGURED' })
     expect(fn).not.toHaveBeenCalled()
     const run = (
@@ -403,7 +391,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
       hashOf(row.recipient),
     ])
     const { fn } = stubFetch(() => new Response(JSON.stringify({ id: 'never' }), { status: 200 }))
-    const summary = await runOutbox()
+    const summary = await runOutbox(rpc)
     expect(summary).toMatchObject({ claimed: 0, accepted: 0 })
     expect(fn).not.toHaveBeenCalled()
     expect(

@@ -19,7 +19,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const ROOTS = ['src']
+// D32: the Edge Functions carry user-facing Arabic messages too.
+const ROOTS = ['src', 'supabase/functions']
 const EXTENSIONS = new Set(['.ts', '.tsx'])
 const GENERATED = new Set()
 

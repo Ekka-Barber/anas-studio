@@ -1,10 +1,11 @@
-// P06 e2e: the contact API, the jobs run and the delivery webhook (round 1,
-// API-level), plus the owner home, email problems, statistics, settings and
-// role boundaries (round 2, browser) — against `next dev`
-// (`PLAYWRIGHT_BASE_URL=http://localhost:3000`). Local-only values come from
-// `.env.local` (never `.env`); Turnstile uses Cloudflare's always-pass test
-// secret and the dummy token, so no real challenge is solved and no real
-// provider is called — email lands in the local stack's Mailpit.
+// P06 e2e: the `contact`, `outbox` and `resend-webhook` Edge Functions
+// (round 1, API-level, D32), plus the owner home, email problems, statistics,
+// settings and role boundaries (round 2, browser) — against `next dev`
+// (`PLAYWRIGHT_BASE_URL=http://localhost:3000`) and the functions the local
+// stack serves. Local-only values come from `.env.local` (never `.env`);
+// Turnstile uses Cloudflare's always-pass test secret and the dummy token, so
+// no real challenge is solved and no real provider is called — email lands in
+// the local stack's Mailpit.
 import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,7 +13,16 @@ import { join } from 'node:path'
 import { Client } from 'pg'
 import { expect, test, type Locator } from '@playwright/test'
 
-import { createStaff, localEnv, signInByCode, staffAccessToken, status, svixHeaders } from './helpers'
+import {
+  createStaff,
+  functionUrl,
+  localEnv,
+  signInByCode,
+  SITE_ORIGIN,
+  staffAccessToken,
+  status,
+  svixHeaders,
+} from './helpers'
 
 const env = localEnv()
 
@@ -82,8 +92,8 @@ test('a contact submission is stored and its notices queued', async ({ request }
   // shares the literal `local` bucket (5 per hour, fixed window), which
   // repeated runs inside one hour would exhaust.
   const visitorIp = `198.51.100.${Math.floor(Math.random() * 254) + 1}`
-  const response = await request.post('/api/contact', {
-    headers: { 'cf-connecting-ip': visitorIp },
+  const response = await request.post(functionUrl('contact'), {
+    headers: { origin: SITE_ORIGIN, 'cf-connecting-ip': visitorIp },
     data: {
       name: 'زائر',
       email: `guest-${marker}@example.com`,
@@ -127,7 +137,7 @@ test('with no jobs run the message is stored and its notice waits, so an email o
 })
 
 test('a jobs run delivers the notices through Mailpit, sent but not yet delivered', async ({ request }) => {
-  const response = await request.post('/api/jobs/run', {
+  const response = await request.post(functionUrl('outbox'), {
     headers: { authorization: `Bearer ${env.JOBS_SECRET}` },
   })
   expect(response.status()).toBe(200)
@@ -152,7 +162,9 @@ test('a jobs run delivers the notices through Mailpit, sent but not yet delivere
 
   // The notice itself is in Mailpit: search for the unique marker. It carries
   // the whole message and replies to the visitor (D31: no admin inbox).
-  const mailpit = env.EMAIL_DEV_MAILPIT_URL ?? status.MAILPIT_URL
+  // The functions reach Mailpit through host.docker.internal; the test uses
+  // the host address the stack reports.
+  const mailpit = status.MAILPIT_URL
   let found = false
   for (let attempt = 0; attempt < 20 && !found; attempt += 1) {
     const search = (await (
@@ -181,7 +193,7 @@ test('a signed delivered webhook marks delivery; a forged signature is 401', asy
     created_at: new Date().toISOString(),
     data: { email_id: noticeProviderId, to: [noticeRecipient] },
   })
-  const response = await request.post('/api/email/resend/webhook', {
+  const response = await request.post(functionUrl('resend-webhook'), {
     headers: { 'content-type': 'application/json', ...svixHeaders(env.RESEND_WEBHOOK_SECRET, rawBody) },
     data: rawBody,
   })
@@ -196,7 +208,7 @@ test('a signed delivered webhook marks delivery; a forged signature is 401', asy
   expect(row.delivery).toBe('delivered')
 
   const forgedSecret = `whsec_${Buffer.from('a-forged-secret').toString('base64')}`
-  const forged = await request.post('/api/email/resend/webhook', {
+  const forged = await request.post(functionUrl('resend-webhook'), {
     headers: { 'content-type': 'application/json', ...svixHeaders(forgedSecret, rawBody) },
     data: rawBody,
   })
@@ -205,7 +217,8 @@ test('a signed delivered webhook marks delivery; a forged signature is 401', asy
 
 test('the honeypot answers success and stores nothing', async ({ request }) => {
   const submissionKey = randomUUID()
-  const response = await request.post('/api/contact', {
+  const response = await request.post(functionUrl('contact'), {
+    headers: { origin: SITE_ORIGIN },
     data: {
       name: 'بوت',
       email: `bot-${Date.now()}@example.com`,
@@ -226,7 +239,8 @@ test('the honeypot answers success and stores nothing', async ({ request }) => {
 // mapping is therefore covered by tests/unit/turnstile.test.ts; here the
 // schema still refuses an over-length token before anything is stored.
 test('an over-length Turnstile token is refused by the schema', async ({ request }) => {
-  const response = await request.post('/api/contact', {
+  const response = await request.post(functionUrl('contact'), {
+    headers: { origin: SITE_ORIGIN },
     data: {
       name: 'زائر',
       email: `bad-token-${Date.now()}@example.com`,
@@ -241,24 +255,25 @@ test('an over-length Turnstile token is refused by the schema', async ({ request
 })
 
 test('a non-JSON content type is refused with 415', async ({ request }) => {
-  const response = await request.post('/api/contact', {
-    headers: { 'content-type': 'text/plain' },
+  const response = await request.post(functionUrl('contact'), {
+    headers: { origin: SITE_ORIGIN, 'content-type': 'text/plain' },
     data: 'not json',
   })
   expect(response.status()).toBe(415)
 })
 
 test('an oversized body is refused with 413', async ({ request }) => {
-  const response = await request.post('/api/contact', {
+  const response = await request.post(functionUrl('contact'), {
+    headers: { origin: SITE_ORIGIN },
     data: { junk: 'x'.repeat(9_000) },
   })
   expect(response.status()).toBe(413)
 })
 
 test('the jobs endpoint refuses a missing or wrong bearer', async ({ request }) => {
-  const missing = await request.post('/api/jobs/run', {})
+  const missing = await request.post(functionUrl('outbox'), {})
   expect(missing.status()).toBe(401)
-  const wrong = await request.post('/api/jobs/run', { headers: { authorization: 'Bearer wrong-secret' } })
+  const wrong = await request.post(functionUrl('outbox'), { headers: { authorization: 'Bearer wrong-secret' } })
   expect(wrong.status()).toBe(401)
 })
 
@@ -298,7 +313,10 @@ test('an operations member sees email but not stats or settings, and there is no
   await expect(page.getByRole('heading', { name: 'البريد' })).toBeVisible()
 
   const token = await staffAccessToken(operations.email)
-  const response = await request.get('/api/admin/stats', { headers: { authorization: `Bearer ${token}` } })
+  const response = await request.post(functionUrl('admin'), {
+    headers: { authorization: `Bearer ${token}`, apikey: status.PUBLISHABLE_KEY },
+    data: { action: 'stats' },
+  })
   expect(response.status()).toBe(403)
 })
 
@@ -411,7 +429,7 @@ test('an operations member can replay a failed outbox row through the risk-accep
 test('settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets', async ({ page }) => {
   const owner = await createStaff('owner')
   await signInByCode(page, owner.email)
-  await page.goto('/admin/content/site_settings/site')
+  await page.goto('/admin/content/site_settings/edit?id=site')
 
   await page.getByLabel('عنوان SEO').fill('استوديو أنس — الموقع الرسمي')
   await page.getByLabel('وصف SEO').fill('وصف الاختبار')
@@ -423,7 +441,7 @@ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows n
   await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
 
   // Reload: the values persist in the form, and the preview normalizes.
-  await page.goto('/admin/content/site_settings/site')
+  await page.goto('/admin/content/site_settings/edit?id=site')
   await expect(page.getByLabel('رقم واتساب')).toHaveValue('050-123-4567')
   await page.goto('/admin/settings')
   await expect(page.getByText('https://wa.me/966501234567')).toBeVisible()
@@ -436,7 +454,7 @@ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows n
   expect(html).not.toContain(env.RESEND_WEBHOOK_SECRET)
 
   // Restore the settings document as cms.spec.ts does, and publish.
-  await page.goto('/admin/content/site_settings/site')
+  await page.goto('/admin/content/site_settings/edit?id=site')
   const historyTable = page.locator('table')
   await historyTable.locator('tbody tr').last().getByRole('button', { name: 'استعادة' }).click()
   await page.getByRole('button', { name: 'نشر' }).click()

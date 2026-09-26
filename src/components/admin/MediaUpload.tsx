@@ -14,6 +14,8 @@ import Cropper from 'react-easy-crop'
 
 import { mediaFields, mediaMetaSchema, type MediaMeta } from '@/admin/collections/media'
 import { derivativeHeight, derivativeWidths } from '@/lib/media-ref'
+import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction } from '@/lib/supabase/functions'
 
 import { FieldInput } from './FieldInput'
 import styles from './admin.module.css'
@@ -104,21 +106,21 @@ async function encodeDerivative(
   return { blob }
 }
 
-async function serverMessage(response: Response): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: { message?: string } } | null
-  return body?.error?.message ?? 'تعذّر رفع الصورة.'
+/** The `admin` function's `media-ticket` answer: one signed upload per declared part (D32). */
+interface UploadTicket {
+  ticketId: string
+  bucket: string
+  parts: Array<{ part: string; path: string; token: string; mime: string }>
 }
 
 export function MediaUpload({
   open,
   folder,
-  accessToken,
   onClose,
   onUploaded,
 }: {
   open: boolean
   folder: string
-  accessToken: string
   onClose: () => void
   onUploaded: (id: string) => void
 }) {
@@ -226,7 +228,6 @@ export function MediaUpload({
   }
 
   async function runUpload(meta: MediaMeta, widths: number[], blobs: Blob[]): Promise<{ id: string } | { message: string }> {
-    const authorization = `Bearer ${accessToken}`
     const declared = {
       purpose: 'image',
       name: meta.name,
@@ -242,34 +243,25 @@ export function MediaUpload({
         bytes: blob.size,
       })),
     }
-    const ticketResponse = await fetch('/api/media/upload', {
-      method: 'POST',
-      headers: { authorization, 'content-type': 'application/json' },
-      body: JSON.stringify(declared),
-    })
-    if (!ticketResponse.ok) return { message: await serverMessage(ticketResponse) }
-    const ticket = (await ticketResponse.json()) as { data: { ticketId: string } }
+    const ticket = await callFunction<UploadTicket>('admin', { action: 'media-ticket', declaration: declared })
+    if (!ticket.ok) return { message: ticket.error.message }
 
-    const parts: Array<{ part: string; body: Blob; type: string }> = [
-      { part: 'original', body: file!, type: file!.type },
-      ...blobs.map((blob, index) => ({ part: `w${widths[index]}`, body: blob, type: 'image/webp' })),
-    ]
-    for (const [index, part] of parts.entries()) {
-      setBusy(`جارٍ رفع ${index + 1} من ${parts.length}`)
-      const put = await fetch(`/api/media/upload?ticket=${ticket.data.ticketId}&part=${part.part}`, {
-        method: 'PUT',
-        headers: { authorization, 'content-type': part.type },
-        body: part.body,
-      })
-      if (!put.ok) return { message: await serverMessage(put) }
+    // Each part goes straight to the private bucket through its signed URL;
+    // `media-complete` then checks every byte before anything is public.
+    const bodies = new Map<string, Blob>([
+      ['original', file!],
+      ...blobs.map((blob, index) => [`w${widths[index]}`, blob] as [string, Blob]),
+    ])
+    const bucket = getSupabaseBrowserClient().storage.from(ticket.data.bucket)
+    for (const [index, part] of ticket.data.parts.entries()) {
+      setBusy(`جارٍ رفع ${index + 1} من ${ticket.data.parts.length}`)
+      const body = bodies.get(part.part)
+      if (!body) return { message: 'تعذّر رفع الصورة.' }
+      const { error } = await bucket.uploadToSignedUrl(part.path, part.token, body, { contentType: part.mime })
+      if (error) return { message: 'تعذّر رفع الصورة.' }
     }
-    const completeResponse = await fetch('/api/media/complete', {
-      method: 'POST',
-      headers: { authorization, 'content-type': 'application/json' },
-      body: JSON.stringify({ ticketId: ticket.data.ticketId }),
-    })
-    if (!completeResponse.ok) return { message: await serverMessage(completeResponse) }
-    const finished = (await completeResponse.json()) as { data: { id: string } }
+    const finished = await callFunction<{ id: string }>('admin', { action: 'media-complete', ticketId: ticket.data.ticketId })
+    if (!finished.ok) return { message: finished.error.message }
     return { id: finished.data.id }
   }
 

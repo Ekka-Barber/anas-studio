@@ -4,7 +4,7 @@
  * Loads, edits, saves, validates and publishes one document (P04 part 2).
  * Save appends the next `content_versions` row through the Data API as the
  * signed-in user; publish/schedule/cancel/archive go through
- * `src/app/(admin)/admin/actions.ts`. Autosave keeps an unsaved local copy in
+ * `src/lib/admin-publish.ts`. Autosave keeps an unsaved local copy in
  * `localStorage` so a conflict or a closed tab never loses text.
  */
 import { useEffect, useRef, useState } from 'react'
@@ -18,6 +18,9 @@ import { PublishBar } from './PublishBar'
 import { VersionHistory } from './VersionHistory'
 import styles from './admin.module.css'
 
+/** Rooms whose public view exists and can therefore be previewed. */
+const PREVIEW_ROOMS = new Set(['started', 'built', 'passed', 'shelf'])
+
 const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. نصّك محفوظ هنا؛ حمّل آخر نسخة ثم أعد التعديل.'
 
 function fieldsFor(collection: Collection, docId: string): readonly Field[] {
@@ -29,9 +32,9 @@ function fieldsFor(collection: Collection, docId: string): readonly Field[] {
   return collections[collection].fields as readonly Field[]
 }
 
+/** The admin preview of a room's draft (D32); rooms without a built page have none. */
 function previewPathFor(collection: Collection, docId: string): string | null {
-  if (collection === 'rooms') return `/${docId}`
-  if (collection === 'site_settings') return '/'
+  if (collection === 'rooms' && PREVIEW_ROOMS.has(docId)) return `/admin/preview?id=${docId}`
   return null
 }
 
@@ -262,7 +265,6 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
           seq={baseSeq}
           liveSeq={liveSeq}
           scheduledAt={scheduledAt}
-          accessToken={accessToken}
           canPublish={canPublish}
           canArchive={collection === 'posts' || collection === 'taxonomies'}
           previewPath={previewPathFor(collection, docId)}

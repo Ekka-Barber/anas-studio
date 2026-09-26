@@ -1,5 +1,5 @@
-// P06: the Svix verification used by `/api/email/resend/webhook`, tested on
-// its own (`src/lib/email.ts` `verifySvixSignature`), then the route handler
+// P06: the Svix verification used by the `resend-webhook` Edge Function,
+// tested on its own (`_shared/email.ts` `verifySvixSignature`), then the handler
 // itself for the bounce-type contract — a missing or `Permanent` bounce
 // suppresses, a `Temporary` bounce is recorded only (Resend's real values per
 // artifacts/acceptance/P06/source-resend-bounced.md: `data.to` is an array,
@@ -12,32 +12,28 @@
 // after `whsec_`, compared constant-time against any `v1,<sig>` entry.
 import { createHmac, randomUUID } from 'node:crypto'
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { verifySvixSignature } from '../../src/lib/email'
-import { POST as webhookPost } from '../../src/app/api/email/resend/webhook/route'
+import type { Rpc } from '../../supabase/functions/_shared/db.ts'
+import { verifySvixSignature } from '../../supabase/functions/_shared/email.ts'
+import { handleResendWebhook } from '../../supabase/functions/_shared/resend-webhook.ts'
 
-// The route handler is imported above, but vitest resolves no `@/` alias, so
-// every `@/lib/*` specifier the route imports is mocked here: the database
-// with a recorder (a unit test must never reach a real one; `failNext` makes
-// the next call throw) and the rest with the real modules via
-// `vi.importActual`.
-const recorded = vi.hoisted(() => ({ queries: [] as unknown[][], failNext: false }))
-vi.mock('@/lib/db', () => ({
-  withDb: (run: (client: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => Promise<unknown>) =>
-    run({
-      query: async (_sql: string, params: unknown[]) => {
-        if (recorded.failNext) {
-          recorded.failNext = false
-          throw new Error('database unavailable')
-        }
-        recorded.queries.push(params)
-        return { rows: [] }
-      },
-    }),
-}))
-vi.mock('@/lib/env', async () => vi.importActual('../../src/lib/env'))
-vi.mock('@/lib/email', async () => vi.importActual('../../src/lib/email'))
+// The database is a recorder (a unit test must never reach a real one;
+// `failNext` makes the next call throw). Each call is recorded as its
+// arguments in order — the `email_event_record` parameters — with objects as
+// JSON, the way the Data API sends them.
+const recorded = { queries: [] as unknown[][], failNext: false }
+const recorderRpc: Rpc = async (_fn, args) => {
+  if (recorded.failNext) {
+    recorded.failNext = false
+    throw new Error('database unavailable')
+  }
+  recorded.queries.push(
+    Object.values(args).map((value) => (value !== null && typeof value === 'object' ? JSON.stringify(value) : value)),
+  )
+  return null
+}
+const webhookPost = (request: Request) => handleResendWebhook(request, recorderRpc)
 
 const SECRET_RAW = 'anas-studio-local-webhook-secret-p06'
 const SECRET = `whsec_${Buffer.from(SECRET_RAW).toString('base64')}`
@@ -88,7 +84,7 @@ function webhookRequest(
   extraHeaders: Record<string, string> = {},
 ): Request {
   const timestamp = Math.floor(Date.now() / 1000)
-  return new Request('http://localhost/api/email/resend/webhook', {
+  return new Request('http://127.0.0.1:54321/functions/v1/resend-webhook', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',

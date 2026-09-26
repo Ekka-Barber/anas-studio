@@ -5,7 +5,7 @@
 // in artifacts/acceptance/P06/siteverify-live-test-secret.json.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { verifyTurnstile } from '../../src/lib/turnstile'
+import { verifyTurnstile } from '../../supabase/functions/_shared/turnstile.ts'
 
 const savedEnv = { ...process.env }
 
@@ -77,8 +77,8 @@ describe('verifyTurnstile', () => {
     expect(await verifyTurnstile({ ...base, secret: REAL_SECRET })).toEqual({ ok: false, code: 'UNREACHABLE' })
   })
 
-  it('a test secret is refused outright in production, without calling siteverify', async () => {
-    vi.stubEnv('NODE_ENV', 'production')
+  it('a test secret is refused outright for a hosted site, without calling siteverify', async () => {
+    vi.stubEnv('SITE_URL', 'https://anas.studio')
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     expect(await verifyTurnstile({ ...base, secret: PASS_SECRET })).toEqual({

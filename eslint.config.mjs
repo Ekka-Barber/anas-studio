@@ -9,8 +9,7 @@ const config = [
   {
     ignores: [
       '.next/**',
-      '.open-next/**',
-      '.wrangler/**',
+      'out/**',
       'node_modules/**',
       // Deno Edge Functions: checked by the Supabase edge runtime, not by the Next toolchain.
       'supabase/functions/**',
@@ -19,7 +18,6 @@ const config = [
       'deploy/**',
       'offer-site-v3/**',
       'BOOK_ASSETS/**',
-      'Lyon_Arabic_FONT/**',
       'Thmanyah-Font-Family/**',
       'deliverables/**',
       'PLANS/**',
@@ -34,7 +32,6 @@ const config = [
       '.kiro/**',
       '.windsurf/**',
       // Generated files with a single generator as their owner.
-      'cloudflare-env.d.ts',
       'next-env.d.ts',
     ],
   },

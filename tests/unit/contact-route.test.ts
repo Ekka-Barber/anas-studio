@@ -1,5 +1,5 @@
-// P06: the contact route's email grammar and IDN handling, without a
-// database. `@/lib/db` is replaced by a recorder, Turnstile runs against
+// P06: the `contact` Edge Function's email grammar and IDN handling, without
+// a database. The database is a recorder, Turnstile runs against
 // Cloudflare's always-pass test secret with `fetch` stubbed, so an accepted
 // address reaches the recorder and the exact value `contact_submit` would
 // store can be asserted. The database's own CHECK is proven in
@@ -8,24 +8,16 @@ import { randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { POST as contactPost } from '../../src/app/api/contact/route'
+import { handleContact } from '../../supabase/functions/_shared/contact.ts'
+import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 
-const recorded = vi.hoisted(() => ({ params: [] as unknown[][] }))
-
-// vitest resolves no `@/` alias, so every `@/lib/*` import of the route is
-// mocked: the database with a recorder, the rest with the real modules.
-vi.mock('@/lib/db', () => ({
-  withDb: (run: (client: { query: (sql: string, params: unknown[]) => Promise<unknown> }) => Promise<unknown>) =>
-    run({
-      query: async (_sql: string, params: unknown[]) => {
-        recorded.params.push(params)
-        return { rows: [{ t: { id: randomUUID(), duplicate: false } }] }
-      },
-    }),
-}))
-vi.mock('@/lib/env', async () => vi.importActual('../../src/lib/env'))
-vi.mock('@/lib/rate-limit', async () => vi.importActual('../../src/lib/rate-limit'))
-vi.mock('@/lib/turnstile', async () => vi.importActual('../../src/lib/turnstile'))
+// The database is a recorder: each `contact_submit` call's arguments in order.
+const recorded = { params: [] as unknown[][] }
+const recorderRpc: Rpc = async (_fn, args) => {
+  recorded.params.push(Object.values(args))
+  return { id: randomUUID(), duplicate: false }
+}
+const contactPost = (request: Request) => handleContact(request, recorderRpc)
 
 beforeEach(() => {
   recorded.params.length = 0
@@ -44,9 +36,9 @@ afterEach(() => {
 })
 
 function contactRequest(email: string): Request {
-  return new Request('http://localhost:3000/api/contact', {
+  return new Request('http://127.0.0.1:54321/functions/v1/contact', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
     body: JSON.stringify({
       name: 'زائر',
       email,
@@ -90,6 +82,29 @@ describe('contact route email grammar', () => {
     expect(response.status).toBe(422)
     const body = (await response.json()) as { error: { code: string } }
     expect(body.error.code).toBe('INVALID')
+    expect(recorded.params).toHaveLength(0)
+  })
+})
+
+describe('contact function origin (D32: the form posts cross-origin)', () => {
+  it('answers the CORS preflight for the site origin only', async () => {
+    const response = await contactPost(
+      new Request('http://127.0.0.1:54321/functions/v1/contact', { method: 'OPTIONS', headers: { origin: 'http://localhost:3000' } }),
+    )
+    expect(response.status).toBe(204)
+    expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:3000')
+  })
+
+  it.each([
+    ['another site', { origin: 'https://evil.test' }],
+    ['no Origin header', {}],
+  ])('refuses %s before anything is stored', async (_label, extra) => {
+    const request = contactRequest('guest@example.com')
+    const headers = new Headers(request.headers)
+    headers.delete('origin')
+    for (const [name, value] of Object.entries(extra)) headers.set(name, value)
+    const response = await contactPost(new Request(request.url, { method: 'POST', headers, body: await request.text() }))
+    expect(response.status).toBe(403)
     expect(recorded.params).toHaveLength(0)
   })
 })

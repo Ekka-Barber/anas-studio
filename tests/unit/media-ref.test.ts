@@ -77,16 +77,17 @@ describe('formatMediaRef / parseMediaRef', () => {
 })
 
 describe('MEDIA_ORIGIN and mediaUrl (round 2)', () => {
-  it('defaults to the local stand-in route', () => {
-    // The test environment does not set NEXT_PUBLIC_MEDIA_ORIGIN.
-    expect(process.env.NEXT_PUBLIC_MEDIA_ORIGIN).toBeUndefined()
-    expect(MEDIA_ORIGIN).toBe('/media')
+  // D32: the origin is the `media-public` Storage bucket under the build's
+  // NEXT_PUBLIC_SUPABASE_URL; the unit environment sets none, so it is empty.
+  it('is empty without a Supabase URL (unit tests)', () => {
+    expect(process.env.NEXT_PUBLIC_SUPABASE_URL).toBeUndefined()
+    expect(MEDIA_ORIGIN).toBe('')
   })
 
-  it('produces exactly the URLs the loaders produce for a public derivative key', () => {
+  it('keeps the whole derivative key after the origin', () => {
     const id = randomUUID()
-    expect(mediaUrl(`m/${id}/1200.webp`)).toBe(`/media/m/${id}/1200.webp`)
-    expect(mediaUrl(`m/${id}/360.webp`)).toBe(`/media/m/${id}/360.webp`)
+    expect(mediaUrl(`m/${id}/1200.webp`)).toBe(`/m/${id}/1200.webp`)
+    expect(mediaUrl(`m/${id}/360.webp`)).toBe(`/m/${id}/360.webp`)
   })
 })
 

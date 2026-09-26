@@ -1,18 +1,19 @@
 /**
- * Published-content loaders (P04, D29): every getter reads
- * `published_documents` through the Data API with the publishable key,
- * validates the row with the collection's Zod schema, and tags the fetch so
- * `POST /api/revalidate` can invalidate it after a publish. There is no
- * fallback to `content/initial-content.json` — that file is only the import
- * source for `scripts/import-content.mjs` and a test fixture; a missing env
- * var, a missing document or invalid data throws.
+ * Published-content loaders (P04, D29, D32): every getter reads
+ * `published_documents` through the Data API with the publishable key and
+ * validates the row with the collection's Zod schema. They run at build time
+ * only: the site is a static export rebuilt after each publish (D32). A
+ * missing env var, a missing document or invalid data throws, so the build
+ * fails and the last good deployment stays live — that build-time Zod check
+ * is what guards the public site. There is no fallback to
+ * `content/initial-content.json`; that file is only the import source for
+ * `scripts/import-content.mjs` and a test fixture.
  *
- * P05: after parsing, in the draft and the published path alike, media-library
- * ids in the document are resolved against `media` and replaced with
- * `formatMediaRef` strings; an unresolved id stays as it is and `<Picture>`
- * renders it as nothing.
+ * P05: after parsing, media-library ids in the document are resolved against
+ * `media` and replaced with `formatMediaRef` strings; an unresolved id stays
+ * as it is and `<Picture>` renders it as nothing. The admin preview reuses
+ * `replaceMediaIds` and the room `shape*` functions with a draft.
  */
-import { cookies, draftMode } from 'next/headers'
 import { cache } from 'react'
 import type { z } from 'zod'
 
@@ -59,67 +60,24 @@ export type BoutiqueItem = z.infer<typeof boutiqueItemSchema>
 export type ShelfRoom = z.infer<typeof shelfRoomSchema>
 export type SiteContent = z.infer<typeof siteSettingsStoredSchema>
 
-/** httpOnly cookie set by `POST /api/preview`: the staff access token. */
-export const PREVIEW_COOKIE = 'anasaq_preview'
-
-/**
- * Preview (P04 part 2): with Next draft mode on and a staff token cookie, the
- * latest version is read through RLS as that staff member, never cached. A
- * missing, unreadable or invalid draft falls back to the published copy.
- */
-async function fetchDraft<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T | null> {
-  // Outside a request (tests, scripts) there is no preview; draftMode()
-  // throws synchronously there, so treat that as preview off.
-  let preview = false
-  try {
-    preview = (await draftMode()).isEnabled
-  } catch {
-    return null
-  }
-  if (!preview) return null
-  const token = (await cookies()).get(PREVIEW_COOKIE)?.value
-  if (!token) return null
-  const params = new URLSearchParams({
-    collection: `eq.${collection}`,
-    doc_id: `eq.${docId}`,
-    select: 'data',
-    order: 'seq.desc',
-    limit: '1',
-  })
-  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/content_versions?${params}`, {
-    headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'), Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  })
-  if (!response.ok) return null
-  const rows = (await response.json()) as Array<{ data: unknown }>
-  const parsed = rows[0] ? schema.safeParse(rows[0].data) : null
-  return parsed?.success ? await resolveMedia(parsed.data, token) : null
-}
-
 /** A media row's derivatives, as `media_complete` recorded them. */
-interface MediaDerivative {
+export interface MediaDerivative {
   width: number
   height: number
 }
 
 /**
  * Replaces media-library ids in a parsed document with `formatMediaRef`
- * strings (P05). Published documents resolve with the publishable key,
- * cached and tagged `media`; drafts resolve with the preview token and are
- * never cached. An id anon may not read (no published document references
- * it) simply stays a bare string — an unreadable library is an error.
+ * strings (P05), read with the publishable key. An id anon may not read (no
+ * published document references it) simply stays a bare string — an
+ * unreadable library is an error.
  */
-async function resolveMedia<T>(data: T, token: string | undefined): Promise<T> {
+async function resolveMedia<T>(data: T): Promise<T> {
   const ids = collectMediaIds(data)
   if (ids.length === 0) return data
   const params = new URLSearchParams({ select: 'id,derivatives', id: `in.(${ids.join(',')})` })
-  const headers: Record<string, string> = { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') }
-  if (token) headers.Authorization = `Bearer ${token}`
   const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {
-    headers,
-    ...(token
-      ? { cache: 'no-store' as const }
-      : { cache: 'force-cache' as const, next: { tags: ['media'] } }),
+    headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') },
   })
   if (!response.ok) {
     throw new Error(`Failed to fetch media: ${response.status}`)
@@ -130,7 +88,7 @@ async function resolveMedia<T>(data: T, token: string | undefined): Promise<T> {
 }
 
 /** Deep-walks `value`, swapping each resolved media id for its reference string. */
-function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]>, origin: string): T {
+export function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]>, origin: string): T {
   function walk(node: unknown): unknown {
     if (typeof node === 'string') {
       const derivatives = byId.get(node)
@@ -156,17 +114,10 @@ function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]>, orig
 }
 
 async function fetchPublished<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T> {
-  const draft = await fetchDraft(collection, docId, schema)
-  if (draft !== null) return draft
-
   const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL')
   const key = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
   const params = new URLSearchParams({ collection: `eq.${collection}`, doc_id: `eq.${docId}`, select: 'data' })
-  const response = await fetch(`${url}/rest/v1/published_documents?${params}`, {
-    headers: { apikey: key },
-    cache: 'force-cache',
-    next: { tags: [`content:${collection}`, `content:${collection}:${docId}`] },
-  })
+  const response = await fetch(`${url}/rest/v1/published_documents?${params}`, { headers: { apikey: key } })
   if (!response.ok) {
     throw new Error(`Failed to fetch ${collection}/${docId}: ${response.status}`)
   }
@@ -175,7 +126,7 @@ async function fetchPublished<T>(collection: string, docId: string, schema: z.Zo
   if (!row) {
     throw new Error(`Missing published document: ${collection}/${docId}`)
   }
-  return resolveMedia(schema.parse(row.data), undefined)
+  return resolveMedia(schema.parse(row.data))
 }
 
 /** Drops items a hideable list's admin control marked `hidden: true`. */
@@ -202,8 +153,9 @@ export async function getHomeIntroAddition(): Promise<string> {
   return (await fetchSiteSettings()).home.introAddition
 }
 
-export async function getStartedRoom(): Promise<StartedRoom> {
-  const room = await fetchPublished('rooms', 'started', startedRoomSchema)
+// What each room's page shows of its stored document: hidden list items are
+// dropped. Shared by the public loaders and the admin preview.
+export function shapeStartedRoom(room: StartedRoom): StartedRoom {
   return {
     ...room,
     movements: dropHidden(room.movements),
@@ -211,8 +163,7 @@ export async function getStartedRoom(): Promise<StartedRoom> {
   }
 }
 
-export async function getBuiltRoom(): Promise<BuiltRoom> {
-  const room = await fetchPublished('rooms', 'built', builtRoomSchema)
+export function shapeBuiltRoom(room: BuiltRoom): BuiltRoom {
   return {
     ...room,
     movements: dropHidden(room.movements),
@@ -220,8 +171,7 @@ export async function getBuiltRoom(): Promise<BuiltRoom> {
   }
 }
 
-export async function getPassedRoom(): Promise<PassedRoom> {
-  const room = await fetchPublished('rooms', 'passed', passedRoomSchema)
+export function shapePassedRoom(room: PassedRoom): PassedRoom {
   return {
     ...room,
     media: {
@@ -231,6 +181,18 @@ export async function getPassedRoom(): Promise<PassedRoom> {
       gallery: dropHidden(room.media.gallery),
     },
   }
+}
+
+export async function getStartedRoom(): Promise<StartedRoom> {
+  return shapeStartedRoom(await fetchPublished('rooms', 'started', startedRoomSchema))
+}
+
+export async function getBuiltRoom(): Promise<BuiltRoom> {
+  return shapeBuiltRoom(await fetchPublished('rooms', 'built', builtRoomSchema))
+}
+
+export async function getPassedRoom(): Promise<PassedRoom> {
+  return shapePassedRoom(await fetchPublished('rooms', 'passed', passedRoomSchema))
 }
 
 export async function getShelfRoom(): Promise<ShelfRoom> {

@@ -1,10 +1,14 @@
 // P04 part 2 end-to-end: post lifecycle, taxonomy publishing, room
 // edit/preview/publish/restore, and version-conflict handling, against
 // `next dev` and the local Supabase stack. Uses the same local-only owner
-// pattern as `auth.spec.ts`.
+// pattern as `auth.spec.ts`. D32: documents open at `edit?id=`, the draft
+// preview is an admin page, and publishing requests a site rebuild (the
+// public pages under `next dev` render live data, so a publish shows at once).
 import { expect, test } from '@playwright/test'
 
-import { anonClient, createOwner, signInByCode, tomorrowRiyadhLocal } from './helpers'
+import { Client } from 'pg'
+
+import { anonClient, createOwner, signInByCode, status, tomorrowRiyadhLocal } from './helpers'
 
 const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. نصّك محفوظ هنا؛ حمّل آخر نسخة ثم أعد التعديل.'
 /** `src/admin/richtext.ts`'s `TEXT_FORMAT_BOLD`: bit 0 of Lexical's format bitmask. */
@@ -44,7 +48,7 @@ async function createAndPublishTaxonomy(
   await page.goto('/admin/content/taxonomies')
   await page.getByLabel('معرّف جديد').fill(slug)
   await page.getByRole('button', { name: 'جديد' }).click()
-  await expect(page).toHaveURL(new RegExp(`/admin/content/taxonomies/${slug}$`))
+  await expect(page).toHaveURL(new RegExp(`/admin/content/taxonomies/edit\\?id=${slug}$`))
   if (kind === 'tag') await page.getByLabel('النوع').selectOption('tag')
   await page.getByLabel('التسمية').fill(label)
   await page.getByRole('button', { name: 'حفظ' }).click()
@@ -67,8 +71,8 @@ test('post lifecycle: taxonomies, rich text, relations, cover, schedule, publish
 
   await page.goto('/admin/content/posts')
   await page.getByRole('button', { name: 'جديد' }).click()
-  await expect(page).toHaveURL(/\/admin\/content\/posts\/[0-9a-f-]{36}$/)
-  const docId = page.url().match(/([0-9a-f-]{36})$/)?.[1]
+  await expect(page).toHaveURL(/\/admin\/content\/posts\/edit\?id=[0-9a-f-]{36}$/)
+  const docId = page.url().match(/id=([0-9a-f-]{36})$/)?.[1]
   if (!docId) throw new Error('No post id in URL')
 
   const title = `مقال الاختبار ${stamp}`
@@ -148,7 +152,7 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   const email = await createOwner('محرر الغرف')
   await signInByCode(page, email)
 
-  await page.goto('/admin/content/rooms/started')
+  await page.goto('/admin/content/rooms/edit?id=started')
   const heroLine = page.getByLabel('سطر البداية')
   const original = await heroLine.inputValue()
   expect(original.length).toBeGreaterThan(0)
@@ -174,26 +178,34 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   await page.getByRole('button', { name: 'حفظ' }).click()
   await expect(page.getByText('تم الحفظ.')).toBeVisible()
 
+  // The draft preview is an admin page (D32): the saved draft, drawn with the
+  // public room's own view.
   const popupPromise = context.waitForEvent('page')
-  await page.getByRole('button', { name: 'معاينة' }).click()
-  await expect(page.getByText('المعاينة مفعّلة.')).toBeVisible()
+  await page.getByRole('link', { name: 'معاينة' }).click()
   const preview = await popupPromise
   await preview.waitForLoadState()
+  await expect(preview).toHaveURL(/\/admin\/preview\?id=started$/)
+  await expect(preview.getByText('معاينة المسودة', { exact: false })).toBeVisible()
   await expect(preview.getByText(updated)).toBeVisible()
   await preview.close()
 
-  // No preview cookie in a separate context: still the original heroLine.
-  const noCookieContext = await browser.newContext()
-  const noCookiePage = await noCookieContext.newPage()
-  await noCookiePage.goto('/started')
-  await expect(noCookiePage.getByText(original)).toBeVisible()
-  await noCookieContext.close()
+  // The public page still shows the published line.
+  const visitorContext = await browser.newContext()
+  const visitorPage = await visitorContext.newPage()
+  await visitorPage.goto('/started')
+  await expect(visitorPage.getByText(original)).toBeVisible()
+  await visitorContext.close()
 
-  await page.getByRole('button', { name: 'إنهاء المعاينة' }).click()
-  await expect(page.getByText('انتهت المعاينة.')).toBeVisible()
-
+  // Publishing asks for a site rebuild (finance.site_builds, read as the
+  // local superuser).
+  const db = new Client({ connectionString: status.DB_URL })
+  await db.connect()
+  await db.query('update finance.site_builds set requested_at = null where id = 1')
   await page.getByRole('button', { name: 'نشر' }).click()
-  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+  await expect(page.getByText('نشر: تم بنجاح. يظهر التعديل على الموقع خلال دقائق.')).toBeVisible()
+  const requested = await db.query<{ requested_at: Date | null }>('select requested_at from finance.site_builds')
+  expect(requested.rows[0]!.requested_at).not.toBeNull()
+  await db.end()
 
   const publishedContext = await browser.newContext()
   const publishedPage = await publishedContext.newPage()

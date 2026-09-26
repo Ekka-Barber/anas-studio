@@ -1,14 +1,15 @@
 // P06: the outbox's SQL surface against the real local database. Rows are
 // inserted directly as the local `postgres` superuser (fixtures), and the
-// app_server functions (`outbox_claim`, `outbox_result`, `job_run_record`)
-// are called as `app_server`; `outbox_attention`, `outbox_replay` and
+// server-only functions (`outbox_claim`, `outbox_result`, `job_run_record`)
+// are called as `service_role` (the `outbox` Edge Function's grants, D32);
+// `outbox_attention`, `outbox_replay` and
 // `job_runs_latest` go through real JWTs.
 import { createHash, randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createStaff, signIn } from './support'
+import { createStaff, serviceRoleDb, signIn } from './support'
 
 let app: Client
 let postgres: Client
@@ -16,8 +17,7 @@ let postgres: Client
 const MY_PREFIX = 'p06-outbox-test-'
 
 beforeAll(async () => {
-  app = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
-  await app.connect()
+  app = await serviceRoleDb()
   postgres = new Client({
     connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   })
@@ -163,10 +163,8 @@ describe('claiming', () => {
   it('a claim never waits for or takes a row another open claim holds (skip locked)', async () => {
     await parkOthers()
     const row = await insertRow({ label: 'race' })
-    const holder = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
-    const other = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
-    await holder.connect()
-    await other.connect()
+    const holder = await serviceRoleDb()
+    const other = await serviceRoleDb()
     let committed = false
     try {
       // Overlap by construction, not by timing: the holder's claim runs

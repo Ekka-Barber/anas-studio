@@ -113,7 +113,9 @@ port = 54324
 # sender_name = "Admin"
 
 [storage]
-enabled = false
+# D32: media and paid files live in Supabase Storage (buckets are created by
+# migration 20260927090000, so the hosted project gets the same ones).
+enabled = true
 # The maximum file size allowed (e.g. "5MB", "500KB").
 file_size_limit = "50MiB"
 
@@ -400,6 +402,21 @@ deno_version = 2
 
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
+# Local function values come from `supabase/functions/.env` (gitignored,
+# written by `pnpm db:env`); hosted ones from `supabase secrets set`.
+
+# D32: the public endpoints verify their own callers — the contact form with
+# Turnstile, the webhook with its Svix signature, the outbox with a bearer
+# JOBS_SECRET — so the gateway's JWT check is off for them. `admin` and
+# `staff-admin` keep it on and verify the staff token again inside.
+[functions.contact]
+verify_jwt = false
+
+[functions.resend-webhook]
+verify_jwt = false
+
+[functions.outbox]
+verify_jwt = false
 
 [analytics]
 enabled = false

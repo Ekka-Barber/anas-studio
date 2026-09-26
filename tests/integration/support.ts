@@ -6,6 +6,9 @@ import { execFileSync } from 'node:child_process'
 import { createHmac } from 'node:crypto'
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { Client } from 'pg'
+
+import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost'])
 
@@ -143,4 +146,41 @@ export async function callStaffAdmin(client: SupabaseClient, body: Record<string
   })
   const reply = (await response.json()) as StaffAdminReply
   return { status: response.status, reply }
+}
+
+/**
+ * A direct database session as `service_role` — the role the Edge Functions
+ * use for the server-only functions (D32; `app_server` is gone). The session
+ * connects as the local superuser and switches role, so every call below is
+ * checked against `service_role`'s real grants.
+ */
+export async function serviceRoleDb(): Promise<Client> {
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+  })
+  await client.connect()
+  await client.query('set role service_role')
+  return client
+}
+
+/** Functions that return a set of rows; everything else returns one value, as PostgREST answers. */
+const SET_RETURNING = new Set(['outbox_claim', 'contact_for_notice'])
+
+/**
+ * An `Rpc` (what the Edge Functions call) over a direct session: named
+ * arguments like the Data API, objects sent as JSON. Test-only; `fn` is
+ * always a constant from the code under test.
+ */
+export function pgRpc(client: Client): Rpc {
+  return async (fn, args) => {
+    const names = Object.keys(args)
+    const values = names.map((name) => {
+      const value = args[name]
+      return value !== null && typeof value === 'object' ? JSON.stringify(value) : value
+    })
+    const call = `public.${fn}(${names.map((name, index) => `${name} => $${index + 1}`).join(', ')})`
+    if (SET_RETURNING.has(fn)) return (await client.query(`select * from ${call}`, values)).rows
+    const result = await client.query<{ r: unknown }>(`select ${call} as r`, values)
+    return result.rows[0]?.r ?? null
+  }
 }

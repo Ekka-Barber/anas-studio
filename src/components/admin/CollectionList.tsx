@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 
 import { COLLECTION_LABELS, ROOM_DOC_LABELS, roomSchemas, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { documentHref } from '@/lib/supabase/functions'
 
 import { formatRiyadh } from './PublishBar'
 import styles from './admin.module.css'
@@ -82,7 +83,7 @@ export function CollectionList({ collection }: { collection: Collection }) {
           : []
 
   function createPost() {
-    router.push(`/admin/content/posts/${crypto.randomUUID().toLowerCase()}`)
+    router.push(documentHref('posts', crypto.randomUUID().toLowerCase()))
   }
 
   function createTaxonomy() {
@@ -90,7 +91,7 @@ export function CollectionList({ collection }: { collection: Collection }) {
       setNewSlugError('المعرّف يجب أن يتكوّن من حروف لاتينية صغيرة وأرقام وشرطات، ويبدأ بحرف أو رقم.')
       return
     }
-    router.push(`/admin/content/taxonomies/${newSlug}`)
+    router.push(documentHref('taxonomies', newSlug))
   }
 
   return (
@@ -140,7 +141,7 @@ export function CollectionList({ collection }: { collection: Collection }) {
               return (
                 <tr key={docId}>
                   <td>
-                    <Link href={`/admin/content/${collection}/${docId}`}>{titleFor(collection, docId, row)}</Link>
+                    <Link href={documentHref(collection, docId)}>{titleFor(collection, docId, row)}</Link>
                   </td>
                   <td>{statusFor(row)}</td>
                   <td>{row ? formatRiyadh(row.latest_at) : '-'}</td>

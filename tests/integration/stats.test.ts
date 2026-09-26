@@ -1,7 +1,7 @@
-// P06 round 2: `GET /api/admin/stats` against real local JWTs. The route is
-// imported and called directly (as the e2e suites reach it over HTTP); the
-// analytics module is mocked so the cache behavior is observable by counting
-// calls, and no network is touched.
+// P06 round 2, D32: the `admin` Edge Function's `stats` action against real
+// local JWTs. The handler is imported and called directly (the e2e suites
+// reach it over HTTP); the analytics module is mocked so the cache behavior
+// is observable by counting calls, and no network is touched.
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createStaff, signIn, status, type Role } from './support'
@@ -11,17 +11,23 @@ const { fetchAnalyticsMock } = vi.hoisted(() => ({
   fetchAnalyticsMock: vi.fn(async () => ({ status: 'unavailable', reason: 'NOT_CONFIGURED' })),
 }))
 
-vi.mock('../../src/lib/analytics', () => ({
+vi.mock('../../supabase/functions/_shared/analytics.ts', () => ({
   fetchAnalytics: () => fetchAnalyticsMock(),
 }))
 
-import { GET } from '../../src/app/api/admin/stats/route'
+import { handleAdmin } from '../../supabase/functions/_shared/admin.ts'
 
 function requestWith(token?: string): Request {
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
   if (token) headers.authorization = `Bearer ${token}`
-  return new Request('http://local.test/api/admin/stats', { headers })
+  return new Request('http://local.test/functions/v1/admin', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ action: 'stats' }),
+  })
 }
+
+const GET = (request: Request) => handleAdmin(request)
 
 async function tokenFor(email: string): Promise<string> {
   const client = await signIn(email)
@@ -33,8 +39,10 @@ async function tokenFor(email: string): Promise<string> {
 const tokens: Partial<Record<Role | 'revoked-owner', string>> = {}
 
 beforeAll(async () => {
-  process.env.NEXT_PUBLIC_SUPABASE_URL = status.API_URL
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = status.PUBLISHABLE_KEY
+  // What the Edge Function runtime provides: the staff check runs as the
+  // service role, like the hosted function.
+  process.env.SUPABASE_URL = status.API_URL
+  process.env.SUPABASE_SERVICE_ROLE_KEY = status.SECRET_KEY
   for (const role of ['owner', 'editor', 'operations'] as const) {
     const { email } = await createStaff(role)
     tokens[role] = await tokenFor(email)
@@ -49,7 +57,7 @@ beforeEach(() => {
   fetchAnalyticsMock.mockClear()
 })
 
-describe('GET /api/admin/stats', () => {
+describe('admin function: stats', () => {
   it('no bearer is 401', async () => {
     const response = await GET(requestWith())
     expect(response.status).toBe(401)
@@ -65,7 +73,7 @@ describe('GET /api/admin/stats', () => {
     // owner calls below exercise exactly one analytics fetch.
     const first = await GET(requestWith(tokens.owner))
     expect(first.status).toBe(200)
-    expect(first.headers.get('cache-control')).toBe('private, no-store')
+    expect(first.headers.get('cache-control')).toBe('no-store')
     const body = (await first.json()) as {
       ok: boolean
       data: { generatedAt: string; commerce: { status: string }; analytics: { status: string; reason: string } }

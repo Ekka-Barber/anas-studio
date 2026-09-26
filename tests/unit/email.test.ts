@@ -3,7 +3,7 @@
 // cap). `fetch` is stubbed; no network and no real provider is contacted.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EmailNotConfiguredError, NOTICE_MESSAGE_LIMIT, renderContactNotice, sendEmail } from '../../src/lib/email'
+import { EmailNotConfiguredError, NOTICE_MESSAGE_LIMIT, renderContactNotice, sendEmail } from '../../supabase/functions/_shared/email.ts'
 
 const savedEnv = { ...process.env }
 
@@ -173,9 +173,9 @@ describe('sendEmail with Mailpit (local development)', () => {
     await expect(sendEmail(LETTER)).rejects.toThrow('loopback')
   })
 
-  it('refuses Mailpit whenever NODE_ENV is production', async () => {
-    vi.stubEnv('NODE_ENV', 'production')
-    await expect(sendEmail(LETTER)).rejects.toThrow('production')
+  it('refuses Mailpit for a hosted site (non-local SITE_URL)', async () => {
+    vi.stubEnv('SITE_URL', 'https://anas.studio')
+    await expect(sendEmail(LETTER)).rejects.toThrow('hosted site')
   })
 
   it('throws EmailNotConfiguredError when no provider is configured', async () => {

@@ -1,11 +1,12 @@
 // staff-admin: invite, role change and revoke/restore for the owner (D13).
 //
-// The only code that holds the Supabase secret key; it runs inside Supabase,
-// never on the Worker or in the browser. Every action requires an active
-// owner whose session is at aal2 with a TOTP verification from the last five
-// minutes. The last-owner guard is the database trigger on public.staff, so
-// it holds here too. CORS allows any origin because the caller authenticates
-// with a bearer token the browser never attaches on its own.
+// Like every Edge Function (D32), it holds the Supabase secret key inside
+// Supabase only, never in the browser or the static site. Every action
+// requires an active owner whose session is at aal2 with a TOTP verification
+// from the last five minutes. The last-owner guard is the database trigger
+// on public.staff, so it holds here too. CORS allows any origin because the
+// caller authenticates with a bearer token the browser never attaches on its
+// own.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 import { hasRecentTotp } from './recent-totp.ts'

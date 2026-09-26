@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * Owner-only statistics (P06 round 2): reads `GET /api/admin/stats` with the
+ * Owner-only statistics (P06 round 2): reads the `admin` function's `stats` with the
  * signed-in session token. Commerce stays «غير مُعدّ بعد» until the store
  * arrives (P07/P08); analytics shows real numbers or «غير متاح» with the
  * reason — never an invented zero (D21).
@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react'
 
 import { formatNumber } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction } from '@/lib/supabase/functions'
 
 import { formatRiyadh } from './PublishBar'
 import styles from './admin.module.css'
@@ -46,21 +47,11 @@ export function StatsView() {
     let active = true
     void (async () => {
       const { data: sessionData } = await getSupabaseBrowserClient().auth.getSession()
-      const token = sessionData.session?.access_token
-      if (!token) return
-      try {
-        const response = await fetch('/api/admin/stats', { headers: { authorization: `Bearer ${token}` } })
-        if (!active) return
-        if (!response.ok) {
-          setError(response.status === 401 || response.status === 403 ? 'forbidden' : 'failed')
-          return
-        }
-        const body = (await response.json()) as { data?: StatsPayload }
-        if (body.data) setStats(body.data)
-        else setError('failed')
-      } catch {
-        if (active) setError('failed')
-      }
+      if (!sessionData.session) return
+      const result = await callFunction<StatsPayload>('admin', { action: 'stats' })
+      if (!active) return
+      if (result.ok) setStats(result.data)
+      else setError(result.error.code === 'UNAUTHENTICATED' || result.error.code === 'FORBIDDEN' ? 'forbidden' : 'failed')
     })()
     return () => {
       active = false

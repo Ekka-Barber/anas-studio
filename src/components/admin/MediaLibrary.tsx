@@ -16,9 +16,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 import { COLLECTION_LABELS, ROOM_DOC_LABELS } from '@/admin/collections'
 import { mediaFields, mediaMetaSchema } from '@/admin/collections/media'
-import { deleteMediaAction } from '@/app/(admin)/admin/actions'
 import { folderIsInvalid, mediaUrl } from '@/lib/media-ref'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction, documentHref } from '@/lib/supabase/functions'
 
 import { FieldInput } from './FieldInput'
 import { MediaUpload } from './MediaUpload'
@@ -383,7 +383,7 @@ export function MediaLibrary() {
     if (!selected || !accessToken) return
     setDeleting(true)
     setDeleteError(null)
-    const result = await deleteMediaAction(accessToken, selected.id)
+    const result = await callFunction<{ id: string }>('admin', { action: 'media-delete', id: selected.id })
     setDeleting(false)
     if (!result.ok) {
       setDeleteError(result.error.message)
@@ -518,7 +518,7 @@ export function MediaLibrary() {
               {!usedIn?.error && usedIn?.rows && usedIn.rows.length === 0 && <p className={styles.message}>غير مستخدمة</p>}
               {usedIn?.rows?.map((row) => (
                 <div key={`${row.collection}-${row.doc_id}-${row.state}`} className={styles.row}>
-                  <Link href={`/admin/content/${row.collection}/${row.doc_id}`}>{whereUsedLabel(row)}</Link>
+                  <Link href={documentHref(row.collection, row.doc_id)}>{whereUsedLabel(row)}</Link>
                   <span className={styles.badge}>{STATE_LABELS[row.state] ?? row.state}</span>
                 </div>
               ))}
@@ -544,7 +544,6 @@ export function MediaLibrary() {
         <MediaUpload
           open={uploadOpen}
           folder={selectedFolder === null || selectedFolder === ROOT_OPTION ? '' : selectedFolder}
-          accessToken={accessToken}
           onClose={() => setUploadOpen(false)}
           onUploaded={(id) => void handleUploaded(id)}
         />

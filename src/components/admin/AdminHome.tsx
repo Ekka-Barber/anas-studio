@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 
 import { formatNumber } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction } from '@/lib/supabase/functions'
 
 import { formatRiyadh } from './PublishBar'
 import styles from './admin.module.css'
@@ -64,7 +65,7 @@ export function AdminHome() {
     { state: 'loading' } | { state: 'error' } | { state: 'unavailable' } | { state: 'ok'; value: number }
   >({ state: 'loading' })
   // L8: the owner home states «المتجر غير مُهيأ» like the stats screen, from
-  // the same `/api/admin/stats` response's commerce status.
+  // the same `stats` answer's commerce status.
   const [store, setStore] = useState<{ state: 'loading' } | { state: 'not-configured' } | { state: 'ok' }>({
     state: 'loading',
   })
@@ -96,23 +97,19 @@ export function AdminHome() {
       setScheduled(error || count === null ? { state: 'error' } : { state: 'ok', value: count })
     }
 
-    async function loadVisits(token: string) {
-      try {
-        const response = await fetch('/api/admin/stats', { headers: { authorization: `Bearer ${token}` } })
-        if (!active) return
-        if (!response.ok) {
-          setVisits({ state: 'unavailable' })
-          return
-        }
-        const body = (await response.json()) as {
-          data?: { analytics?: { status: string; visits?: number }; commerce?: { status?: string } }
-        }
-        const analytics = body.data?.analytics
-        setVisits(analytics?.status === 'ok' ? { state: 'ok', value: analytics.visits ?? 0 } : { state: 'unavailable' })
-        setStore(body.data?.commerce?.status === 'not_configured' ? { state: 'not-configured' } : { state: 'ok' })
-      } catch {
-        if (active) setVisits({ state: 'error' })
+    async function loadVisits() {
+      const result = await callFunction<{
+        analytics?: { status: string; visits?: number }
+        commerce?: { status?: string }
+      }>('admin', { action: 'stats' })
+      if (!active) return
+      if (!result.ok) {
+        setVisits(result.error.code === 'UNKNOWN' ? { state: 'error' } : { state: 'unavailable' })
+        return
       }
+      const analytics = result.data.analytics
+      setVisits(analytics?.status === 'ok' ? { state: 'ok', value: analytics.visits ?? 0 } : { state: 'unavailable' })
+      setStore(result.data.commerce?.status === 'not_configured' ? { state: 'not-configured' } : { state: 'ok' })
     }
 
     void (async () => {
@@ -127,7 +124,7 @@ export function AdminHome() {
 
       const jobs = [loadEmail(), loadJobs()]
       if (role === 'owner' || role === 'editor') jobs.push(loadScheduled())
-      if (role === 'owner' && sessionData.session) jobs.push(loadVisits(sessionData.session.access_token))
+      if (role === 'owner' && sessionData.session) jobs.push(loadVisits())
       await Promise.all(jobs)
     })()
 

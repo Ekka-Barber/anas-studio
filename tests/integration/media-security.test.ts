@@ -1,22 +1,20 @@
 // P05: the media library's SQL surface (`supabase/migrations/
 // 20260926090000_media_library.sql`) against the real local database. The
-// app_server-only functions are called as `app_server` directly over a local
-// connection (the Worker's path through `src/lib/db.ts`), and everything RLS
-// protects goes through real JWTs at the Data API — the same split as
-// `tests/integration/publish.test.ts`.
+// server-only functions are called as `service_role` directly over a local
+// connection (the `admin` Edge Function's grants, D32), and everything RLS
+// protects goes through real JWTs at the Data API.
 import { randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { anonClient, createStaff, signIn } from './support'
+import { anonClient, createStaff, serviceRoleDb, signIn } from './support'
 
 let app: Client
 let postgres: Client
 
 beforeAll(async () => {
-  app = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
-  await app.connect()
+  app = await serviceRoleDb()
   postgres = new Client({
     connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   })
@@ -75,7 +73,7 @@ async function sqlstate(fn: () => Promise<unknown>): Promise<string | undefined>
   }
 }
 
-describe('upload tickets (app_server functions)', () => {
+describe('upload tickets (server-only functions)', () => {
   it('an active editor may create one; the reply carries id and expiry', async () => {
     const { userId } = await createStaff('editor')
     const result = await app.query<{ t: { id: string; expiresAt: string } }>(
@@ -274,7 +272,7 @@ describe('RLS through real JWTs', () => {
     expect(read.data).toEqual([])
   })
 
-  it('no API role can read or insert tickets, or execute the app_server functions', async () => {
+  it('no API role can read or insert tickets, or execute the server-only functions', async () => {
     const editor = await createStaff('editor')
     const client = await signIn(editor.email)
 

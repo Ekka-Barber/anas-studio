@@ -1,20 +1,19 @@
-import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare'
 import type { NextConfig } from 'next'
 
+/**
+ * D32: the site is a static export (`out/`) served by Cloudflare Pages. Pages
+ * are built from published content at build time and rebuilt through a
+ * Pages deploy hook after each publish; the admin is a client app that talks
+ * to Supabase directly; server work lives in Supabase Edge Functions
+ * (`supabase/functions/`). Nothing here runs on a server at request time.
+ */
 const nextConfig: NextConfig = {
+  output: 'export',
   reactStrictMode: true,
   poweredByHeader: false,
-  // D15: no Sharp and no Cloudflare Images baseline. Next's optimizer is the
-  // only code path that would pull a native resizer into the runtime, so it is
-  // switched off here rather than merely left unused.
+  // D15: no Sharp and no Cloudflare Images baseline; a static export has no
+  // image optimizer to run anyway.
   images: { unoptimized: true },
-  outputFileTracingIncludes: {
-    // `pg` picks `pg-cloudflare`'s CloudflareSocket at runtime on Workers, but
-    // Next's tracer resolves that package under the `default` export condition
-    // and copies only its empty stub. The OpenNext bundler resolves it under the
-    // `workerd` condition and needs the real implementation, so force it in.
-    '**/*': ['./node_modules/.pnpm/pg-cloudflare@*/node_modules/pg-cloudflare/**'],
-  },
   typescript: {
     // `pnpm typecheck` owns type checking; never ignore errors.
     ignoreBuildErrors: false,
@@ -24,24 +23,14 @@ const nextConfig: NextConfig = {
   // per `node_modules/next/dist/server/lib/app-info-log.js`). This repository
   // already has its own AGENTS.md/CLAUDE.md as the plan of record.
   agentRules: false,
-  // Server actions take the staff access token as an argument, and Next
-  // logs every server-function call with its arguments by default, which put
-  // tokens into `next dev` logs and acceptance evidence (P05 audit).
-  logging: { serverFunctions: false },
+  // Next 16's dev server refuses cross-origin dev resources from 127.0.0.1
+  // unless listed, and the admin form then never hydrates (found in P06 local
+  // verification); localhost and 127.0.0.1 are the same machine here.
+  allowedDevOrigins: ['127.0.0.1'],
   // Unmatched URLs have no single root layout to render inside (each route
-  // group has its own), so `src/app/global-not-found.tsx` serves them (I27).
+  // group has its own), so `src/app/global-not-found.tsx` serves them (I27);
+  // in the export it becomes `404.html`, which Pages serves for unknown paths.
   experimental: { globalNotFound: true },
-}
-
-// Gives `next dev` the same Cloudflare bindings (HYPERDRIVE, R2) that the
-// deployed Worker sees, through wrangler's local simulation.
-//
-// Guarded: this helper starts a miniflare instance and demands a local
-// Hyperdrive connection string, so calling it during `next build` would make a
-// production build depend on a local database. The deployed Worker gets its
-// context from the OpenNext entrypoint instead.
-if (process.env.NODE_ENV === 'development') {
-  void initOpenNextCloudflareForDev()
 }
 
 export default nextConfig

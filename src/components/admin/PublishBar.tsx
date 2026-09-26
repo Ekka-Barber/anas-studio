@@ -4,13 +4,14 @@
  * Publish, schedule, cancel, archive and preview one document (P04 part 2).
  * Publish/schedule act on the given `seq` (the latest saved version); the
  * parent disables everything while the saved version is invalid or the form
- * has unsaved changes.
+ * has unsaved changes. D32: publishing rebuilds the static site, so a change
+ * appears publicly a few minutes later, and preview opens the admin's own
+ * preview page instead of switching the public site into draft mode.
  */
 import { useState } from 'react'
 
 import type { Collection } from '@/admin/collections'
-
-import { archiveAction, cancelScheduleAction, publishAction, scheduleAction } from '@/app/(admin)/admin/actions'
+import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument } from '@/lib/admin-publish'
 
 import styles from './admin.module.css'
 
@@ -39,7 +40,6 @@ interface PublishBarProps {
   seq: number
   liveSeq: number | null
   scheduledAt: string | null
-  accessToken: string
   canPublish: boolean
   canArchive: boolean
   previewPath: string | null
@@ -52,7 +52,6 @@ export function PublishBar({
   seq,
   liveSeq,
   scheduledAt,
-  accessToken,
   canPublish,
   canArchive,
   previewPath,
@@ -61,47 +60,22 @@ export function PublishBar({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [scheduleValue, setScheduleValue] = useState('')
-  const [previewing, setPreviewing] = useState(false)
 
-  async function run(label: string, task: () => Promise<{ ok: boolean; error?: { message: string } }>) {
+  async function run(
+    label: string,
+    task: () => Promise<{ ok: boolean; error?: { message: string } }>,
+    rebuilds = false,
+  ) {
     setBusy(true)
     setMessage(null)
     const result = await task()
     setBusy(false)
     if (result.ok) {
-      setMessage(`${label}: تم بنجاح.`)
+      setMessage(rebuilds ? `${label}: تم بنجاح. يظهر التعديل على الموقع خلال دقائق.` : `${label}: تم بنجاح.`)
       onChanged()
     } else {
       setMessage(`${label}: ${result.error?.message ?? 'تعذّر إكمال الإجراء.'}`)
     }
-  }
-
-  async function preview() {
-    if (!previewPath) return
-    setBusy(true)
-    setMessage(null)
-    const response = await fetch('/api/preview', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ accessToken, path: previewPath }),
-    })
-    const result = (await response.json()) as { ok: boolean; error?: { message: string } }
-    setBusy(false)
-    if (result.ok) {
-      setPreviewing(true)
-      setMessage('المعاينة مفعّلة.')
-      window.open(previewPath, '_blank')
-    } else {
-      setMessage(result.error?.message ?? 'تعذّرت المعاينة.')
-    }
-  }
-
-  async function endPreview() {
-    setBusy(true)
-    await fetch('/api/preview', { method: 'DELETE' })
-    setBusy(false)
-    setPreviewing(false)
-    setMessage('انتهت المعاينة.')
   }
 
   return (
@@ -111,7 +85,7 @@ export function PublishBar({
           type="button"
           className={styles.button}
           disabled={busy || !canPublish}
-          onClick={() => run('نشر', () => publishAction(accessToken, collection, docId, seq))}
+          onClick={() => run('نشر', () => publishDocument(collection, docId, seq), true)}
         >
           نشر
         </button>
@@ -127,7 +101,7 @@ export function PublishBar({
           className={styles.buttonSecondary}
           disabled={busy || !canPublish || !scheduleValue}
           onClick={() =>
-            run('جدولة', () => scheduleAction(accessToken, collection, docId, seq, riyadhLocalToIso(scheduleValue)))
+            run('جدولة', () => scheduleDocument(collection, docId, seq, riyadhLocalToIso(scheduleValue)))
           }
         >
           جدولة
@@ -137,7 +111,7 @@ export function PublishBar({
             type="button"
             className={styles.buttonSecondary}
             disabled={busy}
-            onClick={() => run('إلغاء الجدولة', () => cancelScheduleAction(accessToken, collection, docId))}
+            onClick={() => run('إلغاء الجدولة', () => cancelSchedule(collection, docId))}
           >
             إلغاء الجدولة
           </button>
@@ -147,21 +121,16 @@ export function PublishBar({
             type="button"
             className={styles.buttonSecondary}
             disabled={busy}
-            onClick={() => run('أرشفة', () => archiveAction(accessToken, collection, docId))}
+            onClick={() => run('أرشفة', () => archiveDocument(collection, docId), true)}
           >
             أرشفة
           </button>
         )}
-        {previewPath &&
-          (previewing ? (
-            <button type="button" className={styles.buttonSecondary} disabled={busy} onClick={endPreview}>
-              إنهاء المعاينة
-            </button>
-          ) : (
-            <button type="button" className={styles.buttonSecondary} disabled={busy} onClick={preview}>
-              معاينة
-            </button>
-          ))}
+        {previewPath && (
+          <a className={styles.buttonSecondary} href={previewPath} target="_blank" rel="noopener">
+            معاينة
+          </a>
+        )}
       </div>
       {liveSeq !== null && <p className={styles.message}>منشور حاليًا: نسخة {liveSeq}.</p>}
       {scheduledAt && <p className={styles.message}>مجدول في {formatRiyadh(scheduledAt)}.</p>}

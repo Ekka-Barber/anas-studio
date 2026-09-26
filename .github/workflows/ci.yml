@@ -1,6 +1,6 @@
 name: CI
 
-# Linux CI for the P00 runtime spike foundation. Every step is a real check:
+# Linux CI. Every step is a real check:
 # no step is allowed to fail silently, nothing is wrapped in `continue-on-error`
 # and no exit code is masked. A red job means the commit is not acceptable.
 
@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   verify:
-    name: install, lint, typecheck, test, build, worker bundle
+    name: install, lint, typecheck, test, static export
     # Pinned image, not `ubuntu-latest`: the runner is part of the build inputs.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -66,12 +66,14 @@ jobs:
         with:
           version: 2.106.0
 
-      # Room and site-settings pages fetch published content at build time
-      # (P04, D29), so the local stack must be up before `pnpm build`. Only
-      # Postgres, the Data API (postgrest/kong) and Auth (gotrue) are needed;
-      # everything else is excluded to keep the job fast.
+      # The static export reads published content at build time (P04, D29,
+      # D32), so the local stack must be up before `pnpm build`. Postgres, the
+      # Data API (postgrest/kong) and Auth (gotrue) serve the build; the
+      # Storage API is started too because the migrations create the media
+      # buckets in its schema. Everything else is excluded to keep the job
+      # fast.
       - name: Start the local Supabase stack
-        run: supabase start -x realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit
+        run: supabase start -x realtime,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta,mailpit
 
       - name: Import content into the local database
         run: pnpm db:import
@@ -81,17 +83,17 @@ jobs:
       - name: Write .env.local from the local stack
         run: pnpm db:env
 
-      - name: Build the Next.js application
+      - name: Build the static site
+        # `output: 'export'` (D32): the files Cloudflare Pages serves, in out/.
         run: pnpm build
 
-      - name: Build the OpenNext Cloudflare Worker artifact
-        # The real artifact that ships, not a stub: this is what P00 measures.
-        run: pnpm build:worker
+      - name: Static export is complete and holds no secret
+        run: pnpm check:export
 
-# Not run here, and deliberately so: `pnpm preview:worker` and `pnpm test:e2e`.
-# `wrangler dev` refuses to start the HYPERDRIVE binding without a local
-# connection string, and the end-to-end spec needs the local Supabase stack
-# and a browser. That proof runs locally against the disposable Docker stack
-# (see docs/development.md) and on the hosted deployment; a CI job that
-# started the preview without a database would prove nothing about the
-# runtime and would report a green check for an untested path.
+      - name: Public JavaScript budget
+        run: pnpm check:budgets
+
+# Not run here, and deliberately so: `pnpm test:db` and `pnpm test:e2e`. They
+# need the whole local stack (Edge Functions, Storage, Mailpit) and a
+# browser; that proof runs locally against the disposable Docker stack (see
+# docs/development.md) and on the hosted deployment.

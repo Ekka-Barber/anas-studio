@@ -6,17 +6,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import fixture from '../../content/initial-content.json'
 
-// `src/lib/content.ts` reads next/headers for preview; outside a request that
-// throws, which the loaders treat as preview off (the published path).
-vi.mock('next/headers', () => ({
-  draftMode: async () => {
-    throw new Error('outside a request')
-  },
-  cookies: async () => {
-    throw new Error('outside a request')
-  },
-}))
-
 // The database is filled from this file by scripts/import-content.mjs, and
 // tests/integration/content.test.ts proves the loaders return it unchanged, so
 // checking the file against the source covers the public pages.
@@ -75,7 +64,6 @@ describe('media references in the published path (P05)', () => {
   beforeAll(() => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.local'
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'test-key'
-    delete process.env.NEXT_PUBLIC_MEDIA_ORIGIN
   })
   afterAll(() => {
     vi.unstubAllGlobals()
@@ -106,11 +94,15 @@ describe('media references in the published path (P05)', () => {
 
     const { getNav } = await import('../../src/lib/content')
     const nav = await getNav()
-    expect(nav[0]?.label).toBe(`media|/media/m/${mediaId}|720x480|360,720`)
+    // D32: public derivatives live in the `media-public` Storage bucket.
+    expect(nav[0]?.label).toBe(
+      `media|http://supabase.local/storage/v1/object/public/media-public/m/${mediaId}|720x480|360,720`,
+    )
     expect(nav[1]?.label).toBe(unresolvedId)
 
-    // The published media read is cached and tagged, never no-store.
+    // The build reads published media anonymously: the publishable key only,
+    // never a staff token.
     const mediaCall = fetchMock.mock.calls.find(([url]) => String(url).includes('/media?'))
-    expect(mediaCall?.[1]).toMatchObject({ cache: 'force-cache', next: { tags: ['media'] } })
+    expect(mediaCall?.[1]).toEqual({ headers: { apikey: 'test-key' } })
   })
 })

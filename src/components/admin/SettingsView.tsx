@@ -10,10 +10,11 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { settingsStatusAction, type SettingsStatus } from '@/app/(admin)/admin/actions'
 import { WHATSAPP_ERROR } from '@/admin/collections/site-settings'
 import { normalizeSaudiMobile } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction, documentHref } from '@/lib/supabase/functions'
+import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
 
 import styles from './admin.module.css'
 
@@ -74,11 +75,10 @@ export function SettingsView() {
 
     void (async () => {
       const { data: sessionData } = await getSupabaseBrowserClient().auth.getSession()
-      const token = sessionData.session?.access_token
-      if (!token) return
-      const result = await settingsStatusAction(token)
+      if (!sessionData.session) return
+      const result = await callFunction<SettingsStatus>('admin', { action: 'status' })
       if (!active) return
-      if (result) setStatus(result)
+      if (result.ok) setStatus(result.data)
       else setStatusError(true)
     })()
 
@@ -95,7 +95,7 @@ export function SettingsView() {
         <h2>إعدادات الموقع</h2>
         <p>
           التنقل والتذييل وحقول SEO والتواصل تُحرَّر في{' '}
-          <Link href="/admin/content/site_settings/site">مستند إعدادات الموقع</Link>.
+          <Link href={documentHref('site_settings', 'site')}>مستند إعدادات الموقع</Link>.
         </p>
         <p>معاينة رابط واتساب:</p>
         {whatsapp.state === 'loading' && <p className={styles.message}>يحمّل...</p>}
@@ -146,9 +146,9 @@ export function SettingsView() {
             (السحابة البرتقالية) على سجل CNAME. يكتمل التوثيق عادة خلال دقائق وقد يصل إلى 72 ساعة.
           </li>
           <li>
-            إضافة Webhook في Resend لأحداث التسليم (delivered, bounced, complained…) يشير إلى{' '}
-            <span dir="ltr">anas.studio/api/email/resend/webhook</span>، وحفظ سرّه كسرّ Worker باسم{' '}
-            <span dir="ltr">RESEND_WEBHOOK_SECRET</span>.
+            إضافة Webhook في Resend لأحداث التسليم (delivered, bounced, complained…) يشير إلى دالة{' '}
+            <span dir="ltr">resend-webhook</span> في Supabase (<span dir="ltr">…supabase.co/functions/v1/resend-webhook</span>)،
+            وحفظ سرّه كسرّ للدوال باسم <span dir="ltr">RESEND_WEBHOOK_SECRET</span>.
           </li>
           <li>
             إنشاء عنصر Turnstile للنطاق <span dir="ltr">anas.studio</span> وتخزين مفتاحيه.

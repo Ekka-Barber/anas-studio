@@ -1,6 +1,6 @@
-// RLS and grants on `staff`, `audit_events` and the `app_server` login (P03,
-// D13, D26). Real JWTs through the Data API; no service-role bypass except in
-// fixture setup. Runs against a shared local database, so every fixture uses
+// RLS and grants on `staff` and `audit_events`, and the retired `app_server`
+// login (P03, D13, D26, D32). Real JWTs through the Data API; no service-role
+// bypass except in fixture setup. Runs against a shared local database, so every fixture uses
 // a unique email — never assert exact row counts, only presence/absence.
 import { Client } from 'pg'
 import { describe, expect, it } from 'vitest'
@@ -84,18 +84,17 @@ describe('current_staff_role', () => {
   })
 })
 
-describe('app_server', () => {
-  it('can call public.health() and is refused select on staff and audit_events', async () => {
+describe('server roles (D32)', () => {
+  it('the app_server login and its health probe are gone', async () => {
     const pg = new Client({
-      connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres',
+      connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
     })
     await pg.connect()
     try {
-      const health = await pg.query('select public.health()')
-      expect(health.rows[0].health).toBe(1)
-
-      await expect(pg.query('select * from public.staff')).rejects.toThrow()
-      await expect(pg.query('select * from public.audit_events')).rejects.toThrow()
+      const role = await pg.query("select 1 from pg_catalog.pg_roles where rolname = 'app_server'")
+      expect(role.rowCount).toBe(0)
+      const health = await pg.query("select to_regprocedure('public.health()') as fn")
+      expect(health.rows[0].fn).toBeNull()
     } finally {
       await pg.end()
     }

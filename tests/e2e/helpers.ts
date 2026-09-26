@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 
 type Status = {
   API_URL: string
+  FUNCTIONS_URL: string
   MAILPIT_URL: string
   SECRET_KEY: string
   DB_URL: string
@@ -30,6 +31,15 @@ export function readStatus(): Status {
 }
 
 export const status = readStatus()
+
+/** A local Edge Function's URL (D32: the server endpoints live there, not in Next). */
+export function functionUrl(name: 'contact' | 'resend-webhook' | 'outbox' | 'admin'): string {
+  return `${status.FUNCTIONS_URL}/${name}`
+}
+
+/** The site origin the `contact` function accepts (`SITE_URL` in `supabase/functions/.env`). */
+export const SITE_ORIGIN = 'http://localhost:3000'
+
 export const serviceClient = createClient(status.API_URL, status.SECRET_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 })

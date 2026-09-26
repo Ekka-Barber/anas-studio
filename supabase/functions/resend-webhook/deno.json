@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.117.1",
+    "image-size": "npm:image-size@2.0.4",
+    "zod": "npm:zod@4.6.5"
+  }
+}
