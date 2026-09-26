@@ -187,6 +187,13 @@
     font-weight: 600;
   }
 
+  /* In a Latin cell (dir="auto" resolved to ltr: an email, an error code)
+     the label sits at the line's left and its trailing space falls on the
+     outer edge, gluing the label to the value; pad the side facing it. */
+  .responsive td:dir(ltr)::before {
+    padding-inline-start: 0.3em;
+  }
+
   /* Cards show the full text wrapped, not the one-line ellipsis. */
   .responsive .cellEllipsis {
     max-inline-size: none;

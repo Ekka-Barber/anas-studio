@@ -187,7 +187,7 @@ export function EmailView() {
                   >
                     {row.last_error ?? '—'}
                   </td>
-                  <td dir="ltr" data-label="تاريخ المحاولة الأولى" className={styles.cellNowrap}>
+                  <td data-label="تاريخ المحاولة الأولى" className={styles.cellNowrap}>
                     {row.first_attempt_at ? formatRiyadh(row.first_attempt_at) : '—'}
                   </td>
                   <td data-label="إجراء">

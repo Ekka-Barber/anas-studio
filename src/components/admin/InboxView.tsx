@@ -196,7 +196,7 @@ export function InboxView() {
                   >
                     {contact.message.split('\n')[0]}
                   </td>
-                  <td dir="ltr" data-label="الوقت" className={styles.cellNowrap}>
+                  <td data-label="الوقت" className={styles.cellNowrap}>
                     {formatRiyadh(contact.created_at)}
                   </td>
                   <td data-label="الحالة" className={styles.cellNowrap}>
