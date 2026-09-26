@@ -7,11 +7,12 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `agent/p00-runtime-spike` |
-| Last commit | `4ffc78f` (P04 part 2); `d5c7ceb` moved the worker to GLM-5.3 (D30) |
+| Last commit | `79d8cf6` (P05); `d5c7ceb` moved the worker to GLM-5.3 (D30) |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
 | P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
-| P05 | Built by `glm-worker` in two rounds and audited; Linux Worker build passes. Awaiting the owner's commit approval. |
+| P05 | Committed (`79d8cf6`). |
+| P06 | Round 1 (contacts, email outbox, delivery webhook, jobs) audited; uncommitted. Round 2 (admin screens) next. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
 | Lock | Held by the orchestrator for P05. |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
@@ -74,6 +75,14 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 - Fixed by the orchestrator: the details column squeezed the grid to one column inside the reading-width admin page (details now sit above the grid and take focus); the next upload inherited the previous image's alt and rights; delete was enabled before where-used loaded; `file-type` broke the Linux Worker bundle (it imports `strtok3`), so `image-size` now does the type check alone.
 - Results: `pnpm check` 0 (109 unit); `test:db` 0 (46); media, CMS and auth e2e 13 passed; screenshots at 360 and 1440 without overflow; Linux `build:worker` and dry-run 0, 10,460 KiB upload (P04 commit 9,653 KiB, so P05 adds 8%), no Sharp, no secret key. Every P05 proof item is mapped in `artifacts/acceptance/P05/commands.txt`. Open: I29 (hosted media origin and R2 housekeeping, P11); upload CPU and the grown Worker's startup, with I21 at P10.
 
+## P06 round 1 audit (orchestrator, 2026-09-26)
+
+- Orchestrator: migration `20260926120000_contacts_and_email.sql` (inbox table with RLS for owner and operations; private `finance` schema with the outbox, delivery events, suppressions, throttles and job runs; `contact_submit`, `outbox_claim`/`outbox_result`, `email_event_record` for `app_server`; `outbox_attention`/`outbox_replay`/`job_runs_latest` for staff).
+- Worker (`glm-worker`, 64 minutes): the contact API (Turnstile, honeypot, throttles), the email adapter (Resend, Mailpit locally, plain text with bidi isolates), the outbox dispatcher, the Svix-verified Resend webhook, the jobs endpoint and Worker cron trigger, tests and `docs/operations.md`.
+- Incident: the first local e2e run called the real Resend API with the key in `.env` (`next dev` loads it). Resend refused all ~31 requests (unverified sender); no email was delivered and all recipients were test addresses. Fixed in code: real email only from a production build with a non-local `SITE_URL`; regression tests added.
+- Also fixed: the webhook acknowledged failed writes (lost bounces); malformed event fields could fail every redelivery.
+- Results: `pnpm check` 0 (152 unit); `test:db` 0 (78); e2e 20 passed on `next dev` with no real provider call. Evidence: `artifacts/acceptance/P06/commands.txt`.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -83,10 +92,12 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | P02 | not_started; waits for design | — |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
-| P05 | audited, awaiting commit | `artifacts/acceptance/P05/` |
-| P06–P12 | not_started | — |
+| P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |
+| P06 | building: round 1 audited, uncommitted | `artifacts/acceptance/P06/` |
+| P07–P12 | not_started | — |
 
 ## Next work, in order
 
-1. Commit P05 with the owner's approval.
-2. P06 (owner operations: forms, inbox, email outbox, statistics) comes next in order.
+1. P06 round 2 (`glm-worker`): admin screens for the owner home, inbox, email problems (replay), settings and statistics (unavailable until E11).
+2. P06 round 3: backups (destination and key holder need the owner's decision) and the privacy-request runbook; then the Linux Worker build and the phase 2 gate walk-through.
+3. Commit P06 with the owner's approval.

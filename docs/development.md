@@ -47,6 +47,11 @@ What each variable is for:
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the
   public Supabase Data API, used by the browser admin and by public Worker
   reads (`PLANS/ARCHITECTURE.md` "Three data paths").
+- `ANALYTICS_TOKEN` / `CLOUDFLARE_ZONE_ID` — the Cloudflare GraphQL
+  Analytics API token and zone for the owner statistics (P06). Unset (the
+  local default) means `/admin/stats` honestly says «غير متاح»; no network
+  call is made. Set both as Worker secrets before the launch build; the live
+  account proof is gate E11 (P11).
 
 ## Local database
 
@@ -190,6 +195,45 @@ then `PUT ?ticket=<uuid>&part=<original|wNNN>` per part) and
 resolve media ids to derivatives through `src/lib/content.ts`, and publishing
 a document that references a deleted library image is refused. Staff-facing
 rules are in `docs/media-rights.md`.
+
+## Contact form, jobs and local email (P06)
+
+`pnpm db:env` also writes the local-only values the contact form and the
+email outbox need into `.env.local`:
+
+- `JOBS_SECRET` and `TOKEN_HASH_PEPPER` — fixed local strings (local only);
+  the pepper salts the form's hashed caller key, the secret guards
+  `POST /api/jobs/run`.
+- `TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA` — Cloudflare's
+  documented always-pass test secret
+  (developers.cloudflare.com/turnstile/troubleshooting/testing). Locally the
+  Turnstile check accepts only the dummy token `XXXX.DUMMY.TOKEN.XXXX`. A
+  test secret is refused outright in production.
+- `EMAIL_DEV_MAILPIT_URL=http://127.0.0.1:54324` — with no
+  `RESEND_API_KEY`, outbound mail goes to the local stack's Mailpit
+  (http://127.0.0.1:54324 in the browser), never to a real provider. A
+  non-loopback URL or production `NODE_ENV` is refused.
+- `EMAIL_FROM` — the display address local mail is sent from.
+- `RESEND_WEBHOOK_SECRET` — the Svix `whsec_…` form of a fixed local string,
+  so tests can sign real webhook signatures.
+
+Run the outbox by hand (the Worker's cron trigger does this in production):
+
+```sh
+curl -X POST -H "authorization: Bearer $JOBS_SECRET" localhost:3000/api/jobs/run
+```
+
+The reply is counts only (`{claimed, accepted, retry, permanent,
+uncertain}`). Delivery events, suppression and the replay rules are in
+`docs/operations.md`.
+
+The P06 round 2 admin screens — the owner home (`/admin`), the inbox
+(`/admin/inbox`), email problems (`/admin/email`), statistics
+(`/admin/stats`, owner only, via `GET /api/admin/stats`) and settings
+(`/admin/settings`, owner only) — are client components under
+`AdminShell`; the browser reads data under RLS, and the statistics route
+verifies the staff token and owner role server-side before its cache.
+
 
 ## Running the application
 

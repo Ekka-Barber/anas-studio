@@ -321,3 +321,24 @@
   border-radius: 0.25rem;
   background: var(--color-sand);
 }
+
+/* Owner operations (P06 round 2). */
+.preWrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rowSelected {
+  background: var(--color-sand);
+}
+
+/* A table row's open action, plain text like a link. */
+.linkButton {
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

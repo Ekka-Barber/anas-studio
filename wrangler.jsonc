@@ -95,6 +95,16 @@
     "SITE_URL": "https://anas-studio.anas-studio.workers.dev"
   },
 
+  // P06: the one Worker Cron Trigger (ARCHITECTURE "Jobs"). Every minute is
+  // deliberate — the outbox's own `next_at` backoff and quota checks decide
+  // whether anything is actually sent, so a frequent trigger only makes the
+  // dispatch latency small. `worker-entry.ts`'s `scheduled` turns it into one
+  // authenticated `POST /api/jobs/run` (`JOBS_SECRET` Worker secret); with
+  // that secret unset the trigger does nothing.
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
   "observability": {
     "enabled": true
   }

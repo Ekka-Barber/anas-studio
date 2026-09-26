@@ -22,12 +22,32 @@ if (existsSync(path) && !readFileSync(path, 'utf8').includes(MARKER)) {
   process.exit(1)
 }
 
+// Local-only email/webhook values (P06). The Turnstile secret is Cloudflare's
+// documented always-pass test key (developers.cloudflare.com/turnstile/
+// troubleshooting/testing) and the webhook secret is the Svix `whsec_` form of
+// a fixed local string, so tests can sign real signatures. None of these may
+// ever reach a production environment.
+const localWebhookSecret = `whsec_${Buffer.from('anas-studio-local-webhook-secret-p06').toString('base64')}`
+
 const content = `${MARKER}
 NEXT_PUBLIC_SUPABASE_URL=${status.API_URL}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${status.PUBLISHABLE_KEY}
 CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres
 SITE_URL=http://localhost:3000
 REVALIDATE_SECRET=local-revalidate-secret-not-for-production
+# local only (P06)
+JOBS_SECRET=local-jobs-secret-not-for-production
+TOKEN_HASH_PEPPER=local-pepper-not-for-production
+# Cloudflare Turnstile always-pass test secret (local only)
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+# Empty on purpose: Next loads .env.local with higher precedence than .env,
+# and an empty value counts as unset (src/lib/env.ts optionalEnv), so a real
+# RESEND_API_KEY in .env can never make local runs send real email — the
+# outbox uses Mailpit below instead.
+RESEND_API_KEY=
+EMAIL_DEV_MAILPIT_URL=http://127.0.0.1:54324
+EMAIL_FROM="أنس <noreply@anas.studio>"
+RESEND_WEBHOOK_SECRET=${localWebhookSecret}
 `
 writeFileSync(path, content)
 console.log(`Wrote ${path}.`)

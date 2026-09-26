@@ -1,0 +1,188 @@
+Round 1 (glm-worker) — 2026-09-26
+
+== Sources fetched (live, this round) ==
+- https://resend.com/docs/api-reference/errors.md → source-resend-errors.md
+  (status-code table: 400/401/403/404/405/409/422/429/500/503 and per-code names)
+- https://resend.com/docs/knowledge-base/account-quotas-and-limits.md → source-resend-quotas.md
+  (free plan: 100 emails/day UTC calendar day, 3,000/month; DAILY_QUOTA in src/lib/outbox.ts)
+- https://resend.com/docs/api-reference/rate-limit.md → source-resend-rate-limit.md
+  (429 quota/rate-limit semantics, quota headers)
+- https://resend.com/docs/llms.txt → source-resend-llms-index.txt (index used to find the pages above)
+- https://developers.cloudflare.com/turnstile/get-started/server-side-validation → source-turnstile-siteverify.html
+  (siteverify request/response shape: success, challenge_ts, hostname, error-codes, action, cdata)
+- https://developers.cloudflare.com/turnstile/troubleshooting/testing → source-turnstile-testing.html
+  (test secret keys; test-secret validation response example)
+- Live siteverify calls (POST, this round):
+  - always-pass secret 1x…AA + "XXXX.DUMMY.TOKEN.XXXX" → success:true, hostname "example.com",
+    NO action field, metadata.result_with_testing_key:true → siteverify-live-test-secret.json
+  - always-fail secret 2x…AA + dummy token → success:false, invalid-input-response → siteverify-live-fail-secret.json
+  - always-pass secret 1x…AA + "NOT.THE.DUMMY.TOKEN" → success:true → siteverify-live-non-dummy-token.json
+    (contradicts the brief's "test secrets accept only the dummy token": the always-pass test secret
+    accepts ANY token, so a 400 TURNSTILE is unreachable locally; see notes below)
+
+== Commands (exit codes; failures noted) ==
+- pnpm db:env → 0 (wrote .env.local; later re-run after adding RESEND_API_KEY= empty line)
+- pnpm cf-typegen → 0 (after adding "triggers" to wrangler.jsonc)
+- pnpm lint → 0 (3 pre-existing <img> warnings in P03/P05 components, untouched)
+- pnpm typecheck → 2 first run (13 errors: NODE_ENV readonly, SITE_URL literal from cf-typegen,
+  noUncheckedIndexedAccess, Request type bridge in scheduled; all fixed) → 0 on re-runs
+- pnpm test → 1 first run (3 failures: stale/future-timestamp helper passed a matching clock;
+  scheduled-test wrongly expected fetch to be deferred; both were test bugs) → 0 (149 passed)
+- pnpm check:frozen → 0 ; pnpm check:copy → 0
+- TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+  → 1 first run (7 failures, all shared-local-database assumptions: notice count equals staff count;
+  anon refused by table privileges 42501 not RLS-empty; check_violation is 23514 not 23503;
+  leftover synthetic sent rows from a previous quota run consumed the daily quota) → 0 (78 passed)
+- pnpm dev (background, http://localhost:3000) + PLAYWRIGHT_BASE_URL=http://localhost:3000
+  pnpm test:e2e -- tests/e2e/owner-operations.spec.ts tests/e2e/cms.spec.ts
+  → 1 first run (3 owner-operations failures; details below) → 1 second run (4 failures, cascade)
+  → 0 final run: the whole suite incl. owner-operations and cms, 63 passed
+- Final re-verification after the last spec edits: pnpm typecheck → 0, pnpm lint → 0, pnpm test → 0
+
+== Incidents and resolutions ==
+1. First e2e run: POST /api/jobs/run sent with the REAL Resend key. Cause: the gitignored .env
+   defines RESEND_API_KEY and next dev loads .env in addition to .env.local, so sendEmail chose
+   the Resend path. Every send was refused by the provider (422, unverified sender) — NO real
+   email left, confirmed by last_error HTTP_422 on the affected outbox rows (they are marked
+   exhausted in the local database). Fix: scripts/local-env.mjs now writes an empty
+   RESEND_API_KEY= into .env.local (higher precedence than .env; empty counts as unset in
+   optionalEnv), forcing the Mailpit dev path. Dev server restarted before the passing run.
+2. "Bad Turnstile token" e2e: impossible locally — the always-pass test secret accepts any token
+   (live evidence above). The test now asserts the over-length-token 422 (schema) instead; the
+   400 TURNSTILE mapping is covered by tests/unit/turnstile.test.ts (INVALID_TOKEN,
+   ACTION_MISMATCH, HOSTNAME_MISMATCH, UNREACHABLE, TEST_SECRET_IN_PRODUCTION).
+3. Dev submissions share the literal `local` IP bucket (5/hour, fixed window), so repeated e2e
+   runs inside one clock hour returned 429. The spec now sends a unique cf-connecting-ip per run
+   (the route's documented IP source).
+4. Integration failures above were all test-side assumptions on the shared disposable local
+   database; no product change followed from them.
+
+== Skipped / not run (per brief) ==
+- pnpm build:worker: not run (the orchestrator runs it in Linux).
+- 400 TURNSTILE at the route level cannot be exercised end-to-end locally (see incident 2).
+- docs update ran via pnpm check:copy; no admin UI, public form, or notify endpoints built
+  (P06 round 2 / P01 / P07 per the brief).
+
+Round 1 audit (orchestrator, Opus 5.5)
+======================================
+Worker run: glm-worker, GLM-5.3, 64 minutes, 150 turns. The orchestrator wrote
+supabase/migrations/20260926120000_contacts_and_email.sql and smoke-tested it
+as app_server before dispatch (throttle, dedupe, lease, stale lease, event
+dedupe, suppression, one notice per active owner/operations member).
+
+Incident (reported by the worker, verified by the orchestrator): the first e2e
+run called the real Resend API, because `next dev` also loads `.env`, which
+holds the owner's RESEND_API_KEY, and the brief chose Resend whenever that key
+was set. Resend refused every request (30 rows exhausted with HTTP_422, one
+RATE_LIMIT); no outbox row carries a Resend message id; every recipient was
+an @example.com test address. So no email was delivered, but the real key was
+used about 31 times from a local process. The worker's fix (an empty
+RESEND_API_KEY= in the generated .env.local) depended on env file precedence.
+Orchestrator fix in code: `emailProvider()` chooses Resend only in a
+production build whose SITE_URL is not a loopback host, and Mailpit only
+outside production; the outbox uses the same check. Regression tests: a Resend
+key is ignored outside production (Mailpit used, api.resend.com never
+fetched); a production build with a local or missing SITE_URL (a local Worker
+preview) sends nothing.
+
+Other findings fixed by the orchestrator:
+- The Resend webhook acknowledged a failed database write with 200, so the
+  provider would never redeliver and a bounce or complaint (and its
+  suppression) could be lost. Now 503, which the provider retries; the event
+  id dedupe makes redelivery safe.
+- An unparseable created_at or an event id over 200 characters would have
+  failed the insert on every redelivery; created_at is now validated (else
+  null) and an oversized svix-id is refused before recording.
+Accepted as reported: Turnstile test secrets skip the hostname and action
+checks outside production (live siteverify returns hostname example.com and no
+action for them), refused outright in production; 409 resource_locked → retry.
+
+Commands after the fixes:
+- pnpm check → 0 (152 unit)
+- TEST_ENV=local DATABASE_URL=<local postgres> pnpm test:db → 0 (78)
+- pnpm dev + playwright owner-operations, cms, media → 0 (20 passed);
+  api.resend.com in the dev log 0; JWTs in the dev log 0; Resend-shaped
+  provider ids in the outbox 0 before and after.
+- Generated churn from the worker's full-suite run (P00/P05 screenshots, a new
+  P01 screenshots folder) reverted.
+Not run: build:worker (Linux, at P06 acceptance: the new cron trigger and
+scheduled handler must bundle).
+
+Round 2 (glm-worker) — 2026-09-26/27
+
+== Sources fetched (live, this round) ==
+- https://developers.cloudflare.com/analytics/graphql-api/ → source-cf-graphql-index.html
+- https://developers.cloudflare.com/analytics/graphql-api/migration-guides/graphql-api-analytics/
+  → source-cf-migration-v1.html — the live `httpRequestsAdaptiveGroups` example:
+  `requestSource: "eyeball"`, `sum { visits }`, `avg { sampleInterval }`, `count`,
+  `orderBy: [count_DESC]`, `filter: { datetime_geq, datetime_lt, requestSource }`,
+  lowercase `$zoneTag: string` and `$start/$end: Time` variables
+- https://developers.cloudflare.com/analytics/graphql-api/features/filtering/ → source-cf-filtering.html
+- https://developers.cloudflare.com/analytics/graphql-api/sampling/ → source-cf-sampling.html
+  (adaptive sampling; sampleInterval seconds; low volume = unsampled)
+- https://developers.cloudflare.com/analytics/graphql-api/getting-started/querying-basics/ → source-cf-querying-basics.html
+- https://developers.cloudflare.com/analytics/graphql-api/getting-started/compose-graphql-query/ → source-cf-compose-query.html
+- https://developers.cloudflare.com/analytics/graphql-api/migration-guides/zone-analytics/ → source-cf-migration-zone.html
+- https://developers.cloudflare.com/analytics/graphql-api/features/data-sets/ → source-cf-datasets.html
+- https://resend.com/docs/add-a-domain.md → source-resend-domains.md
+  (Records tab: DKIM and SPF as TXT and MX or CNAME; CNAME must not be proxied/orange cloud;
+  verification usually ≤15 min, up to 72 h; DMARC recommended)
+- Note: the current Cloudflare docs publish no static per-node field reference (the docs point
+  at schema introspection; /reference/ and dataset URLs 404 — fetches discarded). The dimension
+  names `clientRequestPath` / `clientRequestHTTPHost` are therefore schema names verified only
+  against fixtures here; the live schema check is gate E11 (P11). Recorded as an open risk.
+- GraphQL endpoint https://api.cloudflare.com/client/v4/graphql confirmed in the index page above.
+
+== Commands (exit codes; failures noted) ==
+- pnpm lint → 1 first (2 errors: react-hooks/set-state-in-effect in InboxView's filter effect;
+  double `})` in format.test.ts) → 0 (3 pre-existing <img> warnings in P03/P05 components)
+- pnpm typecheck → 2 first (stats.test.ts: spread into rest parameter; unknown json) → 0
+- pnpm test → 1 first (4: analyticsWindow ISO milliseconds; two wrong whatsappLink expectations
+  I had written — an 11-digit "10-digit" case and a miscounted local number) → 0 (177 passed)
+- pnpm check:frozen → 0
+- pnpm check:copy → 1 first (Arabic-Indic digits in a format.ts comment, then ٧ in UI copy in
+  StatsView/AdminHome; replaced with Latin digits/U+XXXX ranges) → 0 (97 files)
+- TEST_ENV=local DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm test:db
+  → 1 first twice: (a) '@/lib/staff-auth' unresolvable when vitest imports the route handler —
+  route.ts switched to relative imports; (b) tests/integration/staff.test.ts failed on a shared-DB
+  accumulation, NOT on this round's code: public.staff had 1076 test users (every @example.com),
+  past the Data API's 1000-row default max_rows, so a plain staff select no longer contains
+  newly created rows → 0 (84 passed, 9 files) after the cleanup below
+- Shared local DB cleanup (disposable, superuser, recorded): deleted 710 auth.users
+  (email like '%@example.com' AND not an audit_events.actor); 366 kept because audit_events is
+  append-only and blocks even the FK's ON DELETE SET NULL. Staff rows: 1076 → 366.
+- pnpm dev (background, http://localhost:3000; /api/health 200) → log: dev-server-r2.log;
+  api.cloudflare.com occurrences 0; "bearer" occurrences 0
+- PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm test:e2e -- tests/e2e/owner-operations.spec.ts
+  tests/e2e/cms.spec.ts tests/e2e/auth.spec.ts → 1 — MISTAKE: `pnpm test:e2e -- <files>` does not
+  filter; the whole suite ran (70 tests, 68 passed) and rewrote P00/P05 screenshot artifacts and
+  created a new artifacts/acceptance/P01/screenshots/ folder (not in this round's writable paths,
+  so I could not revert them; orchestrator to restore, as after round 1's full-suite run).
+  The 2 real failures were strict-mode locators in my spec (message text matched row + detail;
+  getByLabel('الحالة') matched the filter group too) — fixed with .last()/exact: true.
+- PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test tests/e2e/owner-operations.spec.ts
+  → 0 (16 passed, incl. the 360/1440 screenshot pass with scrollWidth <= innerWidth per page)
+- PLAYWRIGHT_BASE_URL=http://localhost:3000 pnpm exec playwright test tests/e2e/cms.spec.ts
+  tests/e2e/auth.spec.ts → 0 (5 passed)
+- Final re-verification after the spec fixes: pnpm lint → 0, pnpm typecheck → 0, pnpm test → 0 (177)
+- Dev server stopped (taskkill on the :3000 listener)
+
+== Incidents ==
+1. Deleted round 1's artifacts/acceptance/P06/dev-server.log by mistake while pruning this
+   round's 404 fetches from the evidence directory. It is not in git (untracked), so it cannot
+   be restored; round 1's run evidence remains in round 1's commands.txt section above.
+2. The staff accumulation (incident under test:db) will recur: every test:db/e2e run adds
+   ~15-20 @example.com users; staff.test.ts will fail again past 1000 rows (~1 year of runs at
+   the current rate, sooner if e2e runs multiply). A periodic `supabase db reset` or a
+   max_rows/pagination fix belongs to the orchestrator.
+3. `clientRequestPath`/`clientRequestHTTPHost` dimension names are not in any fetched doc page
+   (Cloudflare publishes no static node reference); they are exercised against fixtures only.
+   Live proof is E11 (P11).
+
+== Skipped / not run (per brief) ==
+- pnpm build:worker: not run (orchestrator, Linux).
+- The preview route was NOT refactored onto staffFromToken: it needs the token's `exp` for the
+  cookie maxAge, which staffFromToken does not return — the change was not trivial.
+- .env.example does not list CLOUDFLARE_ZONE_ID (outside this round's writable paths); the
+  analytics module reads it from the environment. The orchestrator may want to add it.
+- CLOUDFLARE_ZONE_ID is not in .env.example either as a name; noted in docs/development.md.

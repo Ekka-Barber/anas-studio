@@ -1,8 +1,11 @@
 // Shared helpers for the e2e suites (P03/P04): the local Supabase service
 // client, test users and Mailpit/TOTP code reading. Extracted from
 // `auth.spec.ts` so `cms.spec.ts` can reuse them without duplication.
+// P06 adds the local-only `.env.local` reader and Svix webhook signing.
 import { execFileSync } from 'node:child_process'
-import { createHmac } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { parseEnv } from 'node:util'
 
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
@@ -149,6 +152,36 @@ export function totpCode(secret: string): string {
 }
 
 export const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 6 أرقام.'
+
+export interface LocalEnv {
+  JOBS_SECRET: string
+  RESEND_WEBHOOK_SECRET: string
+  EMAIL_DEV_MAILPIT_URL?: string
+  TOKEN_HASH_PEPPER?: string
+  TURNSTILE_SECRET_KEY?: string
+}
+
+/**
+ * The local-only values `pnpm db:env` writes to `.env.local` (P06). Reads
+ * `.env.local` only — never `.env` — and refuses when a needed key is absent
+ * so a stale file fails loudly instead of silently skipping coverage.
+ */
+export function localEnv(): LocalEnv {
+  const parsed = parseEnv(readFileSync('.env.local', 'utf8')) as Partial<LocalEnv>
+  for (const key of ['JOBS_SECRET', 'RESEND_WEBHOOK_SECRET'] as const) {
+    if (!parsed[key]) throw new Error(`localEnv: ${key} is missing from .env.local — run pnpm db:env`)
+  }
+  return parsed as LocalEnv
+}
+
+/** Svix headers signing `rawBody` with a `whsec_…` secret, as Resend sends them. */
+export function svixHeaders(secret: string, rawBody: string, atMs = Date.now()): Record<string, string> {
+  const id = `evt_${randomUUID().replace(/-/g, '')}`
+  const timestamp = Math.floor(atMs / 1000)
+  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
+  const signature = createHmac('sha256', key).update(`${id}.${timestamp}.${rawBody}`).digest('base64')
+  return { 'svix-id': id, 'svix-timestamp': String(timestamp), 'svix-signature': `v1,${signature}` }
+}
 
 /** Signs in at `/admin/sign-in` by email code and waits for `/admin`. */
 export async function signInByCode(page: Page, email: string, previousCode?: string): Promise<void> {

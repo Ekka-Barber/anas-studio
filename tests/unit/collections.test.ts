@@ -14,6 +14,23 @@ describe('schemaFor: the real content fixture', () => {
     expect(() => schemaFor('site_settings', 'site').parse(siteSettingsData)).not.toThrow()
   })
 
+  it('still parses the already-published settings after the optional P06 seo/contact groups were added', () => {
+    const result = schemaFor('site_settings', 'site').safeParse(siteSettingsData)
+    expect(result.success).toBe(true)
+  })
+
+  it('accepts the new optional groups when present, and partial groups are refused', () => {
+    const withNew = {
+      ...siteSettingsData,
+      seo: { title: 'استوديو أنس', description: 'وصف' },
+      contact: { email: 'hello@anas.studio', whatsapp: '0501234567' },
+    }
+    expect(schemaFor('site_settings', 'site').safeParse(withNew).success).toBe(true)
+
+    const partial = { ...siteSettingsData, contact: { email: 'hello@anas.studio' } }
+    expect(schemaFor('site_settings', 'site').safeParse(partial).success).toBe(false)
+  })
+
   it.each(ROOM_SLUGS)('parses the %s room document', (slug) => {
     const room = (content.rooms as Record<string, unknown>)[slug]
     expect(() => schemaFor('rooms', slug).parse(room)).not.toThrow()

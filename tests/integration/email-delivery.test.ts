@@ -1,0 +1,328 @@
+// P06: delivery events and suppression (`email_event_record`) against the
+// real local database, then `runOutbox()` end to end with `@/lib/db` mocked
+// to the local `app_server` login (as `tests/integration/publish.test.ts`
+// does) and `fetch` stubbed per outcome. Provider acceptance alone is never
+// delivery: a sent row keeps `delivery` null until a verified event arrives.
+import { createHash, randomUUID } from 'node:crypto'
+
+import { Client } from 'pg'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { runOutbox } from '../../src/lib/outbox'
+
+vi.mock('../../src/lib/db', () => ({
+  withDb: async (query: (client: Client) => Promise<unknown>) => {
+    const client = new Client({
+      connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres',
+    })
+    await client.connect()
+    try {
+      return await query(client)
+    } finally {
+      await client.end()
+    }
+  },
+}))
+
+let app: Client
+let postgres: Client
+
+const PREFIX = 'p06-delivery-test-'
+const created = { outbox: [] as string[], contacts: [] as string[], events: [] as string[], suppressions: [] as string[] }
+
+beforeAll(async () => {
+  app = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
+  await app.connect()
+  postgres = new Client({
+    connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+  })
+  await postgres.connect()
+})
+
+afterAll(async () => {
+  await postgres.query('delete from finance.email_outbox where id = any($1::bigint[])', [created.outbox])
+  await postgres.query('delete from public.contacts where id = any($1::uuid[])', [created.contacts])
+  await postgres.query('delete from finance.email_delivery_events where provider_event_id = any($1)', [created.events])
+  await postgres.query('delete from finance.email_suppressions where recipient_hash = any($1)', [created.suppressions])
+  await app.end()
+  await postgres.end()
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+})
+
+function unique(label: string): string {
+  return `${PREFIX}${label}-${Date.now()}-${process.pid}-${Math.floor(Math.random() * 1e6)}`
+}
+
+function hashOf(recipient: string): string {
+  return createHash('sha256').update(recipient).digest('hex')
+}
+
+async function recordEvent(params: {
+  svixId?: string
+  type: string
+  messageId: string
+  recipient: string
+}): Promise<string> {
+  const svixId = params.svixId ?? unique('evt')
+  created.events.push(svixId)
+  created.suppressions.push(hashOf(params.recipient))
+  try {
+    const result = await app.query<{ email_event_record: string }>(
+      'select public.email_event_record($1, $2, $3, $4, $5, $6) as email_event_record',
+      [svixId, params.type, params.messageId, params.recipient, new Date(), JSON.stringify({})],
+    )
+    return result.rows[0]!.email_event_record
+  } catch (error) {
+    return (error as { code?: string }).code ?? 'threw'
+  }
+}
+
+async function sentRow(label: string): Promise<{ id: string; recipient: string; providerId: string }> {
+  const recipient = `${unique(label)}@example.com`
+  const providerId = `${label}-${Date.now()}`
+  const row = await postgres.query<{ id: string }>(
+    `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, provider_id, sent_at)
+     values ($1, 'contact_notice', 1, $2, '{}'::jsonb, 'sent', $3, now()) returning id`,
+    [unique(label), recipient, providerId],
+  )
+  const id = row.rows[0]!.id
+  created.outbox.push(id)
+  created.suppressions.push(hashOf(recipient))
+  return { id, recipient, providerId }
+}
+
+describe('email_event_record', () => {
+  it('records a duplicate event id exactly once; the redelivery changes nothing', async () => {
+    const svixId = unique('dup')
+    const row = await sentRow('dup')
+    expect(await recordEvent({ svixId, type: 'email.delivered', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    expect(await recordEvent({ svixId, type: 'email.bounced', messageId: row.providerId, recipient: row.recipient })).toBe('duplicate')
+    expect(
+      (await postgres.query<{ delivery: string }>('select delivery from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .delivery,
+    ).toBe('delivered')
+    const suppression = await postgres.query('select 1 from finance.email_suppressions where recipient_hash = $1', [
+      hashOf(row.recipient),
+    ])
+    expect(suppression.rows).toEqual([])
+  })
+
+  it('delivered then bounced ends bounced and suppressed', async () => {
+    const row = await sentRow('order-1')
+    expect(await recordEvent({ type: 'email.delivered', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    expect(
+      (await postgres.query<{ delivery: string }>('select delivery from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .delivery,
+    ).toBe('delivered')
+    expect(await recordEvent({ type: 'email.bounced', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    expect(
+      (await postgres.query<{ delivery: string }>('select delivery from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .delivery,
+    ).toBe('bounced')
+    const suppression = await postgres.query<{ reason: string }>(
+      'select reason from finance.email_suppressions where recipient_hash = $1',
+      [hashOf(row.recipient)],
+    )
+    expect(suppression.rows[0]!.reason).toBe('bounced')
+  })
+
+  it('bounced then delivered: a later delivered never clears the bounce or the suppression', async () => {
+    const row = await sentRow('order-2')
+    expect(await recordEvent({ type: 'email.bounced', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    expect(await recordEvent({ type: 'email.delivered', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    expect(
+      (await postgres.query<{ delivery: string }>('select delivery from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .delivery,
+    ).toBe('bounced')
+    const suppression = await postgres.query('select 1 from finance.email_suppressions where recipient_hash = $1', [
+      hashOf(row.recipient),
+    ])
+    expect(suppression.rows.length).toBe(1)
+  })
+
+  it('a complaint suppresses the recipient', async () => {
+    const row = await sentRow('complaint')
+    expect(await recordEvent({ type: 'email.complained', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    const suppression = await postgres.query<{ reason: string }>(
+      'select reason from finance.email_suppressions where recipient_hash = $1',
+      [hashOf(row.recipient)],
+    )
+    expect(suppression.rows[0]!.reason).toBe('complained')
+  })
+
+  it('a sent row with no delivery event keeps delivery null — acceptance is not delivery', async () => {
+    const row = await sentRow('sent-only')
+    expect(await recordEvent({ type: 'email.sent', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
+    expect(
+      (await postgres.query<{ delivery: string | null }>('select delivery from finance.email_outbox where id = $1', [row.id]))
+        .rows[0]!.delivery,
+    ).toBeNull()
+  })
+})
+
+describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
+  beforeEach(() => {
+    // Resend is chosen only by a production build with a non-local SITE_URL.
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
+    vi.stubEnv('EMAIL_FROM', 'Anas <noreply@anas.studio>')
+    vi.stubEnv('SITE_URL', 'https://anas.studio')
+    vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
+  })
+
+  /** Parks every currently due row so a claim sees only this test's fixture,
+   * and moves this suite's earlier synthetic "sent" quota rows out of today
+   * so the free-plan daily quota in `outbox_claim` is not already consumed. */
+  async function parkOthers(): Promise<void> {
+    await postgres.query(
+      `update finance.email_outbox set next_at = now() + interval '1 day',
+         first_attempt_at = now() - interval '2 days'
+       where status in ('pending', 'uncertain', 'sending')`,
+    )
+    await postgres.query(
+      `update finance.email_outbox set sent_at = now() - interval '2 days'
+       where sent_at >= date_trunc('day', now()) and dedupe_key like 'p06-outbox-test-%'`,
+    )
+  }
+
+  async function pendingNotice(label: string, message: string): Promise<{ id: string; recipient: string }> {
+    const contact = await postgres.query<{ id: string }>(
+      'insert into public.contacts (name, email, message, submission_key) values ($1, $2, $3, $4) returning id',
+      ['زائر', `${unique(label)}@example.com`, message, randomUUID()],
+    )
+    const contactId = contact.rows[0]!.id
+    created.contacts.push(contactId)
+    const recipient = `${unique(label)}@example.com`
+    const row = await postgres.query<{ id: string }>(
+      `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload)
+       values ($1, 'contact_notice', 1, $2, jsonb_build_object('contactId', $3::text)) returning id`,
+      [unique(label), recipient, contactId],
+    )
+    created.outbox.push(row.rows[0]!.id)
+    created.suppressions.push(hashOf(recipient))
+    return { id: row.rows[0]!.id, recipient }
+  }
+
+  function stubFetch(handler: () => Response | Promise<Response>) {
+    const calls: Array<{ url: string; init: RequestInit }> = []
+    const fn = vi.fn(async (url: string, init: RequestInit) => {
+      calls.push({ url, init })
+      return handler()
+    })
+    vi.stubGlobal('fetch', fn)
+    return { fn, calls }
+  }
+
+  it('accepted end to end: sent with the provider id, delivery null, a plain-text notice with the message', async () => {
+    await parkOthers()
+    const marker = unique('accepted')
+    const row = await pendingNotice('accepted', `رسالة العميل ${marker}`)
+    const { fn, calls } = stubFetch(() => new Response(JSON.stringify({ id: 'prov-accepted-1' }), { status: 200 }))
+    const summary = await runOutbox()
+    expect(summary).toMatchObject({ job: 'email_outbox', status: 'ok', claimed: 1, accepted: 1 })
+    expect(fn).toHaveBeenCalledTimes(1)
+
+    const state = (
+      await postgres.query<{ status: string; provider_id: string; delivery: string | null }>(
+        'select status, provider_id, delivery from finance.email_outbox where id = $1',
+        [row.id],
+      )
+    ).rows[0]!
+    expect(state).toEqual({ status: 'sent', provider_id: 'prov-accepted-1', delivery: null })
+
+    const payload = JSON.parse(String(calls[0]!.init.body)) as { to: string[]; subject: string; text: string }
+    expect(payload.to).toEqual([row.recipient])
+    expect(payload.subject).toBe('رسالة جديدة من نموذج التواصل')
+    expect(payload.text).toContain(marker)
+
+    const run = (
+      await postgres.query<{ status: string; detail: Record<string, number> }>(
+        "select status, detail from finance.job_runs where job = 'email_outbox' order by id desc limit 1",
+      )
+    ).rows[0]!
+    expect(run.status).toBe('ok')
+    expect(run.detail).toMatchObject({ claimed: 1, accepted: 1 })
+  })
+
+  it('retry: 5xx leaves the row pending with a backed-off next attempt', async () => {
+    await parkOthers()
+    const row = await pendingNotice('retry', 'رسالة إعادة')
+    stubFetch(() => new Response(JSON.stringify({ name: 'application_error' }), { status: 500 }))
+    const summary = await runOutbox()
+    expect(summary).toMatchObject({ status: 'failed', claimed: 1, retry: 1 })
+    const state = (
+      await postgres.query<{ status: string; next_at: Date; last_error: string }>(
+        'select status, next_at, last_error from finance.email_outbox where id = $1',
+        [row.id],
+      )
+    ).rows[0]!
+    expect(state.status).toBe('pending')
+    expect(state.last_error).toBe('HTTP_500')
+    expect(state.next_at.getTime()).toBeGreaterThan(Date.now())
+  })
+
+  it('permanent: a 4xx exhausts the row now', async () => {
+    await parkOthers()
+    const row = await pendingNotice('permanent', 'رسالة فاشلة')
+    stubFetch(() => new Response(JSON.stringify({ name: 'validation_error' }), { status: 400 }))
+    const summary = await runOutbox()
+    expect(summary).toMatchObject({ status: 'failed', claimed: 1, permanent: 1 })
+    expect(
+      (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .status,
+    ).toBe('exhausted')
+  })
+
+  it('uncertain: a network failure after the request left keeps the row reconcilable', async () => {
+    await parkOthers()
+    const row = await pendingNotice('uncertain', 'رسالة غير مؤكدة')
+    stubFetch(() => {
+      throw new Error('network down')
+    })
+    const summary = await runOutbox()
+    expect(summary).toMatchObject({ status: 'failed', claimed: 1, uncertain: 1 })
+    expect(
+      (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .status,
+    ).toBe('uncertain')
+  })
+
+  it('not configured: nothing is claimed, the run is recorded as skipped', async () => {
+    await parkOthers()
+    await pendingNotice('unconfigured', 'رسالة بلا مزوّد')
+    vi.stubEnv('RESEND_API_KEY', '')
+    vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
+    vi.stubEnv('EMAIL_FROM', '')
+    const { fn } = stubFetch(() => new Response('{}', { status: 200 }))
+    const summary = await runOutbox()
+    expect(summary).toMatchObject({ status: 'skipped', claimed: 0, reason: 'EMAIL_NOT_CONFIGURED' })
+    expect(fn).not.toHaveBeenCalled()
+    const run = (
+      await postgres.query<{ status: string; detail: Record<string, unknown> }>(
+        "select status, detail from finance.job_runs where job = 'email_outbox' order by id desc limit 1",
+      )
+    ).rows[0]!
+    expect(run.status).toBe('skipped')
+    expect(run.detail).toMatchObject({ reason: 'EMAIL_NOT_CONFIGURED' })
+  })
+
+  it('a suppressed recipient is never sent', async () => {
+    await parkOthers()
+    const row = await pendingNotice('suppressed', 'رسالة ممنوعة')
+    await postgres.query("insert into finance.email_suppressions (recipient_hash, reason) values ($1, 'manual')", [
+      hashOf(row.recipient),
+    ])
+    const { fn } = stubFetch(() => new Response(JSON.stringify({ id: 'never' }), { status: 200 }))
+    const summary = await runOutbox()
+    expect(summary).toMatchObject({ claimed: 0, accepted: 0 })
+    expect(fn).not.toHaveBeenCalled()
+    expect(
+      (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [row.id])).rows[0]!
+        .status,
+    ).toBe('suppressed')
+  })
+})
