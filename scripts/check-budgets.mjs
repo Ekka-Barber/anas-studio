@@ -11,7 +11,7 @@
  *
  * Missing build output is a failure, never a pass.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { gzipSync } from 'node:zlib'
@@ -20,8 +20,13 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const outDir = path.join(repoRoot, 'out')
 
 const PUBLIC_JS_GZIP_BUDGET_BYTES = 150 * 1024
-// The public pages that exist today; the others still render «قريباً».
-const PUBLIC_PAGES = ['index.html', 'started.html', 'built.html', 'passed.html', 'shelf.html']
+// Every top-level public page in the export — an allowlist here would let a
+// new page silently escape the budget. `admin.html` is the staff-only editor
+// shell (Lexical, cropping, the whole CMS client) and is not a visitor page;
+// it measured 296 KiB gzip at D32 and needs no visitor budget.
+const PUBLIC_PAGES = readdirSync(outDir)
+  .filter((name) => name.endsWith('.html') && !name.startsWith('_') && name !== 'admin.html')
+  .sort()
 
 function kib(bytes) {
   return `${(bytes / 1024).toFixed(1)} KiB`

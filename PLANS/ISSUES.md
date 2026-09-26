@@ -24,11 +24,15 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I32 — hosted checks the local stack cannot make
 
-**Package:** P11 (hosted setup), from D32. Three facts are only true or false on the hosted project: (1) the visitor's IP reaches the `contact` function as `cf-connecting-ip` or the first `x-forwarded-for` hop (the rate limits key on it; locally every request is `local` unless a test sets the header); (2) whether Storage's public responses carry `X-Content-Type-Options: nosniff` (only checked WebP ever reaches `media-public`, and the bucket accepts `image/webp` only, so a missing header is recorded, not a blocker); (3) the Pages build count per month against the plan's quota, with rebuilds coalesced to at most one per two minutes.
+**Package:** P11 (hosted setup), from D32. Three facts are only true or false on the hosted project: (1) the visitor's real IP arrives as the LAST `x-forwarded-for` hop the Supabase gateway appends (the rate limit keys on it; locally every request is `local` unless a test sets the header, and the gateway must be confirmed to append — not replace — the header); (2) whether Storage's public responses carry `X-Content-Type-Options: nosniff` (only checked WebP ever reaches `media-public`, and the bucket accepts `image/webp` only, so a missing header is recorded, not a blocker); (3) the Pages build count per month against the plan's quota, with rebuilds coalesced to at most one per two minutes.
 
 ## I33 — the room videos are not in the repository
 
 **Package:** P11 (hosted setup), from D32. The 18 transcoded room films (`public/media/*.mp4`, 55.9 MiB, made by `scripts/prepare-media.mjs` from local sources) are git-ignored, so a Cloudflare Pages build from the repository has none and the reels would 404. Before launch, either commit the transcoded files (each is under Pages' 25 MiB file limit) or upload them to a public Storage bucket and point the manifest at it. Owner's choice; the photos and content are on his machine too (E05).
+
+## I34 — site rebuild delivery is fire-and-forget
+
+**Package:** P11 (hosted setup), from the 2026-09-27 local audit of D32. `site_build_trigger` fires the Pages deploy hook through pg_net and stamps `triggered_at` unconditionally: if the hook answers 4xx/5xx or the request fails, the build request is consumed with no retry and no signal — the database says delivered, the public site stays stale, and the only recovery is the next publish. A failed Pages build itself is invisible too (the last good deploy stays live, which is fine, but nobody is told). With the owner, decide the observability: at minimum, check the Pages build history after the first few publishes; better, record the pg_net request id and its outcome, or move the hook call into the `outbox` function where failures already leave a trail. Related residuals from the same audit, all LOW and recorded here so they are not lost: promoting the media original uses `move` on a path a still-valid signed URL can overwrite (TOCTOU; copy the verified bytes instead), `media-delete` swallows Storage-removal failures so orphaned public derivatives can outlive their row until the I29 sweep exists, the `contact:email` throttle key is an unsalted sha256 (DB-read-only concern), and the public bearer/401 endpoints answer unthrottled.
 
 ## Small UI items for when design reopens
 

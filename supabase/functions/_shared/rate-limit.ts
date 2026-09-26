@@ -7,15 +7,16 @@
  */
 
 /**
- * The visitor's IP: Cloudflare's `cf-connecting-ip` when the platform passes
- * it, else the first `x-forwarded-for` hop the Supabase gateway adds, else
- * the literal `local` (a direct local call). Only ever hashed, never stored.
+ * The visitor's IP: the LAST `x-forwarded-for` hop, which the Supabase
+ * gateway appends after anything the client sent — earlier hops, and a
+ * client-supplied `cf-connecting-ip`, are attacker-chosen here (only
+ * Cloudflare itself sets that header, and this function runs behind
+ * Supabase). With neither header, the literal `local` (a direct local
+ * call). Only ever hashed, never stored.
  */
 export function requestIp(request: Request): string {
-  const cf = request.headers.get('cf-connecting-ip')
-  if (cf) return cf
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return forwarded || 'local'
+  const hops = request.headers.get('x-forwarded-for')?.split(',').map((hop) => hop.trim()).filter(Boolean) ?? []
+  return hops.at(-1) ?? 'local'
 }
 
 /** sha256 hex of the peppered, date-salted caller key. */

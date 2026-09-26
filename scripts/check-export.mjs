@@ -24,6 +24,10 @@ const REQUIRED = [
   'built.html',
   'passed.html',
   'shelf.html',
+  'journal.html',
+  'contact.html',
+  'book.html',
+  'scenes.html',
   '404.html',
   '_headers',
   'admin.html',
@@ -31,7 +35,13 @@ const REQUIRED = [
   'admin/preview.html',
   'admin/content/rooms/edit.html',
   'admin/content/posts/edit.html',
+  'admin/content/site_settings/edit.html',
+  'admin/content/taxonomies/edit.html',
 ]
+
+// Every public page is Arabic RTL; losing the html attributes would scramble
+// the layout while every other check stays green.
+const RTL_PAGES = REQUIRED.filter((file) => file.endsWith('.html') && !file.startsWith('admin') && file !== '404.html')
 
 const SECRET_PATTERNS = [
   ['Supabase secret key', /sb_secret_[A-Za-z0-9_-]{16,}/],
@@ -51,6 +61,10 @@ if (!existsSync(outDir)) {
 const failures = []
 for (const file of REQUIRED) {
   if (!existsSync(path.join(outDir, file))) failures.push(`missing ${file}`)
+}
+for (const page of RTL_PAGES) {
+  const head = readFileSync(path.join(outDir, page), 'utf8').slice(0, 600)
+  if (!/<html\b[^>]*\blang="ar"[^>]*\bdir="rtl"/.test(head)) failures.push(`${page}: html is not lang="ar" dir="rtl"`)
 }
 
 function* files(dir) {

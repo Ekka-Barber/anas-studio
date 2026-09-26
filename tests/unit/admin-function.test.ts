@@ -102,10 +102,30 @@ describe('admin function: who may do what', () => {
     ['editor', 'stats'],
     ['editor', 'status'],
     ['operations', 'status'],
+    ['operations', 'stats'],
     [null, 'media-complete'],
   ] as const)('%s is refused %s with 403', async (role, action) => {
     const response = await handleAdmin(post({ action }), { rpc, staff: staffAs(role), store: memoryStore() })
     expect(response.status).toBe(403)
+  })
+
+  it('the HTTP shell refuses what is not a small JSON POST', async () => {
+    const store = memoryStore()
+    const get = new Request('http://127.0.0.1:54321/functions/v1/admin', { method: 'GET' })
+    expect((await handleAdmin(get, { rpc, staff: staffAs('owner'), store })).status).toBe(405)
+    const malformed = new Request('http://127.0.0.1:54321/functions/v1/admin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer staff-token' },
+      body: 'not json',
+    })
+    expect((await handleAdmin(malformed, { rpc, staff: staffAs('owner'), store })).status).toBe(400)
+    const oversized = new Request('http://127.0.0.1:54321/functions/v1/admin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer staff-token' },
+      body: JSON.stringify({ action: 'status', padding: 'x'.repeat(17_000) }),
+    })
+    expect((await handleAdmin(oversized, { rpc, staff: staffAs('owner'), store })).status).toBe(413)
+    expect(rpc).not.toHaveBeenCalled()
   })
 
   it('status is booleans and names only, never a secret value', async () => {
@@ -204,6 +224,27 @@ describe('admin function: media upload (P05 checks, D32 storage)', () => {
     const response = await handleAdmin(post({ action: 'media-complete', ticketId }), { rpc, staff: staffAs('owner'), store })
     expect(response.status).toBe(422)
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe('TYPE_MISMATCH')
+  })
+
+  it('an unfinished upload (a declared part never arrived) is MISSING_PART and the quarantine is cleaned', async () => {
+    // Declaration covers original + w360; only the original was uploaded.
+    const original = await jpeg(400, 300)
+    const ticketId = randomUUID()
+    const store = memoryStore()
+    store.objects.set(`${PRIVATE_BUCKET}/quarantine/${ticketId}/original`, original)
+    const calls: string[] = []
+    const rpc: Rpc = async (fn) => {
+      calls.push(fn)
+      if (fn === 'media_claim') return declaration(original.byteLength, await webp(360, 270).then((b) => b.byteLength))
+      return ticketId
+    }
+    const response = await handleAdmin(post({ action: 'media-complete', ticketId }), { rpc, staff: staffAs('owner'), store })
+    expect(response.status).toBe(422)
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('MISSING_PART')
+    // Claimed for clean-up, never completed, and nothing is left in quarantine or public.
+    expect(calls).toEqual(['media_claim'])
+    expect([...store.objects.keys()].some((key) => key.includes('quarantine/'))).toBe(false)
+    expect([...store.objects.keys()].some((key) => key.startsWith(`${PUBLIC_BUCKET}/`))).toBe(false)
   })
 
   it('if the database refuses the media row, the promoted derivatives are removed again', async () => {

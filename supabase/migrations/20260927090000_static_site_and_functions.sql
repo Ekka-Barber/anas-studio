@@ -17,6 +17,11 @@
 --
 -- The earlier migrations stay untouched; this one replaces what changed.
 
+-- The rebuild and outbox triggers below call out over HTTP through pg_net.
+-- It ships enabled with Supabase Postgres; the explicit create keeps a
+-- self-managed or CI database honest instead of failing at cron time.
+create extension if not exists pg_net;
+
 -- 1. Publishing as the signed-in staff member ------------------------------
 
 drop function public.publish_version(uuid, public.content_collection, text, integer);

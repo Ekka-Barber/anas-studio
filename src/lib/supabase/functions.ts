@@ -25,7 +25,10 @@ export async function callFunction<T>(name: string, body: Record<string, unknown
     }
     return { ok: false, error: { code: 'UNKNOWN', message: 'تعذّر الاتصال بالخادم.' } }
   }
-  return data as FunctionResult<T>
+  // A 200 reply is still validated: a gateway or proxy answering HTML would
+  // otherwise surface as a TypeError at the call site.
+  if (data && typeof data === 'object' && 'ok' in data) return data as FunctionResult<T>
+  return { ok: false, error: { code: 'UNKNOWN', message: 'تعذّر الاتصال بالخادم.' } }
 }
 
 /** The admin URL that edits one document; ids travel in the query (static export). */

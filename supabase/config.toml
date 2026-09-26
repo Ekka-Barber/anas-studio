@@ -418,6 +418,14 @@ verify_jwt = false
 [functions.outbox]
 verify_jwt = false
 
+# Pinned, not left to the CLI default: a future default change or a
+# --no-verify-jwt deploy flag must not silently expose the staff endpoints.
+[functions.admin]
+verify_jwt = true
+
+[functions.staff-admin]
+verify_jwt = true
+
 [analytics]
 enabled = false
 port = 54327

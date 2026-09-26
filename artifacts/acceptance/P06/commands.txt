@@ -587,3 +587,60 @@ Pending local verification (after pulling; Node 24):
    First real runs of: the functions reaching Mailpit through host.docker.internal; the
    `cf-connecting-ip` header passing through the local gateway.
 6. Screenshots: the rooms at 360 and 1440 (Thmanyah titles) and the P06 screens.
+
+Local verification of D31–D34 (eed6625) + independent audit fix pass — run
+2026-09-27, on Windows against the full local stack (Storage + edge runtime live):
+
+Verification of the pending list (commands.txt section above):
+1. pnpm install --frozen-lockfile — clean; supabase stop/start (WITHOUT --no-backup:
+   an early --no-backup restart here wiped the imported content and failed 7 content
+   loaders — re-import fixed it; the recipe's restart preserves volumes by default),
+   db:reset (with the new D32 migration), db:import (5 documents incl.
+   site_settings/site), db:env writing supabase/functions/.env.
+2. TEST_ENV=local DATABASE_URL=<stack DB_URL> pnpm test:db — 10 files, 115/115, the
+   first real run of the 9 Supabase-Auth-dependent files (staff, stats, publish via
+   browser RPC with operations refused 42501, forms RLS, media-security, views).
+3. pnpm check — lint 0 errors, typecheck clean, frozen/copy OK, unit 208/208 (pre-fix).
+   pnpm build exit 0; check:export OK (12 files, 180 scanned, no secrets); budgets OK
+   142.1 KiB ≤ 150 (pre-widening).
+4. Full Playwright on http://localhost:3000 — 67/67 (auth, cms edit?id= + /admin/preview
+   draft-vs-published + publish sets finance.site_builds.requested_at, media through
+   real Storage signed uploads, owner-operations contact/outbox/webhook at
+   /functions/v1/* with cross-origin 403 and Mailpit read, visual rooms 360–1440 + JS-off).
+   FIRST REAL RUNS: the Edge Functions reaching Mailpit through the local gateway
+   (contact notice + sign-in codes), and a per-run visitor IP passing the contact rate
+   limiter through the gateway header.
+5. Screenshots: rooms captured to artifacts/acceptance/P01/screenshots/ (4 widths, JS on,
+   plus 768 JS-off) — Thmanyah Serif Display titles confirmed visually; P05 media screens
+   and P06 admin screens re-captured; the four stale inbox captures deleted (D31 removed
+   the inbox). P00 playwright report overwritten a FIFTH time by the run and restored.
+
+Independent audit (4 read-only agents: functions security, migration/DB, client rewiring,
+test fidelity). Findings and the fixes applied in this pass:
+- MED rate-limit key forgeable (trusted cf-connecting-ip / FIRST xff hop — client-suppliable
+  behind Supabase): requestIp now takes the LAST x-forwarded-for hop only; new
+  tests/unit/rate-limit.test.ts (5 cases incl. forged cf-connecting-ip ignored); the e2e
+  contact spec sets x-forwarded-for instead of cf-connecting-ip; I32 wording updated.
+- MED MISSING_PART path untested: added the incomplete-ticket unit case (422, quarantine
+  cleaned, nothing public) plus the admin HTTP-shell negatives (405/400/413 16 KiB) and
+  the operations×stats hole in the 403 matrix.
+- MED budget check allowlist: now measures every root page in out/ (404 included at
+  134.6 KiB); admin.html excluded as the staff-only shell (296 KiB, editor bundle) with a
+  comment — largest public page 142.1 KiB.
+- MED pg_net never created: `create extension if not exists pg_net` added to the D32
+  migration (it ships enabled with Supabase Postgres; keeps CI/self-managed honest).
+- LOW check-export REQUIRED gained journal/contact/book/scenes + the site_settings and
+  taxonomies admin shells (18 files) and asserts lang="ar" dir="rtl" on every public page
+  (the guard the old runtime.spec had).
+- LOW callFunction now validates the {ok:...} shape (a gateway HTML page becomes the
+  friendly «تعذّر الاتصال بالخادم.» instead of a TypeError).
+- LOW verify_jwt = true pinned explicitly for admin and staff-admin in config.toml.
+- LOW stale Worker comment removed from the P00 spike home route.
+- Record-only (I34): rebuild delivery fire-and-forget; media original move TOCTOU;
+  media-delete orphaned derivatives until an I29 sweep; unsalted contact:email hash;
+  unthrottled 401s on public endpoints.
+- Hygiene: .open-next/ and .wrangler/ build dirs (stale OpenNext output inlining live
+  credentials from .env — never committed, untracked) deleted from the machine.
+
+After the fixes: pnpm check 216/216 unit (15 files), db:reset + db:import + test:db
+115/115, build + check:export (18 files) + check:budgets green, full e2e 67/67.
