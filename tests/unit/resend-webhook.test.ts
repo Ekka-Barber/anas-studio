@@ -243,19 +243,22 @@ describe('webhook route (POST)', () => {
       created_at: '2026-09-26T10:00:00Z',
       data: { email_id: 'msg-bounce', to: 'not-an-array', bounce: { type: 'Permanent', subType: 'Suppressed' } },
     })
-    const response = await webhookPost(webhookRequest(rawBody))
+    const svixId = `evt_${randomUUID()}`
+    const response = await webhookPost(webhookRequest(rawBody, svixId))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ ok: true })
 
-    // The parsed id wins over the Svix id, the non-array `to` yields no
-    // recipient, and the bounce type still travels as its own argument.
+    // The Svix id stays the dedupe key (the normal path's key, so one
+    // delivery can never be recorded under two ids), the non-array `to`
+    // yields no recipient, the time is normalized to ISO, and the bounce type
+    // still travels as its own argument.
     expect(recorded.queries).toHaveLength(1)
     const params = recorded.queries[0]!
-    expect(params[0]).toBe('evt_salvaged')
+    expect(params[0]).toBe(svixId)
     expect(params[1]).toBe('email.bounced')
     expect(params[2]).toBe('msg-bounce')
     expect(params[3]).toBeNull()
-    expect(params[4]).toBe('2026-09-26T10:00:00Z')
+    expect(params[4]).toBe('2026-09-26T10:00:00.000Z')
     expect(params[6]).toBe('Permanent')
     expect(JSON.parse(params[5] as string)).toEqual({
       malformed: true,
@@ -296,12 +299,36 @@ describe('webhook route (POST)', () => {
     expect(recorded.queries).toHaveLength(0)
   })
 
-  it('still acknowledges a malformed event when its record fails', async () => {
+  it('asks Svix to retry when a malformed event cannot be recorded', async () => {
+    // Every value the malformed record passes is bounded, so a failure there
+    // is the database, not the event: a 503 redelivers the same bytes later
+    // instead of silently losing a bounce.
     recorded.failNext = true
     const response = await webhookPost(webhookRequest('not json at all {'))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ ok: true })
+    expect(response.status).toBe(503)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('UNAVAILABLE')
     expect(recorded.queries).toHaveLength(0)
+  })
+
+  it('passes only a timestamp Postgres accepts: ISO, or null when unusable', async () => {
+    // `Date.parse('1')` is a date to JavaScript but not to timestamptz, and a
+    // year past 9999 serializes in a form Postgres refuses — either would fail
+    // every redelivery of a well-formed event.
+    const cases: Array<[string, string | null]> = [
+      ['2026-09-26T10:00:00Z', '2026-09-26T10:00:00.000Z'],
+      ['Sat, 26 Sep 2026 10:00:00 GMT', '2026-09-26T10:00:00.000Z'],
+      ['1', '2001-01-01T00:00:00.000Z'],
+      ['not a date', null],
+      ['+275760-09-13T00:00:00Z', null],
+    ]
+    for (const [createdAt, expected] of cases) {
+      recorded.queries.length = 0
+      const rawBody = JSON.stringify({ type: 'email.delivered', created_at: createdAt, data: { email_id: 'msg-t', to: ['a@example.com'] } })
+      const response = await webhookPost(webhookRequest(rawBody))
+      expect(response.status).toBe(200)
+      expect(recorded.queries[0]![4]).toBe(expected)
+    }
   })
 
   it('asks Svix to retry when a well-formed event cannot be recorded', async () => {

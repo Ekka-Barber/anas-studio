@@ -181,12 +181,25 @@ the provider's event id (`svix-id`) — a redelivered event is recorded once.
 Event handling (`email.sent`, `email.delivered`,
 `email.delivery_delayed`, `email.bounced`, `email.complained`,
 `email.failed`, `email.suppressed`; anything else is acknowledged and
-ignored): hard/permanent or untyped bounces, complaints and suppressions
-suppress the recipient; a soft/transient bounce records the event (and sets
-the row's `delivery`) without suppressing;
+ignored): complaints, suppressions and every bounce except a `Temporary`
+(or soft/transient) one suppress the recipient — Resend documents
+`bounce.type` as `Permanent`/`Temporary` (`artifacts/acceptance/P06/
+source-resend-bounced.md`), so a missing or undocumented type suppresses
+conservatively; a temporary bounce records the event (and sets the row's
+`delivery`) without suppressing;
 `delivered`/`delayed`/`bounced`/`complained`/`failed` set the row's
 `delivery`. **Provider acceptance is not delivery**: a `sent` row keeps
 `delivery` null until an event arrives.
+
+Responses: no secret → 404; a body over 256 KiB → 413 (before the
+signature, so only junk can hit it); a missing or bad signature → 401. A
+signed event that is over 32 KiB, not JSON or an unexpected shape is
+recorded as malformed (salvaged fields, the body size, never the body) and
+answered 200, because redelivering the same bytes can never fix it. Any
+database failure — on either path — is 503, which Svix redelivers; the
+`svix-id` dedupe makes the redelivery safe, and every value passed to the
+database (the event time included) is bounded first, so a 503 is never
+caused by the event's own data.
 
 Webhook setup (P11, launch): in the Resend dashboard
 (`https://resend.com/webhooks`) add an endpoint for

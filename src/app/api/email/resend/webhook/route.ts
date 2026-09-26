@@ -48,37 +48,50 @@ const eventSchema = z.object({
 })
 
 /**
+ * The event's own timestamp as ISO 8601, or null. `Date.parse` accepts
+ * strings that Postgres's timestamptz input refuses (for example "1"), and a
+ * value the database refuses would fail every redelivery the same way; the
+ * ISO form of a date in years 1970–9999 is always accepted.
+ */
+function eventTime(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const ms = Date.parse(value)
+  if (Number.isNaN(ms)) return null
+  const date = new Date(ms)
+  const year = date.getUTCFullYear()
+  return year >= 1970 && year <= 9999 ? date.toISOString() : null
+}
+
+/**
  * Best-effort record of a signed event the handler will not process — a body
  * past MAX_EVENT_BYTES, unparseable JSON, or an unrecognized shape. Whatever
  * parsed is salvaged within the columns' bounds; the evidence marks the event
- * malformed and carries only the body's byte size, never its content. A
- * record failure is logged and swallowed: the same bytes can never be made
- * processable, so there is nothing a redelivery could fix.
+ * malformed and carries only the body's byte size, never its content. The
+ * Svix id is the dedupe key, as on the normal path, so one delivery can never
+ * be recorded under two ids. Every value is bounded here, so the record can
+ * fail only for an infrastructure reason — false then, and the caller asks
+ * for a redelivery rather than lose a bounce.
  */
-async function recordMalformedEvent(rawEvent: unknown, svixId: string, bytes: number): Promise<void> {
+async function recordMalformedEvent(rawEvent: unknown, svixId: string, bytes: number): Promise<boolean> {
   const source = typeof rawEvent === 'object' && rawEvent !== null && !Array.isArray(rawEvent) ? (rawEvent as Record<string, unknown>) : {}
   const data = typeof source.data === 'object' && source.data !== null && !Array.isArray(source.data) ? (source.data as Record<string, unknown>) : {}
   const bounce = typeof data.bounce === 'object' && data.bounce !== null && !Array.isArray(data.bounce) ? (data.bounce as Record<string, unknown>) : {}
-  // The provider's own event id wins when it parsed; otherwise the Svix id
-  // dedupes the row. With neither, there is nothing worth recording.
-  const id = typeof source.id === 'string' && source.id.length > 0 && source.id.length <= 200 ? source.id : svixId
-  if (!id) return
-  const createdAt =
-    typeof source.created_at === 'string' && !Number.isNaN(Date.parse(source.created_at)) ? source.created_at : new Date().toISOString()
   try {
     await withDb((client) =>
       client.query('select public.email_event_record($1, $2, $3, $4, $5, $6, $7)', [
-        id,
+        svixId,
         typeof source.type === 'string' && source.type.length > 0 && source.type.length <= 60 ? source.type : 'email.unknown',
         typeof data.email_id === 'string' && data.email_id.length > 0 && data.email_id.length <= 120 ? data.email_id : null,
         Array.isArray(data.to) && typeof data.to[0] === 'string' ? data.to[0] : null,
-        createdAt,
+        eventTime(source.created_at),
         JSON.stringify({ malformed: true, bytes }),
         typeof bounce.type === 'string' && bounce.type.length > 0 && bounce.type.length <= 60 ? bounce.type : null,
       ]),
     )
+    return true
   } catch {
     console.warn('[resend-webhook] could not record a malformed signed event', { svixId })
+    return false
   }
 }
 
@@ -130,11 +143,12 @@ export async function POST(request: Request): Promise<Response> {
   // Past this point the signature checked out, so the provider really sent
   // these bytes. An event the handler cannot process — a body past
   // MAX_EVENT_BYTES, unparseable JSON, or an unrecognized shape — is recorded
-  // best-effort as malformed (R1: its bounce or suppression is too real to
-  // drop silently) and then acknowledged, never rejected: Svix retries
-  // non-2xx deliveries and eventually disables the endpoint, which would
-  // lose later bounces, and retrying the same bytes can never make them
-  // parse. Only the event id is logged — the body never is.
+  // as malformed (R1: its bounce or suppression is too real to drop
+  // silently) and acknowledged, never rejected with a 4xx: Svix retries
+  // non-2xx deliveries and eventually disables the endpoint, and retrying the
+  // same bytes can never make them parse. Only when the record itself fails
+  // (the database, never the event's bounded values) is it a 503, exactly
+  // like the normal path below. Only the event id is logged — never the body.
   let event: unknown
   try {
     event = JSON.parse(rawBody)
@@ -144,7 +158,12 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = event === undefined ? null : eventSchema.safeParse(event)
   if (bodyBytes > MAX_EVENT_BYTES || parsed === null || !parsed.success) {
     console.warn('[resend-webhook] acknowledging a signed event it cannot process', { svixId })
-    await recordMalformedEvent(event, svixId, bodyBytes)
+    if (!(await recordMalformedEvent(event, svixId, bodyBytes))) {
+      return Response.json(
+        { ok: false, error: { code: 'UNAVAILABLE', message: 'Event not recorded; retry.' } },
+        { status: 503, headers: NO_STORE },
+      )
+    }
     return Response.json({ ok: true }, { status: 200, headers: NO_STORE })
   }
   if (!RECORDED_TYPES.has(parsed.data.type)) {
@@ -168,7 +187,7 @@ export async function POST(request: Request): Promise<Response> {
         parsed.data.type,
         data?.email_id ?? null,
         data?.to?.[0] ?? null,
-        parsed.data.created_at && !Number.isNaN(Date.parse(parsed.data.created_at)) ? parsed.data.created_at : null,
+        eventTime(parsed.data.created_at),
         evidence,
         bounceType,
       ]),
@@ -177,8 +196,8 @@ export async function POST(request: Request): Promise<Response> {
     // Not recorded: ask the provider to redeliver (a 5xx is retried, and the
     // event id dedupe makes a redelivery safe). Acknowledging here would lose
     // a bounce or complaint, and with it the suppression. Every value passed
-    // above is bounded to the columns' checks, so a retry cannot fail for
-    // the event's own data.
+    // above is bounded to the columns' checks (the timestamp through
+    // eventTime), so a retry cannot fail for the event's own data.
     return Response.json(
       { ok: false, error: { code: 'UNAVAILABLE', message: 'Event not recorded; retry.' } },
       { status: 503, headers: NO_STORE },
