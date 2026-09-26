@@ -388,3 +388,52 @@ Verdict: pending local items 1–5 pass; P06 round 2 is locally verified. next-e
 from the dev server was reverted. The accepted P00 playwright report was overwritten once more
 by this e2e run (third occurrence of H2) and restored with `git checkout --`; the recurring
 cause is the shared playwright output dir, and it needs a per-package report dir in round 3.
+
+2026-09-26 cloud verification of 0086cff/ed1bc36 (the local verification pass)
+
+V1. 0086cff eventTime(): correct. Probed old vs new on 17 inputs under UTC and Asia/Riyadh:
+    zone-naive ISO (date-only, T or space separator, minutes-only, fractional seconds, 24:00)
+    now gives the same instant on every machine; Z and offset inputs are unchanged;
+    whitespace-padded ISO is now accepted (was null); only non-ISO strings ("1", an RFC 2822
+    date without a zone) stay machine-local, as its comment says. The Worker runs UTC, so
+    production behaviour is unchanged. tests/unit/resend-webhook.test.ts: 19 passed under
+    UTC, Asia/Riyadh, America/Los_Angeles and Pacific/Kiritimati; whole unit suite 211 passed
+    + 1 skipped (212; 215 locally with the drift check) under the last three zones.
+V2. Evidence: the P00 playwright report is byte-identical to 79d8cf6; the ledger's hash
+    correction (ed1bc36) is right. settings-360/1440 are unchanged bytes because that page
+    renders identically between runs.
+V3. The 360 screenshots re-captured by 0086cff show D13's card-label gap never shipped
+    (D18, LOW-MEDIUM, cloud's own miss): email-360 «المستلم:p06r2-…», «آخر خطأ:HTTP_422»,
+    inbox-360 «البريد:guest-…» are glued. Cause: Next 16 compiles CSS with lightningcss at its
+    default targets (chrome/edge/firefox 111, safari 16.4 —
+    next/dist/shared/lib/modern-browserslist-target.js); Chrome 111 lacks :dir(), so
+    `.responsive td:dir(ltr)::before` became `td:not(:lang(ae), :lang(ar), …)::before`, which
+    never matches under <html lang="ar">. The cloud's D13 harness loaded the raw CSS, not the
+    compiled CSS, so it showed a gap that the app never had. The local 1440-only visual review
+    could not see it (cards exist only at ≤480px).
+    Fix 87ebd1c (src/components/admin/admin.module.css): the label is isolated with
+    RLI…PDI inside `content` ('\2067' attr(data-label) ':\2069' ' '), with the space outside the
+    isolate, so it lands between label and value in either direction with no direction
+    selector. Checked: lightningcss at Next's targets keeps the rule as written (no :lang
+    lowering left in the file); the 360 email/inbox cards rendered from the compiled CSS in
+    Chromium show «المستلم: p06r2-…», «آخر خطأ: HTTP_422», «البريد: guest-…»; a pixel diff
+    before/after changes only those rows plus sub-pixel antialiasing in «المحاولات». No other
+    :dir() selector exists in src/.
+    (While compiling, the cloud harness's admin.css turned out to be a symlink into src/ and was
+    overwritten with compiled CSS; it was restored with `git checkout --` before the fix, and
+    the committed diff is the rule change only.)
+    Checks at 87ebd1c: typecheck 0, lint 0 (3 old warnings), check:copy OK (97), check:frozen
+    OK (59). CSS-only change; no unit or DB test touches it.
+
+Left as recommendations (not fixed):
+- An empty «آخر خطأ» cell ("—") has no strong character, so dir="auto" resolves it ltr and
+  its card label sits at the left edge, unlike the rows around it; render dir="auto" only
+  when last_error is set. Cosmetic, 360 only.
+- The Arabic comma in «2026/09/26، 4:11 م» reads like a period at 1440 (local note);
+  design pass.
+
+Pending local verification (after pulling 87ebd1c):
+1. Owner-operations spec (Playwright), then view email-360 and inbox-360: a space between
+   every card label and its Latin value, labels still on the right in Arabic rows.
+2. Linux build:worker and the cron CPU measurement (I30), production-build screenshots
+   (unchanged from the earlier list).
