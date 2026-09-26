@@ -34,6 +34,7 @@ const REASON_LABEL: Record<string, string> = {
   TIMEOUT: 'انتهت مهلة الاستعلام.',
   GRAPHQL_ERROR: 'ردّ الإحصاءات يحتوي على خطأ.',
   SAMPLED: 'البيانات معيّنة (sampled)، فلا تُعرض أرقام تقديرية.',
+  UNEXPECTED_SHAPE: 'تعذّر قراءة بيانات الزيارات — حدّث الصفحة.',
 }
 
 export function StatsView() {
@@ -123,7 +124,9 @@ export function StatsView() {
             )}
           </>
         ) : (
-          <p className={styles.message}>غير متاح — {REASON_LABEL[stats.analytics.reason] ?? stats.analytics.reason}</p>
+          // N2-UI: a raw reason code must never reach the owner; unknown
+          // reasons (anything added server-side later) fall back to Arabic copy.
+          <p className={styles.message}>غير متاح — {REASON_LABEL[stats.analytics.reason] ?? 'خطأ غير معروف.'}</p>
         )}
       </section>
 

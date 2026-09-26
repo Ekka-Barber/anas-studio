@@ -209,3 +209,35 @@ Round 2 (glm-worker) — 2026-09-26/27
   (needs Developer Mode/admin). Same blocker the earlier rounds recorded — the Linux pass owns
   this build (I30). A stale .open-next/assets handle from a sandboxed earlier run had to be
   released first (dev-server tree killed, takeown+grant, rm).
+
+== 2026-09-26 audit-fix pass 2 (response to the verification audit of a324577) ==
+- Coordinator ZCode (GLM-5.3) + four parallel sub-agents, disjoint file ownership (L11 record):
+  E: admin.module.css, InboxView.tsx, EmailView.tsx, StatsView.tsx
+  F: src/lib/format.ts, src/admin/collections/site-settings.ts, SettingsView.tsx,
+     src/lib/analytics.ts, src/lib/content.ts, tests/unit/{analytics,format,collections}.test.ts
+  G: contact/route.ts, resend webhook route, tests/unit/resend-webhook.test.ts,
+     tests/integration/forms.test.ts, tests/e2e/owner-operations.spec.ts
+  H: the P06 migration, src/lib/outbox.ts (comments), tests/integration/{outbox,email-delivery}.test.ts
+  Coordinator-owned seams: migration email CHECK extended to xn-- TLDs (matches the route's
+  punycode grammar), webhook bounce-mapping comment, PLANS ledger/ISSUES, this file.
+- Resend's real bounce vocabulary fetched and curated (L1/L10): the 220KB page caches deleted in
+  pass 1 are superseded by source-resend-bounced.md — bounce.type is "Permanent"/"Temporary",
+  data.to is an array. Older sections above still cite the deleted source-*.html files by name;
+  treat those citations as superseded, excerpts live in source-resend-bounced.md and the code.
+- M5 desktop regression: overflow-wrap:anywhere removed; break-word on free text, nowrap on
+  compact cells, dir="ltr" on date cells; 360px cards untouched.
+- L5: whatsappLink/normalizeSaudiMobile is the single rule (bare 5XXXXXXXX -> wa.me/9665…,
+  Arabic-Indic digits, parens); siteSettingsStoredSchema (lenient) for the public loader,
+  siteSettingsSchema (strict) for the publish gate + form.
+- L1: suppression now temporary/soft/transient -> record only; missing/permanent/hard/unknown ->
+  suppress (raw type kept in evidence); DB-branch integration tests use the real vocabulary.
+- L2/L3: signed-but-malformed events recorded best-effort then 200; webhook pre-read gate is
+  256KiB (arch-conformant), >32KiB post-signature -> malformed record + 200; contact post-read
+  8KiB covers chunked bodies (tested without content-length).
+- M1: SQL CHECK tightened to the route grammar (incl. xn--); M3 comments corrected; M6 race now
+  proves overlap (two direct clients + in-statement pg_sleep, wall-clock < 350ms); N2 zones:[null]
+  -> unavailable, StatsView never renders raw codes; N5 IDN emails accepted via punycode; N6
+  sent_at partial index; R2 e2e empty-state expectation updated to the role-aware copy.
+- pnpm check → 0 (201 unit, up from 189); db:reset + db:import → 0; test:db → 0 (93, up from 89);
+  playwright owner-operations + cms + auth → 22/22; screenshots re-captured (next dev; production
+  capture remains round-3 evidence).

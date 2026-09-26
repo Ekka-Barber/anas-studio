@@ -3,11 +3,17 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 
 import { schemaFor } from '../../src/admin/collections'
+import { siteSettingsStoredSchema } from '../../src/admin/collections/site-settings'
 import content from '../../content/initial-content.json'
 
 const ROOM_SLUGS = ['started', 'built', 'passed', 'shelf'] as const
 
 const siteSettingsData = { nav: content.nav, footer: content.footer, home: content.home }
+
+const contactDoc = (whatsapp: string) => ({
+  ...siteSettingsData,
+  contact: { email: 'hello@anas.studio', whatsapp },
+})
 
 describe('schemaFor: the real content fixture', () => {
   it('parses the site_settings document', () => {
@@ -47,6 +53,25 @@ describe('schemaFor: rejects malformed data', () => {
     // @ts-expect-error deliberately wrong type for the test
     bad.pullLines = 'not an array'
     expect(schemaFor('rooms', 'started').safeParse(bad).success).toBe(false)
+  })
+
+  it('the site_settings gate rejects a junk whatsapp and a junk email', () => {
+    expect(schemaFor('site_settings', 'site').safeParse(contactDoc('not-a-number')).success).toBe(false)
+    expect(
+      schemaFor('site_settings', 'site')
+        .safeParse({ ...siteSettingsData, contact: { email: 'nope', whatsapp: '0501234567' } })
+        .success,
+    ).toBe(false)
+  })
+
+  it('the site_settings gate accepts every everyday Saudi mobile spelling', () => {
+    for (const whatsapp of ['050-123-4567', '501234567', '+966 50 123 4567', '٠٥٠١٢٣٤٥٦٧', '(050) 123 4567']) {
+      expect(schemaFor('site_settings', 'site').safeParse(contactDoc(whatsapp)).success).toBe(true)
+    }
+  })
+
+  it('the lenient stored schema parses a stored document whose whatsapp is junk (loader safety)', () => {
+    expect(siteSettingsStoredSchema.safeParse(contactDoc('junk')).success).toBe(true)
   })
 
   it('rejects an unknown image id', () => {

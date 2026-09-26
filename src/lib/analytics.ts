@@ -5,7 +5,7 @@
  * `requestSource: "eyeball"` (visitor traffic, not Cloudflare-internal or
  * monitoring requests) and the production host from `SITE_URL`.
  *
- * Docs fetched 2026-09-26 (evidence: artifacts/acceptance/P06/source-cf-*.html):
+ * Docs fetched 2026-09-26:
  * - https://developers.cloudflare.com/analytics/graphql-api/
  * - https://developers.cloudflare.com/analytics/graphql-api/migration-guides/graphql-api-analytics/
  *   (the `httpRequestsAdaptiveGroups` example: `requestSource: "eyeball"`,
@@ -130,16 +130,19 @@ interface GroupShape {
 
 /**
  * The one zone's groups, shape-validated: an answer is usable only when the
- * response carries exactly one zone (`data.viewer.zones` of length 1) whose
- * `httpRequestsAdaptiveGroups` is an Array — an empty array is a real zero.
- * Anything else (no zone — a wrong zone id or a bad token — `data: null`, or
- * an unexpected shape like `{}`) is not an answer, so it returns null instead
- * of an invented empty result.
+ * response carries exactly one zone (`data.viewer.zones` of length 1) that is
+ * an object whose `httpRequestsAdaptiveGroups` is an Array — an empty array
+ * is a real zero. Anything else (no zone — a wrong zone id or a bad token —
+ * `data: null`, a zone entry that is null or not an object, or an unexpected
+ * shape like `{}`) is not an answer, so it returns null instead of an
+ * invented empty result.
  */
 function groupsOf(body: unknown): GroupShape[] | null {
   const zones = (body as { data?: { viewer?: { zones?: unknown } } } | null)?.data?.viewer?.zones
   if (!Array.isArray(zones) || zones.length !== 1) return null
-  const groups = (zones[0] as { httpRequestsAdaptiveGroups?: unknown }).httpRequestsAdaptiveGroups
+  const zone = zones[0]
+  if (typeof zone !== 'object' || zone === null) return null
+  const groups = (zone as { httpRequestsAdaptiveGroups?: unknown }).httpRequestsAdaptiveGroups
   return Array.isArray(groups) ? (groups as GroupShape[]) : null
 }
 

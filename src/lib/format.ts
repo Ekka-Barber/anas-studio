@@ -24,15 +24,12 @@ export function formatYear(year: number): string {
 }
 
 /**
- * Normalizes a WhatsApp number to `https://wa.me/<digits>` (D23: an editable
- * wa.me link only), or null when it cannot be a valid number. Arabic-Indic
- * (U+0660–U+0669) and extended (U+06F0–U+06F9) digits become ASCII; spaces,
- * dashes, dots and parentheses are dropped along with one leading `+`; a
- * leading `00` becomes the international form; a Saudi local `05XXXXXXXX`
- * becomes `9665XXXXXXXX`. The result must be 8–15 digits and must not start
- * with 0.
+ * Digits only: Arabic-Indic (U+0660–U+0669) and extended (U+06F0–U+06F9)
+ * digits become ASCII; spaces, dashes, dots and parentheses are dropped
+ * along with one leading `+`; a leading `00` becomes the international form.
+ * Any other character (letters, a `+` after digits) is not a phone number.
  */
-export function whatsappLink(input: string): string | null {
+function foldDigits(input: string): string | null {
   let digits = ''
   let seenDigit = false
   for (const char of input.trim()) {
@@ -52,7 +49,36 @@ export function whatsappLink(input: string): string | null {
     return null
   }
   if (digits.startsWith('00')) digits = digits.slice(2)
-  if (/^05\d{8}$/.test(digits)) digits = `966${digits.slice(1)}`
-  if (!/^\d{8,15}$/.test(digits) || digits.startsWith('0')) return null
+  return digits
+}
+
+/**
+ * A Saudi mobile in any everyday spelling — `9665XXXXXXXX`, `+9665XXXXXXXX`,
+ * `05XXXXXXXX` or bare `5XXXXXXXX`, separators and Arabic-Indic digits
+ * included — as the compact international form `9665XXXXXXXX`, or null when
+ * it is not one. The publish check and the settings preview both go through
+ * this helper, so their rules can never disagree.
+ */
+export function normalizeSaudiMobile(value: string): string | null {
+  const digits = foldDigits(value)
+  if (digits === null) return null
+  if (/^9665\d{8}$/.test(digits)) return digits
+  if (/^05\d{8}$/.test(digits)) return `966${digits.slice(1)}`
+  if (/^5\d{8}$/.test(digits)) return `966${digits}`
+  return null
+}
+
+/**
+ * Normalizes a WhatsApp number to `https://wa.me/<digits>` (D23: an editable
+ * wa.me link only), or null when it cannot be a valid number. Saudi mobiles
+ * go through `normalizeSaudiMobile` (every spelling maps to
+ * `9665XXXXXXXX`); any other international number is 8–15 digits that do
+ * not start with 0, unchanged.
+ */
+export function whatsappLink(input: string): string | null {
+  const saudi = normalizeSaudiMobile(input)
+  if (saudi !== null) return `https://wa.me/${saudi}`
+  const digits = foldDigits(input)
+  if (digits === null || !/^\d{8,15}$/.test(digits) || digits.startsWith('0')) return null
   return `https://wa.me/${digits}`
 }

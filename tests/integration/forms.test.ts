@@ -313,4 +313,38 @@ describe('contact route email grammar', () => {
     const body = (await response.json()) as { error: { code: string } }
     expect(body.error.code).toBe('TURNSTILE_UNAVAILABLE')
   })
+
+  it('accepts an internationalised Saudi domain, validated and stored as punycode', async () => {
+    // `.السعودية` arrives in Unicode; the route punycodes the domain before
+    // the grammar check, so acceptance shows exactly like the normal address
+    // above — the 503 Turnstile stub, not a 422 from the schema.
+    const response = await contactPost(contactRequest('user@مثال.السعودية'))
+    expect(response.status).toBe(503)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('TURNSTILE_UNAVAILABLE')
+  })
+})
+
+describe('contact route body limits', () => {
+  it('refuses a body past the 8 KiB limit when no content-length is declared', async () => {
+    // A Request built from a string carries no content-length header (Node
+    // adds one only at dispatch), so this is the chunked-request shape: the
+    // pre-read gate sees nothing and the post-read guard alone must refuse.
+    const response = await contactPost(
+      new Request('http://localhost/api/contact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'زائر',
+          email: 'guest@example.com',
+          message: 'x'.repeat(9_000),
+          submissionKey: randomUUID(),
+          turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX',
+        }),
+      }),
+    )
+    expect(response.status).toBe(413)
+    const body = (await response.json()) as { error: { code: string } }
+    expect(body.error.code).toBe('TOO_LARGE')
+  })
 })

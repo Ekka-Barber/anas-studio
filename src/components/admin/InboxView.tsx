@@ -32,6 +32,7 @@ const FILTERS: Array<'all' | ContactStatus> = ['all', 'new', 'read', 'closed', '
 const FILTER_LABEL: Record<'all' | ContactStatus, string> = { all: 'الكل', ...STATUS_LABEL }
 const PAGE_SIZE = 30
 const MAILTO_SUBJECT = encodeURIComponent('رد: رسالتك إلى أنس')
+type StaffRole = 'owner' | 'editor' | 'operations'
 
 export function InboxView() {
   const [filter, setFilter] = useState<'all' | ContactStatus>('all')
@@ -43,14 +44,17 @@ export function InboxView() {
   const [notesEdit, setNotesEdit] = useState('')
   const [assigned, setAssigned] = useState<string | null>(null)
   const [myUserId, setMyUserId] = useState<string | null>(null)
+  // R2: only an owner can see every row; for anyone else an empty list may
+  // just be RLS, so the empty-state copy must not claim "no messages at all".
+  const [role, setRole] = useState<StaffRole | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const selectedRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void getSupabaseBrowserClient()
-      .auth.getUser()
-      .then(({ data }) => setMyUserId(data.user?.id ?? null))
+    const supabase = getSupabaseBrowserClient()
+    void supabase.auth.getUser().then(({ data }) => setMyUserId(data.user?.id ?? null))
+    void supabase.rpc('current_staff_role').then(({ data }) => setRole((data as StaffRole) ?? null))
   }, [])
 
   async function loadPage(accumulated: Contact[], from: number) {
@@ -150,7 +154,9 @@ export function InboxView() {
           </button>
         </div>
       )}
-      {!loadError && contacts !== null && contacts.length === 0 && <p className={styles.message}>لا توجد رسائل.</p>}
+      {!loadError && contacts !== null && contacts.length === 0 && (
+        <p className={styles.message}>{role && role !== 'owner' ? 'لا توجد رسائل متاحة لك.' : 'لا توجد رسائل بعد.'}</p>
+      )}
 
       {contacts !== null && contacts.length > 0 && (
         <div className={styles.tableWrap}>
@@ -167,12 +173,12 @@ export function InboxView() {
             <tbody>
               {contacts.map((contact) => (
                 <tr key={contact.id} className={contact.id === selectedId ? styles.rowSelected : undefined}>
-                  <td data-label="الاسم">
+                  <td data-label="الاسم" className={styles.cellWrap}>
                     <button type="button" className={styles.linkButton} onClick={() => open(contact)}>
                       <span dir="auto">{contact.name}</span>
                     </button>
                   </td>
-                  <td dir="auto" data-label="البريد">
+                  <td dir="auto" data-label="البريد" className={styles.cellWrap}>
                     {contact.email}
                   </td>
                   <td
@@ -183,8 +189,12 @@ export function InboxView() {
                   >
                     {contact.message.split('\n')[0]}
                   </td>
-                  <td data-label="الوقت">{formatRiyadh(contact.created_at)}</td>
-                  <td data-label="الحالة">{STATUS_LABEL[contact.status]}</td>
+                  <td dir="ltr" data-label="الوقت" className={styles.cellNowrap}>
+                    {formatRiyadh(contact.created_at)}
+                  </td>
+                  <td data-label="الحالة" className={styles.cellNowrap}>
+                    {STATUS_LABEL[contact.status]}
+                  </td>
                 </tr>
               ))}
             </tbody>

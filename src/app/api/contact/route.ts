@@ -27,11 +27,32 @@ const NO_STORE = { 'cache-control': 'no-store' }
 
 /**
  * The email grammar, shared verbatim with the database's own check: a local
- * part of header-safe characters, a bounded domain, a purely alphabetic TLD.
- * Loose grammars let an address like `x@evil.test?bcc=…&body=…` flow into the
- * inbox's mailto: links, so only this shape reaches storage.
+ * part of header-safe characters, a bounded domain, and a TLD that is either
+ * purely alphabetic or a punycode label (`xn--…`) — the only form in which an
+ * internationalised domain like `.السعودية` reaches storage (`toAsciiAddress`
+ * below converts it first). Loose grammars let an address like
+ * `x@evil.test?bcc=…&body=…` flow into the inbox's mailto: links, so only
+ * this shape reaches storage.
  */
-const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,63}$/
+const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})$/
+
+/**
+ * Punycodes an address whose domain carries non-ASCII (e.g. the Saudi
+ * `.السعودية`) via the URL parser's IDNA hostname, so the ASCII form is what
+ * gets validated — and stored. A domain the parser refuses is returned
+ * untouched and fails the grammar below.
+ */
+function toAsciiAddress(email: string): string {
+  const at = email.lastIndexOf('@')
+  if (at === -1) return email
+  const domain = email.slice(at + 1)
+  if (/^[\x00-\x7F]*$/.test(domain)) return email
+  try {
+    return `${email.slice(0, at)}@${new URL(`http://${domain}`).hostname}`
+  } catch {
+    return email
+  }
+}
 
 const contactSchema = z.strictObject({
   name: z.string().trim().min(1).max(120),
@@ -40,7 +61,9 @@ const contactSchema = z.strictObject({
     .trim()
     .toLowerCase()
     .max(254)
-    .refine((email) => EMAIL_SHAPE.test(email), { message: 'بريد غير صالح.' }),
+    .transform((email) => toAsciiAddress(email))
+    // Punycode can expand the domain, so the stored length is re-bounded here.
+    .refine((email) => email.length <= 254 && EMAIL_SHAPE.test(email), { message: 'بريد غير صالح.' }),
   message: z.string().trim().min(1).max(5000),
   submissionKey: z.string().regex(UUID),
   turnstileToken: z.string().min(1).max(2048),
@@ -137,9 +160,10 @@ export async function POST(request: Request): Promise<Response> {
     }
     if ((error as { code?: string } | null)?.code === '23505') {
       // A simultaneous double submit raced past the submission-key lookup and
-      // lost the unique insert: its twin already stored the message. Same
-      // generic reply shape as every other refusal — no internal detail.
-      return fail(409, 'CONFLICT', 'تعذّر إكمال الإجراء.')
+      // lost the unique insert: its twin already stored the message, so the
+      // visitor is told it arrived — accurately and without any internal
+      // detail. The 409 stays so the form's own retry logic still steps aside.
+      return fail(409, 'CONFLICT', 'وصلتنا رسالتك — لا حاجة للإعادة.')
     }
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }

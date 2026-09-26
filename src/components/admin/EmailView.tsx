@@ -36,8 +36,18 @@ const SUPPRESSED_MESSAGE = 'المستلم محظور بعد ارتداد أو �
  * suppressed are hard-blocked), so the replay button only appears for them. */
 const REPLAYABLE_STATUSES = new Set(['exhausted', 'uncertain'])
 
+/** R3: the attention list is capped at 200 rows, so it is filtered locally:
+ * non-terminal statuses (uncertain, or a send still in flight) still need a
+ * person; everything else (exhausted, suppressed, or a terminal delivery
+ * event) is done. */
+type ProblemFilter = 'all' | 'attention' | 'ended'
+const PROBLEM_FILTERS: ProblemFilter[] = ['all', 'attention', 'ended']
+const PROBLEM_FILTER_LABEL: Record<ProblemFilter, string> = { all: 'الكل', attention: 'تحتاج تدخل', ended: 'انتهت' }
+const NEEDS_ATTENTION_STATUSES = new Set(['uncertain', 'sending'])
+
 export function EmailView() {
   const [rows, setRows] = useState<AttentionRow[] | null>(null)
+  const [problemFilter, setProblemFilter] = useState<ProblemFilter>('all')
   const [loadError, setLoadError] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [rowError, setRowError] = useState<{ id: number; message: string } | null>(null)
@@ -91,12 +101,37 @@ export function EmailView() {
     if (id !== null) await replay(id, true)
   }
 
+  const visibleRows =
+    rows === null
+      ? null
+      : problemFilter === 'all'
+        ? rows
+        : rows.filter((row) =>
+            problemFilter === 'attention' ? NEEDS_ATTENTION_STATUSES.has(row.status) : !NEEDS_ATTENTION_STATUSES.has(row.status),
+          )
+
   return (
     <div>
       <h1>البريد</h1>
       <p className={styles.message}>
         قبول المزوّد للرسالة لا يعني وصولها؛ الوصول يتأكد فقط بحدث التسليم من المزوّد.
       </p>
+
+      {rows !== null && rows.length > 0 && (
+        <div className={styles.row} role="group" aria-label="تصفية المشكلات">
+          {PROBLEM_FILTERS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={option === problemFilter ? styles.button : styles.buttonSecondary}
+              aria-pressed={option === problemFilter}
+              onClick={() => setProblemFilter(option)}
+            >
+              {PROBLEM_FILTER_LABEL[option]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loadError && (
         <div className={styles.row}>
@@ -106,9 +141,11 @@ export function EmailView() {
           </button>
         </div>
       )}
-      {!loadError && rows !== null && rows.length === 0 && <p className={styles.message}>لا توجد مشكلات في البريد.</p>}
+      {!loadError && visibleRows !== null && visibleRows.length === 0 && (
+        <p className={styles.message}>{rows?.length ? 'لا توجد مشكلات من هذا النوع.' : 'لا توجد مشكلات في البريد.'}</p>
+      )}
 
-      {rows !== null && rows.length > 0 && (
+      {visibleRows !== null && visibleRows.length > 0 && (
         <div className={styles.tableWrap}>
           <table className={`${styles.table} ${styles.responsive}`}>
             <thead>
@@ -124,15 +161,23 @@ export function EmailView() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <tr key={row.id}>
                   <td dir="auto" data-label="المستلم" className={styles.cellEllipsis} title={row.recipient}>
                     {row.recipient}
                   </td>
-                  <td data-label="النوع">{KIND_LABEL[row.kind] ?? row.kind}</td>
-                  <td data-label="الحالة">{STATUS_LABEL[row.status] ?? row.status}</td>
-                  <td data-label="التسليم">{row.delivery ? (DELIVERY_LABEL[row.delivery] ?? row.delivery) : '—'}</td>
-                  <td data-label="المحاولات">{row.attempts}</td>
+                  <td data-label="النوع" className={styles.cellNowrap}>
+                    {KIND_LABEL[row.kind] ?? row.kind}
+                  </td>
+                  <td data-label="الحالة" className={styles.cellNowrap}>
+                    {STATUS_LABEL[row.status] ?? row.status}
+                  </td>
+                  <td data-label="التسليم" className={styles.cellNowrap}>
+                    {row.delivery ? (DELIVERY_LABEL[row.delivery] ?? row.delivery) : '—'}
+                  </td>
+                  <td data-label="المحاولات" className={styles.cellNowrap}>
+                    {row.attempts}
+                  </td>
                   <td
                     dir="auto"
                     data-label="آخر خطأ"
@@ -141,14 +186,14 @@ export function EmailView() {
                   >
                     {row.last_error ?? '—'}
                   </td>
-                  <td data-label="تاريخ المحاولة الأولى">
+                  <td dir="ltr" data-label="تاريخ المحاولة الأولى" className={styles.cellNowrap}>
                     {row.first_attempt_at ? formatRiyadh(row.first_attempt_at) : '—'}
                   </td>
                   <td data-label="إجراء">
                     {REPLAYABLE_STATUSES.has(row.status) ? (
                       <button
                         type="button"
-                        className={styles.buttonSecondary}
+                        className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
                         disabled={busyId === row.id}
                         onClick={() => startReplay(row)}
                       >

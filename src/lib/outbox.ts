@@ -25,9 +25,12 @@ export const DAILY_QUOTA = 100
 export const MONTHLY_QUOTA = 3_000
 
 /**
- * Sends kept free of notices at the top of the priority order: once the day
- * has used `DAILY_QUOTA - RESERVE` sends, priority 2 (availability notices)
- * waits while 0 (sign-in, receipts) and 1 (staff notices) still go.
+ * Sends held back at the top of the priority order: once the day has used
+ * `DAILY_QUOTA - RESERVE` outbox sends, priority 2 (availability notices)
+ * waits while 0 (receipts) and 1 (staff notices) still go. Sign-in codes do
+ * not travel through the outbox — Supabase Auth sends them over its own SMTP
+ * connection (I28) — so the reserve only bounds outbox volume against the
+ * Resend daily limit those codes share.
  */
 export const RESERVE = 20
 

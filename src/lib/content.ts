@@ -30,7 +30,7 @@ import {
   reelMediaSchema,
   roomVignetteSchema,
   shelfRoomSchema,
-  siteSettingsSchema,
+  siteSettingsStoredSchema,
   startedMovementSchema,
   startedRoomSchema,
   thuraFlavourSchema,
@@ -57,7 +57,7 @@ export type ThuraItem = z.infer<typeof thuraItemSchema>
 export type MoonlightCupItem = z.infer<typeof moonlightCupItemSchema>
 export type BoutiqueItem = z.infer<typeof boutiqueItemSchema>
 export type ShelfRoom = z.infer<typeof shelfRoomSchema>
-export type SiteContent = z.infer<typeof siteSettingsSchema>
+export type SiteContent = z.infer<typeof siteSettingsStoredSchema>
 
 /** httpOnly cookie set by `POST /api/preview`: the staff access token. */
 export const PREVIEW_COOKIE = 'anasaq_preview'
@@ -184,8 +184,10 @@ function dropHidden<T extends { hidden?: boolean }>(items: readonly T[]): T[] {
 }
 
 // One fetch of `site_settings/site` per render, shared by Header and Footer.
+// The lenient stored schema on purpose: the publish gate enforces the contact
+// rules, so one bad stored value cannot 500 every public page.
 const fetchSiteSettings = cache(
-  async (): Promise<SiteContent> => fetchPublished('site_settings', 'site', siteSettingsSchema),
+  async (): Promise<SiteContent> => fetchPublished('site_settings', 'site', siteSettingsStoredSchema),
 )
 
 export async function getNav(): Promise<NavItem[]> {

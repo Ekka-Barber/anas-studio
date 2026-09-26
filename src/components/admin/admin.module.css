@@ -118,15 +118,12 @@
   text-align: start;
 }
 
-/* M5: the operations tables (inbox, email problems). Long unbroken Latin
-   text (emails, provider errors) wraps instead of forcing the table wider
-   than its box, so the action columns stay visible with no horizontal
-   scrolling from ~1024px up. Scoped to .responsive so the other admin tables
-   (versions, team…) keep their plain scroll box. */
-.responsive th,
-.responsive td {
-  overflow-wrap: anywhere;
-}
+/* M5 round 2: `overflow-wrap: anywhere` on every cell let auto table-layout
+   shrink a column to one character — Arabic words split mid-word (breaking
+   letter joining) and Latin-digit dates scrambled. Now cells opt in:
+   free text wraps at word boundaries (.cellWrap — min-content is the longest
+   word, so columns can't collapse), compact cells never wrap (.cellNowrap),
+   verbose cells cap with .cellEllipsis below. */
 
 /* A verbose one-line cell: capped width, ellipsis, full text in title. */
 .cellEllipsis {
@@ -134,6 +131,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Free text that isn't ellipsized: wraps at word boundaries only. */
+.cellWrap {
+  overflow-wrap: break-word;
+}
+
+/* Compact cells (kind, status, dates, counts, actions): one line. */
+.cellNowrap {
+  white-space: nowrap;
 }
 
 /* M5: at phone widths each row becomes a stacked card labelled by its

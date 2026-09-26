@@ -7,15 +7,35 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |
-| Last product commit | `9b6d1e5`: P06 rounds 1 and 2 as an unaudited work-in-progress snapshot. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
+| Last product commit | `a324577`: independent-audit fix pass 1 (verification audit of it: NEEDS WORK — 7 resolved, rest partial/regressions), followed by fix pass 2 (this commit) addressing that verification. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
 | P00 | Public runtime proven on hosted Workers Free (I21 monitored until launch). D29 swap committed (`6f09321`); Worker upload 25,338 → 5,494 KiB. |
 | P03 | Committed (`4322ccc`). |
 | P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
 | P05 | Committed (`79d8cf6`). |
-| P06 | Rounds 1 and 2 committed in `9b6d1e5` as an unaudited snapshot. Round 1 (contacts, email outbox, delivery webhook, jobs) has the orchestrator audit below; round 2 (owner home, inbox, email problems, settings, statistics) is not audited. Independent review of `9b6d1e5`: NEEDS WORK. Round 3 not started. |
+| P06 | Rounds 1 and 2 committed in `9b6d1e5`; audit fix pass 1 in `a324577`; fix pass 2 (M5 desktop tables, L5 schema/loader split, L1 real Resend bounce vocabulary, M1 SQL CHECK, race proof, IDN emails, evidence) in this commit. Independent verification pending. Round 3 not started. |
 | P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
-| Lock | Held by the orchestrator for P06; kept through the round 2 audit, the audit fixes and round 3. |
+| Lock | Held by the coordinator for P06 (see the 2026-09-26 process note below). |
 | Hosted resources | Worker `anas-studio` (test), R2 `anas-studio-media-test` (private), Hyperdrive `anasaq-cms` (caching off), D1 `anas-studio-tag-cache`, Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). No deploys until P11 (local-first). |
+
+## Process note, 2026-09-26 (owner-authorized)
+
+The two audit-fix passes (`a324577` and this commit) were written by the ZCode
+(GLM-5.3) coordinator session dispatching four parallel sub-agents per pass
+with disjoint, enumerated file ownership — one agent per file, no overlaps —
+plus coordinator-owned seam fixes and this ledger. This deviates from
+CLAUDE.md's single-writer spawn rule (D28) and was explicitly ordered by the
+owner ("make sure to run sub-agents 4 at a time... no more than one agent
+work in one file at the same time"). Models: coordinator ZCode GLM-5.3;
+sub-agents general-purpose on the session model; no glm-worker process was
+involved. The CLI orchestrator's `.anasaq-execution.lock` (status: P06 round
+2, building) was left untouched — it belongs to the CLI session, which will
+reconcile on resume.
+
+Migration `20260926120000` was edited in place under the same version during
+both fix passes. This is safe: it has only ever been applied to the resettable
+local database (P06 is local-only, no deploy per the lock), and the hosted
+project receives migrations only at P11. The local DB is reset after each
+edit; the hosted first-apply will get the final version.
 
 ## Owner decisions, 2026-09-24
 
@@ -98,6 +118,6 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 
 ## Next work, in order
 
-1. finish P06: apply independent-audit fixes (H1–H2, M1–M7, L1–L12 from the 2026-09-26 review), re-capture round 2 evidence from a production build, then round 3 (backups, privacy runbook, notify routes, commerce settings, docs/costs.md, phase-2 gate).
-2. P06 round 3: backups (destination and key holder need the owner's decision) and the privacy-request runbook; then the Linux Worker build and the phase 2 gate walk-through.
+1. Independent verification audit of the fix-pass-2 commit (the cloud reviewer), apply any follow-ups, then re-capture round 2 evidence from a production build.
+2. P06 round 3: backups (destination and key holder need the owner's decision), the privacy-request runbook (I31's auth-user deletion blocker), notify routes, commerce settings, docs/costs.md; then the Linux Worker build and the phase 2 gate walk-through.
 3. Commit P06 with the owner's approval.

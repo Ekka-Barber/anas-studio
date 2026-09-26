@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Client } from 'pg'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { createStaff, localEnv, signInByCode, staffAccessToken, status, svixHeaders } from './helpers'
 
@@ -372,8 +372,8 @@ test('an editor sees neither inbox rows nor the email RPC', async ({ page }) => 
   const editor = await createStaff('editor')
   await signInByCode(page, editor.email)
   await page.goto('/admin/inbox')
-  // RLS returns nothing: the empty state, not an error and not rows.
-  await expect(page.getByText('لا توجد رسائل.')).toBeVisible()
+  // RLS returns nothing: the role-aware empty state, not an error and not rows.
+  await expect(page.getByText('لا توجد رسائل متاحة لك.')).toBeVisible()
   await expect(page.locator('tbody tr')).toHaveCount(0)
   await page.goto('/admin/email')
   // The RPC itself is refused for an editor.
@@ -509,12 +509,17 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
   const shots = mkdirScreenshots()
   // Waits must be visible at BOTH widths: at 360px the responsive tables hide
   // their `thead`, so column headers like «أول الرسالة» can't be wait targets.
-  const targets: Array<{ name: string; path: string; wait: string }> = [
+  // Two targets must wait for the DATA, not the chrome: the inbox's «الكل»
+  // filter renders before its rows (an empty table would be screenshot), so
+  // it waits for a row locator, and settings' «حالة الإعداد» renders while
+  // the status still shows «يحمّل...», so it waits for the resolved status
+  // (locally «Mailpit (محلي)»).
+  const targets: Array<{ name: string; path: string; wait: string | Locator }> = [
     { name: 'home', path: '/admin', wait: 'رسائل جديدة:' },
-    { name: 'inbox', path: '/admin/inbox', wait: 'الكل' },
+    { name: 'inbox', path: '/admin/inbox', wait: page.locator('tbody tr').first() },
     { name: 'email', path: '/admin/email', wait: 'إعادة الإرسال' },
     { name: 'stats', path: '/admin/stats', wait: 'المتجر' },
-    { name: 'settings', path: '/admin/settings', wait: 'حالة الإعداد' },
+    { name: 'settings', path: '/admin/settings', wait: 'Mailpit' },
   ]
   for (const viewport of [
     { width: 360, height: 740 },
@@ -523,7 +528,8 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
     await page.setViewportSize(viewport)
     for (const target of targets) {
       await page.goto(target.path)
-      await page.getByText(target.wait, { exact: false }).first().waitFor()
+      const ready = typeof target.wait === 'string' ? page.getByText(target.wait, { exact: false }).first() : target.wait
+      await ready.waitFor()
       const { scroll, inner } = await page.evaluate(() => ({
         scroll: document.documentElement.scrollWidth,
         inner: window.innerWidth,

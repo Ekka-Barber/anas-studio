@@ -46,6 +46,10 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 **Package:** P06 (from the 2026-09-26 round 2 audit), hosted measurement with I21. The every-minute cron runs through the full OpenNext handler (wrangler.jsonc ~:105, worker-entry.ts ~:98-110). I21 measured 19–46 ms CPU for public routes on a fresh isolate against the 10 ms Free limit, and no measurement exists for the cron path. The `build:worker` attempt on Windows fails on symlink creation (EPERM without Developer Mode/admin — recorded in `artifacts/acceptance/P06/commands.txt`), so the Linux pass owns both the build and the hosted measurement. The owner home now flags stale job runs (UI fix applied).
 
+## I31 — Append-only `audit_events` blocks deleting auth users
+
+**Package:** P06 (recorded 2026-09-26 from the independent audit, L9). During round 1's local run the worker deleted 710 `auth.users` rows as superuser and found that the append-only `audit_events` trigger refuses to delete any auth user who has audit rows — a deletion a privacy request ("delete my account") must be able to perform. The round 3 privacy runbook must define the path: either the runbook archives/pseudonymizes instead of deleting, or the trigger gains an owner-executable purge procedure with its own audit record. Nothing in the current plan covers it; `docs/operations.md` should state the chosen path once decided.
+
 ## Small UI items for when design reopens
 
 - No favicon, so every page logs one 404 for `/favicon.ico`.

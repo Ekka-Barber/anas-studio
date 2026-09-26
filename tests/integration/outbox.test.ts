@@ -166,8 +166,20 @@ describe('claiming', () => {
     const other = new Client({ connectionString: 'postgresql://app_server:app_server_local_only@127.0.0.1:54322/postgres' })
     await other.connect()
     try {
-      const [mine, theirs] = await Promise.all([claim(1), claim(1, other)])
-      const winners = [...mine, ...theirs].filter((r) => r.id === row.id)
+      // Two separate direct clients (127.0.0.1:54322 is the direct port, not
+      // a pooler), each claiming with an in-statement 0.2 s sleep: the sleep
+      // is an initplan that runs inside the statement's transaction even when
+      // the claim returns no row, so serialized sessions would need >= 0.4 s.
+      // Finishing under 0.35 s proves the two claims really overlapped.
+      const racingClaim =
+        'select c.id, c.lease_id, (select pg_sleep(0.2)) from public.outbox_claim($1, $2, $3, $4, $5) as c'
+      const startedAt = Date.now()
+      const [mine, theirs] = await Promise.all([
+        app.query<{ id: string; lease_id: string }>(racingClaim, [1, 120, 100, 20, 3000]),
+        other.query<{ id: string; lease_id: string }>(racingClaim, [1, 120, 100, 20, 3000]),
+      ])
+      expect(Date.now() - startedAt).toBeLessThan(350)
+      const winners = [...mine.rows, ...theirs.rows].filter((r) => r.id === row.id)
       expect(winners).toHaveLength(1)
       // The attempt counter moved exactly once.
       expect((await rowState(row.id)).attempts).toBe(1)

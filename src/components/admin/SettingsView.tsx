@@ -10,8 +10,8 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import { settingsStatusAction, type SettingsStatus } from '@/app/(admin)/admin/actions'
-import { WHATSAPP_ERROR, WHATSAPP_PATTERN } from '@/admin/collections/site-settings'
-import { whatsappLink } from '@/lib/format'
+import { WHATSAPP_ERROR } from '@/admin/collections/site-settings'
+import { normalizeSaudiMobile } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
@@ -65,12 +65,10 @@ export function SettingsView() {
         setWhatsapp({ state: 'not-set' })
         return
       }
-      const url = whatsappLink(raw)
-      // The same Saudi-mobile rule the settings schema enforces server-side
-      // (L5), so the preview's message matches the form's validation exactly
-      // (dashes/spaces are typing aids: validate the compact form).
-      const compact = String(raw).trim().replace(/[\s-]/g, '')
-      setWhatsapp(url && WHATSAPP_PATTERN.test(compact) ? { state: 'ok', url } : { state: 'invalid' })
+      // The same helper the settings schema enforces server-side (L5), so
+      // the preview and the publish rule can never disagree.
+      const normalized = normalizeSaudiMobile(raw)
+      setWhatsapp(normalized !== null ? { state: 'ok', url: `https://wa.me/${normalized}` } : { state: 'invalid' })
     })()
 
     void (async () => {

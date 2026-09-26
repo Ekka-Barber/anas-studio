@@ -19,7 +19,15 @@ create type public.contact_status as enum ('new', 'read', 'closed', 'spam');
 create table public.contacts (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(btrim(name)) between 1 and 120),
-  email text not null check (char_length(email) between 3 and 254 and email = lower(btrim(email)) and email like '%_@_%'),
+  -- The route's email grammar (EMAIL_SHAPE in src/app/api/contact/route.ts),
+  -- shared verbatim: a header-safe local part, a bounded domain, and a TLD
+  -- that is alphabetic or punycode (xn--, how the route stores IDN addresses
+  -- like the Saudi Arabic TLD).
+  email text not null check (
+    char_length(email) between 3 and 254
+    and email = lower(btrim(email))
+    and email ~ '^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.([A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})$'
+  ),
   message text not null check (char_length(btrim(message)) between 1 and 5000),
   status public.contact_status not null default 'new',
   notes text check (notes is null or char_length(notes) <= 5000),
@@ -102,8 +110,11 @@ select cron.schedule(
 );
 
 -- 3. The outbox. One row per message; the dedupe key makes enqueueing
---    idempotent. Priority 0 (sign-in, receipts) goes before 1 (staff
---    notices) and 2 (availability notices). A row is "sent" when the
+--    idempotent. Priority 0 (receipts) goes before 1 (staff notices) and 2
+--    (availability notices). Sign-in codes never enter the outbox: Supabase
+--    Auth sends them over its own SMTP connection (I28), outside this
+--    pipeline, so the daily reserve only bounds outbox volume against the
+--    Resend daily limit those codes share. A row is "sent" when the
 --    provider accepted it; delivery is tracked separately from webhooks.
 create table finance.email_outbox (
   id bigint generated always as identity primary key,
@@ -137,6 +148,10 @@ create table finance.email_outbox (
 );
 create index email_outbox_due on finance.email_outbox (priority, next_at) where status in ('pending', 'uncertain');
 create index email_outbox_provider on finance.email_outbox (provider_id) where provider_id is not null;
+-- The day/month quota counts in outbox_claim filter on sent_at; this partial
+-- index keeps them off an ever-growing unindexed scan. Purging old sent rows
+-- is round-3 backup/retention work.
+create index if not exists email_outbox_sent_at_idx on finance.email_outbox (sent_at) where sent_at is not null;
 
 create table finance.email_suppressions (
   recipient_hash text primary key check (recipient_hash ~ '^[0-9a-f]{64}$'),
@@ -381,11 +396,15 @@ $$;
 
 -- A verified provider event, recorded once. Complaints and provider
 -- suppressions suppress the recipient for every sender. A bounce suppresses
--- only when its type is missing or hard/permanent (case-insensitive, from the
--- webhook's `p_bounce_type` argument or the evidence `bounceType` key): a
--- soft/transient bounce only records the
--- event, because the address may deliver later. A later "delivered" never
--- clears a suppression, and never overwrites a bounce or complaint on the row.
+-- unless its type is temporary/soft/transient: Resend's webhook sends the
+-- type capitalized, "Permanent" or "Temporary" (source:
+-- artifacts/acceptance/P06/source-resend-bounced.md), lowercased here from
+-- the `p_bounce_type` argument or the evidence `bounceType` key. A temporary
+-- bounce only records the event, because the address may deliver later; a
+-- missing or undocumented type suppresses conservatively — the raw type
+-- stays in the evidence for an owner's manual un-suppression. A later
+-- "delivered" never clears a suppression, and never overwrites a bounce or
+-- complaint on the row.
 create function public.email_event_record(
   p_event_id text, p_type text, p_provider_message_id text, p_recipient text,
   p_occurred_at timestamptz, p_evidence jsonb, p_bounce_type text default null
@@ -416,7 +435,7 @@ begin
     p_type in ('email.complained', 'email.suppressed')
     or (
       p_type = 'email.bounced'
-      and coalesce(v_bounce_type, '') in ('', 'hard', 'permanent')
+      and coalesce(v_bounce_type, '') not in ('temporary', 'soft', 'transient')
     )
   ) then
     insert into finance.email_suppressions (recipient_hash, reason)

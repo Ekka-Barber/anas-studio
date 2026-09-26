@@ -193,6 +193,20 @@ describe('analytics fixtures', () => {
     expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
   })
 
+  it('a null zone entry is unavailable, never a crash', async () => {
+    configure()
+    const nullZone = { data: { viewer: { zones: [null] } }, errors: null }
+    stubFetch(nullZone, nullZone)
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
+  it('a non-object zone entry is unavailable, never a crash', async () => {
+    configure()
+    const stringZone = { data: { viewer: { zones: ['x'] } }, errors: null }
+    stubFetch(stringZone, stringZone)
+    expect(await fetchAnalytics(NOW)).toEqual({ status: 'unavailable', reason: 'UNEXPECTED_SHAPE' })
+  })
+
   it('sampled data (avg.sampleInterval above 1) is refused', async () => {
     configure()
     stubFetch(
@@ -243,9 +257,13 @@ describe('parsers against raw shapes', () => {
   it('an unusable shape parses to null, never to an invented zero', () => {
     expect(parseVisits({ data: { viewer: { zones: [] } }, errors: null })).toBeNull()
     expect(parseVisits({ data: null, errors: null })).toBeNull()
+    expect(parseVisits({ data: { viewer: { zones: [null] } }, errors: null })).toBeNull()
+    expect(parseVisits({ data: { viewer: { zones: ['x'] } }, errors: null })).toBeNull()
     expect(parseVisits({})).toBeNull()
     expect(parseTopPaths({ data: { viewer: { zones: [] } }, errors: null })).toBeNull()
     expect(parseTopPaths({ data: null, errors: null })).toBeNull()
+    expect(parseTopPaths({ data: { viewer: { zones: [null] } }, errors: null })).toBeNull()
+    expect(parseTopPaths({ data: { viewer: { zones: ['x'] } }, errors: null })).toBeNull()
     expect(parseTopPaths({})).toBeNull()
   })
 

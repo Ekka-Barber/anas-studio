@@ -66,14 +66,24 @@ async function recordEvent(params: {
   type: string
   messageId: string
   recipient: string
+  bounceType?: string
+  evidence?: Record<string, unknown>
 }): Promise<string> {
   const svixId = params.svixId ?? unique('evt')
   created.events.push(svixId)
   created.suppressions.push(hashOf(params.recipient))
   try {
     const result = await app.query<{ email_event_record: string }>(
-      'select public.email_event_record($1, $2, $3, $4, $5, $6) as email_event_record',
-      [svixId, params.type, params.messageId, params.recipient, new Date(), JSON.stringify({})],
+      'select public.email_event_record($1, $2, $3, $4, $5, $6, $7) as email_event_record',
+      [
+        svixId,
+        params.type,
+        params.messageId,
+        params.recipient,
+        new Date(),
+        JSON.stringify(params.evidence ?? {}),
+        params.bounceType ?? null,
+      ],
     )
     return result.rows[0]!.email_event_record
   } catch (error) {
@@ -144,6 +154,59 @@ describe('email_event_record', () => {
     expect(suppression.rows.length).toBe(1)
   })
 
+  it('bounce types in Resend vocabulary: Permanent suppresses, Temporary records only, a missing type suppresses', async () => {
+    const permanent = await sentRow('bounce-permanent')
+    expect(
+      await recordEvent({ type: 'email.bounced', messageId: permanent.providerId, recipient: permanent.recipient, bounceType: 'Permanent' }),
+    ).toBe('recorded')
+    const hardSuppression = await postgres.query<{ reason: string }>(
+      'select reason from finance.email_suppressions where recipient_hash = $1',
+      [hashOf(permanent.recipient)],
+    )
+    expect(hardSuppression.rows[0]!.reason).toBe('bounced')
+
+    const temporary = await sentRow('bounce-temporary')
+    expect(
+      await recordEvent({ type: 'email.bounced', messageId: temporary.providerId, recipient: temporary.recipient, bounceType: 'Temporary' }),
+    ).toBe('recorded')
+    // Recorded, never suppressed: a temporary bounce may deliver later.
+    expect(
+      (await postgres.query('select 1 from finance.email_suppressions where recipient_hash = $1', [hashOf(temporary.recipient)])).rows,
+    ).toEqual([])
+    expect(
+      (await postgres.query<{ type: string }>('select type from finance.email_delivery_events where provider_message_id = $1', [
+        temporary.providerId,
+      ])).rows.map((r) => r.type),
+    ).toEqual(['email.bounced'])
+
+    const missing = await sentRow('bounce-missing-type')
+    expect(await recordEvent({ type: 'email.bounced', messageId: missing.providerId, recipient: missing.recipient })).toBe('recorded')
+    expect(
+      (await postgres.query('select 1 from finance.email_suppressions where recipient_hash = $1', [hashOf(missing.recipient)])).rows.length,
+    ).toBe(1)
+  })
+
+  it('an undocumented bounce type suppresses conservatively and the evidence keeps the raw type', async () => {
+    const unknown = await sentRow('bounce-unknown')
+    expect(
+      await recordEvent({
+        type: 'email.bounced',
+        messageId: unknown.providerId,
+        recipient: unknown.recipient,
+        bounceType: 'Undocumented',
+        evidence: { bounceType: 'Undocumented' },
+      }),
+    ).toBe('recorded')
+    expect(
+      (await postgres.query('select 1 from finance.email_suppressions where recipient_hash = $1', [hashOf(unknown.recipient)])).rows.length,
+    ).toBe(1)
+    const evidence = await postgres.query<{ evidence: Record<string, unknown> }>(
+      'select evidence from finance.email_delivery_events where provider_message_id = $1',
+      [unknown.providerId],
+    )
+    expect(evidence.rows[0]!.evidence).toMatchObject({ bounceType: 'Undocumented' })
+  })
+
   it('a complaint suppresses the recipient', async () => {
     const row = await sentRow('complaint')
     expect(await recordEvent({ type: 'email.complained', messageId: row.providerId, recipient: row.recipient })).toBe('recorded')
@@ -174,17 +237,21 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
   })
 
-  /** Parks every foreign due row so a claim sees only this test's fixture,
-   * removes this suite's own unfinished leftovers (an earlier test's or a
-   * crashed run's backed-off row can never be claimed by a later test), and
-   * moves the outbox suite's synthetic "sent" quota rows out of today so the
-   * free-plan daily quota in `outbox_claim` is not already consumed. This
-   * suite's own rows are only ever deleted, never rewritten. */
+  /** Parks only the foreign rows that are due right now (the only ones this
+   * suite's claims could see), so other suites' parked or not-yet-due
+   * fixtures survive untouched; removes this suite's own unfinished leftovers
+   * (an earlier test's or a crashed run's backed-off row can never be claimed
+   * by a later test); and moves the outbox suite's synthetic quota filler
+   * (its `p06-outbox-test-quota*` dedupe keys) out of today so the free-plan
+   * daily quota in `outbox_claim` is not already consumed — its real sent
+   * rows are left as they are. This suite's own rows are only ever deleted,
+   * never rewritten. */
   async function parkOthers(): Promise<void> {
     await postgres.query(
       `update finance.email_outbox set next_at = now() + interval '1 day',
          first_attempt_at = now() - interval '2 days'
-       where dedupe_key not like $1 and status in ('pending', 'uncertain', 'sending')`,
+       where dedupe_key not like $1 and status in ('pending', 'uncertain', 'sending')
+         and next_at <= now()`,
       [`${PREFIX}%`],
     )
     await postgres.query(
@@ -193,7 +260,7 @@ describe('runOutbox (fetch stubbed, app_server through the db mock)', () => {
     )
     await postgres.query(
       `update finance.email_outbox set sent_at = now() - interval '2 days'
-       where sent_at >= date_trunc('day', now()) and dedupe_key like 'p06-outbox-test-%'`,
+       where sent_at >= date_trunc('day', now()) and dedupe_key like 'p06-outbox-test-quota%'`,
     )
   }
 
