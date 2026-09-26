@@ -461,3 +461,48 @@ Local verification of 87ebd1c (D18) — run 2026-09-26, the pending list above:
 3. The e2e runs overwrote the accepted P00 playwright report a fourth time; restored with
    `git checkout --` and the untracked run dirs cleaned. H2 stays the first round-3 task.
    next-env.d.ts churn reverted. settings screenshots were unchanged (no cards there).
+
+2026-09-26 D31 — the owner's mailbox is the inbox (owner decision; cloud writer, plan approved
+by the owner in the session)
+
+Owner: Anas uses his own Gmail; help@anas.studio is a Cloudflare Email Routing address forwarding
+to it; an email interface in the admin is not worth building. The plan study found no email
+client in the plan: P06 had built an admin list of contact messages (الوارد), a failed-sends list
+(البريد) and the sender (outbox, Resend, webhook, cron). The offer promises contact forms (line
+1630) and automatic order emails (1615, 1678), not an admin inbox, and already lists an official
+address as Anas's homework (1894). Email Routing only receives and forwards; it cannot send the
+automatic customer mail, so the sender and البريد stay.
+
+Commits:
+- 738801c: the notice carries Reply-To = the visitor (sendEmail replyTo → Resend `reply_to`,
+  Mailpit `ReplyTo`) and no /admin/inbox line; the الوارد screen, nav link, home count and the
+  CSS only it used are removed; public.contacts is server-only (no API grant or policy, owner
+  included; status/notes/assigned_to/updated_at, the enum and the touch trigger dropped — P06
+  migration edited in place, local-only); tests updated.
+- 4e0684d: settings lists the Email Routing step.
+- this commit: D31 in DECISIONS; WORK-PACKAGES P06/P08/P11, DATA, ARCHITECTURE, COVERAGE C22/C24,
+  EXECUTION-STATUS, docs/operations.md and docs/development.md updated; the notify routes move
+  to P08; the four inbox screenshots (inbox-*, inbox-open-*) deleted, their screen no longer
+  exists.
+
+Checks run in the cloud (Node 22, engine-strict off):
+- typecheck 0; lint 0 (the same 3 old warnings); check:copy OK (95 files); check:frozen OK (59).
+- pnpm test: 213 passed + 1 skipped (+2 new: reply_to for Resend, ReplyTo for Mailpit; the notice
+  test now asserts no admin link). Expect 217 locally with the drift check.
+- Throwaway PostgreSQL 16 with Supabase stubs, fresh: all 5 migrations and the seed apply.
+- test:db, SQL-direct subset (forms, email-delivery, outbox): 31 passed; the 9 others need
+  Supabase Auth (every one fails at `createStaff: fetch failed`, no assertion reached). Passed
+  include «no API role holds any privilege on the table» and runOutbox's «... with the message
+  and Reply-To». The privilege test fails as intended after `grant select on public.contacts to
+  authenticated` (then reverted).
+
+Pending local verification (after pulling):
+1. pnpm db:reset + pnpm db:import (the P06 migration changed).
+2. TEST_ENV=local pnpm test:db — expect 92 (93 − 1: the five contacts-RLS tests became four).
+3. pnpm test (217) and pnpm check.
+4. Playwright owner-operations + cms + auth — expect 21 (owner-operations 17 → 16: the inbox
+   test is gone). This is the first real run of Mailpit's `ReplyTo` field: the notice test
+   asserts ReplyTo = the visitor and no /admin text; /admin/inbox must answer 404.
+5. Re-capture the P06 screenshots (home, email, stats, settings at 360 and 1440) and check the
+   home has no الوارد block and settings shows the Email Routing step.
+6. Unchanged: Linux build:worker and the cron CPU measurement (I30).

@@ -1,35 +1,38 @@
-# Operations: contact inbox and email delivery (P06)
+# Operations: contact messages and email delivery (P06)
 
-How a contact message becomes an inbox row and (eventually) a delivered
-email, and what to do when something gets stuck. The SQL contract lives in
+How a contact message reaches the owner's mailbox, and what to do when an
+automatic email gets stuck. There is no admin inbox (D31): the owner reads
+and answers contact messages in his own mailbox. The SQL contract lives in
 `supabase/migrations/20260926120000_contacts_and_email.sql`; the dispatcher
 is `src/lib/outbox.ts`, run by the Worker's Cron Trigger through
 `POST /api/jobs/run`.
 
-## The owner's daily routine (admin screens)
+## The owner's routine
 
-Start at `/admin` (the owner home). Every number there is a live query — a
-failed one shows «تعذّر التحميل», never 0:
+**Contact messages: in his own mailbox.** Each message arrives as an email
+«رسالة جديدة من نموذج التواصل» with the full text. Pressing Reply answers
+the visitor directly (the notice carries Reply-To set to the visitor's
+address). The notice goes to the sign-in address of every active owner and
+operations member; for Anas that is his Gmail, or `help@anas.studio`, which
+Cloudflare Email Routing forwards to it.
 
-1. **الوارد** — how many contact messages are still `new`. Open
-   `/admin/inbox`: newest first, filter by status, 30 per page with
-   «المزيد». Opening a `new` message marks it `read` automatically. Reply by
-   the `mailto:` link (the subject is preset), then set the status, add
-   notes, and «تعيين لي» when the message is yours. Everything saves through
-   one «حفظ».
-2. **البريد** — the `outbox_attention()` rows that need a person
+**The admin, only when the owner home flags something.** Start at `/admin`
+(the owner home). Every number there is a live query — a failed one shows
+«تعذّر التحميل», never 0:
+
+1. **البريد** — the `outbox_attention()` rows that need a person
    (`/admin/email`). «إعادة الإرسال» replays an exhausted row. An uncertain
    row past the 23-hour idempotency window opens a confirmation dialog,
    because it may already have been delivered. A suppressed recipient is
    refused — «المستلم محظور بعد ارتداد أو شكوى» — and only a deliberate
    manual database action re-allows it. Remember: provider acceptance is not
    delivery.
-3. **مهام التشغيل** — the latest run of each job; a job never run shows
+2. **مهام التشغيل** — the latest run of each job; a job never run shows
    «لم يعمل بعد».
-4. **الإحصاءات** (owner only) — see below.
+3. **الإحصاءات** (owner only) — see below.
 
-Operations members see the same inbox and email screens; editors see neither
-(RLS returns nothing, the email RPC is refused).
+Operations members see the same email screen; editors do not (the email RPC
+is refused). No API role can read `public.contacts`, the owner included.
 
 ## The contact flow
 
@@ -48,9 +51,10 @@ Operations members see the same inbox and email screens; editors see neither
    `submissionKey` was already stored (`duplicate`): `201 {received: true}`.
    A bot that fills the honeypot gets the same 201 with nothing stored.
 
-Because the durable write happens before any provider is called, **the inbox
-survives an email outage**: messages keep arriving and the notices simply
-wait in the outbox (proven by `tests/e2e/owner-operations.spec.ts`).
+Because the durable write happens before any provider is called, **a
+message survives an email outage**: messages keep arriving and the notices
+simply wait in the outbox until a jobs run can send them (proven by
+`tests/e2e/owner-operations.spec.ts`).
 
 ### Throttles
 
@@ -68,8 +72,9 @@ pg_cron purges the rate-limit windows nightly (`rate-limits-purge`).
 **Residual abuse risk (accepted):** the `contact:all` cap is global, so an
 attacker who passes Turnstile can spend the whole 200/day budget (40 rotating
 IPs at 5/hour each) and lock the form for everyone else for the rest of the
-UTC day. Accepted because nothing is lost — messages already stored stay in
-the inbox, real visitors still have the published email address, and the
+UTC day. Accepted because nothing is lost — messages already stored still
+reach the owner's mailbox, real visitors still have the published email
+address (`help@anas.studio`), and the
 window resets at the next UTC midnight. Manual mitigation when it happens:
 look at `public.contacts` for the burst, then delete the day's `contact:all`
 row from `finance.rate_limits` (its `key_hash` is 64 zeros) — the same

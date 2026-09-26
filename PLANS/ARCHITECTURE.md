@@ -55,7 +55,7 @@ A `media` table records purpose, alt, rights, dimensions, crop, the private orig
 | `src/lib/supabase/browser.ts`, `src/lib/supabase/server.ts` | Browser client for the admin (P03); server client for public reads and claims checks (P04) |
 | `src/lib/db.ts` | `app_server` pg client through Hyperdrive; named-function calls only |
 | `src/admin/collections/*.ts` | Collection configs |
-| `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, inbox, team, orders, stats, backups, board |
+| `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, email problems, team, orders, stats, backups, board (no inbox: D31) |
 | `src/components/admin/*` | Generic list and form, rich text editor, media upload, custom views, `admin.module.css` on the main tokens |
 | `src/lib/{content,richtext,format,validation,env}.ts` | Published loaders, safe Lexical renderer, formatting, input and env schemas |
 | `src/lib/{checkout,orders,booking,calendar,outbox,jobs,stats,media,r2}.ts`, `src/lib/payments/moyasar.ts` | Money and state protocols, bookings and ICS, durable jobs, factual stats, media tickets |

@@ -227,12 +227,14 @@ The reply is counts only (`{claimed, accepted, retry, permanent,
 uncertain}`). Delivery events, suppression and the replay rules are in
 `docs/operations.md`.
 
-The P06 round 2 admin screens — the owner home (`/admin`), the inbox
-(`/admin/inbox`), email problems (`/admin/email`), statistics
-(`/admin/stats`, owner only, via `GET /api/admin/stats`) and settings
-(`/admin/settings`, owner only) — are client components under
-`AdminShell`; the browser reads data under RLS, and the statistics route
-verifies the staff token and owner role server-side before its cache.
+The P06 round 2 admin screens — the owner home (`/admin`), email problems
+(`/admin/email`), statistics (`/admin/stats`, owner only, via
+`GET /api/admin/stats`) and settings (`/admin/settings`, owner only) — are
+client components under `AdminShell`; the browser reads data under RLS, and
+the statistics route verifies the staff token and owner role server-side
+before its cache. There is no inbox screen (D31): a contact message arrives
+as a notice in the owner's mailbox — locally in Mailpit — with Reply-To set
+to the visitor.
 
 
 ## Running the application
