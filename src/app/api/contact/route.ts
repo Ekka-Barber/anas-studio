@@ -18,7 +18,13 @@ import { verifyTurnstile } from '@/lib/turnstile'
  */
 export const dynamic = 'force-dynamic'
 
-/** The contact body limit (ARCHITECTURE: "contact to 8 KiB"). */
+/**
+ * The contact body limit (ARCHITECTURE: "contact to 8 KiB"). Arabic is two
+ * bytes a character in UTF-8, so a message stops fitting near 4,000 Arabic
+ * characters — before the schema's 5,000-character bound; the P01 form
+ * should cap its textarea accordingly. Only the message can push a body past
+ * the limit, so the 413 copy names it.
+ */
 const MAX_BODY_BYTES = 8_192
 /** Requests that declare more than this via content-length are refused before the body is read. */
 const MAX_DECLARED_BODY_BYTES = 32_768
@@ -99,12 +105,12 @@ export async function POST(request: Request): Promise<Response> {
   // below stays as the backstop when content-length is absent or understates.
   const declaredLength = Number(request.headers.get('content-length'))
   if (declaredLength > MAX_DECLARED_BODY_BYTES) {
-    return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
+    return fail(413, 'TOO_LARGE', 'رسالتك أطول من المسموح؛ اختصرها وأرسلها من جديد.')
   }
 
   const text = await request.text()
   if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
+    return fail(413, 'TOO_LARGE', 'رسالتك أطول من المسموح؛ اختصرها وأرسلها من جديد.')
   }
   let body: unknown
   try {

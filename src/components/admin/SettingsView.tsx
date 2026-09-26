@@ -2,7 +2,8 @@
 
 /**
  * Owner-only settings (P06 round 2): a link to the site settings document,
- * a WhatsApp preview through `whatsappLink`, the configuration status from
+ * a WhatsApp preview through `normalizeSaudiMobile` (the publish gate's own
+ * rule, so the two never disagree), the configuration status from
  * `settingsStatusAction` (booleans and names only — never a value), and the
  * static domain/mail steps. No editable secret fields anywhere.
  */
