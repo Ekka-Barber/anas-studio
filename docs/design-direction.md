@@ -8,7 +8,7 @@ DESIGN-AUDIT.md still applies in full, every item.
 
 - **Palette.** Paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30,
   brass #B28E5A, and each room's own jewel colour (plum for مررتُ من هنا).
-- **Typography.** Lyon Arabic Display is the display face; Thmanyah Sans is used
+- **Typography.** Thmanyah Serif Display is the display face (D33, 2026-09-26: Thmanyah only; it replaced Lyon Arabic Display); Thmanyah Sans is used
   for reading and interface text.
 - **Structure.** Navigation, the room opener (a brass tick, a small "الغرفة …"
   label and the big title), the closing poem and the signature footer.
@@ -34,7 +34,7 @@ to become a **reading experience**, not a set of cards.
 ### 2. Beats become chapters (from his text, not invented)
 
 - **بدأتُ من هنا.** The years he names become a quiet year rail: 2013 → 2018 →
-  2020 → «وشيء لم يبدأ بعد». Each year is a Lyon Display numeral beside its
+  2020 → «وشيء لم يبدأ بعد». Each year is a display-face numeral beside its
   paragraph group, with Latin digits.
 - **بنيتُ هنا.** His lines «لم أكن وحدي…», «سبعة فروع…» and «الشيخ آمن بي، وأنا
   آمنت برحى. وبين الإيمانين… بنينا.» become three spaced movements. The last
@@ -44,7 +44,7 @@ to become a **reading experience**, not a set of cards.
 - **على الرف.** Three shelf objects (ذرى, كوب ضوء القمر, بوتيك أنس القرني), each
   with its own "shelf card" leading to its story.
 
-**Pull lines.** Only Anas's own sentences are used, set in Lyon Display at 28–40
+**Pull lines.** Only Anas's own sentences are used, set in the display face at 28–40
 px in the room colour.
 
 - There are no quotation-mark ornaments and no boxes (DESIGN-AUDIT items 16
@@ -137,16 +137,14 @@ He also renamed «مرّت من هنا» to «مررتُ من هنا».
 This section records what the implementation actually did, where the source
 material required a call this document didn't fully specify.
 
-### Fonts (E06 still pending)
+### Fonts (D33: Thmanyah only)
 
-Only the weights the four built rooms and the Style Board actually use are
-shipped: Lyon Arabic Display Light/Regular/Medium (`.otf`) and Thmanyah Sans
-Light/Regular/Medium/Bold (`.woff2`), copied byte-for-byte from
-`deploy/design/fonts/` into `public/fonts/`. Lyon Arabic Text and Thmanyah
-Serif Display are used only by the frozen Home composition, which is part 2's
-work, so they are not copied yet. **Font licences are pending E06** — nothing
-here treats that as closed; the fonts are loaded and rendering so the room can
-be reviewed, and licensing remains an explicit launch gate.
+Only the Thmanyah family ships (owner decision 2026-09-26; its licence file is
+`Thmanyah-Font-Family/LICENSE.pdf`). The weights the built rooms use are in
+`public/fonts/thmanyah/`: Thmanyah Serif Display Light/Regular/Medium for
+titles and numerals (replacing Lyon Arabic Display, which is removed from the
+repository) and Thmanyah Sans Light/Regular/Medium/Bold for reading and
+interface text, all `.woff2`.
 
 ### Nav order and placement (assumption for Anas to confirm)
 

@@ -22,7 +22,7 @@
   --color-ink-85: color-mix(in srgb, var(--color-ink) 85%, transparent);
 
   /* Type — Style Board §02 TYPE */
-  --font-display: 'Lyon Arabic Display', 'Amiri', serif;
+  --font-display: 'Thmanyah Serif Display', serif;
   --font-body: 'Thmanyah Sans', sans-serif;
 
   /* Reading column measure (DESIGN-DIRECTION.md §1: ~62–68 Arabic characters) */

@@ -24,12 +24,6 @@ const FROZEN_ROOT = 'deploy'
 
 /** sha256 of every file under `deploy/`, recorded at the start of P00. */
 const MANIFEST = /* FROZEN-MANIFEST-START */ {
-  "deploy/design/fonts/lyon/LyonArabicDisplay-Light.otf": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef",
-  "deploy/design/fonts/lyon/LyonArabicDisplay-Medium.otf": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4",
-  "deploy/design/fonts/lyon/LyonArabicDisplay-Regular.otf": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f",
-  "deploy/design/fonts/lyon/LyonArabicText-Bold.otf": "9159330c539f88aeebaf8ce3a85e531e0de197f5a1bd5cc74687f1063034856b",
-  "deploy/design/fonts/lyon/LyonArabicText-Regular.otf": "5310f34f6a3ee83b2a220d688044acafd9ea0e57e5aaf771abb3f2c230db911b",
-  "deploy/design/fonts/lyon/LyonArabicText-Semibold.otf": "f71b791f249c9e79afd70881581b7b93583a5917488f7a307c752322ddaaa7cb",
   "deploy/design/fonts/thmanyah/thmanyahsans-Bold.woff2": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7",
   "deploy/design/fonts/thmanyah/thmanyahsans-Light.woff2": "79bcb61f004600088363b40c3feea4add5a0883c326d767b0994fe1b76044c72",
   "deploy/design/fonts/thmanyah/thmanyahsans-Medium.woff2": "490bf85c58c82b5989a557ed18cd6c6e5a7518b8a440032acf946b5cb7de2850",
@@ -50,9 +44,6 @@ const MANIFEST = /* FROZEN-MANIFEST-START */ {
   "deploy/design/على الرف.dc.html": "2987696bfccef30b4d8c4914ab3b52933dbf90fafefd0d88f21edc835717e2dd",
   "deploy/design/كُتبت هنا.dc.html": "28297833030cfb6802150f44b39d865fac327004e831873e214dea3d50cd5890",
   "deploy/design/مرّت من هنا.dc.html": "e5c2707a2df8449a759c2cdf9624ed75f08517a160918a3db9354cae5c48f7df",
-  "deploy/fonts/lyon/LyonArabicDisplay-Light.otf": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef",
-  "deploy/fonts/lyon/LyonArabicDisplay-Medium.otf": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4",
-  "deploy/fonts/lyon/LyonArabicDisplay-Regular.otf": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f",
   "deploy/fonts/thmanyah/thmanyahsans-Bold.woff2": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7",
   "deploy/fonts/thmanyah/thmanyahsans-Light.woff2": "79bcb61f004600088363b40c3feea4add5a0883c326d767b0994fe1b76044c72",
   "deploy/fonts/thmanyah/thmanyahsans-Medium.woff2": "490bf85c58c82b5989a557ed18cd6c6e5a7518b8a440032acf946b5cb7de2850",

@@ -1,35 +1,5 @@
 [
   {
-    "path": "deploy/design/fonts/lyon/LyonArabicDisplay-Light.otf",
-    "bytes": 311736,
-    "sha256": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef"
-  },
-  {
-    "path": "deploy/design/fonts/lyon/LyonArabicDisplay-Medium.otf",
-    "bytes": 321516,
-    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
-  },
-  {
-    "path": "deploy/design/fonts/lyon/LyonArabicDisplay-Regular.otf",
-    "bytes": 309928,
-    "sha256": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f"
-  },
-  {
-    "path": "deploy/design/fonts/lyon/LyonArabicText-Bold.otf",
-    "bytes": 341540,
-    "sha256": "9159330c539f88aeebaf8ce3a85e531e0de197f5a1bd5cc74687f1063034856b"
-  },
-  {
-    "path": "deploy/design/fonts/lyon/LyonArabicText-Regular.otf",
-    "bytes": 335548,
-    "sha256": "5310f34f6a3ee83b2a220d688044acafd9ea0e57e5aaf771abb3f2c230db911b"
-  },
-  {
-    "path": "deploy/design/fonts/lyon/LyonArabicText-Semibold.otf",
-    "bytes": 349428,
-    "sha256": "f71b791f249c9e79afd70881581b7b93583a5917488f7a307c752322ddaaa7cb"
-  },
-  {
     "path": "deploy/design/fonts/thmanyah/thmanyahsans-Bold.woff2",
     "bytes": 79160,
     "sha256": "90f7c5b4c796e102eee70e20a9346fe680c8bfe38289932b5e94290d9f150fb7"
@@ -128,21 +98,6 @@
     "path": "deploy/design/مرّت من هنا.dc.html",
     "bytes": 15080,
     "sha256": "e5c2707a2df8449a759c2cdf9624ed75f08517a160918a3db9354cae5c48f7df"
-  },
-  {
-    "path": "deploy/fonts/lyon/LyonArabicDisplay-Light.otf",
-    "bytes": 311736,
-    "sha256": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef"
-  },
-  {
-    "path": "deploy/fonts/lyon/LyonArabicDisplay-Medium.otf",
-    "bytes": 321516,
-    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
-  },
-  {
-    "path": "deploy/fonts/lyon/LyonArabicDisplay-Regular.otf",
-    "bytes": 309928,
-    "sha256": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f"
   },
   {
     "path": "deploy/fonts/thmanyah/thmanyahsans-Bold.woff2",
@@ -1218,116 +1173,6 @@
     "path": "BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.331.jpeg",
     "bytes": 146474,
     "sha256": "19795a11fd401679c08211b63f59a892edf75b29c637b984fb1d53adb5ac000a"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Black.otf",
-    "bytes": 313376,
-    "sha256": "3d4b574c9a797be736d9f9f271fe4de78cd028cdb85fe75050e7966e456bb4ee"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Bold.otf",
-    "bytes": 317328,
-    "sha256": "5e32e18cc349bbfdde967555abfdc277aae7d35b89a45dfe7b2b4943553302a4"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Light.otf",
-    "bytes": 311736,
-    "sha256": "0971a0ffebb99742ecb7bddb85c738f06279cda6cfd0912afb14e12d410525ef"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Medium.otf",
-    "bytes": 321516,
-    "sha256": "33b58d264257d88fbef26171a758c0fd3b091758069cf4064ed1552fe8df61b4"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Display Regular.otf",
-    "bytes": 309928,
-    "sha256": "cfc1a003e9b60b78fea65749bb71f12049e51cd67f5c14a0b227311e49d9f48f"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Black.otf",
-    "bytes": 388460,
-    "sha256": "441a95fc58088fc211946a01c7c441fed8cc592231fd716206e7253a2cf966e1"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Bold.otf",
-    "bytes": 406056,
-    "sha256": "2883932b8e5c8a55db9ee66add69201b2f8ffb252488b94a3992711fc19353f5"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Light.otf",
-    "bytes": 398472,
-    "sha256": "b9f6456507a05f383bdaca78b9f4fabeffeb948a41b8a1b4e64e7428ade25c38"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Medium.otf",
-    "bytes": 411848,
-    "sha256": "ea6f5224c5a48690643b2aa5f7e6e098bd44314406f11a97153fde101c6858fb"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Display Regular.otf",
-    "bytes": 396380,
-    "sha256": "c05522a075e29fa44e660940d9b9ef7c470202a390a167b044df0609b0d5a74b"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Black.otf",
-    "bytes": 364820,
-    "sha256": "f2b508b3f790aabb3fd4771d1833cad5f5ec5ebc55a107e246b81dcfb7bd4f74"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Bold.otf",
-    "bytes": 373384,
-    "sha256": "f4823ba0a94aff0caf770d570a37244c8b6bf2ff9ef98898f1fad1cc2fc7af04"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Regular.otf",
-    "bytes": 364104,
-    "sha256": "e72ba5ed4b4cac402ac42834d4a381d70a0c4620c06a05c8d5644ad2c45beb75"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text RegularNo2.otf",
-    "bytes": 373788,
-    "sha256": "d37a772b82b6129a04aa1baed0bc25274f5f6eb38a0869175600c8859c4d1778"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Slanted Text Semibold.otf",
-    "bytes": 379188,
-    "sha256": "f7717e67bcf78ad7f7be294dc197a387dc91265833ba37786eba166f6e7ce54e"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Black.otf",
-    "bytes": 338500,
-    "sha256": "9470a8a1d816b9400598a7ed1880708762fd26187aba69e1d31e894960f8622f"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Bold.otf",
-    "bytes": 341540,
-    "sha256": "9159330c539f88aeebaf8ce3a85e531e0de197f5a1bd5cc74687f1063034856b"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Regular.otf",
-    "bytes": 335548,
-    "sha256": "5310f34f6a3ee83b2a220d688044acafd9ea0e57e5aaf771abb3f2c230db911b"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text RegularNo2.otf",
-    "bytes": 342320,
-    "sha256": "49be2ce537d7252d916b5defb8b5f1e1ba4e5f55967f1296235512f6834eaecd"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/COMM - Lyon Arabic Text Semibold.otf",
-    "bytes": 349428,
-    "sha256": "f71b791f249c9e79afd70881581b7b93583a5917488f7a307c752322ddaaa7cb"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/HELP/Dafont File - Download Free Fonts.url",
-    "bytes": 49,
-    "sha256": "a5b7a38b35e58b0853420729959b5335ebf23971d0d8ada2918103614abb5137"
-  },
-  {
-    "path": "Lyon_Arabic_FONT/HELP/Read Me.txt",
-    "bytes": 60,
-    "sha256": "7e6ccd9a4a198d523984de1c3cdc52bd11c3bee91d8e7727014e77325b84214f"
   },
   {
     "path": "Thmanyah-Font-Family/LICENSE.pdf",

@@ -1,22 +1,23 @@
 @import './tokens.css';
 
-/* Licensed faces (E06 pending — see docs/design-direction.md). Only the
-   weights actually used by the four P01 rooms are shipped in public/fonts/. */
+/* Thmanyah only (D33): the free Thmanyah family, Serif Display for titles
+   and Sans for reading. Only the weights the rooms use are shipped in
+   public/fonts/. */
 @font-face {
-  font-family: 'Lyon Arabic Display';
-  src: url('/fonts/lyon/LyonArabicDisplay-Light.otf') format('opentype');
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Light.woff2') format('woff2');
   font-weight: 300;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Lyon Arabic Display';
-  src: url('/fonts/lyon/LyonArabicDisplay-Regular.otf') format('opentype');
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Lyon Arabic Display';
-  src: url('/fonts/lyon/LyonArabicDisplay-Medium.otf') format('opentype');
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2') format('woff2');
   font-weight: 500;
   font-display: swap;
 }

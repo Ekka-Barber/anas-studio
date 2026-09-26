@@ -4,7 +4,7 @@ This walks the entire supplied design law, including repeated tells, premium tec
 
 Codes: **F** = explicit frozen identity overrides the generic stylistic ban; reproduce carefully, not permission to copy into unrelated new screens. **N** = new journal/admin/store/services/board rule. **B** = defect prevention required everywhere, including production port of frozen design. **O** = optional technique, use only when it fits; never a required decoration. The orchestrator must append actual screenshot/interaction evidence for each applicable item during P10/P12. An N/O item absent from output is recorded not applicable, not embellished to satisfy a checklist.
 
-Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and distinct room jewel tones; licensed Lyon Arabic/Thmanyah; literary room hierarchy, signature, approved book world. The book's layout/type/art outside reader is final. Behavior, real prices and accessible visibility are wired without redesign. Original Motion Spec opacity-zero reveals are NOT reproduced as a reliability failure: readable default content wins. Responsive Frames are reference canvases, not production pages to make mobile. New admin screens use the main theme tokens and prioritize clear Arabic editing, functional forms and real data, not a marketing signature pasted into admin.
+Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and distinct room jewel tones; the Thmanyah family only (D33); literary room hierarchy, signature, approved book world. The book's layout/type/art outside reader is final. Behavior, real prices and accessible visibility are wired without redesign. Original Motion Spec opacity-zero reveals are NOT reproduced as a reliability failure: readable default content wins. Responsive Frames are reference canvases, not production pages to make mobile. New admin screens use the main theme tokens and prioritize clear Arabic editing, functional forms and real data, not a marketing signature pasted into admin.
 
 ## Every anti-slop tell
 
@@ -76,7 +76,7 @@ Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and 
 66. [B/F] Hero owns fold: preserve composed first viewport, no accidental next-section fragment.
 67. [F] Cream/beige default: explicit paid-for brand paper overrides generic ban.
 68. [N] UI-kit gray default: choose brand-related tonal surface, not unchosen gray band.
-69. [N/F] Google font rotation: no font shopping; licensed local Lyon/Thmanyah; neutral fallbacks only.
+69. [N/F] Google font rotation: no font shopping; local Thmanyah only (D33); neutral fallbacks only.
 70. [N/F] Hover button boop: new buttons stay still; preserve source composition while removing accidental jumps in production controls.
 71. [N] Inner-glow badge/live pulse: absent.
 72. [B] Off-center strike: if necessary, align optically; do not add.
@@ -143,7 +143,7 @@ Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and 
 124. [F] Atmosphere: paper/jewel rooms/art, no unrelated flat dashboard marketing layer.
 125. [F/B] Layered depth: existing book/world layers; never clip live content for depth.
 126. [B] Real populated product: native CMS and real store data, no placeholder UI.
-127. [F] Character type: Lyon Arabic signature, Thmanyah reading/UI.
+127. [F] Character type: Thmanyah Serif Display signature, Thmanyah Sans reading/UI (D33).
 128. [O] Bespoke silhouette: source shapes only; no requirement to invent a new notch.
 129. [F/B] Treated nav: preserve brand nav and working mobile/focus/active semantics.
 130. [B] Real specificity: actual approved stories/assets/queried stats; no fake social proof.
