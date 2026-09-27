@@ -54,10 +54,13 @@ writeFileSync(functionsPath, `${MARKER}\n${functionValues}`)
 console.log(`Wrote ${functionsPath}.`)
 
 // The Next app needs only the public Supabase values; the tests also read the
-// function values here to sign webhook and jobs requests.
+// function values here to sign webhook and jobs requests. The Turnstile site
+// key is Cloudflare's documented always-pass test key, paired with the
+// always-pass test secret above (P07 checkout widget, local only).
 const content = `${MARKER}
 NEXT_PUBLIC_SUPABASE_URL=${status.API_URL}
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${status.PUBLISHABLE_KEY}
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
 # Same values as supabase/functions/.env, for the tests (local only)
 ${functionValues}`
 writeFileSync(path, content)

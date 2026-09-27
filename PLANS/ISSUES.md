@@ -56,6 +56,14 @@ Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whos
 
 **Package:** P06 (found 2026-09-27 during the step 4 acceptance). After `pnpm build` (the static export), a cold `next dev` answered the public 404 for `/admin/content/site_settings/edit?id=site` when a run reached that route late: `owner-operations.spec.ts` alone failed its settings test three times cold, while the same test passes on a warm server, the full suite passes (earlier specs reach the edit route first), and with `.next` deleted the spec passed 19/19 cold. Production is unaffected: the export ships that page as a file. Fix: give the e2e dev server its own dist dir so a build never shares state with it (for example `distDir: process.env.NEXT_DIST_DIR ?? '.next'` in `next.config.ts`, `NEXT_DIST_DIR=.next-e2e` in the Playwright web server command, and the folder git-ignored). Until then, delete `.next` before an e2e run that follows a build.
 
+## I38: next dev answers 404 for a generateStaticParams page under Playwright
+
+**Package:** P07 (found 2026-09-27, round 3). In `cart-checkout.spec.ts`, `/store/<fixture slug>` answered the public 404 in later tests while the product existed and was published, and the first tests had loaded the same page. Same class as I37 (`dynamicParams = false` routes on `next dev`), now with a fresh `.next/e2e`. The static export ships the page as a file, so production is unaffected. Next: find the cause in Next's dev static-paths handling, or give the flows that do not test the product page a cart seeded through localStorage.
+
+## I39: a build can reuse an earlier build's data (fetch cache)
+
+**Package:** P07 (found 2026-09-27, round 3); affects every page built from Supabase (D32). The build loaders use plain `fetch`, and Next keeps responses in `.next/cache/fetch-cache` across builds. Proof: after archiving every product, `pnpm build` wrote `out/store.html` still listing the three demo products while `generateStaticParams` in the same build saw none. Cloudflare Pages keeps `.next/cache` between builds, so a rebuild after a publish could serve stale content or prices (checkout re-prices live, so no wrong charge). Candidate fixes, for the owner to choose: clear `.next/cache/fetch-cache` before `next build` (the orchestrator's attempt was denied by the auto-mode classifier as a mass delete), or a per-fetch cache option that keeps the static export valid.
+
 ## Small UI items for when design reopens
 
 - No favicon, so every page logs one 404 for `/favicon.ico`.

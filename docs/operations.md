@@ -416,6 +416,31 @@ session answers 409 like the seller save. The checkout compares the buyer's
 accepted revisions with the approved ones and refuses a mismatch. Buying
 itself opens only after the payment gateway is linked (P08).
 
+## Public store (P07)
+
+The public pages are `/store` (the list), `/store/<slug>` (one product),
+`/cart`, `/checkout` and `/policies/<store|delivery|refund|privacy>`, built
+at build time from the published catalog and the `policies` collection (D32,
+D38: plain on the current tokens until a v2 design direction is accepted).
+
+- **The browser cart** stores only variant ids, quantities and dedications
+  (`localStorage['anasaq:cart:v1']`, at most 50 lines, quantity 1–20,
+  duplicate variants merged). No price, total, name or address is ever
+  stored; every shown price comes from a live `quote` call to the `checkout`
+  function, debounced ~300 ms. The city and coupon live in sessionStorage.
+  When the browser blocks storage, the cart lives in memory for the tab and
+  the page says «السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.»
+- **Checkout** sends `create` with one `checkoutSession` per tab and an
+  `idempotencyKey` reused only for an identical retried request; the buyer
+  consents to exactly the policy revisions the quote carried. While
+  `checkout_enabled` is false, the cart and checkout pages say «الشراء غير
+  متاح حاليًا، ويفتح قريبًا.» and no order can be created (D34). A created
+  hold shows its order number and «حُجز طلبك لمدة 20 دقيقة…», keeps the cart
+  (nothing settles before payment verification, P08) and offers «إلغاء
+  الطلب» from the tab's sessionStorage copy of the access token.
+- **Screens:** the store pages link to the cart themselves; a site-nav entry
+  for the store is Anas's to add in the site settings.
+
 ## Backups (D35)
 
 

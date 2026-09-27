@@ -129,3 +129,43 @@ unpublished media row: draft product cover -> not public, published -> public, a
 public, delete while an archived product names it -> refused 23503; TEST_ENV=local pnpm test:db
 -> 0 (14 files, 177/177).
 Next: round 3 part 2, glm-worker from artifacts/acceptance/P07/brief-r3-store-pages.md.
+
+2026-09-27 Round 3, part 2: the public store pages (glm-worker); orchestrator audit IN PROGRESS
+
+Builder: glm-worker from artifacts/acceptance/P07/brief-r3-store-pages.md at 9fd3925; 131 turns,
+50.7 min, exit 0, no denials. It ended WITHOUT a final report while its own background
+Playwright run was going; afterwards no playwright, next dev or worker process was left (its
+port-3000 server exited), and its stray artifacts/pw-cart-checkout.log (outside the allowlist)
+was deleted. Its last run: 3 passed, 4 failed.
+Orchestrator audit so far (security-relevant code read: quote.ts, the storage paths of cart.ts,
+the env use of every store file, AddToCart, the product route):
+- The cart keeps only {version, lines} in localStorage; the checkout session and the order
+  token live in sessionStorage; the store code reads only NEXT_PUBLIC_ values; no secret.
+Fixes by the orchestrator:
+1. Public JS budget: the cart and checkout pages shipped 232.2 KiB gzip (full Zod for parsing
+   the function's replies). zod/mini still cost 24 KiB; the parsers are now plain shape checks
+   (the inputs are Zod-validated in the function, D14). cart 142.2, checkout 143.6 KiB; OK.
+2. Lint: 186 react-hooks errors came from ESLint scanning Playwright's generated trace viewer
+   in test-results/; eslint.config.mjs ignores test-results/** and the kept reports.
+3. Two em dashes in cart and checkout line labels became colons.
+4. Empty catalog: Next 16's static export refuses an empty generateStaticParams ("at least one
+   route must be generated"), so a build with no published product failed (the hosted project
+   has none). store/[slug] now returns the placeholder `_` (never a product slug; it renders the
+   404) when there are no products: the empty build exits 0 and writes out/store/_.html.
+   (A first attempt at this edit corrupted the file through String.replace's `$` patterns; it
+   was repaired by hand and the build re-proven.)
+Checks now: pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 375/375); TEST_ENV=local pnpm
+test:db -> 0 (177/177); pnpm build (seeded) -> 0; check:export -> 0 (25 required files, 299
+scanned, no secrets); check:budgets -> 0 (largest 143.6 KiB); the empty-catalog build -> 0.
+OPEN, for the next session (recorded as I38 and I39):
+- cart-checkout.spec.ts: 8 failed, 3 passed. Four fail because next dev answers the public 404
+  for the fixture product page mid-run (the product exists and is published; the first tests
+  loaded it; the same class as I37). Four fail on bare price text that also matches the demo
+  catalog (15.00, 25.00, 30.00 appear more than once).
+- Build freshness (I39): the "empty" build still listed the three archived demo products on
+  out/store.html while generateStaticParams saw none: the build reused an earlier build's
+  responses from .next/cache/fetch-cache (11 entries). Content pages use the same fetch path.
+  The fix that clears that cache before `next build` was denied by the auto-mode classifier as a
+  mass delete, so it waits for the owner's decision.
+- Not yet reviewed: CartView, CheckoutForm, cart.ts beyond storage, store.ts, the policies page,
+  store.module.css, the store screenshots, docs changes.

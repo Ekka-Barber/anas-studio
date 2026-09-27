@@ -11,6 +11,9 @@ const config = [
       '.next/**',
       'out/**',
       'node_modules/**',
+      // Generated Playwright output (reports and trace viewers, H2).
+      'test-results/**',
+      'artifacts/acceptance/*/playwright-report/**',
       // Deno Edge Functions: checked by the Supabase edge runtime, not by the Next toolchain.
       'supabase/functions/**',
       // Frozen or out-of-scope sources.

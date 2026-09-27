@@ -43,6 +43,12 @@ feature is unavailable instead of quietly wrong.
 - `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the
   public Supabase Data API, used by the build, the browser admin and the
   media URLs (`PLANS/ARCHITECTURE.md` "Three data paths").
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — the public site key the checkout page's
+  Turnstile widget uses. `pnpm db:env` writes Cloudflare's documented
+  always-pass test site key `1x00000000000000000000AA` (paired with the
+  always-pass test secret in `supabase/functions/.env`), so the local widget
+  renders and solves itself; a hosted deployment sets the real key
+  (developers.cloudflare.com/turnstile/troubleshooting/testing).
 - Edge Function values (`supabase/functions/.env` locally, `supabase secrets
   set` hosted): `SITE_URL` (the only origin `contact` accepts; a non-local
   value turns on real email and refuses test secrets), `JOBS_SECRET`,
