@@ -35,7 +35,11 @@ Follow `CLAUDE.md`, `AGENTS.md` and `PLANS/README.md`. No lock is held: take `.a
 
 ## Status after the third session (2026-09-27)
 
-Step 1 is DONE (`d10dd1d`, details in `artifacts/acceptance/P07/commands.txt`). Step 3's battery is green: every step at `d10dd1d`, and the e2e, cut short there by a memory crash, rerun on 2026-09-28 at `45dbfa6` to 95/95. The proof map is in `commands.txt`. Next: the owner's P07 acceptance, then release the lock and start P08 (step 4). The orchestrator's lock for P07 is still held on the owner's machine until that acceptance.
+Steps 1 to 3 are DONE. The round 3 audit is `d10dd1d`; the battery is green (every step at `d10dd1d`, and the e2e, cut short there by a memory crash, rerun on 2026-09-28 at `45dbfa6` to 95/95); the proof map is in `artifacts/acceptance/P07/commands.txt`. **P07 is accepted** (owner, 2026-09-28: "I accept p07 for now"). No lock is held: the orchestrator released `.anasaq-execution.lock` after pushing the acceptance record.
+
+**Design in another session.** The owner then paused this line to rebuild the full UI/UX design system in Claude Desktop (Opus). Before resuming here: read `git log` after the commit that records this acceptance, and check whether a design direction was accepted. An accepted direction needs a `PLANS/DECISIONS.md` entry (D17 and DESIGN-AUDIT still say the design is frozen, I25), and under D38 the plain store pages are then restyled to it. The owner will say when to resume; the next package here is P08 (step 4).
+
+Before any full e2e run: check free memory. The run crashed at about 6 GB free and passed at 11.8 GB after the owner closed other sessions.
 
 ## Next work, in order
 

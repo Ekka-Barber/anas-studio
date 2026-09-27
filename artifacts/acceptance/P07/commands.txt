@@ -358,3 +358,7 @@ P07 proof map (WORK-PACKAGES P07), confirmed by the complete runs above:
 Not closed by P07: paid stats and availability dispatch (P08); C20 closes only after P08;
 E02 (sandbox) and E03 (Anas's real catalog values) stay open (D37, D38). Not e2e-tested: the
 product page's «غير مسعّر» row (the SQL refusal of an unpriced variant is tested).
+
+2026-09-28 P07 accepted by the owner ("I accept p07 for now"), on the record at c3dc19e. The
+orchestrator's lock (taken at f42d8ca, amended three times, each path added before it was
+written) is released after the push that records this acceptance; the tree was clean.
