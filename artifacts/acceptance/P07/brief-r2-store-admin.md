@@ -155,7 +155,7 @@ Leave the rewritten screenshots of other packages and `next-env.d.ts` for the or
 - `src/app/(admin)/admin/store/**`
 - `supabase/migrations/20260927170000_policy_approval.sql`
 - `supabase/functions/_shared/{admin,commerce-settings}.ts`
-- `tests/unit/{money-input,collections}.test.ts` and 
+- `tests/unit/{money-input,collections,admin-function}.test.ts`
 - `tests/integration/policy-approval.test.ts`
 - `tests/e2e/store-admin.spec.ts`
 - `artifacts/acceptance/P07/screenshots/**`
