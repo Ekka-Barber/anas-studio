@@ -4,10 +4,11 @@
 This repo is indexed in `graft/`: small linked markdown nodes that explain each
 system and carry exact file:line spans, kept in sync with the code through git.
 
-For ANY task here — understanding how something works, finding where code lives,
+For code tasks here — understanding how something works, finding where code lives,
 or scoping a change — get context from the graph before grepping or opening
-source files. Re-ask freely (it's cheap) and reuse literal identifiers you
-already have (symbol, error string, file name) as the query. New to this repo?
+source files. Reuse literal identifiers you already have (symbol, error string,
+file name) as the query; if hits are weak, switch tool rather than re-asking
+the same question reworded. New to this repo?
 Run `graft map` first — a token-budgeted orientation (dir clusters, hubs,
 hotspots), no LLM, no key.
 
@@ -26,7 +27,7 @@ hotspots), no LLM, no key.
   Add `--direction out` for what it calls, or `--depth N` to walk
   transitively for the full blast radius. For structural questions, skip
   ranking and use this directly.
-- Or browse: `graft/INDEX.md` lists every node; follow the links.
+- Or browse: `graft/INDEX.md` is the repo map; per-file cards mirror the source tree under `graft/`.
 - Monorepos and folders of multiple repos rank fairly across sub-projects —
   hits carry `[scope/]` labels naming which one they're from. Narrow with
   `graft ask "<task>" --in <scope>/` once you know where you're working.
@@ -34,10 +35,8 @@ hotspots), no LLM, no key.
 If a returned span is truncated ("+N more lines"), open the file at that exact
 range before finalizing. Only open source files when a node genuinely lacks a
 needed detail, and then at the exact file:line the node points to — never
-re-read whole files.
-
-After big code changes, refresh the graph with `graft build` (deterministic,
-no API key, $0).
+re-read whole files. The graph refreshes itself before each query, including
+uncommitted edits, so no manual `graft build` is needed.
 <!-- graft:end -->
 
 <!-- PONYTAIL_CAVEMAN_START -->
@@ -51,11 +50,11 @@ no API key, $0).
 <!-- ANASAQ_EXEC_START -->
 ## ANASAQ execution contract (all agents)
 
-- Authority: `PLANS/` is the plan of record. Execute packages P00→P12 in order from `PLANS/WORK-PACKAGES.md`; P00 (runtime spike) gates everything after it. `PLANS/DECISIONS.md` D01–D30 are settled (D02 superseded by D29).
+- Authority: `PLANS/` is the plan of record. Execute packages P00→P12 in order from `PLANS/WORK-PACKAGES.md`; P00 (runtime spike) gates everything after it. Every decision in `PLANS/DECISIONS.md` is settled (D02 superseded by D29).
 - Orchestrator (main session, Claude Opus 5.5 per D28): plans, dispatches, audits, accepts, fixes, and does all major design work itself. It holds the lock whenever it writes product code.
-- Builder: `glm-worker` (Z.AI GLM-5.3, 1M, max effort; D30) from `.claude/agents/` for long, well-specified work, launched with `node scripts/glm-worker.mjs <brief-file>`, never the Agent tool. Set `model` explicitly on every other sub-agent dispatch. `opus-worker`/`opus-worker-lite` only on the owner's request. Exactly ONE active writer, holding the exclusive lock (fs.openSync 'wx'). No writer spawns a writer.
+- Builder: `glm-worker` (Z.AI GLM-5.3, 1M, max effort; D30) from `.claude/agents/` for long, well-specified work, launched with `node scripts/glm-worker.mjs <brief-file>`, never the Agent tool. Set `model` explicitly on every other sub-agent dispatch. `opus-worker` only on the owner's request. Exactly ONE active writer, holding the exclusive lock (fs.openSync 'wx'). No writer spawns a writer.
 - The orchestrator fixes small audit findings itself; large ones go to a fresh bounded worker (never a resumed one). Token rules: CLAUDE.md "Token budget" (I24). Never self-accept; the orchestrator accepts after independent inspection.
-- Forbidden: editing `_archive/` or frozen sources under `deploy/design/`; inventing prices, approvals or E-gate closure; bypassing a failed gate; staging unrelated edits into a package commit; touching `.env` (read keys via environment only).
+- Forbidden: inspecting or editing `_archive/`; editing frozen sources under `deploy/design/`; inventing prices, approvals or E-gate closure; bypassing a failed gate; staging unrelated edits into a package commit; touching `.env` (read keys via environment only).
 - Secrets live only in `.env` (gitignored). Never in code, chat, commits, logs or artifacts.
 - Claude Code specifics: the orchestrator uses subscription auth — do not set ANTHROPIC_BASE_URL/AUTH_TOKEN for its session; only `scripts/glm-worker.mjs` sets them, for the worker process (D30); Opus effort is xhigh globally (quota, not money, is the constraint).
 <!-- ANASAQ_EXEC_END -->

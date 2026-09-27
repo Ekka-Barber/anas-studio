@@ -56,9 +56,10 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 - Orient with `graft map`. Use Graft or CodeGraph for indexed code context, not
   redundant queries to both. CodeGraph MCP: `codegraph_explore`; CLI fallback:
   `codegraph explore`. Use `graft ask --source`, `skeleton`, or `callers` as needed.
-- Read unindexed plans/configuration directly when needed. Refresh with `graft
-  build` and `codegraph sync`; no paid/deep graph pass. Never let index results
-  substitute for tests or broaden the task into archived/frozen source inspection.
+- Read unindexed plans/configuration directly when needed. Graft refreshes
+  itself before each query; refresh CodeGraph with `codegraph sync`; no paid/deep
+  graph pass. Never let index results substitute for tests or broaden the task
+  into archived/frozen source inspection.
 - The orchestrator uses Claude subscription auth. Do not set `ANTHROPIC_BASE_URL` or
   `ANTHROPIC_AUTH_TOKEN` for its session; only `scripts/glm-worker.mjs` sets them, for
   the worker process (D30). Clear inherited overrides in the launch shell, not global
