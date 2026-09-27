@@ -300,3 +300,24 @@ is `cache-control: no-store` and carries no PII).
   payment tables exist (P07/P08); the exact paid/refund/net/customer SQL
   counts land with them (`// P08:` in `supabase/functions/_shared/stats.ts`). No invented
   zeros.
+
+## Commerce settings
+
+`/admin/settings` carries an «إعدادات المتجر» section (owner only): the
+seller's legal name, address and freelance-certificate registration, the
+currency (SAR, fixed, read-only) and the approved policy revisions
+(read-only; «لم تُعتمد بعد» until P07 records them). `checkout_enabled`
+is `false` behind a check constraint the migration owns: P08 lifts it with
+the verified payment gateway, and until then the screen says payment is
+closed. There is no tax field anywhere (D34): prices are what the buyer
+pays.
+
+Reading goes through `commerce_settings_get()` (granted to `authenticated`;
+the owner role is rechecked inside). Saving goes through the `admin` Edge
+Function's `commerce-settings-save` action: an active owner at aal2 with a
+TOTP verification from the last five minutes, then `commerce_settings_save()`
+as `service_role`. The browser sends the row version it read; if another
+session saved first, SQL raises 40001 and the function answers 409
+(«تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.»). Every save appends
+one `commerce.settings` audit event naming the changed fields, never their
+values. No API role has any grant on `finance.commerce_settings`.

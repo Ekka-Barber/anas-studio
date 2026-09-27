@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { hasRecentTotp } from '../../supabase/functions/staff-admin/recent-totp'
+import { hasRecentTotp } from '../../supabase/functions/_shared/recent-totp'
 
 const now = 1_800_000_000
 

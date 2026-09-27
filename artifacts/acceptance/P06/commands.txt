@@ -787,3 +787,41 @@ Checks (Windows, full local stack; migration applied with supabase migration up 
   reviewed); the unchanged email/stats captures and next-env.d.ts restored.
 Not run: the hosted pg_net/Pages path (P11); deno check (no deno on this machine; the local
 edge runtime served the changed function in the e2e above).
+
+2026-09-27 P06 round 3, step 3: commerce settings without tax (D34)
+
+Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-r3-commerce-settings.md
+at 068fd6a; 104 turns, 25 min; exit 0 (spawnSync returned, so the worker process had exited).
+Its report: pnpm check 223/223, test:db 131/131, owner-operations + auth e2e 20/20. It applied
+the migration, then edited the file (a text[] || text concatenation bug) and reconciled the
+running database by hand, so the orchestrator re-proved the file from a clean reset.
+
+Orchestrator audit (every changed file read):
+- 22 paths, 0 outside the lock allowlist. finance.commerce_settings: no API grants,
+  checkout_enabled check (= false), SAR only, seller fields with length and [[:cntrl:]] checks,
+  no tax/vat column. commerce_settings_get: owner recheck, authenticated only.
+  commerce_settings_save: service_role only, active-owner recheck of the actor, row lock then
+  version check (40001), audit row with field names only. admin action: owner, then a fresh
+  TOTP (StaffIdentity.recentTotp from the verified claims via the shared hasRecentTotp), then
+  the strict Zod body (a tax/vat key is refused). The e2e proves the real step-up dialog:
+  sign in by code, enrol TOTP, sign in again at aal1, save, dialog, code, saved, reload.
+- Fixes by the orchestrator: (1) SQL `is distinct from` so a null expected version is a
+  conflict (not reachable through the admin action, which requires an integer; closed at the
+  source anyway; integration assertion added); (2) the Zod control-character rule also refuses
+  the C1 range U+0080-U+009F, which the table's [[:cntrl:]] refuses in the database's
+  en_US.UTF-8 locale (checked: E'a\u0085b' ~ '[[:cntrl:]]' is true; U+200F RLM is not, so
+  Arabic direction marks stay allowed); unit case added; (3) role="alert"/role="status" on the
+  form's messages; (4) admin.module.css `.metaList + .form` margin: the first label sat flush
+  under the meta list at 360 and 1440 (screenshot review).
+- Checks after the fixes, from a clean state: supabase db reset -> 0 (every migration file
+  from scratch, the new one included); db:import -> 0 (5 documents); pnpm check -> 0 (lint 0
+  errors, 3 old warnings; unit 223/223); TEST_ENV=local pnpm test:db -> 0 (131/131); pnpm
+  build, check:export (18 files, 179 scanned, no secrets), check:budgets (largest 142.1 KiB)
+  -> 0; full pnpm test:e2e -> 0, 69/69 (report in the git-ignored test-results/, H2; the P00
+  report untouched). After the CSS fix: the step-up save and screenshot tests -> 2/2, then
+  check, build, check:export, check:budgets -> 0.
+- Screenshots: settings-360/settings-1440 re-captured and reviewed (store section, RTL, Latin
+  digits, no overflow, the gap fixed). Every other capture the runs rewrote was restored.
+Residual for the phase 2 gate walk-through (not this step): round 2 admin text uses em dashes
+(«البريد: Mailpit (محلي) — عنوان المُرسِل…», the owner home «سليم — …», «المتجر غير مُهيأ — …»),
+against DESIGN-AUDIT item 2.

@@ -18,12 +18,16 @@
  *   then the objects.
  * - `stats` (owner): the owner statistics; 5-minute per-isolate cache.
  * - `status` (owner): configuration booleans, never a secret's value.
+ * - `commerce-settings-save` (owner, fresh TOTP): the store's seller details
+ *   through `commerce_settings_save`; a stale version answers 409 so the
+ *   owner can reload (D34: no tax field anywhere).
  *
  * Every SQL function rechecks the actor's role itself; the role check here
  * only shapes the reply. Tokens and bodies are never logged.
  */
 import { createHash } from 'node:crypto'
 
+import { commerceSettingsSaveSchema } from './commerce-settings.ts'
 import { type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { emailProvider } from './email.ts'
 import { optionalEnv } from './env.ts'
@@ -151,6 +155,10 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
     case 'status':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذه الصفحة للمالك فقط.')
       return ok(settingsStatus())
+    case 'commerce-settings-save':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return commerceSettingsSave(deps, staff.userId, body)
     default:
       return fail(422, 'INVALID', 'إجراء غير معروف.')
   }
@@ -325,6 +333,27 @@ async function mediaDelete(deps: AdminDeps, actor: string, id: unknown): Promise
 
 // ---------------------------------------------------------------------------
 // Owner screens
+
+/** The store's seller details (P06 round 3, D34). The role and step-up checks ran in `handleAdmin`. */
+async function commerceSettingsSave(deps: AdminDeps, actor: string, body: Record<string, unknown>): Promise<Response> {
+  const parsed = commerceSettingsSaveSchema.safeParse(body)
+  if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
+  try {
+    const version = await deps.rpc('commerce_settings_save', {
+      p_actor: actor,
+      p_expected_version: parsed.data.expectedVersion,
+      p_seller_legal_name: parsed.data.settings.sellerLegalName,
+      p_seller_address: parsed.data.settings.sellerAddress,
+      p_seller_registration: parsed.data.settings.sellerRegistration,
+    })
+    return ok({ version })
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code === '40001') {
+      return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
+    }
+    return sqlFail(error)
+  }
+}
 
 let cachedStats: { at: number; value: OwnerStats } | null = null
 // ponytail: a per-isolate single-entry cache for at most 5 minutes. Not a

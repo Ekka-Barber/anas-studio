@@ -9,7 +9,7 @@
 // own.
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-import { hasRecentTotp } from './recent-totp.ts'
+import { hasRecentTotp } from '../_shared/recent-totp.ts'
 
 const ROLES = ['owner', 'editor', 'operations'] as const
 type Role = (typeof ROLES)[number]

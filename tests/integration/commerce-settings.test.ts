@@ -1,0 +1,232 @@
+// P06 round 3: the commerce settings singleton (D34; no tax anywhere). The
+// grants are read straight from the catalog, the SQL functions' own guards
+// run as the roles that really call them (real JWTs through the Data API,
+// `service_role` through a direct session), and everything that touches the
+// one row runs inside a transaction that is rolled back, so the shared local
+// database is left as it was.
+import { Client } from 'pg'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+
+import { anonClient, createStaff, pgRpc, serviceRoleDb, signIn } from './support'
+
+let postgres: Client
+let serviceDb: Client
+
+beforeAll(async () => {
+  postgres = new Client({
+    connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+  })
+  await postgres.connect()
+  serviceDb = await serviceRoleDb()
+})
+
+afterAll(async () => {
+  await postgres.end()
+  await serviceDb.end()
+})
+
+async function canExecute(role: string, signature: string): Promise<boolean> {
+  const result = await postgres.query<{ ok: boolean }>('select has_function_privilege($1, $2, $3) as ok', [
+    role,
+    signature,
+    'execute',
+  ])
+  return result.rows[0]!.ok
+}
+
+/** Runs `body` in a transaction that is always rolled back. */
+async function rolledBack(client: Client, body: () => Promise<void>): Promise<void> {
+  await client.query('begin')
+  try {
+    await body()
+  } finally {
+    await client.query('rollback')
+  }
+}
+
+async function currentVersion(): Promise<number> {
+  // The service role has no USAGE on `finance` (the functions are security
+  // definer), so the row is read as the superuser this session is.
+  await serviceDb.query('set local role postgres')
+  const result = await serviceDb.query<{ version: number }>('select version from finance.commerce_settings where id = 1')
+  await serviceDb.query('set local role service_role')
+  return result.rows[0]!.version
+}
+
+const SAVE = 'public.commerce_settings_save(uuid, integer, text, text, text)'
+
+describe('grants (D32)', () => {
+  it('no API role has any grant on the table', async () => {
+    for (const role of ['anon', 'authenticated']) {
+      for (const privilege of ['select', 'insert', 'update', 'delete']) {
+        const result = await postgres.query<{ ok: boolean }>('select has_table_privilege($1, $2, $3) as ok', [
+          role,
+          'finance.commerce_settings',
+          privilege,
+        ])
+        expect(result.rows[0]!.ok, `${role} ${privilege} on finance.commerce_settings`).toBe(false)
+      }
+    }
+  })
+
+  it('commerce_settings_get: authenticated only; the save: service_role only', async () => {
+    expect(await canExecute('authenticated', 'public.commerce_settings_get()')).toBe(true)
+    expect(await canExecute('anon', 'public.commerce_settings_get()')).toBe(false)
+    expect(await canExecute('service_role', SAVE)).toBe(true)
+    expect(await canExecute('authenticated', SAVE)).toBe(false)
+    expect(await canExecute('anon', SAVE)).toBe(false)
+  })
+})
+
+describe('commerce_settings_get', () => {
+  it('an editor or operations member gets nothing', async () => {
+    for (const role of ['editor', 'operations'] as const) {
+      const member = await createStaff(role)
+      const client = await signIn(member.email)
+      expect((await client.rpc('commerce_settings_get')).error, role).toBeTruthy()
+    }
+  })
+
+  it('the owner reads the singleton row, anon cannot', async () => {
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    const { data, error } = await client.rpc('commerce_settings_get')
+    expect(error).toBeNull()
+    expect(data).toMatchObject({
+      checkoutEnabled: false,
+      currency: 'SAR',
+      version: expect.any(Number),
+      policyRevisions: {},
+    })
+    expect((await anonClient().rpc('commerce_settings_get')).error).toBeTruthy()
+  })
+})
+
+describe('commerce_settings_save', () => {
+  it('refuses an actor who is not an active owner (42501)', async () => {
+    const editor = await createStaff('editor')
+    const rpc = pgRpc(serviceDb)
+    // One failing call per transaction: a refused statement aborts it.
+    for (const actor of [editor.userId, '00000000-0000-0000-0000-000000000000']) {
+      await rolledBack(serviceDb, () =>
+        expect(
+          rpc('commerce_settings_save', {
+            p_actor: actor,
+            p_expected_version: 0,
+            p_seller_legal_name: 'بائع',
+            p_seller_address: null,
+            p_seller_registration: null,
+          }),
+        ).rejects.toMatchObject({ code: '42501' }),
+      )
+    }
+  })
+
+  it('has no grant for an authenticated session through the Data API', async () => {
+    const editor = await createStaff('editor')
+    const client = await signIn(editor.email)
+    const { error } = await client.rpc('commerce_settings_save', {
+      p_actor: editor.userId,
+      p_expected_version: 0,
+      p_seller_legal_name: 'بائع',
+      p_seller_address: null,
+      p_seller_registration: null,
+    })
+    expect(error).toBeTruthy()
+  })
+
+  it('a stale expected version raises 40001 before anything is written', async () => {
+    const owner = await createStaff('owner')
+    await rolledBack(serviceDb, async () => {
+      const before = await currentVersion()
+      await expect(
+        pgRpc(serviceDb)('commerce_settings_save', {
+          p_actor: owner.userId,
+          p_expected_version: before + 5,
+          p_seller_legal_name: 'بائع',
+          p_seller_address: null,
+          p_seller_registration: null,
+        }),
+      ).rejects.toMatchObject({ code: '40001' })
+    })
+    // A missing version is a conflict too, never a blind overwrite.
+    await rolledBack(serviceDb, () =>
+      expect(
+        pgRpc(serviceDb)('commerce_settings_save', {
+          p_actor: owner.userId,
+          p_expected_version: null,
+          p_seller_legal_name: 'بائع',
+          p_seller_address: null,
+          p_seller_registration: null,
+        }),
+      ).rejects.toMatchObject({ code: '40001' }),
+    )
+  })
+
+  it('a save trims, bumps the version, stamps the actor and time, and writes exactly one audit row', async () => {
+    const owner = await createStaff('owner')
+    const marker = `${Date.now()}`
+    await rolledBack(serviceDb, async () => {
+      const before = await currentVersion()
+      const version = await pgRpc(serviceDb)('commerce_settings_save', {
+        p_actor: owner.userId,
+        p_expected_version: before,
+        p_seller_legal_name: `  بائع الاختبار ${marker}  `,
+        p_seller_address: `الرياض ${marker}`,
+        p_seller_registration: marker,
+      })
+      expect(version).toBe(before + 1)
+
+      // The row and the audit trail, still inside the rolled-back
+      // transaction, read as the superuser (no service-role table grants).
+      await serviceDb.query('set local role postgres')
+      const row = (
+        await serviceDb.query<{
+          version: number
+          configured_at: string | null
+          approved_by: string | null
+          seller_legal_name: string | null
+        }>('select version, configured_at, approved_by, seller_legal_name from finance.commerce_settings where id = 1')
+      ).rows[0]!
+      expect(row.version).toBe(before + 1)
+      expect(row.configured_at).not.toBeNull()
+      expect(row.approved_by).toBe(owner.userId)
+      expect(row.seller_legal_name).toBe(`بائع الاختبار ${marker}`)
+
+      const audit = (
+        await serviceDb.query<{ summary: { version: number; changed: string[] } }>(
+          "select summary from public.audit_events where action = 'commerce.settings' and entity = 'commerce_settings' and actor = $1",
+          [owner.userId],
+        )
+      ).rows
+      expect(audit.length).toBe(1)
+      expect(audit[0]!.summary).toEqual({
+        version: before + 1,
+        changed: ['seller_legal_name', 'seller_address', 'seller_registration'],
+      })
+    })
+  })
+
+  it('the table refuses checkout_enabled = true (P08 lifts it) and any currency but SAR', async () => {
+    await rolledBack(postgres, async () => {
+      await expect(
+        postgres.query('update finance.commerce_settings set checkout_enabled = true where id = 1'),
+      ).rejects.toMatchObject({ code: '23514' })
+    })
+    await rolledBack(postgres, async () => {
+      await expect(postgres.query("update finance.commerce_settings set currency = 'USD' where id = 1")).rejects.toMatchObject(
+        { code: '23514' },
+      )
+    })
+  })
+})
+
+describe('no tax anywhere (D34)', () => {
+  it('no column of finance.commerce_settings is named after a tax', async () => {
+    const result = await postgres.query<{ column_name: string }>(
+      `select column_name from information_schema.columns
+       where table_schema = 'finance' and table_name = 'commerce_settings' and column_name ~* 'tax|vat'`,
+    )
+    expect(result.rows).toEqual([])
+  })
+})

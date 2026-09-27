@@ -56,8 +56,8 @@ function memoryStore(): MediaStore & { objects: Map<string, Uint8Array>; removed
   }
 }
 
-function staffAs(role: StaffIdentity['role'] | 'none'): () => Promise<StaffIdentity | null> {
-  return async () => (role === 'none' ? null : { userId: '11111111-1111-4111-8111-111111111111', role })
+function staffAs(role: StaffIdentity['role'] | 'none', recentTotp = false): () => Promise<StaffIdentity | null> {
+  return async () => (role === 'none' ? null : { userId: '11111111-1111-4111-8111-111111111111', role, recentTotp })
 }
 
 async function webp(width: number, height: number): Promise<Uint8Array> {
@@ -256,6 +256,84 @@ describe('admin function: media upload (P05 checks, D32 storage)', () => {
     const response = await handleAdmin(post({ action: 'media-complete', ticketId }), { rpc, staff: staffAs('owner'), store })
     expect(response.status).toBe(403)
     expect(store.objects.has(`${PUBLIC_BUCKET}/m/${ticketId}/360.webp`)).toBe(false)
+  })
+})
+
+describe('admin function: commerce settings save (P06 round 3, D34)', () => {
+  const settings = { sellerLegalName: 'أنس عبدالله', sellerAddress: 'الرياض، حي النرجس', sellerRegistration: '1012345678' }
+  const body = { action: 'commerce-settings-save', expectedVersion: 0, settings }
+
+  it('an editor or operations member is refused with 403 FORBIDDEN and nothing runs', async () => {
+    const rpc = vi.fn(async () => null)
+    for (const role of ['editor', 'operations'] as const) {
+      const response = await handleAdmin(post(body), { rpc, staff: staffAs(role, true), store: memoryStore() })
+      expect(response.status).toBe(403)
+      expect(((await response.json()) as { error: { code: string } }).error.code).toBe('FORBIDDEN')
+    }
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('an owner without a fresh TOTP is told to step up and the RPC is not called', async () => {
+    const rpc = vi.fn(async () => null)
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner'), store: memoryStore() })
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'STEP_UP_REQUIRED', message: 'أدخل رمز تطبيق المصادقة للمتابعة.' },
+    })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('an invalid body, a tax or vat key included, is 422 with field errors', async () => {
+    const rpc = vi.fn(async () => null)
+    const owner = staffAs('owner', true)
+    const store = memoryStore()
+    const responses = await Promise.all([
+      handleAdmin(post({ ...body, settings: { ...settings, tax: 0.15 } }), { rpc, staff: owner, store }),
+      handleAdmin(post({ ...body, settings: { ...settings, vat: 'x' } }), { rpc, staff: owner, store }),
+      // A C1 control character, which the table's [[:cntrl:]] check refuses too.
+      handleAdmin(post({ ...body, settings: { ...settings, sellerAddress: 'الرياض\u0085' } }), { rpc, staff: owner, store }),
+      // expectedVersion missing.
+      handleAdmin(post({ action: 'commerce-settings-save', settings }), { rpc, staff: owner, store }),
+    ])
+    for (const response of responses) {
+      expect(response.status).toBe(422)
+      expect(((await response.json()) as { error: { code: string; fields: unknown } }).error.fields).toBeTruthy()
+    }
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('a stale version (SQL 40001) answers 409 CONFLICT with the reload message', async () => {
+    const rpc: Rpc = async () => {
+      throw Object.assign(new Error('stale version'), { code: '40001' })
+    }
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'CONFLICT', message: 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.' },
+    })
+  })
+
+  it('a valid save calls the SQL function as the actor and answers the new version', async () => {
+    const calls: Array<[string, Record<string, unknown>]> = []
+    const rpc: Rpc = async (fn, args) => {
+      calls.push([fn, args])
+      return 1
+    }
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true, data: { version: 1 } })
+    expect(calls).toEqual([
+      [
+        'commerce_settings_save',
+        {
+          p_actor: '11111111-1111-4111-8111-111111111111',
+          p_expected_version: 0,
+          p_seller_legal_name: 'أنس عبدالله',
+          p_seller_address: 'الرياض، حي النرجس',
+          p_seller_registration: '1012345678',
+        },
+      ],
+    ])
   })
 })
 

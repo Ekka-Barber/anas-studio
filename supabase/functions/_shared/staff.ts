@@ -9,12 +9,15 @@
  * (`active = false`) loses access on the next call, like RLS (D13).
  */
 import { serviceClient } from './db.ts'
+import { hasRecentTotp } from './recent-totp.ts'
 
 export type StaffRole = 'owner' | 'editor' | 'operations'
 
 export interface StaffIdentity {
   userId: string
   role: StaffRole | null
+  /** aal2 with a TOTP verification from the last five minutes (D13 step-up). */
+  recentTotp: boolean
 }
 
 export type StaffResolver = (request: Request) => Promise<StaffIdentity | null>
@@ -27,10 +30,11 @@ export const staffFromRequest: StaffResolver = async (request) => {
   if (!header?.startsWith('Bearer ')) return null
   const client = serviceClient()
   const { data, error } = await client.auth.getClaims(header.slice('Bearer '.length))
-  const userId = data?.claims.sub
+  const claims = data?.claims
+  const userId = claims?.sub
   if (error || typeof userId !== 'string') return null
   const staff = await client.from('staff').select('role, active').eq('user_id', userId).maybeSingle()
   if (staff.error) return null
   const role = staff.data?.active && ROLES.has(staff.data.role) ? (staff.data.role as StaffRole) : null
-  return { userId, role }
+  return { userId, role, recentTotp: hasRecentTotp(claims ?? {}, Math.floor(Date.now() / 1000)) }
 }

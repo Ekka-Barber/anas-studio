@@ -17,11 +17,14 @@ import {
   createStaff,
   functionUrl,
   localEnv,
+  readCodeFromMailpit,
+  SENT_MESSAGE,
   signInByCode,
   SITE_ORIGIN,
   staffAccessToken,
   status,
   svixHeaders,
+  totpCode,
 } from './helpers'
 
 const env = localEnv()
@@ -499,6 +502,55 @@ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows n
   await expect(page.getByText('غير مُعدّ بعد.')).toBeVisible()
 })
 
+test('the owner saves the store seller details through the step-up dialog', async ({ page }) => {
+  const owner = await createStaff('owner')
+
+  // Sign in once by email code (aal1) and enrol TOTP, the auth.spec.ts way.
+  await page.goto('/admin/sign-in')
+  await page.getByLabel('البريد الإلكتروني').fill(owner.email)
+  await page.getByRole('button', { name: 'أرسل الرمز' }).click()
+  await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
+  const firstCode = await readCodeFromMailpit(owner.email)
+  await page.getByLabel('رمز الدخول').fill(firstCode)
+  await page.getByRole('button', { name: 'تحقق' }).click()
+  await expect(page).toHaveURL(/\/admin$/)
+
+  await page.locator('nav').getByRole('link', { name: 'الأمان' }).click()
+  await expect(page).toHaveURL(/\/admin\/security$/)
+  const secret = await page.locator('[class*="secret"]').innerText()
+  await page.getByLabel('رمز التحقق').fill(totpCode(secret))
+  await page.getByRole('button', { name: 'تفعيل' }).click()
+  await expect(page.getByText('تطبيق المصادقة مفعّل')).toBeVisible()
+
+  // Enrolment itself verified a TOTP, which would pass the 5-minute check, so
+  // sign out and back in with a fresh email code (aal1): the save below must
+  // go through the step-up dialog.
+  await page.locator('nav').getByRole('button', { name: 'تسجيل الخروج' }).click()
+  await expect(page).toHaveURL(/\/admin\/sign-in$/)
+  await signInByCode(page, owner.email, firstCode)
+
+  const marker = `${Date.now()}`
+  await page.goto('/admin/settings')
+  await expect(page.getByRole('heading', { name: 'إعدادات المتجر' })).toBeVisible()
+  await page.getByLabel('الاسم القانوني للبائع').fill(`بائع الاختبار ${marker}`)
+  await page.getByLabel('عنوان البائع').fill(`الرياض ${marker}`)
+  await page.getByLabel('رقم قيد شهادة العمل الحر').fill(marker)
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('رمز التحقق').fill(totpCode(secret))
+  await dialog.getByRole('button', { name: 'تحقق' }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await expect(page.getByText(/إصدار الإعدادات: \d+/)).toBeVisible()
+
+  // Reload: the values come back from the database.
+  await page.reload()
+  await expect(page.getByLabel('الاسم القانوني للبائع')).toHaveValue(`بائع الاختبار ${marker}`)
+  await expect(page.getByLabel('عنوان البائع')).toHaveValue(`الرياض ${marker}`)
+  await expect(page.getByLabel('رقم قيد شهادة العمل الحر')).toHaveValue(marker)
+})
+
 test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page }) => {
   const owner = await createStaff('owner')
   await signInByCode(page, owner.email)
@@ -508,11 +560,13 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
   const shots = mkdirScreenshots()
   // Waits must be visible at BOTH widths: at 360px the responsive table hides
   // its `thead`, so column headers can't be wait targets. Every target waits
-  // for the DATA, not the chrome: settings' «حالة الإعداد» renders while the
-  // status still shows «يحمّل...», so it waits for the resolved status
-  // (locally «Mailpit (محلي)»); the home count line reads «يحمّل...» until
-  // its query returns; and «إعادة الإرسال» also matches the (hidden) replay
-  // dialog, so the email wait is a row's own replay button.
+  // for the DATA, not the chrome: settings now loads two blocks (the status
+  // and the store section), so its wait is the store row's own currency line
+  // «ريال سعودي», which renders only once commerce_settings_get answered
+  // (the resolved status is asserted in the settings test above); the home
+  // count line reads «يحمّل...» until its query returns; and «إعادة الإرسال»
+  // also matches the (hidden) replay dialog, so the email wait is a row's own
+  // replay button.
   const targets: Array<{ name: string; path: string; wait: string | Locator }> = [
     { name: 'home', path: '/admin', wait: page.getByText(/مشكلات تحتاج انتباهًا: [\d,]+/) },
     {
@@ -521,7 +575,7 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
       wait: page.locator('tbody tr').getByRole('button', { name: 'إعادة الإرسال' }).first(),
     },
     { name: 'stats', path: '/admin/stats', wait: 'المتجر' },
-    { name: 'settings', path: '/admin/settings', wait: 'Mailpit' },
+    { name: 'settings', path: '/admin/settings', wait: page.getByText('ريال سعودي').first() },
   ]
   for (const viewport of [
     { width: 360, height: 740 },

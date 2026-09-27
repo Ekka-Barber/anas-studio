@@ -1,7 +1,7 @@
 /**
  * Owner step-up check (D13): the session is at aal2 and its `amr` claim holds
  * a TOTP verification from the last `maxAgeSeconds`. Pure, with no Deno or
- * Node imports, so the Edge Function and Vitest share one implementation.
+ * Node imports, so the Edge Functions and Vitest share one implementation.
  */
 export const STEP_UP_MAX_AGE_SECONDS = 300
 

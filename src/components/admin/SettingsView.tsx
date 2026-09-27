@@ -16,6 +16,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction, documentHref } from '@/lib/supabase/functions'
 import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
 
+import { CommerceSettingsForm } from './CommerceSettingsForm'
 import styles from './admin.module.css'
 
 // Resend domain verification steps: resend.com/docs/add-a-domain (fetched
@@ -108,6 +109,11 @@ export function SettingsView() {
           </p>
         )}
         {whatsapp.state === 'invalid' && <p className={styles.error}>{WHATSAPP_ERROR}</p>}
+      </section>
+
+      <section>
+        <h2>إعدادات المتجر</h2>
+        <CommerceSettingsForm />
       </section>
 
       <section>

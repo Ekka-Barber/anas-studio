@@ -376,6 +376,11 @@
   font-size: 0.875rem;
 }
 
+/* A form right under a meta list keeps the form's own rhythm. */
+.metaList + .form {
+  margin-block-start: 1rem;
+}
+
 .previewRow {
   display: flex;
   align-items: center;
