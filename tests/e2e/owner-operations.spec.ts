@@ -358,6 +358,53 @@ test('the owner home shows the backup job: never run, ok, then stale after 30 da
   await db.query("delete from finance.job_runs where job = 'backup'")
 })
 
+test('the email job warns only when a row has waited more than 10 minutes (I35)', async ({ page }) => {
+  // Premise: locally the Vault values are unset, so pg_cron's kick calls
+  // nothing and a planted due row stays due.
+  const vault = await db.query<{ n: number }>(
+    "select count(*)::int as n from vault.decrypted_secrets where name in ('functions_url', 'jobs_secret')",
+  )
+  expect(vault.rows[0]!.n).toBe(0)
+
+  // Park every due row (the beforeAll park misses expired sending leases,
+  // which count now) and leave one healthy run three hours old: on a quiet
+  // site an old last run is not a warning.
+  await db.query(
+    `update finance.email_outbox set next_at = now() + interval '1 day'
+       where status in ('pending', 'uncertain') and next_at <= now()`,
+  )
+  await db.query(
+    `update finance.email_outbox set lease_until = now() + interval '1 day'
+       where status = 'sending' and lease_until < now()`,
+  )
+  await db.query("delete from finance.job_runs where job = 'email_outbox'")
+  await db.query(
+    "insert into finance.job_runs (job, status, detail, started_at, finished_at) values ('email_outbox', 'ok', '{\"claimed\": 0, \"accepted\": 0}'::jsonb, now() - interval '3 hours', now() - interval '3 hours')",
+  )
+
+  const owner = await createStaff('owner')
+  await signInByCode(page, owner.email)
+  await page.goto('/admin')
+  await expect(page.getByText(/إرسال البريد: سليم/)).toBeVisible()
+  await expect(page.getByText('بريد ينتظر الإرسال منذ أكثر من 10 دقائق. تأكد من الجدولة.')).toHaveCount(0)
+
+  // A row that has waited 15 minutes with no run in those 10 minutes warns.
+  const dedupeKey = `p06-i35-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+  const recipient = `${dedupeKey}@example.com`
+  await db.query(
+    `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, next_at)
+     values ($1, 'contact_notice', 1, $2, '{"contactId":"00000000-0000-0000-0000-000000000000"}'::jsonb,
+             now() - interval '15 minutes')`,
+    [dedupeKey, recipient],
+  )
+  fixtureRecipients.push(recipient)
+  await page.goto('/admin')
+  await expect(page.getByText('بريد ينتظر الإرسال منذ أكثر من 10 دقائق. تأكد من الجدولة.')).toBeVisible()
+
+  // Leave the site quiet for the later screens.
+  await db.query('delete from finance.email_outbox where recipient = $1', [recipient])
+})
+
 test('an operations member sees email but not stats or settings, and there is no inbox', async ({ page, request }) => {
   const operations = await createStaff('operations')
   await signInByCode(page, operations.email)

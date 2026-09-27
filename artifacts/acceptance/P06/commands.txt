@@ -935,3 +935,37 @@ tsconfig.json and the ledgers. Next 16.3.5 dev already writes to .next/dev, but 
   179 scanned, no secrets); check:budgets -> 0 (largest 142.1 KiB).
 - next-env.d.ts (now pointing at .next/e2e/dev/types after a run) and the eight screenshots the
   runs rewrote were restored; this task changed no UI.
+
+2026-09-27 I35: the email job warns only when mail is waiting
+
+Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-i35-email-due.md at
+b447504; 33 turns, 8.6 min; exit 0 (spawnSync returned, port 3000 free afterwards). Diff: exactly
+the six allowed paths. Its report says it restored the e2e screenshots with git checkout; the
+launcher denied that call (permission_denials), a later call restored them, and they were clean
+at the audit.
+Orchestrator audit (every changed file read):
+- 20260927150000_outbox_due_since.sql: finance.outbox_due_since() (sql, stable, invoker,
+  search_path '', no grant to anon, authenticated or service_role) is least() of three minima,
+  matching outbox_claim's claimable set: pending due under the attempt cap, uncertain due under
+  the cap inside the 23-hour window, and an expired sending lease at any attempt count (due since
+  lease_until). public.outbox_due_since() has outbox_attention's role check and job_runs_latest's
+  grants. outbox_kick() is identical except its first test is `finance.outbox_due_since() is
+  null`; create or replace keeps its grants, the cron schedule is untouched.
+- AdminHome: job_runs_latest and outbox_due_since load together (either error: «تعذّر
+  التحميل»); email_outbox left STALE_JOB_MS; the warning shows only when the oldest due row
+  waited more than 10 minutes and there is no email run in those 10 minutes (a never-run job
+  included); other jobs unchanged. Orchestrator cleanup: the warning text moved into
+  JOB_STALE_TEXT (one special case less), the state type formatted like its siblings.
+- Tests: outbox.test.ts (owner and operations answered, editor 42501, has_function_privilege
+  false for anon/authenticated/service_role; a rolled-back transaction with rows a-g answering
+  20, 15, 5 minutes, then null); static-site.test.ts (Vault set, a lone 24-hour uncertain row:
+  kick false; an expired lease: true); owner-operations.spec.ts (Vault premise checked, a 3-hour
+  old run on a quiet site shows «سليم», a row due 15 minutes ago shows the warning, the row is
+  removed afterwards). docs/operations.md "The outbox schedule" says what due means.
+Checks after the cleanup: pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 236/236);
+TEST_ENV=local pnpm test:db -> 0 (12 files, 141/141); owner-operations.spec.ts on a cold server
+(.next/e2e) -> 0, 20/20 in 41.8 s. The eight screenshots and next-env.d.ts the run rewrote were
+restored; the warning state is reviewed on screen in the phase 2 walk-through.
+Residual for P08: while a Resend daily or monthly quota holds mail back, rows stay due and the
+job keeps running every minute (bounded by the quota period), so the home shows no warning.
+Quota-delayed mail needs its own owner signal once receipts exist.

@@ -2,8 +2,8 @@
 // inserted directly as the local `postgres` superuser (fixtures), and the
 // server-only functions (`outbox_claim`, `outbox_result`, `job_run_record`)
 // are called as `service_role` (the `outbox` Edge Function's grants, D32);
-// `outbox_attention`, `outbox_replay` and
-// `job_runs_latest` go through real JWTs.
+// `outbox_attention`, `outbox_replay`, `job_runs_latest` and
+// `outbox_due_since` go through real JWTs.
 import { createHash, randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
@@ -409,5 +409,89 @@ describe('job runs', () => {
     const editor = await createStaff('editor')
     const editorView = await (await signIn(editor.email)).rpc('job_runs_latest')
     expect(editorView.error?.code).toBe('42501')
+  })
+
+  it('outbox_due_since answers owner and operations, refuses an editor, and no API role runs the finance one', async () => {
+    const owner = await createStaff('owner')
+    expect((await (await signIn(owner.email)).rpc('outbox_due_since')).error).toBeNull()
+    const operations = await createStaff('operations')
+    expect((await (await signIn(operations.email)).rpc('outbox_due_since')).error).toBeNull()
+    const editor = await createStaff('editor')
+    const refused = await (await signIn(editor.email)).rpc('outbox_due_since')
+    expect(refused.error?.code).toBe('42501')
+
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      const r = await postgres.query<{ ok: boolean }>('select has_function_privilege($1, $2, $3) as ok', [
+        role,
+        'finance.outbox_due_since()',
+        'execute',
+      ])
+      expect(r.rows[0]!.ok).toBe(false)
+    }
+  })
+
+  it('finance.outbox_due_since is the earliest moment due mail became due (I35)', async () => {
+    // One transaction, always rolled back: now() is fixed inside it, so the
+    // exact answers below compare equal in SQL.
+    await postgres.query('begin')
+    try {
+      // Park every due row: nothing waits.
+      await postgres.query(
+        `update finance.email_outbox set next_at = now() + interval '1 day'
+          where status in ('pending', 'uncertain') and next_at <= now()`,
+      )
+      await postgres.query(
+        `update finance.email_outbox set lease_until = now() + interval '1 day'
+          where status = 'sending' and lease_until < now()`,
+      )
+      expect((await postgres.query<{ v: string | null }>('select finance.outbox_due_since() as v')).rows[0]!.v).toBeNull()
+
+      const insert = async (label: string, columns: string, values: string): Promise<string> => {
+        const key = uniqueKey(label)
+        const r = await postgres.query<{ id: string }>(
+          `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, ${columns})
+           values ($1, 'contact_notice', 1, $2, '{"contactId": null}'::jsonb, ${values})
+           returning id`,
+          [key, `${key}@example.com`],
+        )
+        return r.rows[0]!.id
+      }
+      const dueIs = async (expected: string | null) => {
+        const r = await postgres.query<{ ok: boolean }>(
+          expected === null
+            ? 'select finance.outbox_due_since() is null as ok'
+            : `select finance.outbox_due_since() = ${expected} as ok`,
+        )
+        expect(r.rows[0]!.ok).toBe(true)
+      }
+
+      // (a) pending due 15 minutes ago; (b) pending due in an hour; (c)
+      // pending at the attempt cap; (d) uncertain first attempted 24 hours
+      // ago (outside the idempotency window); (e) uncertain first attempted
+      // an hour ago; (f) a sending lease that expired 20 minutes ago at the
+      // cap (the expiry step must still flip it); (g) terminal rows.
+      await insert('due-a', 'status, next_at', `'pending', now() - interval '15 minutes'`)
+      await insert('due-b', 'status, next_at', `'pending', now() + interval '1 hour'`)
+      await insert('due-c', 'status, next_at, attempts, max_attempts', `'pending', now() - interval '2 hours', 3, 3`)
+      await insert('due-d', 'status, next_at, first_attempt_at', `'uncertain', now() - interval '3 hours', now() - interval '24 hours'`)
+      await insert('due-e', 'status, next_at, first_attempt_at', `'uncertain', now() - interval '5 minutes', now() - interval '1 hour'`)
+      const leaseRow = await insert('due-f', 'status, lease_until, attempts, max_attempts', `'sending', now() - interval '20 minutes', 3, 3`)
+      await insert('due-g1', 'status, next_at', `'sent', now() - interval '2 hours'`)
+      await insert('due-g2', 'status, next_at', `'exhausted', now() - interval '2 hours'`)
+      await insert('due-g3', 'status, next_at', `'suppressed', now() - interval '2 hours'`)
+
+      // The expired lease (20 minutes) is older than the due pending row
+      // (15 minutes); the capped, the future and the terminal rows never
+      // count, and (d) waits for a person.
+      await dueIs("now() - interval '20 minutes'")
+      await postgres.query('delete from finance.email_outbox where id = $1', [leaseRow])
+      await dueIs("now() - interval '15 minutes'")
+      await postgres.query("delete from finance.email_outbox where dedupe_key like $1", [`${MY_PREFIX}due-a-%`])
+      await dueIs("now() - interval '5 minutes'")
+      await postgres.query("delete from finance.email_outbox where dedupe_key like $1", [`${MY_PREFIX}due-e-%`])
+      await dueIs(null)
+    } finally {
+      await postgres.query('rollback')
+    }
   })
 })

@@ -42,6 +42,8 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I35 — the email job reads as stale on an idle site
 
+**Status (2026-09-27, P06):** resolved by `20260927150000_outbox_due_since.sql`: `finance.outbox_due_since()` is the one due predicate for the owner home and `outbox_kick()`. The home warns «بريد ينتظر الإرسال منذ أكثر من 10 دقائق. تأكد من الجدولة.» only when a row has waited more than 10 minutes and no email run finished in those 10 minutes, and an uncertain row past its 23-hour window no longer wakes the function. Residual for P08: while a Resend quota holds mail back, rows stay due and the job keeps running, so the home shows no warning; quota-delayed mail needs its own signal once receipts exist.
+
 **Package:** P06 (found 2026-09-27 during round 3). Since D32, `outbox_kick()` calls the `outbox` function only while a row is due, so on a quiet hosted site the last `email_outbox` run can be hours old. The owner home still applies M4's 10-minute rule to that job and would show «آخر تشغيل قديم — تأكد من الجدولة» even though nothing is wrong. Locally it never shows, because the Vault values are unset and the e2e runs the job itself. A correct signal is "a row has been due for more than a few minutes and no run followed", which needs a small SQL function the home can call. Decide before P11.
 
 Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whose first attempt is more than 23 hours old as due, but `outbox_claim` never takes it (it waits for a person's replay), so one stuck row wakes the function and records a run every minute until someone acts. Brief: `artifacts/acceptance/P06/brief-i35-email-due.md` fixes both with one shared predicate.

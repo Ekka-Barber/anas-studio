@@ -226,14 +226,25 @@ secret unset the endpoint answers 404 — it does not exist.
 pg_cron runs `outbox_kick()` every minute (D32). It calls the `outbox` Edge
 Function (`Authorization: Bearer <jobs_secret>`, with `functions_url` and
 `jobs_secret` read from Vault) **only while a row is due**, so an idle site
-makes no calls. The minute cadence is deliberate — the outbox's own
+makes no calls. Due means whatever `finance.outbox_due_since()` (I35) finds:
+a `pending` row whose `next_at` has passed and that is still under its
+attempt cap; an `uncertain` row under the cap whose `next_at` has passed and
+whose first attempt is inside the 23-hour idempotency window; or a `sending`
+row whose lease expired (the claim's expiry step must still flip it). An
+`uncertain` row past 23 hours waits for a person on البريد and no longer
+wakes the function. The minute cadence is deliberate — the outbox's own
 `next_at` backoff and quota checks decide whether anything is actually sent,
 so the frequent check only keeps dispatch latency small. Each run is recorded
 in `finance.job_runs` (visible to owner/operations through
 `job_runs_latest`, purged after 30 days). With `JOBS_SECRET` unset the
 function answers 404; with the Vault values unset (the local stack)
-`outbox_kick()` does nothing, and the owner home shows the job as never run
-or stale.
+`outbox_kick()` does nothing.
+
+The owner home therefore does not judge the email job by its last run's age
+(I35): the job warns only when a row has been due for more than 10 minutes
+**and** no run finished inside those 10 minutes — «بريد ينتظر الإرسال منذ
+أكثر من 10 دقائق. تأكد من الجدولة.» — so a quiet site whose last run is
+hours old still shows «سليم».
 
 Hosted setup (P11): `supabase secrets set JOBS_SECRET=…`, then in the SQL
 editor `select vault.create_secret('<the same value>', 'jobs_secret')` and

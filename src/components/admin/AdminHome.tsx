@@ -33,16 +33,19 @@ const KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep', 'backup'] as co
 
 /** How old a last completion may be before the cron probably died and the
  * recorded «سليم» is stale (M4). The site build runs only after a publish,
- * so it has no limit; the media sweep runs daily. */
+ * so it has no limit; the media sweep runs daily. The email job has no entry
+ * (I35): since D32 it runs only while mail is due, so it warns by its own
+ * rule in `emailWaiting` instead of by its last run's age. */
 const STALE_JOB_MS: Partial<Record<string, number>> = {
-  email_outbox: 10 * 60 * 1000,
   media_sweep: 26 * 60 * 60 * 1000,
   backup: 30 * 24 * 60 * 60 * 1000,
 }
 /** The backup is run by Anas himself (D35), not by a schedule, so its stale
  * and never-run texts name the backup instead of telling him to check a
- * scheduler; a manual job has no schedule to check. */
+ * scheduler; a manual job has no schedule to check. The email job's text
+ * names the waiting mail (I35). */
 const JOB_STALE_TEXT: Partial<Record<string, string>> = {
+  email_outbox: 'بريد ينتظر الإرسال منذ أكثر من 10 دقائق. تأكد من الجدولة.',
   backup: 'آخر نسخة احتياطية أقدم من 30 يومًا.',
 }
 const JOB_NEVER_TEXT: Partial<Record<string, string>> = {
@@ -74,12 +77,26 @@ function isStaleRun(run: JobRun): boolean {
   return limit !== undefined && !Number.isNaN(finished) && Date.now() - finished > limit
 }
 
+/** I35: the email job runs only while mail is due (D32), so an hours-old last
+ * run is healthy on a quiet site. The line is in trouble only when a row has
+ * been due for more than 10 minutes and no run finished inside those 10
+ * minutes. */
+const EMAIL_WAITING_MS = 10 * 60 * 1000
+
+function emailWaiting(run: JobRun | undefined, dueSince: string | null): boolean {
+  if (dueSince === null) return false
+  const due = Date.parse(dueSince)
+  if (Number.isNaN(due) || Date.now() - due <= EMAIL_WAITING_MS) return false
+  const finished = run ? Date.parse(run.finished_at) : NaN
+  return Number.isNaN(finished) || Date.now() - finished > EMAIL_WAITING_MS
+}
+
 export function AdminHome() {
   const [own, setOwn] = useState<{ display_name: string; role: StaffRole } | null>(null)
   const [emailProblems, setEmailProblems] = useState<Count>(LOADING)
-  const [jobRuns, setJobRuns] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[] }>({
-    state: 'loading',
-  })
+  const [jobRuns, setJobRuns] = useState<
+    { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: string | null }
+  >({ state: 'loading' })
   const [scheduled, setScheduled] = useState<Count>(LOADING)
   const [visits, setVisits] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'unavailable' } | { state: 'ok'; value: number }
@@ -102,9 +119,16 @@ export function AdminHome() {
 
     async function loadJobs() {
       const supabase = getSupabaseBrowserClient()
-      const { data, error } = await supabase.rpc('job_runs_latest')
+      const [runs, due] = await Promise.all([
+        supabase.rpc('job_runs_latest'),
+        supabase.rpc('outbox_due_since'),
+      ])
       if (!active) return
-      setJobRuns(error ? { state: 'error' } : { state: 'ok', value: (data as JobRun[]) ?? [] })
+      setJobRuns(
+        runs.error || due.error
+          ? { state: 'error' }
+          : { state: 'ok', value: (runs.data as JobRun[]) ?? [], dueSince: (due.data as string | null) ?? null },
+      )
     }
 
     async function loadScheduled() {
@@ -184,15 +208,15 @@ export function AdminHome() {
             <ul className={styles.metaList}>
               {KNOWN_JOBS.map((job) => {
                 const run = jobRuns.value.find((row) => row.job === job)
+                const trouble =
+                  job === 'email_outbox' ? emailWaiting(run, jobRuns.dueSince) : run !== undefined && isStaleRun(run)
                 return (
                   <li key={job}>
                     {JOB_LABEL[job] ?? job}:{' '}
-                    {run ? (
-                      isStaleRun(run) ? (
-                        <span className={styles.error}>{JOB_STALE_TEXT[job] ?? 'آخر تشغيل قديم — تأكد من الجدولة'}</span>
-                      ) : (
-                        `${JOB_STATUS_LABEL[run.status] ?? run.status} — ${formatRiyadh(run.finished_at)}`
-                      )
+                    {trouble ? (
+                      <span className={styles.error}>{JOB_STALE_TEXT[job] ?? 'آخر تشغيل قديم — تأكد من الجدولة'}</span>
+                    ) : run ? (
+                      `${JOB_STATUS_LABEL[run.status] ?? run.status} — ${formatRiyadh(run.finished_at)}`
                     ) : (
                       JOB_NEVER_TEXT[job] ?? 'لم يعمل بعد'
                     )}

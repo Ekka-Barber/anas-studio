@@ -309,6 +309,25 @@ describe('outbox kick (D32)', () => {
       await postgres.query("select vault.create_secret('http://127.0.0.1:9/functions/v1', 'functions_url')")
       await postgres.query("select vault.create_secret('test-jobs-secret', 'jobs_secret')")
       expect(await scalar<boolean>('public.outbox_kick()')).toBe(true)
+
+      // I35: the kick and the claim share one predicate. An uncertain row past
+      // the 23-hour idempotency window waits for a person's replay, so it
+      // never wakes the function; an expired sending lease still does,
+      // because the claim's expiry step must flip it.
+      await postgres.query("delete from finance.email_outbox where dedupe_key like 'd32-kick-%'")
+      await postgres.query(
+        `insert into finance.email_outbox
+           (dedupe_key, kind, priority, recipient, payload, status, first_attempt_at, next_at)
+         values ('i35-uncertain-' || gen_random_uuid(), 'contact_notice', 1, 'i35-uncertain@example.com',
+                 '{"contactId": null}', 'uncertain', now() - interval '24 hours', now())`,
+      )
+      expect(await scalar<boolean>('public.outbox_kick()')).toBe(false)
+      await postgres.query(
+        `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, lease_until)
+         values ('i35-lease-' || gen_random_uuid(), 'contact_notice', 1, 'i35-lease@example.com',
+                 '{"contactId": null}', 'sending', now() - interval '1 minute')`,
+      )
+      expect(await scalar<boolean>('public.outbox_kick()')).toBe(true)
     })
   })
 })
