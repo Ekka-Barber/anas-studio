@@ -118,3 +118,14 @@ The "without code changes" proof (WORK-PACKAGES P07): the e2e creates a publishe
 product with a physical variant at 45.50 and stock 3 and a city rate in the admin, the checkout
 function quotes it at 4550 + 2500 = 7050, and with checkout on a create reaches a persisted
 pending order.
+
+2026-09-27 Round 3, part 1: store media migration (orchestrator)
+
+supabase/migrations/20260927180000_store_media.sql: a published product's library cover is public
+(media_is_published also checks published products' cover_image), media_product_usage for the
+library's "used in" list (owner and editor), and media_delete refuses an image any product names
+as its cover (any status). Checks: supabase migration up --local -> 0; a rolled-back smoke with an
+unpublished media row: draft product cover -> not public, published -> public, archived -> not
+public, delete while an archived product names it -> refused 23503; TEST_ENV=local pnpm test:db
+-> 0 (14 files, 177/177).
+Next: round 3 part 2, glm-worker from artifacts/acceptance/P07/brief-r3-store-pages.md.
