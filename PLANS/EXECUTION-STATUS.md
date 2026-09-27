@@ -149,6 +149,9 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 
 ## Next work, in order
 
+Work moves to the local machine on 2026-09-27; the cloud session's handoff is `PLANS/HANDOFF.md`.
+
+
 1. DONE 2026-09-26: owner-operations 17/17 via `PLAYWRIGHT_BASE_URL=http://localhost:3000` (Next 16 dev blocks 127.0.0.1 as a cross-origin dev origin — the admin form never hydrates over 127.0.0.1; details in `artifacts/acceptance/P06/commands.txt`); screenshots re-captured; every card label's computed `::before` serves the isolated label plus trailing space.
 2. DONE 2026-09-27 (plus the audit fix pass above). Local note for future runs: an early `supabase stop --no-backup` wiped the imported content (7 loader failures) — the recipe's plain restart keeps volumes; and the import/tests need `DATABASE_URL` from `supabase status -o json`'s DB_URL (it is no longer in any env file).
 3. Local run of `00586ea`: `pnpm test`, the media and owner-operations specs (the new no-upsert assertions are the first real proof), `pnpm build` + `check:budgets`.
