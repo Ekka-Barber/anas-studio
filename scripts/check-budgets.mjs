@@ -20,13 +20,21 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const outDir = path.join(repoRoot, 'out')
 
 const PUBLIC_JS_GZIP_BUDGET_BYTES = 150 * 1024
-// Every top-level public page in the export — an allowlist here would let a
-// new page silently escape the budget. `admin.html` is the staff-only editor
-// shell (Lexical, cropping, the whole CMS client) and is not a visitor page;
-// it measured 296 KiB gzip at D32 and needs no visitor budget.
-const PUBLIC_PAGES = readdirSync(outDir)
-  .filter((name) => name.endsWith('.html') && !name.startsWith('_') && name !== 'admin.html')
-  .sort()
+// Every public page in the export, at any depth — an allowlist, or a
+// top-level-only scan, would let a new page (a journal post, a product)
+// silently escape the budget. The admin (`admin.html` and `admin/**`) is
+// excluded: it is the staff-only CMS client (Supabase, Lexical, cropping),
+// 230–440 KiB gzip at D32, and no visitor ever loads it.
+function publicPages(dir, prefix = '') {
+  const pages = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const relative = `${prefix}${entry.name}`
+    if (entry.name.startsWith('_') || relative === 'admin' || relative === 'admin.html') continue
+    if (entry.isDirectory()) pages.push(...publicPages(path.join(dir, entry.name), `${relative}/`))
+    else if (entry.name.endsWith('.html')) pages.push(relative)
+  }
+  return pages.sort()
+}
 
 function kib(bytes) {
   return `${(bytes / 1024).toFixed(1)} KiB`
@@ -36,6 +44,8 @@ if (!existsSync(outDir)) {
   console.error('No static export found at out/. Run `pnpm build` first.')
   process.exit(1)
 }
+
+const PUBLIC_PAGES = publicPages(outDir)
 
 const scriptTagRe = /<script\b[^>]*\bsrc="([^"]+)"[^>]*>/gi
 const results = []

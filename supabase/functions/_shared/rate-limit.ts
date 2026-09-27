@@ -7,14 +7,26 @@
  */
 
 /**
- * The visitor's IP: the LAST `x-forwarded-for` hop, which the Supabase
- * gateway appends after anything the client sent — earlier hops, and a
- * client-supplied `cf-connecting-ip`, are attacker-chosen here (only
- * Cloudflare itself sets that header, and this function runs behind
- * Supabase). With neither header, the literal `local` (a direct local
- * call). Only ever hashed, never stored.
+ * The visitor's IP, only ever hashed, never stored:
+ *
+ * 1. `cf-connecting-ip`. Hosted Supabase sits behind Cloudflare, which sets
+ *    this header on every request and replaces any value the client sent,
+ *    so it is the one source a caller cannot choose.
+ * 2. Else the LAST `x-forwarded-for` hop: a proxy appends the address that
+ *    connected to it after whatever the client sent, so earlier hops are
+ *    attacker-chosen. It is the fallback, not the source, because it is only
+ *    right while no further proxy appends behind the one that saw the
+ *    visitor, and a missing header would pool every such visitor under
+ *    `local`.
+ * 3. Else the literal `local` (a direct local call).
+ *
+ * Locally there is no Cloudflare, so both headers are whatever the caller
+ * sends; the tests use that to give each run its own bucket. Which headers
+ * the hosted project actually delivers is checked at P11 (I32).
  */
 export function requestIp(request: Request): string {
+  const cf = request.headers.get('cf-connecting-ip')?.trim()
+  if (cf) return cf
   const hops = request.headers.get('x-forwarded-for')?.split(',').map((hop) => hop.trim()).filter(Boolean) ?? []
   return hops.at(-1) ?? 'local'
 }

@@ -71,7 +71,10 @@ function storageStore(): MediaStore {
   const storage = () => serviceClient().storage
   return {
     async signedUpload(bucket, key) {
-      const { data, error } = await storage().from(bucket).createSignedUploadUrl(key, { upsert: true })
+      // No upsert: once a part exists its signed URL cannot replace it, so
+      // the bytes `media-complete` verified are the bytes it moves and
+      // promotes. A retry in the browser always starts a new ticket.
+      const { data, error } = await storage().from(bucket).createSignedUploadUrl(key, { upsert: false })
       if (error || !data) throw new Error('SIGNED_URL_FAILED')
       return { path: data.path, token: data.token }
     },

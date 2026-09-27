@@ -115,6 +115,10 @@ test('happy path: ticket, every part, complete, then the public derivative', asy
   for (const [index, width] of WIDTHS.entries()) {
     expect(await putPart(parts, `w${width}`, derivatives[index]!)).toBe(true)
   }
+  // An uploaded part cannot be replaced through its signed URL (no upsert),
+  // so nothing can change between the checks and the promotion.
+  expect(await putPart(parts, 'original', original, 'image/jpeg')).toBe(false)
+  expect(await putPart(parts, 'w360', derivatives[1]!)).toBe(false)
 
   const done = await complete(request, token, ticketId)
   expect(done.status).toBe(201)

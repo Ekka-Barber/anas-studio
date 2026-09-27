@@ -88,13 +88,14 @@ test.afterAll(async () => {
 test('a contact submission is stored and its notices queued', async ({ request }) => {
   marker = `p06-e2e-${Date.now()}`
   const submissionKey = randomUUID()
-  // A unique visitor IP per run: the requestIp key takes the LAST
-  // x-forwarded-for hop, so a single value here is the per-run bucket the
-  // gateway would otherwise append — without it every dev submission shares
-  // the literal `local` bucket (5 per hour, fixed window).
+  // A unique visitor IP per run, so repeated runs inside one hour never share
+  // a throttle bucket (5 per hour, fixed window). `cf-connecting-ip` is the
+  // key's first source (Cloudflare sets it on the hosted project); locally
+  // nothing sets it, so the test can, and the local gateway's own
+  // x-forwarded-for hop no longer decides the bucket.
   const visitorIp = `198.51.100.${Math.floor(Math.random() * 254) + 1}`
   const response = await request.post(functionUrl('contact'), {
-    headers: { origin: SITE_ORIGIN, 'x-forwarded-for': visitorIp },
+    headers: { origin: SITE_ORIGIN, 'cf-connecting-ip': visitorIp },
     data: {
       name: 'زائر',
       email: `guest-${marker}@example.com`,
