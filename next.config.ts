@@ -9,6 +9,9 @@ import type { NextConfig } from 'next'
  */
 const nextConfig: NextConfig = {
   output: 'export',
+  // I37: the e2e dev server gets its own folder (`NEXT_DIST_DIR`, set by
+  // playwright.config.ts), so it never shares state with a `pnpm build`.
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   reactStrictMode: true,
   poweredByHeader: false,
   // D15: no Sharp and no Cloudflare Images baseline; a static export has no

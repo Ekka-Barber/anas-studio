@@ -914,3 +914,24 @@ the public 404 (the route did not change). Same test on a warm server -> 1/1; cu
 server -> 200 for that route; with .next deleted (git-ignored build output) -> 19/19 cold in
 41 s. Cause: leftovers of the earlier `pnpm build` in .next confuse a cold `next dev`
 (recorded as I37); step 4 changed no route or UI. Screenshots and next-env.d.ts restored.
+
+2026-09-27 I37: the e2e dev server gets its own dist folder
+
+Writer: orchestrator (Opus 5.5), lock held for next.config.ts, playwright.config.ts,
+tsconfig.json and the ledgers. Next 16.3.5 dev already writes to .next/dev, but its root
+.next is shared with `next build`.
+- Reproduction attempt, old configuration: pnpm build -> 0 (18 s); owner-operations.spec.ts on
+  a cold server (port 3000 free) -> 0, 19/19 in 43 s. The 404 did not reproduce, so its cause
+  (build leftovers in .next or a stale dev cache) stays unproven.
+- Fix: next.config.ts reads distDir from NEXT_DIST_DIR (default .next); the Playwright web
+  server sets NEXT_DIST_DIR=.next/e2e and empties that folder before `pnpm run dev`;
+  tsconfig.json lists .next/e2e/types and .next/e2e/dev/types, so next dev does not rewrite it.
+  Already covered: .gitignore /.next/, eslint '.next/**', tsconfig exclude '.next'.
+- Proof: pnpm build -> 0; a marker file planted in .next/e2e; owner-operations.spec.ts on a
+  cold server -> 0, 19/19 in 40.5 s; afterwards the marker is gone, .next/e2e/dev exists,
+  .next/dev untouched (same mtime), tsconfig.json unchanged by the run. A later pnpm build
+  -> 0 removed .next/e2e (Next's clean keeps only cache, dev, lock and trace*).
+- pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 236/236); check:export -> 0 (18 files,
+  179 scanned, no secrets); check:budgets -> 0 (largest 142.1 KiB).
+- next-env.d.ts (now pointing at .next/e2e/dev/types after a run) and the eight screenshots the
+  runs rewrote were restored; this task changed no UI.

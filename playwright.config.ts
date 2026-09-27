@@ -18,6 +18,11 @@ if (acceptancePackage && !/^P\d{2}$/.test(acceptancePackage)) {
 }
 const runDir = acceptancePackage ? `./artifacts/acceptance/${acceptancePackage}` : './test-results'
 
+// I37: a cold `next dev` sharing `.next` with an earlier `pnpm build` or dev
+// cache once answered 404 for an existing admin route. The server Playwright
+// starts builds into its own folder, emptied first; every build empties it too.
+const e2eDistDir = '.next/e2e'
+
 export default defineConfig({
   testDir: './tests/e2e',
   outputDir: `${runDir}/playwright`,
@@ -47,7 +52,8 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: 'pnpm run dev',
+        command: `node -e "require('node:fs').rmSync('${e2eDistDir}', { recursive: true, force: true })" && pnpm run dev`,
+        env: { NEXT_DIST_DIR: e2eDistDir },
         url: baseURL,
         reuseExistingServer: true,
         timeout: 180_000,

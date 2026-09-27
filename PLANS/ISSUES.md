@@ -46,6 +46,8 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I37 — a cold `next dev` after `pnpm build` 404s an admin route
 
+**Status (2026-09-27, P06):** resolved: the dev server Playwright starts builds into `.next/e2e` (`NEXT_DIST_DIR`, read by `next.config.ts`), emptied before every start, and `pnpm build` removes that folder too; `tsconfig.json` lists its type folders so `next dev` does not rewrite it. The manual `.next` deletion is no longer needed. Not reproduced: with the old configuration, `pnpm build` and then the spec on a cold server passed 19/19, so the old cause (build leftovers or a stale dev cache) stays unproven; a fresh, separate folder rules out both.
+
 **Package:** P06 (found 2026-09-27 during the step 4 acceptance). After `pnpm build` (the static export), a cold `next dev` answered the public 404 for `/admin/content/site_settings/edit?id=site` when a run reached that route late: `owner-operations.spec.ts` alone failed its settings test three times cold, while the same test passes on a warm server, the full suite passes (earlier specs reach the edit route first), and with `.next` deleted the spec passed 19/19 cold. Production is unaffected: the export ships that page as a file. Fix: give the e2e dev server its own dist dir so a build never shares state with it (for example `distDir: process.env.NEXT_DIST_DIR ?? '.next'` in `next.config.ts`, `NEXT_DIST_DIR=.next-e2e` in the Playwright web server command, and the folder git-ignored). Until then, delete `.next` before an e2e run that follows a build.
 
 ## Small UI items for when design reopens

@@ -149,7 +149,7 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 
 ## Next work, in order
 
-Round 3 steps 1 to 6 are done (2026-09-27, local session). The next session starts from `PLANS/HANDOFF.md`: I37, I35, then the phase 2 gate walk-through and the owner's P06 acceptance.
+Round 3 steps 1 to 6 are done (2026-09-27, local session). The next session starts from `PLANS/HANDOFF.md`: I37 (DONE 2026-09-27: the e2e dev server's own `.next/e2e`, evidence in `artifacts/acceptance/P06/commands.txt`), I35, then the phase 2 gate walk-through and the owner's P06 acceptance.
 
 
 1. DONE 2026-09-26: owner-operations 17/17 via `PLAYWRIGHT_BASE_URL=http://localhost:3000` (Next 16 dev blocks 127.0.0.1 as a cross-origin dev origin — the admin form never hydrates over 127.0.0.1; details in `artifacts/acceptance/P06/commands.txt`); screenshots re-captured; every card label's computed `::before` serves the isolated label plus trailing space.
