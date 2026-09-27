@@ -691,3 +691,33 @@ check:export OK (18 files, 181 scanned); check:budgets OK (largest 142.2 KiB, 10
 
 Pending local verification of 00586ea: pnpm test; the media spec (the two new refusals) and
 owner-operations (the contact bucket via cf-connecting-ip); pnpm build + check:budgets.
+
+2026-09-27 local verification of 00586ea (HANDOFF Step 1), on Windows against the full
+local stack (Docker 29.8.0, Supabase CLI 2.106.0, Node 24.19.0, pnpm 10.33.0)
+
+Lock: the P06 round 2 lock was still on this machine in status `building`. Its owner had
+stopped (no glm-worker, pnpm, next dev or playwright process; round 2 closed at 8818e7f),
+the tree was clean at 3c4347c, the recovery was recorded, and the lock was released and
+recreated with fs.openSync(path, 'wx') for this step.
+
+1. pnpm install --frozen-lockfile -> exit 0 (lockfile up to date).
+2. supabase stop -> exit 0 (volumes kept; no --no-backup); supabase start -> exit 0.
+3. TEST_ENV=local DATABASE_URL=<DB_URL from supabase status -o json> pnpm test:db -> exit 0,
+   10 files, 115/115.
+4. pnpm check -> exit 0: lint 0 errors (the 3 old no-img-element warnings), typecheck,
+   frozen, copy, unit 15 files 215/215 (rate-limit now 4 cases, per 00586ea).
+   pnpm build -> exit 0. pnpm check:export -> exit 0 (18 required files, 180 text files
+   scanned, no secrets). pnpm check:budgets -> exit 0 (10 public pages at every depth,
+   admin excluded; largest passed.html 142.1 KiB, budget 150).
+5. pnpm test:e2e (PLAYWRIGHT_BASE_URL unset, so it started pnpm dev on
+   http://localhost:3000) -> exit 0, 67/67 in 2.6 min. First real runs:
+   - media.spec.ts:101 happy path: a second PUT to the signed URL of the original and of
+     w360 is refused (no upsert), so nothing can change between the checks and promotion.
+   - owner-operations.spec.ts:88 onward (16 tests): the contact bucket keyed by
+     cf-connecting-ip passes through the local gateway.
+   The run overwrote the P00 playwright report a sixth time (H2) and re-captured the P01,
+   P05 and P06 screenshots; next dev rewrote next-env.d.ts. No UI changed since the
+   accepted captures (3c4347c removed a comment and added a response-shape guard; 00586ea
+   touched no UI), so all of them were restored to HEAD.
+
+Not run: the I32 hosted probes (P11). Nothing is pending for 00586ea.
