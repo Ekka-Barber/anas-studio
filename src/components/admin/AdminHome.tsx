@@ -25,10 +25,11 @@ const JOB_LABEL: Record<string, string> = {
   email_outbox: 'إرسال البريد',
   site_build: 'بناء الموقع',
   media_sweep: 'تنظيف الوسائط',
+  backup: 'النسخ الاحتياطي',
 }
 const JOB_STATUS_LABEL: Record<string, string> = { ok: 'سليم', partial: 'جزئي', failed: 'فاشل', skipped: 'متجاوز' }
 /** Jobs that exist in code today; a job with no run yet shows «لم يعمل بعد». */
-const KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep'] as const
+const KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep', 'backup'] as const
 
 /** How old a last completion may be before the cron probably died and the
  * recorded «سليم» is stale (M4). The site build runs only after a publish,
@@ -36,6 +37,16 @@ const KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep'] as const
 const STALE_JOB_MS: Partial<Record<string, number>> = {
   email_outbox: 10 * 60 * 1000,
   media_sweep: 26 * 60 * 60 * 1000,
+  backup: 30 * 24 * 60 * 60 * 1000,
+}
+/** The backup is run by Anas himself (D35), not by a schedule, so its stale
+ * and never-run texts name the backup instead of telling him to check a
+ * scheduler; a manual job has no schedule to check. */
+const JOB_STALE_TEXT: Partial<Record<string, string>> = {
+  backup: 'آخر نسخة احتياطية أقدم من 30 يومًا.',
+}
+const JOB_NEVER_TEXT: Partial<Record<string, string>> = {
+  backup: 'لا توجد نسخة بعد.',
 }
 /** `outbox_attention()` caps its result at 200 rows (its SQL limit), so once
  * the count reaches the cap it renders «200+» instead of a silent 200 (L6). */
@@ -178,12 +189,12 @@ export function AdminHome() {
                     {JOB_LABEL[job] ?? job}:{' '}
                     {run ? (
                       isStaleRun(run) ? (
-                        <span className={styles.error}>آخر تشغيل قديم — تأكد من الجدولة</span>
+                        <span className={styles.error}>{JOB_STALE_TEXT[job] ?? 'آخر تشغيل قديم — تأكد من الجدولة'}</span>
                       ) : (
                         `${JOB_STATUS_LABEL[run.status] ?? run.status} — ${formatRiyadh(run.finished_at)}`
                       )
                     ) : (
-                      'لم يعمل بعد'
+                      JOB_NEVER_TEXT[job] ?? 'لم يعمل بعد'
                     )}
                   </li>
                 )

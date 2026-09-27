@@ -117,6 +117,30 @@ export function SettingsView() {
       </section>
 
       <section>
+        <h2>النسخ الاحتياطي</h2>
+        <p>
+          تُحفظ النسخة على جهازك أنت، مشفّرة بعبارة مرور لا يعرفها غيرك. لا يحتفظ Supabase المجاني بأي نسخة، فما
+          يُضاف بعد آخر نسخة يضيع إن ضاع المشروع.
+        </p>
+        <ol className={styles.metaList}>
+          <li>
+            مرة واحدة: ثبّت Docker Desktop و Node 24 و pnpm و Supabase CLI، ثم نفّذ في مجلد المشروع{' '}
+            <span dir="ltr">supabase login</span> ثم <span dir="ltr">supabase link</span> واختر مشروع{' '}
+            <span dir="ltr">ANAS.STUDIO</span>.
+          </li>
+          <li>
+            كل مرة، ويُستحسن بعد كل جلسة تحرير: شغّل Docker Desktop، ثم نفّذ في مجلد المشروع{' '}
+            <span dir="ltr">pnpm backup</span> وأدخل عبارة المرور.
+          </li>
+          <li>
+            تُحفظ الملفات في مجلد <span dir="ltr">ANASAQ-backups</span> داخل مجلدك الشخصي. انسخها من وقت لآخر إلى
+            قرص خارجي أو خدمة سحابية، فهي مشفّرة.
+          </li>
+          <li>احفظ عبارة المرور في مدير كلمات المرور: من دونها لا تُفتح أي نسخة.</li>
+        </ol>
+      </section>
+
+      <section>
         <h2>حالة الإعداد</h2>
         {statusError && <p className={styles.error}>تعذّر تحميل الحالة — هذه الصفحة للمالك فقط.</p>}
         {!statusError && !status && <p className={styles.message}>يحمّل...</p>}

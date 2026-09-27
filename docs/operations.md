@@ -321,3 +321,103 @@ session saved first, SQL raises 40001 and the function answers 409
 («تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.»). Every save appends
 one `commerce.settings` audit event naming the changed fields, never their
 values. No API role has any grant on `finance.commerce_settings`.
+
+## Backups (D35)
+
+Anas runs backups himself, on his own machine, whenever he chooses (the habit:
+after every editing session). One command writes one encrypted file; a second
+command proves the file restores. There is no CI workflow, nothing is copied
+off the machine by us, and only Anas holds the passphrase.
+
+### What a file holds
+
+- `roles.sql`, `schema.sql`, `data.sql`, `history_schema.sql`,
+  `history_data.sql` — the five dumps from Supabase's backup/restore guide
+  (supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore):
+  roles, schema, data (`--use-copy --data-only`, excluding
+  `storage.buckets_vectors` and `storage.vector_indexes`), and the
+  `supabase_migrations` history (schema, then data).
+- `storage/media-private/...` and `storage/media-public/...` — every object
+  of both Storage buckets, with the `storage.objects` rows (so metadata and
+  content types) inside `data.sql`.
+- `manifest.json` — format version, creation time, source (`linked` or
+  `local`) and every file's size and sha256.
+
+What a file deliberately does **not** hold: Vault secrets (`functions_url`,
+`jobs_secret`, `pages_deploy_hook`), Edge Function secrets (`supabase
+secrets`), Auth settings and email templates, the project's encryption root
+key, and the database password. All of these are re-created by hand after a
+real restore (below).
+
+### Format, in short
+
+One file: a 46-byte header (the ASCII magic `ANASAQ-BACKUP`, a version byte,
+the scrypt parameters, a 16-byte salt and a 12-byte IV; the header is also
+the AES-GCM additional authenticated data), then AES-256-GCM over gzip over
+length-prefixed entries (`manifest.json` first), then the 16-byte auth tag.
+The key is scrypt(passphrase, salt) with N=2^17, r=8, p=1. A wrong passphrase
+or one flipped byte anywhere fails the whole file — by design.
+
+### Commands
+
+Prerequisites, once: Docker Desktop, Node 24, pnpm and the Supabase CLI on
+the owner's machine, then `supabase login` and `supabase link` (choose the
+ANAS.STUDIO project). Install the CLI as a global command, because the
+scripts run `supabase` by name: on Windows `scoop bucket add supabase
+https://github.com/supabase/scoop-bucket.git` then `scoop install supabase`;
+on macOS `brew install supabase/tap/supabase` (Supabase's CLI guide,
+supabase.com/docs/guides/local-development/cli/getting-started, read
+2026-09-27). An npm install gives no global command. Docker Desktop must be
+running during `pnpm backup`: the CLI runs `pg_dump` in a container.
+
+- `pnpm backup` — the five dumps of the linked project plus both buckets'
+  objects, written to `~/ANASAQ-backups/anasaq-backup-<UTC yyyymmdd-hhmmss>.enc`
+  (created if missing). `--local` backs up the development stack instead;
+  `--out <dir>` picks another directory (never inside the repository). The
+  passphrase is typed twice, hidden (minimum 12 characters), or read from
+  `ANASAQ_BACKUP_PASSPHRASE` for unattended runs. Each run is recorded in
+  `finance.job_runs` as `backup` with numbers only (files, objects, bytes);
+  a failed record never invalidates the file. The owner home flags the job
+  after 30 days («آخر نسخة احتياطية أقدم من 30 يومًا.»).
+- `pnpm restore-check <file>` — proves a file end to end: it restores into a
+  throwaway local stack (its own workdir under the OS temp dir, every port
+  moved by +1000, studio/inbucket/analytics/realtime/edge runtime off; the
+  development stack is untouched), reloads every table with the guide's psql
+  invocation, re-uploads every object with its original content type, then
+  compares every table's row count and every object's sha256 and prints the
+  elapsed time. `--extract <dir>` only decrypts the files for a manual
+  restore.
+
+### A real restore into a new hosted project
+
+1. `pnpm restore-check <file> --extract <empty dir>` on any machine with the
+   file and the passphrase (this yields the five dump files).
+2. Create the new Supabase project, then run the guide's psql restore
+   (PostgreSQL's `psql` client) against the new project's connection string: `psql --single-transaction --variable
+   ON_ERROR_STOP=1 --file roles.sql --file schema.sql --command 'SET
+   session_replication_role = "replica"' --file data.sql`, then
+   `history_schema.sql` and `history_data.sql` the same way. If a
+   `supabase_admin` owner or `cli_login_postgres` grant error appears,
+   comment out those lines (the guide's documented caveats); never edit data.
+3. Re-create the Vault secrets: `select vault.create_secret(...)` for
+   `functions_url`, `jobs_secret` and `pages_deploy_hook`
+   (docs/operations.md, "The outbox schedule").
+4. Re-set the Edge Function secrets with `supabase secrets set`
+   (`JOBS_SECRET`, `RESEND_WEBHOOK_SECRET`, and the rest).
+5. Re-apply the Auth settings (I28): SMTP for Resend, redirect URLs and the
+   Arabic email templates.
+6. Upload the objects from `storage/<bucket>/...` back to their buckets with
+   their original content types (read from
+   `storage.objects.metadata->>'mimetype'` in the restored data) — exactly
+   what `pnpm restore-check` does in its rehearsal.
+
+### Accepted risks (D35)
+
+- Anything entered after the last backup is lost if the project is lost:
+  Supabase Free keeps no backups, so the recovery point is the owner's own
+  cadence.
+- A lost machine loses its copies unless the encrypted file was also copied
+  to a USB drive or a cloud drive (safe: the file is encrypted).
+- A forgotten passphrase makes every file unreadable. There is no reset.
+- Before live orders, E07's Supabase Pro adds the platform's daily backups;
+  the cadence is revisited then.

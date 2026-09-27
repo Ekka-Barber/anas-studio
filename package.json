@@ -24,7 +24,9 @@
     "db:reset": "supabase db reset",
     "db:env": "node scripts/local-env.mjs",
     "db:import": "node scripts/import-content.mjs",
-    "bootstrap:owner": "node scripts/bootstrap-owner.mjs"
+    "bootstrap:owner": "node scripts/bootstrap-owner.mjs",
+    "backup": "node scripts/backup.mjs",
+    "restore-check": "node scripts/restore-check.mjs"
   },
   "dependencies": {
     "@lexical/link": "0.51.0",

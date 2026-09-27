@@ -825,3 +825,56 @@ Orchestrator audit (every changed file read):
 Residual for the phase 2 gate walk-through (not this step): round 2 admin text uses em dashes
 («البريد: Mailpit (محلي) — عنوان المُرسِل…», the owner home «سليم — …», «المتجر غير مُهيأ — …»),
 against DESIGN-AUDIT item 2.
+
+2026-09-27 P06 round 3, step 5: owner-run local backups (D35)
+
+Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-r3-backups.md at
+e1a29cd; 128 turns, 48 min; exit 0 (spawnSync returned). Its report: pnpm check 235 unit;
+owner-operations 19/19; backup --local 227 entries / 222 objects; restore-check 44 tables and
+222 objects verified in 45.5 s; wrong passphrase refused; no scratch containers left. Its
+evidence-based deviations from the brief, all accepted: `storage cp` needs a RELATIVE
+destination on Windows (an absolute C:\ path parses as a URL scheme, "Unsupported
+operation"), so the download runs with cwd = the temp dir; `supabase db query` cannot scan a
+void result, so the record call wraps job_run_record in pg_typeof; the header is 46 bytes.
+
+Orchestrator audit (every changed file read; 0 paths outside the allowlist). Format: scrypt
+N=2^17 r=8 p=1 -> AES-256-GCM, fresh salt and IV per file, the header as AAD, the tag checked
+before extraction counts (the extractor can only finish after the decipher verified the tag),
+per-entry size and sha256, first entry manifest.json, traversal-safe paths on both sides.
+Fixes by the orchestrator:
+1. backup.mjs: every failure path ends in process.exit(), which skips `finally`, so a failed
+   run left the plaintext dumps in the OS temp dir. process.on('exit', cleanup) now removes
+   them on every exit; a missing CLI says so instead of "a dump failed".
+2. restore-check.mjs: SIGINT/SIGTERM exited without cleanup, leaving the scratch stack
+   running and the decrypted dumps in the temp dir. One idempotent cleanup now runs from
+   `finally` and from 'exit'; leftovers of a crashed rehearsal are stopped by project id
+   (anasaq-restore-check, never the development stack) before a new start; the bucket name
+   from the archive is validated before it reaches SQL.
+3. The hidden prompt (duplicated in both scripts) removed backspace per byte, so an Arabic
+   passphrase typed with a correction became different bytes and could fail to open its own
+   backups later. One shared scripts/lib/passphrase.mjs now works per character and drops
+   escape sequences.
+4. backup-format.mjs: failure cleanup inside a pre-existing empty destination now removes
+   nested folders too; entry paths with ':' anywhere are refused (Windows alternate data
+   streams); two unit cases added.
+5. docs/operations.md: how to install the Supabase CLI as a global command (scoop / brew,
+   from supabase.com/docs/guides/local-development/cli/getting-started, read 2026-09-27; an
+   npm install gives no global command) and that Docker Desktop must be running; psql named
+   for a real restore.
+Checks after the fixes (Windows, full local stack):
+- CLI missing (PATH without supabase): exit 1 with the install message; OS temp
+  anasaq-backup-* dirs before 0, after 0 (the exit cleanup ran).
+- ANASAQ_BACKUP_PASSPHRASE=<test value> pnpm backup --local --out <temp>: exit 0 in 33 s,
+  174,049 bytes, 227 entries, 222 objects; no temp dir left.
+- pnpm restore-check <file>: exit 0 in 58 s; 44 tables, every COPY row count equal to the
+  restored count; media-private 45/45 and media-public 177/177 objects sha256-verified; 49.2 s
+  start to verified (the RTO evidence); no guide caveat needed.
+- Wrong passphrase: exit 1, "Decryption failed: wrong passphrase or damaged file".
+- Afterwards: 0 anasaq-restore* temp dirs, 0 restore-check containers, the 9 development
+  containers running; the test backup file deleted.
+- pnpm check -> 0 (unit 236/236: 13 format cases); owner-operations e2e -> 19/19; pnpm build,
+  check:export (18 files, 179 scanned, no secrets), check:budgets (142.1 KiB) -> 0.
+- Screenshots: settings-360/1440 (the backup section) and home-360/1440 (the «النسخ الاحتياطي»
+  line) re-captured and reviewed; email and stats captures restored.
+Not run: a --linked backup (it would read and write the hosted project; P11 with the owner),
+macOS.

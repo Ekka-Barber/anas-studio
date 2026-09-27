@@ -336,6 +336,28 @@ test('the owner home shows real counts and no inbox (D31)', async ({ page }) => 
   await expect(page.getByRole('link', { name: 'الوارد' })).toHaveCount(0)
 })
 
+test('the owner home shows the backup job: never run, ok, then stale after 30 days (D35)', async ({ page }) => {
+  const owner = await createStaff('owner')
+  // A manual job with no schedule: never-run, ok and stale each have their
+  // own backup wording on the home.
+  await db.query("delete from finance.job_runs where job = 'backup'")
+  await signInByCode(page, owner.email)
+  await page.goto('/admin')
+  await expect(page.getByText('النسخ الاحتياطي: لا توجد نسخة بعد.')).toBeVisible()
+
+  await db.query(
+    "insert into finance.job_runs (job, status, detail, started_at, finished_at) values ('backup', 'ok', '{\"files\": 6, \"objects\": 2, \"bytes\": 1234}'::jsonb, now() - interval '1 minute', now())",
+  )
+  await page.goto('/admin')
+  await expect(page.getByText(/النسخ الاحتياطي: سليم/)).toBeVisible()
+
+  await db.query("update finance.job_runs set finished_at = now() - interval '31 days' where job = 'backup'")
+  await page.goto('/admin')
+  await expect(page.getByText('آخر نسخة احتياطية أقدم من 30 يومًا.')).toBeVisible()
+
+  await db.query("delete from finance.job_runs where job = 'backup'")
+})
+
 test('an operations member sees email but not stats or settings, and there is no inbox', async ({ page, request }) => {
   const operations = await createStaff('operations')
   await signInByCode(page, operations.email)
@@ -484,6 +506,9 @@ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows n
   await expect(page.getByLabel('رقم واتساب')).toHaveValue('050-123-4567')
   await page.goto('/admin/settings')
   await expect(page.getByText('https://wa.me/966501234567')).toBeVisible()
+  // D35: the backups section sits after the store section.
+  await expect(page.getByRole('heading', { name: 'النسخ الاحتياطي' })).toBeVisible()
+  await expect(page.getByText('مرة واحدة: ثبّت Docker Desktop و Node 24 و pnpm و Supabase CLI', { exact: false })).toBeVisible()
 
   // The configuration status renders (Mailpit locally) and carries no secrets.
   await expect(page.getByText('Mailpit (محلي)', { exact: false })).toBeVisible()
