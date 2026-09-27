@@ -44,6 +44,8 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 **Package:** P06 (found 2026-09-27 during round 3). Since D32, `outbox_kick()` calls the `outbox` function only while a row is due, so on a quiet hosted site the last `email_outbox` run can be hours old. The owner home still applies M4's 10-minute rule to that job and would show «آخر تشغيل قديم — تأكد من الجدولة» even though nothing is wrong. Locally it never shows, because the Vault values are unset and the e2e runs the job itself. A correct signal is "a row has been due for more than a few minutes and no run followed", which needs a small SQL function the home can call. Decide before P11.
 
+Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whose first attempt is more than 23 hours old as due, but `outbox_claim` never takes it (it waits for a person's replay), so one stuck row wakes the function and records a run every minute until someone acts. Brief: `artifacts/acceptance/P06/brief-i35-email-due.md` fixes both with one shared predicate.
+
 ## I37 — a cold `next dev` after `pnpm build` 404s an admin route
 
 **Status (2026-09-27, P06):** resolved: the dev server Playwright starts builds into `.next/e2e` (`NEXT_DIST_DIR`, read by `next.config.ts`), emptied before every start, and `pnpm build` removes that folder too; `tsconfig.json` lists its type folders so `next dev` does not rewrite it. The manual `.next` deletion is no longer needed. Not reproduced: with the old configuration, `pnpm build` and then the spec on a cold server passed 19/19, so the old cause (build leftovers or a stale dev cache) stays unproven; a fresh, separate folder rules out both.
