@@ -4,7 +4,8 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 
 ## Authority and scope
 
-- `PLANS/` is the plan of record. D01-D34 are settled (D02 superseded by D29); do not reopen them.
+- `PLANS/` is the plan of record. Every decision in `PLANS/DECISIONS.md` is settled (D02
+  superseded by D29); do not reopen them.
 - D24 as amended by D28 and D30: the orchestrator (Opus 5.5, 1M) plans, audits, fixes
   and does all major design work itself. `glm-worker` (Z.AI GLM-5.3, 1M, max effort)
   does long, well-specified work, launched with `node scripts/glm-worker.mjs

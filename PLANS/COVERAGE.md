@@ -67,7 +67,7 @@ Second-pass reliability findings are binding acceptance clarifications within ex
 |---|---|---|
 | Representative runtime proof | P00 | P04/P05/P08 and P10 rerun affected hosted measurements |
 | Exact probe paths and dirty-baseline provenance | P00 | README lock protocol and pre-scaffold planning check |
-| Backup destination, key custody and all-in quota/cost evidence | P06 | P10 restore proof; P11/E07 approval |
+| Owner-run local backup (D35) and all-in quota/cost evidence | P06 | P10 restore proof; P11/E07 approval |
 | Delivery failures, suppression, priorities and safe retries | P06 | P08 financial-mail integration and P10 failure journeys |
 | Unpaid reservation abuse | P07 | P09 slot/free-booking protections and P10 concurrency checks |
 | Disputes and settlement discrepancies | P08 | P11 owner runbook/training |

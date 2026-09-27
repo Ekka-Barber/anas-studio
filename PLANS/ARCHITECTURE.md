@@ -64,7 +64,7 @@ No in-memory timers. Without the Vault values (the local stack) the HTTP jobs do
 | `src/lib/supabase/browser.ts`, `src/lib/supabase/functions.ts` | The admin's browser client (P03); `callFunction()` for Edge Functions and document URLs |
 | `src/lib/admin-publish.ts` | Publish, schedule, cancel, archive from the admin, with the browser-side Zod and media checks |
 | `src/admin/collections/*.ts` | Collection configs |
-| `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, email problems, team, orders, stats, backups, board (no inbox: D31) |
+| `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, email problems, team, orders, stats, board (no inbox: D31; backups are owner-run, D35) |
 | `src/components/admin/*` | Generic list and form, rich text editor, media upload, custom views, `admin.module.css` on the main tokens |
 | `src/lib/{content,richtext,format,validation,env,media-ref}.ts` | Build-time published loaders, safe Lexical renderer, formatting, input and env schemas, media references |
 | `src/components/public/rooms/*RoomView.tsx` | Props-only room views, shared by the public pages and the admin preview |
@@ -106,7 +106,7 @@ Visits come from the account's verified `httpRequestsAdaptiveGroups` schema: `su
 
 `.env.example` names only, in three places: the Pages build (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_AUTH_GOOGLE`, all public), the Edge Function secrets (`SITE_URL`, `JOBS_SECRET`, `TOKEN_HASH_PEPPER`, `RESEND_API_KEY`/`EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`, `TURNSTILE_SECRET_KEY`, `ANALYTICS_TOKEN`/`CLOUDFLARE_ZONE_ID`, `MOYASAR_SECRET_KEY`/`MOYASAR_WEBHOOK_SECRET`/`PAYMENTS_MODE`, `SENTRY_DSN`), and Vault (`pages_deploy_hook`, `functions_url`, `jobs_secret`). `DATABASE_URL` is for migrations only, local/CI. The service-role key is provided to the functions by Supabase and is never set by hand. No secret `NEXT_PUBLIC_` variables. Separate test and live keys and domains.
 
-Backups: Supabase Free has none. A nightly Linux CI job runs `supabase db dump` (data, roles, grants) plus a Storage object manifest, encrypted and stored off-site with the key held separately; it continues on Pro. P06 records the destination, key custodian, retention, footprint and measured restore. An alert is not a spending cap.
+Backups (D35): Supabase Free has none. The owner runs `pnpm backup` on his own machine: Supabase's documented roles, schema, data and migration-history dumps plus both Storage buckets' objects, in one file encrypted with his passphrase and kept on his machine. `pnpm restore-check` restores a file into a throwaway local stack. On Pro (before live orders, E07) the platform's daily backups add to it. P06 records the footprint and the measured restore. An alert is not a spending cap.
 
 Email retries are bounded, and exhausted work is visible in the admin. Sign-in codes and receipts take precedence over availability announcements. Sentry Free for checkout, webhook and scheduler errors with redaction and no replay; one UptimeRobot Free HTTPS check against the home page. Live orders wait for E07 (Supabase Pro). No paid Images dependency.
 
