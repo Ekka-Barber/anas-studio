@@ -469,7 +469,9 @@ $$;
 -- `[{variantId, quantity, dedication?}]`; totals never come from it. Line
 -- errors name the line (1-based) and the variant; totals cover the valid
 -- lines, so the cart can show what to remove. `quoteHash` covers every
--- amount, the lines, the city and the coupon.
+-- amount, the lines, the city and the coupon. Stock stays private (anon has
+-- no grant on it): a line never carries its stock, and OUT_OF_STOCK tells
+-- how many are left only when fewer than the requested quantity remain.
 create function finance.checkout_price(p_lines jsonb, p_city_key text, p_coupon_code text)
 returns jsonb
 language plpgsql
@@ -584,8 +586,7 @@ begin
       'quantity', v_qty,
       'subtotal', v_row.price_halalas::bigint * v_qty,
       'discount', 0,
-      'dedication', v_dedication,
-      'available', v_available
+      'dedication', v_dedication
     );
   end loop;
 
@@ -1027,16 +1028,18 @@ as $$
 declare
   v_order finance.orders;
 begin
+  -- The token is checked before the row is locked, so guessed tokens never
+  -- queue behind (or delay) a real change to the order.
   select * into v_order
     from finance.orders o
-   where o.order_number = upper(btrim(coalesce(p_order_number, '')))
-   for update;
+   where o.order_number = upper(btrim(coalesce(p_order_number, '')));
   if not found
     or v_order.access_token_hash is distinct from p_access_token_hash
     or v_order.access_token_expires_at <= now()
   then
     return jsonb_build_object('ok', false, 'code', 'NOT_FOUND');
   end if;
+  select * into v_order from finance.orders o where o.id = v_order.id for update;
   if v_order.status <> 'pending_payment' then
     return jsonb_build_object('ok', true, 'status', v_order.status);
   end if;

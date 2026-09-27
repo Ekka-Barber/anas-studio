@@ -412,6 +412,11 @@ deno_version = 2
 [functions.contact]
 verify_jwt = false
 
+# The public checkout endpoint (P07): quote, create and cancel carry their own
+# caller checks (origin, Turnstile, peppered hashes), like `contact`.
+[functions.checkout]
+verify_jwt = false
+
 [functions.resend-webhook]
 verify_jwt = false
 

@@ -56,7 +56,7 @@ function siteOrigin(): string | null {
  * `x@evil.test?bcc=…&body=…` reach the owner's reply; only this shape
  * reaches storage.
  */
-const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})$/
+export const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{2,59})$/
 
 /**
  * Punycodes an address whose domain carries non-ASCII (e.g. the Saudi
@@ -64,7 +64,7 @@ const EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.(?:[A-Za-z]{2
  * gets validated — and stored. A domain the parser refuses is returned
  * untouched and fails the grammar below.
  */
-function toAsciiAddress(email: string): string {
+export function toAsciiAddress(email: string): string {
   const at = email.lastIndexOf('@')
   if (at === -1) return email
   const domain = email.slice(at + 1)

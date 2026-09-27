@@ -119,6 +119,6 @@ describe('normalizeSaudiMobile', () => {
 describe('formatRiyadh', () => {
   it('keeps the time and its period marker on one line (no breakable space before م)', () => {
     // 11:45 UTC is 2:45 in the afternoon in Riyadh.
-    expect(formatRiyadh('2026-09-27T11:45:00Z')).toMatch(/2:45 م$/)
+    expect(formatRiyadh('2026-09-27T11:45:00Z')).toMatch(/2:45\u00a0م$/)
   })
 })

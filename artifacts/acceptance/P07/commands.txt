@@ -28,3 +28,48 @@ smoke again green. tests/integration/commerce-settings.test.ts: its "table refus
 checkout_enabled = true" case now proves the save takes no checkout argument. TEST_ENV=local
 pnpm test:db -> 0 (12 files, 141/141).
 Next: round 1 part 2, glm-worker from artifacts/acceptance/P07/brief-r1-checkout.md.
+
+2026-09-27 Round 1, part 2: checkout function, demo catalog, tests (glm-worker), audited
+
+Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P07/brief-r1-checkout.md at
+87015fc; 112 turns, 41.7 min; exit 0 (spawnSync returned, port 3000 free), no permission
+denials. Diff: 14 paths, all inside the lock allowlist. Its report: unit 327, test:db 172
+(checkout 31), e2e checkout-api + owner-operations 24/24, the seed idempotent, deno not
+installed (the handler is type-checked by tsc). Its one deviation, accepted: foldDigits is
+exported from saudi-mobile.ts because whatsappLink still uses it. It did not claim to restore
+the screenshots; the orchestrator restored them and next-env.d.ts.
+Orchestrator audit (every changed file read): the handler follows contact's order of checks,
+logs nothing personal, hashes the normalized request canonically, derives the access token by
+HMAC with the pepper and stores only its peppered hash, maps every SQL code, and marks an order
+'live' only for PAYMENTS_MODE=live on a hosted site. The integration file covers grants through
+real JWTs, the largest-remainder allocation against an independent computation, every refusal,
+idempotency, hold limits, the throttle, three real races on separate connections, expiry and
+the rebuild and audit triggers.
+Fixes by the orchestrator:
+1. Stock leak (the orchestrator's own migration): every quote line carried the exact available
+   stock, while anon has no grant on stock. Lines no longer carry it; OUT_OF_STOCK still says how
+   many remain when fewer than the requested quantity do.
+2. checkout_cancel locked the order row before checking the token, so guessed tokens could
+   queue behind a real change; the token is now checked first, then the row locked.
+3. The quote passed upper-case variant ids through, which the SQL refuses; both actions
+   lower-case them now (the live quote below uses an upper-case id).
+4. Invisible characters in source: saudi-mobile.ts's regex had raw direction marks instead of
+   the original \u escapes, the money test comment carried raw RLM marks, and the orchestrator's
+   own formatRiyadh edit and its test had a raw no-break space (the tool transport turns \u
+   sequences into characters). All are ASCII escapes or plain words again; a scan of every file
+   changed since d758336 finds only the deliberate phone-normalization test inputs.
+5. format.ts: the shared import moved to the top; formatMoney's comment in plain words.
+6. The integration file left published fixture products, enabled rates and coupons in the
+   local store (orders reference them, so they cannot be deleted): they are now archived and
+   disabled in afterAll. It also resets the shared 500-a-day checkout:all bucket first, so a
+   day of reruns cannot trip it (the worker's own open risk).
+Checks after the fixes (the migration was edited in place, local only): supabase db reset -> 0
+(every migration from scratch); db:import -> 0; pnpm check -> 0 (lint 0 errors, 3 old warnings;
+unit 327/327); TEST_ENV=local pnpm test:db -> 0 (13 files, 172/172); pnpm build, check:export
+(179 scanned, no secrets), check:budgets (142.1 KiB) -> 0; checkout-api + owner-operations e2e
+-> 0, 24/24; pnpm db:demo-catalog twice -> the first writes 3 products, 5 variants, 7 rates,
+1 coupon, 3 policies, 1 settings update, the second writes nothing. Live local function with the
+demo catalog: 2 x paper 6900 + e-book 3500 (its id sent upper-case), Tabuk, DEMO10 ->
+subtotal 17300, discount 1730, shipping 3500, total 19070, no stock field on any line.
+Screenshots and next-env.d.ts the e2e run rewrote were restored.
+Not run: deno check (deno is not installed on this machine).

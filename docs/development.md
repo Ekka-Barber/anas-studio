@@ -70,6 +70,12 @@ The Edge Functions reach the database as `service_role` through the Data API
 `anon` or `authenticated`. Migrations run over `DATABASE_URL`, a separate
 non-pooled connection.
 
+`pnpm db:demo-catalog` seeds the local demo catalog (D37): three demo products
+with their variants, seven city rates, the `DEMO10` coupon, the three demo
+policy documents and local commerce settings with checkout enabled. It refuses
+any non-loopback `DATABASE_URL` and is idempotent, so a second run writes
+nothing.
+
 ## Staff admin (P03)
 
 ```sh

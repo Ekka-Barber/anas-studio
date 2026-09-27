@@ -333,6 +333,39 @@ session saved first, SQL raises 40001 and the function answers 409
 one `commerce.settings` audit event naming the changed fields, never their
 values. No API role has any grant on `finance.commerce_settings`.
 
+## Checkout holds and limits (P07)
+
+The `checkout` Edge Function is the only buyer-facing path to an order: a
+`quote` prices the live cart, a `create` opens one pending order with its
+holds behind Turnstile, and a `cancel` releases them. The SQL contract is
+`supabase/migrations/20260927160000_catalog_and_checkout.sql`.
+
+- **Holds last 20 minutes.** A created order holds its physical and signed
+  stock (and its coupon use) for 20 minutes, with at most one unexpired
+  pending order per normalized email and one per checkout session — enforced
+  under transaction-scoped advisory locks, so two concurrent requests cannot
+  both pass. A new idempotency key neither adds a hold nor refreshes one; a
+  buyer who changed their mind cancels the held order first.
+- **Throttles** (secondary, so shared networks stay usable): 10 creates per
+  hour per salted IP hash, 5 per hour per email, 500 per day in total, and
+  quotes 300 per hour per salted IP hash. A throttle answers HTTP 429
+  «أرسلت طلبات كثيرة؛ حاول لاحقًا.»
+- **Expiry:** availability ignores an expired hold the moment it expires, so
+  the stock counts again before any job runs; the minute pg_cron job
+  `checkout-expire` (`finance.checkout_expire()`) then marks the order
+  expired and releases its reservation rows in bounded batches.
+- **A buyer cancels** with the order number and the access token the create
+  replied with (`{"action":"cancel"}`): the holds release at once, and a
+  wrong token answers 404, revealing nothing about the order.
+- **Residual risk (accepted):** many emails from many addresses can still
+  hold scarce stock for 20 minutes at a time; the throttles bound, not stop,
+  that. Turnstile runs before every create, and nothing is charged while a
+  hold is open (P08 adds payment).
+- **Checkout stays off until P08.** The check that pinned `checkout_enabled`
+  to false is lifted, but no API path sets it — only the local demo seed
+  (`pnpm db:demo-catalog`) and the tests turn it on; P08 adds the owner's
+  switch behind the verified payment gateway.
+
 ## Backups (D35)
 
 Anas runs backups himself, on his own machine, whenever he chooses (the habit:
