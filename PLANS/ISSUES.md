@@ -8,6 +8,8 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## I25 — public design direction, paused
 
+**Status (2026-09-27):** the owner reopened design as a v2 in Claude Design, outside the repository, built on Anas's own palette and material; v1 stays the reference until a v2 direction is accepted, and that acceptance needs a DECISIONS entry. Meanwhile P07's store pages are built plain on the current tokens (D38).
+
 The owner rejected the long-scroll rooms and then both open-book prototypes. Direction: the frozen handoff design (`deploy/design/`), improved only with Anas's full texts and real artwork, never a new metaphor. The orchestrator's `/started` rework was not accepted. Design is paused until the owner reopens it. Open owner question: Tabuk imagery (the generated photos do not represent Tabuk; real reference photos and film frames are preferred).
 
 ## I28 — hosted Supabase Auth settings must match the local ones
