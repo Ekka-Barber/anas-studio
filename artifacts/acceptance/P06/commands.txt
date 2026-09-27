@@ -644,3 +644,50 @@ test fidelity). Findings and the fixes applied in this pass:
 
 After the fixes: pnpm check 216/216 unit (15 files), db:reset + db:import + test:db
 115/115, build + check:export (18 files) + check:budgets green, full e2e 67/67.
+
+2026-09-27 cloud audit of 3c4347c (the local verification + 4-agent audit fix pass)
+
+Read: the full code diff eed6625..3c4347c, the evidence above and the plan changes.
+Accepted as is: pg_net created explicitly; verify_jwt pinned for admin and staff-admin;
+callFunction shape guard; the widened check-export (18 files, lang="ar" dir="rtl" on
+public pages); the new unit coverage (MISSING_PART, shell 405/400/413, operations x stats);
+I34 recorded; the .open-next/.wrangler clean-up.
+
+Rate-limit trust model (the audit's MED finding): the old fallback (FIRST x-forwarded-for
+hop) was forgeable, and the fix to take the LAST hop is right for the fallback. Dropping
+cf-connecting-ip was not: hosted Supabase is behind Cloudflare, which sets that header on
+every request and replaces any client value; the only place a caller can choose it is the
+local stack. Community reports on hosted Supabase (github.com/orgs/supabase/discussions/34647,
+unanswered by staff) match: cf-connecting-ip held the real address, and a spoofed
+x-forwarded-for got the real address appended after it; an older thread (#7884) reported
+x-forwarded-for sometimes empty, which would pool those visitors under `local`. The last hop
+is also right only while no proxy behind the one that saw the visitor appends its own
+address (Kong's default is to append). The local e2e could not tell these apart: passing
+does not show which hop keyed the bucket. Fix 00586ea: cf-connecting-ip first, else the
+last hop, else `local`; unit tests rewritten (4); the e2e sets cf-connecting-ip again. I32
+now says how to probe it at P11 (a throwaway header-echo function with forged values).
+
+admin.html budget exclusion: accepted. Measured here (initial JS gzip incl. the nomodule
+polyfill): /admin 333 KiB, /admin/sign-in 232, /admin/media 431, a post editor 435 — the
+staff CMS client (supabase-js, Lexical, cropping); no visitor loads it. But the scan was
+top-level only, so a nested public page (journal/<slug>.html, a product page) would have
+escaped the budget: 00586ea walks every depth, excluding admin.html and admin/**. Proven
+by a planted out/journal/probe-post.html being measured (then removed). A missing out/ now
+gives the friendly error instead of an ENOENT at import time.
+
+I34 TOCTOU: closed in 00586ea by creating signed upload URLs without upsert (every browser
+retry already starts a new ticket); the media e2e now asserts a second upload to a signed
+path is refused — first real proof on the next local run.
+
+I34 observability recommendation (for round 3, with the I29 sweep): store the pg_net
+request id in site_builds, check net._http_response on the next run, re-arm on a non-2xx
+or timeout, and record each attempt in finance.job_runs as `site_build` so the owner home
+shows it. Pages build failures stay a dashboard check.
+
+Checks here (Node 22, engine-strict off): eslint 0 errors (3 old warnings); tsc 0;
+check:frozen OK (50); check:copy OK (100); vitest 15 files, 211 passed + 1 skipped;
+deno check contact and admin OK; next build 0 against the local Data API stand-in;
+check:export OK (18 files, 181 scanned); check:budgets OK (largest 142.2 KiB, 10 pages).
+
+Pending local verification of 00586ea: pnpm test; the media spec (the two new refusals) and
+owner-operations (the contact bucket via cf-connecting-ip); pnpm build + check:budgets.

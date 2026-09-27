@@ -44,10 +44,11 @@ is refused). No API role can read `public.contacts`, the owner included.
 2. The function verifies the Turnstile token (action `contact`, hostname from
    `SITE_URL`) and hashes the caller — sha256 of
    `${TOKEN_HASH_PEPPER}:${utc-date}:${ip}`, where the IP is
-   `cf-connecting-ip`, else the first `x-forwarded-for` hop — so no raw IP is
-   ever stored or logged. With neither header (the local stack) the IP is the
-   literal `local`; which header the hosted project delivers is checked at
-   P11 (I32).
+   `cf-connecting-ip` (Cloudflare, in front of hosted Supabase, sets it and
+   replaces any client value), else the LAST `x-forwarded-for` hop (earlier
+   hops are client-chosen) — so no raw IP is ever stored or logged. With
+   neither header the IP is the literal `local`; which headers the hosted
+   project delivers is checked at P11 (I32).
 3. `contact_submit(ip_hash, …)` commits, in one transaction: the throttle
    checks, the message row, and one `contact_notice` outbox row per **active
    owner or operations member**. Editors and inactive staff get no notice.
