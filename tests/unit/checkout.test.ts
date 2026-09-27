@@ -153,6 +153,8 @@ describe('the gates, in contact\'s order', () => {
     ['a bad order number', { action: 'cancel', orderNumber: 'ABCD01', accessToken: 'A'.repeat(43) }],
     ['a bad access token', { action: 'cancel', orderNumber: 'ABCD2345', accessToken: 'short' }],
     ['an unknown field', quoteBody({ website: 'x' })],
+    // The server prices every create itself; a browser total is refused outright.
+    ['a create carrying a browser total', createBody({ total: 1 })],
   ])('refuses %s with 422 and flattened fields', async (_label, body) => {
     const response = await checkoutPost(request(body))
     expect(response.status).toBe(422)

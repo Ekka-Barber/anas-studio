@@ -255,3 +255,80 @@ closed shadow root); next-env.d.ts and tsconfig.json, rewritten by the dev serve
 Screenshots reviewed (screenshots/store-*.png at 360 and 1440): the list, a product, the cart
 with lines, the checkout with the solved test widget, the pending order. No horizontal or
 in-card overflow (asserted). The Next dev indicator overlaps content in development only.
+Committed as d10dd1d; Linux CI on d10dd1d (run 36345088302) -> success: lint, typecheck, unit,
+frozen sources, copy, local Supabase with the import, static build with no published product,
+export check, budget.
+
+2026-09-27 P07 acceptance battery (ACCEPTANCE_PACKAGE=P07), orchestrator, Windows: INCOMPLETE
+
+At d10dd1d, one script, every exit code recorded; port 3000 free before the run. (A first attempt
+stopped at db:import because the script exported DATABASE_URL only later; fixed, rerun from the
+reset.)
+- pnpm install --frozen-lockfile -> 0
+- supabase db reset -> 0 (every migration from scratch, 20260927180000 included)
+- pnpm db:import -> 0
+- pnpm build with no published product (straight after the reset) -> 0: out/store.html says
+  «لا توجد منتجات بعد.» and lists no demo product; out/store/ holds only _.html (the 404
+  placeholder)
+- pnpm db:demo-catalog -> 0
+- pnpm check -> 0 (lint 0 errors, 3 old warnings; typecheck; frozen; copy; unit 375/375)
+- TEST_ENV=local pnpm test:db -> 0 (14 files, 178/178)
+- pnpm build with the demo catalog -> 0: out/store.html lists the demo products; out/store/
+  holds demo-khous, demo-moonlight-cup and demo-room-wallpapers
+- pnpm check:export -> 0 (25 required files, 299 scanned, no secrets)
+- pnpm check:budgets -> 0 (largest 143.8 KiB of 150)
+- ACCEPTANCE_PACKAGE=P07 pnpm test:e2e -> 1: 69 passed, 3 failed, 23 did not run, in 4.7 min.
+  Complete and green: auth 2, cart-checkout 11, checkout-api 4, cms 3, media 8,
+  owner-operations 20, public 18. Cut short: store-admin (its first 3 passed, the non-book proof
+  below; then 2 failed and 4 did not run) and visual (1 failed, 19 did not run). No assertion
+  failed: the three failures are "browserContext.newPage: Target crashed" and twice "worker
+  process exited unexpectedly (code=3221225794)", 0xC0000142, a process that could not start.
+  Claude Code then stopped the battery because the machine was critically low on memory (other
+  programs held most of it: 22 claude processes 4.7 GB, 75 node MCP servers 3.1 GB, Chrome
+  2.8 GB, ZCode 2.3 GB, 4.3 GB compressed). Not an acceptance pass: store-admin and visual must
+  run to completion before P07 is offered for acceptance.
+After the run: no leftover next dev, Playwright or Chromium process; the P05, P06 and P07
+screenshots and next-env.d.ts the run rewrote were restored; store-admin's afterAll never ran,
+so its test seller stayed in finance.commerce_settings, and pnpm db:demo-catalog put the demo
+settings back (one settings update, nothing else changed). The run's 16 pending holds expire
+through the checkout-expire job. Its report and traces (artifacts/acceptance/P07/playwright*,
+untracked) are from the incomplete run and are not evidence; the next acceptance run replaces
+them.
+
+P07 proof map (WORK-PACKAGES P07), to confirm when the e2e completes:
+- A new non-book product reaches a persisted pending order without code changes: e2e
+  store-admin «the owner creates product, variant city rate without code changes», «the
+  checkout function prices admin-created catalog», «with checkout on (a fixture), create reaches
+  persisted pending order» (all three passed in the battery above).
+- Concurrent last unit and coupon: integration «five creates for the last unit of a stock-1
+  variant: exactly one succeeds», «two creates for a coupon limited to one use», «two concurrent
+  creates with one idempotency key: one order».
+- Unknown city and unconfigured price: integration «delivery: … a physical cart needs a served
+  one» (CITY_UNSUPPORTED) and «refuses an unpublished product, a disabled variant and an
+  unpriced variant as UNAVAILABLE».
+- Tampered total and stale quote: a create carrying a browser total is refused with 422 before
+  the database (unit checkout «refuses a create carrying a browser total», added after the
+  battery: tests/unit/checkout.test.ts 84/84, unit total 376); the server re-prices under locks
+  and a quote hash that no longer matches is QUOTE_CHANGED carrying the new quote (integration);
+  e2e cart-checkout «a price change between the quote and the submit» (no order until the buyer
+  confirms, then the new total).
+- Persistent cart, mixed physical and digital: e2e cart-checkout «the cart persists across
+  reload…» (paper ×2 and the e-book), «storage denied still allows a session cart»; unit cart
+  (parse, caps, merge, fallback, fingerprint).
+- Duplicate idempotency, rollback and expiry: integration «the same key and request return the
+  same order…; another request is IDEMPOTENCY_CONFLICT», «an expired hold stops counting before
+  any job runs, and checkout_expire tidies up»; a refusal writes no order (the e2e price-change
+  flow checks the database).
+- A direct Data API write of the counted rows is denied: integration «no API role can write the
+  holds, redemptions or order totals…» (PGRST106), «an owner inserts and updates catalog rows;
+  … demo and version are not updatable» (42501), the finance function grants.
+- Empty store truthful: the empty-catalog build above; the policy page says «لم تُنشر هذه
+  السياسة بعد.» when unpublished.
+- Audit additions: hold limits, throttles and Turnstile (integration «hold limits», «the
+  checkout throttle»; unit checkout handler), limits, expiry and residual risk documented in
+  docs/operations.md «Checkout holds and limits (P07)», shared-network buyers (ten orders from
+  one IP hash with ten emails succeed; the 11th is throttled), a new key never extends a hold
+  (ACTIVE_HOLD before any write).
+Not closed by P07: paid stats and availability dispatch (P08); C20 closes only after P08;
+E02 (sandbox) and E03 (Anas's real catalog values) stay open (D37, D38). Not e2e-tested: the
+product page's «غير مسعّر» row (the SQL refusal of an unpriced variant is tested).
