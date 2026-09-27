@@ -11,7 +11,7 @@
  * while the cart itself keeps working (D34).
  */
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import {
   CITY_KEY,
@@ -28,7 +28,7 @@ import {
 import { formatMoney } from '@/lib/format'
 
 import { useCart } from './CartProvider'
-import { fetchCities, fetchQuote, quoteErrorMessage, type CityRate, type Quote, type QuoteError } from './quote'
+import { fetchCities, fetchQuote, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
 
 export function CartView() {
@@ -88,22 +88,11 @@ export function CartView() {
     return () => clearTimeout(timer)
   }, [ready, storedCart, city, coupon])
 
-  const errorsByLine = useMemo(() => {
-    const map = new Map<number, QuoteError[]>()
-    for (const error of quote?.errors ?? []) {
-      if (error.line === undefined) continue
-      const list = map.get(error.line) ?? []
-      list.push(error)
-      map.set(error.line, list)
-    }
-    return map
-  }, [quote])
-
-  const cartErrors = useMemo(() => (quote?.errors ?? []).filter((error) => error.line === undefined), [quote])
-  const invalidVariants = useMemo(
-    () => [...errorsByLine.values()].flat().map((error) => error.variantId).filter((id): id is string => id !== undefined),
-    [errorsByLine],
-  )
+  // Line errors are matched by variant id, not by position: a quote still in
+  // flight after a removal must not pin its errors on the wrong line.
+  const errors = quote?.errors ?? []
+  const cartErrors = errors.filter((error) => error.line === undefined)
+  const invalidVariants = errors.flatMap((error) => (error.variantId === undefined ? [] : [error.variantId]))
   const couponErrors = cartErrors.filter((error) => error.code.startsWith('COUPON_'))
   const otherErrors = cartErrors.filter((error) => !error.code.startsWith('COUPON_'))
 
@@ -134,14 +123,15 @@ export function CartView() {
       {quoteFailed && <p className={styles.warning} role="note">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>}
 
       <ul className={styles.lineList}>
-        {cart.lines.map((line, index) => {
+        {cart.lines.map((line) => {
           const quoteLine = quote?.lines.find((l) => l.variantId === line.variantId) ?? null
-          const lineErrors = errorsByLine.get(index + 1) ?? []
+          const lineErrors = errors.filter((error) => error.variantId === line.variantId)
           return (
             <li key={line.variantId} className={styles.lineCard}>
               <div className={styles.lineHead}>
                 <p className={styles.lineTitle}>
-                  {quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : <span dir="ltr">{line.variantId}</span>}
+                  {/* A line the quote refused carries no title; its error below says why. */}
+                  {quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : quote === null ? '…' : 'منتج في السلة'}
                 </p>
                 <p className={styles.linePrice}>
                   {quoteLine ? `${formatMoney(quoteLine.unitPrice)} × ${quoteLine.quantity}` : '…'}

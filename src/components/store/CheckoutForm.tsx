@@ -6,7 +6,9 @@
  * address; physical and signed carts require all three. Policy consent links
  * the exact revisions the quote carried (the function rejects any other set
  * with POLICY_CHANGED). Turnstile renders explicitly with the site key and
- * action `checkout`; a missing site key disables submission honestly.
+ * action `checkout` into its box when the box mounts, and every create
+ * attempt resets it: a token is single-use, so a retry gets a fresh one. A
+ * missing site key disables submission honestly.
  *
  * `create` sends one `checkoutSession` per tab and an `idempotencyKey` reused
  * only when retrying the identical request (fingerprint in component state)
@@ -16,7 +18,7 @@
  */
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import {
@@ -36,7 +38,7 @@ import {
 import { formatMoney, normalizeSaudiMobile } from '@/lib/format'
 
 import { useCart } from './CartProvider'
-import { fetchCities, fetchQuote, orderSchema, postCheckout, priceSchema, quoteSchema, type CityRate, type Quote } from './quote'
+import { fetchCities, fetchQuote, orderSchema, postCheckout, priceSchema, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
 
 const POLICY_LABELS: Record<string, string> = {
@@ -46,6 +48,16 @@ const POLICY_LABELS: Record<string, string> = {
   privacy: 'سياسة الخصوصية',
 }
 
+/** The part of the Turnstile API this page uses. */
+interface TurnstileApi {
+  render: (el: HTMLElement, options: Record<string, unknown>) => string
+  reset: (id: string) => void
+  remove: (id: string) => void
+}
+function turnstileApi(): TurnstileApi | undefined {
+  return (window as unknown as { turnstile?: TurnstileApi }).turnstile
+}
+
 /**
  * Loads the Turnstile script once per page with explicit rendering
  * (`…/turnstile/v0/api.js?render=explicit&onload=…`, the documented explicit
@@ -53,9 +65,7 @@ const POLICY_LABELS: Record<string, string> = {
  */
 let turnstileScript: Promise<void> | null = null
 function loadTurnstile(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.reject(new Error('no window'))
-  const existing = (window as unknown as { turnstile?: unknown }).turnstile
-  if (existing) return Promise.resolve()
+  if (turnstileApi()) return Promise.resolve()
   if (turnstileScript === null) {
     turnstileScript = new Promise<void>((resolve, reject) => {
       const global = window as unknown as Record<string, unknown>
@@ -84,15 +94,15 @@ export function CheckoutForm() {
   const [coupon, setCoupon] = useState('')
   const [consent, setConsent] = useState(false)
   const [token, setToken] = useState('')
-  const [turnstile, setTurnstile] = useState<'loading' | 'ready' | 'missing' | 'failed'>('loading')
+  const [turnstileFailed, setTurnstileFailed] = useState(false)
   const [pending, setPending] = useState<PendingOrder | null>(null)
   const [orderTotal, setOrderTotal] = useState<number | null>(null)
-  const [cancelled, setCancelled] = useState(false)
+  const [closed, setClosed] = useState<'cancelled' | 'expired' | null>(null)
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-  const widgetBox = useRef<HTMLDivElement | null>(null)
+  const widgetId = useRef<string | null>(null)
   const quoteRun = useRef(0)
   const sessionRef = useRef<string | null>(null)
   const idempotencyRef = useRef<string | null>(null)
@@ -140,43 +150,49 @@ export function CheckoutForm() {
     return () => clearTimeout(timer)
   }, [ready, cart, city, coupon])
 
-  // The Turnstile widget, rendered explicitly.
-  useEffect(() => {
-    if (!siteKey) {
-      // Same microtask deferral as above.
-      void Promise.resolve().then(() => setTurnstile('missing'))
-      return
-    }
-    let widgetId: string | undefined
-    let cancelled = false
-    loadTurnstile()
-      .then(() => {
-        const api = (window as unknown as {
-          turnstile?: { render: (el: HTMLElement, options: Record<string, unknown>) => string; remove: (id: string) => void }
-        }).turnstile
-        if (cancelled || !api || !widgetBox.current) {
-          if (!api) setTurnstile('failed')
-          return
-        }
-        widgetId = api.render(widgetBox.current, {
-          sitekey: siteKey,
-          action: 'checkout',
-          callback: (value: string) => setToken(value),
-          'expired-callback': () => setToken(''),
-          'error-callback': () => setToken(''),
+  // The Turnstile widget, rendered explicitly into its box when the box
+  // mounts. The form (and the box) appears only after the cart and the quote
+  // load, and can unmount and return, so the widget follows the box's own
+  // lifetime; React 19 runs the returned cleanup when the box goes.
+  const turnstileBox = useCallback(
+    (box: HTMLDivElement | null) => {
+      if (box === null || !siteKey) return
+      let gone = false
+      loadTurnstile()
+        .then(() => {
+          if (gone) return
+          widgetId.current = turnstileApi()!.render(box, {
+            sitekey: siteKey,
+            action: 'checkout',
+            callback: (value: string) => {
+              setToken(value)
+              setTurnstileFailed(false)
+            },
+            'expired-callback': () => setToken(''),
+            'error-callback': () => {
+              setToken('')
+              setTurnstileFailed(true)
+            },
+          })
         })
-        setTurnstile('ready')
-      })
-      .catch(() => setTurnstile('failed'))
-    return () => {
-      cancelled = true
-      if (widgetId !== undefined) {
-        ;(window as unknown as { turnstile?: { remove: (id: string) => void } }).turnstile?.remove(widgetId)
+        .catch(() => setTurnstileFailed(true))
+      return () => {
+        gone = true
+        if (widgetId.current !== null) turnstileApi()?.remove(widgetId.current)
+        widgetId.current = null
+        setToken('')
       }
-    }
-  }, [siteKey])
+    },
+    [siteKey],
+  )
 
-  const consentPolicies = useMemo(() => Object.keys(quote?.policyRevisions ?? {}), [quote])
+  // In the store's own order (store, delivery, refund, privacy), not the
+  // stored JSON's key order.
+  const consentPolicies = useMemo(() => {
+    const order = Object.keys(POLICY_LABELS)
+    const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length)
+    return Object.keys(quote?.policyRevisions ?? {}).sort((a, b) => rank(a) - rank(b))
+  }, [quote])
 
   async function refreshQuote(): Promise<void> {
     if (!cart) return
@@ -194,12 +210,13 @@ export function CheckoutForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    if (!quote || !cart || submitting) return
+    if (!quote || !cart || submitting || token === '') return
     const problems: string[] = []
     const trimmedEmail = email.trim()
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedEmail)) problems.push('أدخل بريدًا إلكترونيًا صحيحًا.')
     if (!name.trim()) problems.push('أدخل الاسم.')
     if (quote.physical) {
+      if (!city) problems.push('اختر مدينة التوصيل.')
       if (normalizeSaudiMobile(phone) === null) problems.push('أدخل رقم جوال سعوديًا صحيحًا.')
       if (address.replace(/\s+/g, ' ').trim().length < 5) problems.push('أدخل عنوان التوصيل.')
     }
@@ -250,8 +267,9 @@ export function CheckoutForm() {
         return
       }
       const error = reply.error
-      if (error?.code === 'QUOTE_CHANGED' && error.fields?.quote !== undefined) {
-        // Re-render with the fresh quote and ask the buyer to confirm the new total.
+      if (error?.fields?.quote !== undefined) {
+        // QUOTE_CHANGED or a cart refusal: re-render with the fresh quote (the
+        // new total, or the cart's own errors) and ask the buyer to confirm.
         const fresh = priceSchema.parse(error.fields.quote)
         setQuote({ ...fresh, checkoutEnabled: quote.checkoutEnabled, policyRevisions: quote.policyRevisions })
         setSubmitError(error.message)
@@ -277,6 +295,11 @@ export function CheckoutForm() {
       setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
     } finally {
       setSubmitting(false)
+      // Siteverify accepts a token once, whatever the answer was, so the next
+      // attempt (a retry with the same key included) needs a fresh one
+      // (developers.cloudflare.com/turnstile/get-started/server-side-validation).
+      setToken('')
+      if (widgetId.current !== null) turnstileApi()?.reset(widgetId.current)
     }
   }
 
@@ -289,9 +312,12 @@ export function CheckoutForm() {
         orderNumber: pending.orderNumber,
         accessToken: pending.accessToken,
       })
-      if (reply.ok) {
+      // The function answers the order's status; a hold that already ran out
+      // says `expired`, and anything else is no release this tab can show.
+      const status = reply.data?.status
+      if (reply.ok && (status === 'cancelled' || status === 'expired')) {
         clearPendingOrder()
-        setCancelled(true)
+        setClosed(status)
         setSubmitError('')
       } else {
         setSubmitError(reply.error?.message ?? 'تعذّر إلغاء الطلب.')
@@ -315,10 +341,15 @@ export function CheckoutForm() {
           رقم الطلب: <span dir="ltr">{pending.orderNumber}</span>
         </p>
         {orderTotal !== null && <p>الإجمالي: {formatMoney(orderTotal)}</p>}
-        {cancelled ? (
-          <p className={styles.note} role="status">
-            أُلغي الطلب.
-          </p>
+        {closed !== null ? (
+          <>
+            <p className={styles.note} role="status">
+              {closed === 'expired' ? 'انتهت مدة حجز الطلب.' : 'أُلغي الطلب.'}
+            </p>
+            <Link href="/cart" prefetch={false} className={styles.plainLink}>
+              العودة إلى السلة
+            </Link>
+          </>
         ) : (
           <>
             <p className={styles.note}>حُجز طلبك لمدة 20 دقيقة. الدفع يُضاف في المرحلة القادمة، ولن يُخصم أي مبلغ الآن.</p>
@@ -461,6 +492,16 @@ export function CheckoutForm() {
             <dd>{formatMoney(quote.total)}</dd>
           </div>
         </dl>
+        {!quote.ok && (
+          <ul className={styles.lineErrors}>
+            {quote.errors.map((error, i) => (
+              <li key={i}>{quoteErrorMessage(error)}</li>
+            ))}
+          </ul>
+        )}
+        <Link href="/cart" prefetch={false} className={styles.plainLink}>
+          تعديل السلة
+        </Link>
       </fieldset>
 
       <label className={styles.consent}>
@@ -468,13 +509,13 @@ export function CheckoutForm() {
         {consentSentence}
       </label>
 
-      <div className={styles.turnstileBox} ref={widgetBox} />
-      {turnstile === 'missing' && (
+      <div className={styles.turnstileBox} ref={turnstileBox} />
+      {!siteKey && (
         <p className={styles.warning} role="note">
           التحقق غير متاح حاليًا.
         </p>
       )}
-      {turnstile === 'failed' && (
+      {turnstileFailed && (
         <p className={styles.warning} role="note">
           تعذّر تحميل التحقق؛ حدّث الصفحة.
         </p>
@@ -485,7 +526,7 @@ export function CheckoutForm() {
           {submitError}
         </p>
       )}
-      <button type="submit" className={styles.button} disabled={turnstile === 'missing' || token === '' || submitting}>
+      <button type="submit" className={styles.button} disabled={token === '' || submitting}>
         {submitting ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
       </button>
     </form>

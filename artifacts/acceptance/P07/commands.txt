@@ -180,3 +180,78 @@ product archived as the superuser; pnpm build -> 0, out/store.html says «لا �
 lists no demo product; pnpm db:demo-catalog; pnpm build -> 0, out/store.html lists the demo
 products again and out/store/ holds their 3 pages; check:export -> 0 (25 required files, 299
 scanned, no secrets); check:budgets -> 0 (largest 143.6 KiB).
+
+2026-09-27 Round 3, part 2: orchestrator audit completed (second session)
+
+Lock taken at f42d8ca (orchestrator, exact paths listed; the checkout integration file added
+before it was written). Read in full: CartView, CheckoutForm, CartProvider, CartLink, AddToCart,
+quote.ts, store.module.css, src/lib/cart.ts, src/lib/store.ts, the store, product, cart,
+checkout and policies routes, the docs changes, local-env.mjs, check-export.mjs, cart.test.ts
+and cart-checkout.spec.ts.
+Held as built, checked against the brief and the function:
+- The idempotency key is re-minted when the request fingerprint changes and reused otherwise;
+  the fingerprint normalizes as the function does, and the Turnstile token is never part of it.
+- The policyRevisions sent are the quote's own, the ones the consent sentence links;
+  POLICY_CHANGED reloads the quote and clears the consent.
+- Nothing is cleared on success: the cart stays, {orderNumber, accessToken} go to
+  sessionStorage only, and the cancel sends that order number and token.
+- Turnstile renders explicitly with action checkout, the script loaded once; the local
+  always-pass test key solves itself in the browser (e2e).
+- store.ts reads only anon's columns with the publishable key and Zod-parses every row; the
+  policy page renders the published text or «لم تُنشر هذه السياسة بعد.», never a 404.
+Fixes by the orchestrator:
+1. Turnstile tokens are single-use (each is validated once:
+   developers.cloudflare.com/turnstile/get-started/server-side-validation), but the form kept
+   the spent token, so any second submit (after QUOTE_CHANGED, a refusal or a network failure)
+   failed with TURNSTILE. The widget now resets after every attempt and submit waits for the
+   fresh token; the e2e price-change flow proves the second submit succeeds.
+2. The widget rendered from an effect that ran once on mount, before the form and its box
+   existed (the form appears after the cart and the quote load). It worked only while the
+   script loaded slower than the quote; a cached script would have left no widget and the
+   submit disabled for good. The widget now renders from a callback ref when its box mounts.
+3. A create refusal carrying a quote (out of stock, unavailable, city, coupon) showed only the
+   generic message; the checkout now re-renders that quote, lists its errors under the summary
+   and links «تعديل السلة». A physical cart without a city is stopped before submit.
+4. The cancel said «أُلغي الطلب.» for any ok reply, including an order that had already
+   expired; it now follows the function's status («أُلغي الطلب.» or «انتهت مدة حجز الطلب.»),
+   shows the error otherwise, and links back to the cart.
+5. The cart titled a line the quote refused with its bare variant UUID, and matched line
+   errors by position, which a quote still in flight after a removal pins on the wrong line.
+   Errors match by variant id now, and a refused line reads «منتج في السلة» above its error.
+6. Contrast (DESIGN-AUDIT 56): clay text reaches 3.9:1 on paper and 3.3:1 on sand, under AA,
+   and every error, warning and «حذف» used it. They are ink with a clay rule at the inline start.
+7. Layout: at 360 the line head's 14rem flex basis became a 224 px height in the phone column
+   (an empty band in every cart card); it applies in the row layout only. Page titles had no
+   space before the first field, the checkout submit stretched across the column, and the
+   order summary spread its prices to the far edge at 1440.
+8. The consent sentence listed the policies in the stored JSON's key order; it follows the
+   store's order (store, delivery, refund, privacy).
+cart-checkout.spec.ts (8 of 11 failing) fixed:
+- Fixture prices no demo product or rate uses (e-book 12.40, paper 23.60, signed 51.70,
+  delivery 11.30, a 10% coupon), and every price assertion scoped to its card, row or totals
+  line; the order tests also check the database row (status and total) before and after the
+  cancel.
+- Every test that depends on the store switch sets it; before, one test turned checkout on and
+  later tests relied on it.
+- Every browser request reaches the functions from the gateway's one address, so reruns within
+  the hour tripped the per-IP quote and create throttles; beforeAll clears the three checkout
+  buckets (the throttles are proven in tests/integration/checkout.test.ts).
+- I38, cause found: next dev answers a generateStaticParams page from the params it cached for
+  the route and refreshes them in the background (getStaticPaths in
+  next/dist/server/dev/next-dev-server.js, Next 16.3.5). With dynamicParams = false, the first
+  request for a slug created after the cache filled is a 404. A probe on its own dev server
+  (port 3001, dist .next/i38, removed after) answered a product created mid-run with
+  404 200 200 200 200, and an existing product with 200. beforeAll now waits until the
+  fixture page answers 200. The static export has no such cache.
+New integration case for the proof "a direct Data API update of a counter column is denied":
+availability and coupon use are counted from finance rows, not counters, so an owner's Data
+API update of finance.inventory_reservations or finance.orders answers PGRST106 (the schema is
+not exposed), anon and authenticated hold no select, insert, update or delete on the orders,
+order items, holds and redemptions, and the rows stay unchanged.
+Checks: pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 375/375); checkout integration
+file -> 32/32; cart-checkout.spec.ts -> 11/11 (the two runs before failed only on the spec's own
+locators: getByLabel('الكمية') also matched «إنقاص الكمية», and the Turnstile frame sits in a
+closed shadow root); next-env.d.ts and tsconfig.json, rewritten by the dev servers, restored.
+Screenshots reviewed (screenshots/store-*.png at 360 and 1440): the list, a product, the cart
+with lines, the checkout with the solved test widget, the pending order. No horizontal or
+in-card overflow (asserted). The Next dev indicator overlaps content in development only.

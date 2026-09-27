@@ -58,6 +58,8 @@ Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whos
 
 ## I38: next dev answers 404 for a generateStaticParams page under Playwright
 
+**Status (2026-09-27, P07):** cause found, handled in the spec. `next dev` (16.3.5) answers a `generateStaticParams` route from the params it cached for that route and refreshes them in the background (`getStaticPaths` in `next/dist/server/dev/next-dev-server.js`), so with `dynamicParams = false` the first request for a slug created after the cache filled is a 404 and the next is 200. A probe on a separate dev server answered a product created mid-run with 404 200 200 200 200. `cart-checkout.spec.ts` waits in `beforeAll` until its fixture page answers 200. Production is unaffected: the static export has no such cache.
+
 **Package:** P07 (found 2026-09-27, round 3). In `cart-checkout.spec.ts`, `/store/<fixture slug>` answered the public 404 in later tests while the product existed and was published, and the first tests had loaded the same page. Same class as I37 (`dynamicParams = false` routes on `next dev`), now with a fresh `.next/e2e`. The static export ships the page as a file, so production is unaffected. Next: find the cause in Next's dev static-paths handling, or give the flows that do not test the product page a cart seeded through localStorage.
 
 ## I39: a build can reuse an earlier build's data (fetch cache)

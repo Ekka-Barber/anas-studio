@@ -661,6 +661,30 @@ describe('checkout_create success', () => {
     expect(priced.errors).toContainEqual(expect.objectContaining({ code: 'COUPON_EXHAUSTED' }))
   })
 
+  it('no API role can write the holds, redemptions or order totals: finance is not exposed and grants nothing', async () => {
+    // Availability and coupon use are counted from these rows, not from
+    // counter columns, so they are what a buyer or staff member must not touch.
+    // The Data API serves only the public schema (supabase/config.toml).
+    const owner = await signIn((await createStaff('owner')).email)
+    const release = await owner.schema('finance').from('inventory_reservations').update({ state: 'released' }).eq('order_id', order.id)
+    expect(release.error?.code).toBe('PGRST106')
+    const total = await owner.schema('finance').from('orders').update({ total_halalas: 1 }).eq('id', order.id)
+    expect(total.error?.code).toBe('PGRST106')
+    // Exposing the schema later would still grant nothing on these tables.
+    for (const role of ['anon', 'authenticated']) {
+      for (const table of ['finance.orders', 'finance.order_items', 'finance.inventory_reservations', 'finance.coupon_redemptions']) {
+        for (const privilege of ['select', 'insert', 'update', 'delete']) {
+          const held = await postgres.query<{ ok: boolean }>('select has_table_privilege($1, $2, $3) as ok', [role, table, privilege])
+          expect(held.rows[0]!.ok, `${role} ${privilege} on ${table}`).toBe(false)
+        }
+      }
+    }
+    const holds = (await postgres.query<{ state: string }>('select state from finance.inventory_reservations where order_id = $1', [order.id])).rows
+    expect(holds.map((hold) => hold.state)).toEqual(['held', 'held'])
+    const row = (await postgres.query<{ total_halalas: number }>('select total_halalas from finance.orders where id = $1', [order.id])).rows[0]!
+    expect(row.total_halalas).toBe(order.total)
+  })
+
   it('the same key and request return the same order with tokenMatches; another request is IDEMPOTENCY_CONFLICT', async () => {
     const repeat = await createOrder(pool[0]!, {
       lines: [
