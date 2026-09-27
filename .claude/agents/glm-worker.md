@@ -21,6 +21,7 @@ Your whole context is re-sent on every tool call, so each call is expensive.
   - If it can't finish, stop and report it.
 - **No background processes to poll.** If a server must run, start it, check it once, and move on.
 - **UI work.** Use `pnpm dev` (hot reload) and one screenshot script at 360 and 1440. Run `pnpm build` (the static export) or the full visual suite only when the task says "acceptance". You cannot view images, so list the screenshot paths for the orchestrator to review.
+- **The local stack.** The orchestrator leaves the Supabase stack running. Never stop it, never `supabase db reset` (both lose the imported content); apply a new migration with `supabase migration up --local`. `pnpm test:db` needs `TEST_ENV=local DATABASE_URL=<DB_URL from supabase status -o json>`. Playwright runs against `http://localhost:3000`, never `127.0.0.1`. Specs save screenshots to fixed paths under `artifacts/acceptance/`; list every screenshot your runs rewrote, and the orchestrator restores the ones your task did not change.
 - **Don't repeat work.** Don't re-run a check that already passed on unchanged files.
 - **Two failures, then stop.** After two failed attempts at the same problem, stop and report.
 

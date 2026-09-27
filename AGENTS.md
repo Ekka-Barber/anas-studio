@@ -56,6 +56,6 @@ uncommitted edits, so no manual `graft build` is needed.
 - The orchestrator fixes small audit findings itself; large ones go to a fresh bounded worker (never a resumed one). Token rules: CLAUDE.md "Token budget" (I24). Never self-accept; the orchestrator accepts after independent inspection.
 - Forbidden: inspecting or editing `_archive/`; editing frozen sources under `deploy/design/`; inventing prices, approvals or E-gate closure; bypassing a failed gate; staging unrelated edits into a package commit; touching `.env` (read keys via environment only).
 - Secrets live only in `.env` (gitignored). Never in code, chat, commits, logs or artifacts.
-- Claude Code specifics: the orchestrator uses subscription auth — do not set ANTHROPIC_BASE_URL/AUTH_TOKEN for its session; only `scripts/glm-worker.mjs` sets them, for the worker process (D30); Opus effort is xhigh globally (quota, not money, is the constraint).
+- Claude Code specifics: the orchestrator uses subscription auth — do not set ANTHROPIC_BASE_URL/AUTH_TOKEN for its session; only `scripts/glm-worker.mjs` sets them, for the worker process (D30); the owner sets the orchestrator's effort (max for audit and sign-off sessions; quota, not money, is the constraint).
 <!-- ANASAQ_EXEC_END -->
 
