@@ -41,8 +41,12 @@ beforeAll(async () => {
     'select checkout_enabled, seller_legal_name, seller_address, seller_registration, policy_revisions, version, configured_at, approved_by from finance.commerce_settings where id = 1',
   )
   settingsSaved = saved.rows[0]!
-  // Refusals first: the store starts exactly as the migration leaves it.
-  await postgres.query('update finance.commerce_settings set checkout_enabled = false where id = 1')
+  // Refusals first: the store starts exactly as the migration leaves it, even
+  // when the local demo seed (D37) has filled the row; afterAll restores it.
+  await postgres.query(
+    `update finance.commerce_settings set checkout_enabled = false, seller_legal_name = null, seller_address = null,
+       seller_registration = null, policy_revisions = '{}'::jsonb where id = 1`,
+  )
   // The whole-store daily bucket (500 a day) is shared by every run on this
   // machine; each run uses about 45 creates, so a busy day of reruns would trip
   // it. Every other bucket this file touches is keyed by a per-run hash.

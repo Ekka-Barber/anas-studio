@@ -1,12 +1,13 @@
 import type { z } from 'zod'
 
+import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policyFields, policySchema, type PolicyDocId } from './policies'
 import { postFields, postSchema } from './posts'
 import { roomSchemas, type RoomSlug } from './rooms'
 import * as rooms from './rooms'
 import { siteSettingsFields, siteSettingsSchema } from './site-settings'
 import { taxonomyFields, taxonomySchema } from './taxonomies'
 
-export type Collection = 'site_settings' | 'rooms' | 'posts' | 'taxonomies'
+export type Collection = 'site_settings' | 'rooms' | 'posts' | 'taxonomies' | 'policies'
 
 /** Field configs per collection, for the admin form (part 2). */
 export const collections = {
@@ -21,6 +22,7 @@ export const collections = {
   },
   posts: { fields: postFields },
   taxonomies: { fields: taxonomyFields },
+  policies: { fields: policyFields },
 } as const
 
 /** Arabic section labels for `/admin/content` (part 2). */
@@ -29,6 +31,7 @@ export const COLLECTION_LABELS: Record<Collection, string> = {
   site_settings: 'إعدادات الموقع',
   posts: 'المقالات',
   taxonomies: 'التصنيفات',
+  policies: 'السياسات',
 }
 
 /** `site_settings` has exactly one document. */
@@ -46,6 +49,10 @@ function isRoomSlug(docId: string): docId is RoomSlug {
   return docId in roomSchemas
 }
 
+function isPolicyDocId(docId: string): docId is PolicyDocId {
+  return (POLICY_DOC_IDS as readonly string[]).includes(docId)
+}
+
 /** A document's display title from its saved data, for the list and the editor. */
 export function documentTitle(collection: Collection, docId: string, data: Record<string, unknown> | undefined): string {
   if (collection === 'rooms') {
@@ -58,6 +65,10 @@ export function documentTitle(collection: Collection, docId: string, data: Recor
   if (collection === 'posts') {
     const title = data?.title
     return typeof title === 'string' && title ? title : 'بلا عنوان'
+  }
+  if (collection === 'policies') {
+    const title = data?.title
+    return typeof title === 'string' && title ? title : (isPolicyDocId(docId) ? POLICY_DOC_LABELS[docId] : docId)
   }
   const label = data?.label
   return typeof label === 'string' && label ? label : docId
@@ -75,6 +86,8 @@ export function schemaFor(collection: Collection, docId: string): z.ZodTypeAny {
       return postSchema
     case 'taxonomies':
       return taxonomySchema
+    case 'policies':
+      return policySchema
   }
 }
 
@@ -82,3 +95,4 @@ export * from './posts'
 export * from './rooms'
 export * from './site-settings'
 export * from './taxonomies'
+export * from './policies'

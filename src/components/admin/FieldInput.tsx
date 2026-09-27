@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react'
 
 import { type Field } from '@/admin/fields'
+import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIso } from '../../lib/money-input'
 import { isMediaId, mediaUrl } from '../../lib/media-ref'
 
 import imageManifestRaw from '../../../public/images/manifest.json'
@@ -208,6 +209,13 @@ function defaultForField(field: Field): unknown {
       return false
     case 'select':
       return field.options[0] ?? ''
+    // P07 round 2: nullable number/money/datetime default to null (handled
+    // above), otherwise a number starts at 0 and a timestamp as ''.
+    case 'number':
+    case 'money':
+      return 0
+    case 'datetime':
+      return ''
     case 'richtext':
       return { root: { type: 'root', children: [] } }
     case 'group':
@@ -231,6 +239,84 @@ interface FieldInputProps {
   onChange: (value: unknown) => void
   id: string
   taxonomies?: TaxonomiesByKind
+}
+
+type MoneyField = Extract<Field, { type: 'money' }>
+
+/**
+ * A `money` field (P07 round 2, D06): the owner types riyals (a percentage
+ * for a coupon, `unit: 'percent'`), the stored value stays integer halalas
+ * (basis points). Invalid text shows the Arabic message and leaves the
+ * stored value untouched; an empty nullable field stores null, with the
+ * config's `nullHint` explaining what that means.
+ */
+function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; value: unknown; onChange: (value: unknown) => void; id: string }) {
+  const isPercent = field.unit === 'percent'
+  const [text, setText] = useState(() => (value === null || value === undefined ? '' : formatRiyalsInput(value as number)))
+  const [invalid, setInvalid] = useState(false)
+
+  useEffect(() => {
+    // The stored value changed elsewhere (a reload); text that already
+    // represents it — `69.5` for 6950 — is kept exactly as typed. Deferred
+    // to a microtask (the CollectionForm pattern) so the effect body itself
+    // does not call setState synchronously.
+    let active = true
+    void Promise.resolve().then(() => {
+      if (!active) return
+      const parsed = parseRiyals(text)
+      if ((typeof parsed === 'number' && parsed === value) || (parsed === null && (value === null || value === undefined))) return
+      setText(value === null || value === undefined ? '' : formatRiyalsInput(value as number))
+      setInvalid(false)
+    })
+    return () => {
+      active = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  function update(next: string) {
+    setText(next)
+    const parsed = parseRiyals(next)
+    if (parsed === 'invalid') {
+      setInvalid(true)
+      return
+    }
+    setInvalid(false)
+    if (parsed === null) {
+      // Empty becomes null only where the column allows it.
+      if (field.nullable) onChange(null)
+      else setInvalid(true)
+      return
+    }
+    onChange(parsed)
+  }
+
+  const empty = value === null || value === undefined
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={id}>
+        {field.label}
+      </label>
+      <div className={styles.row}>
+        <input
+          id={id}
+          className={styles.input}
+          type="text"
+          inputMode="decimal"
+          dir="ltr"
+          value={text}
+          onChange={(event) => update(event.target.value)}
+        />
+        <span>{isPercent ? '٪' : 'ر.س'}</span>
+      </div>
+      {invalid && (
+        <p className={styles.error}>
+          {isPercent ? 'أدخل نسبة صحيحة، مثل 10 أو 12.5.' : 'أدخل مبلغًا صحيحًا بالريال، مثل 69 أو 69.50.'}
+        </p>
+      )}
+      {empty && field.nullable && field.nullHint && <p className={styles.message}>{field.nullHint}</p>}
+    </div>
+  )
 }
 
 export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInputProps) {
@@ -318,6 +404,57 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
       )
     case 'image':
       return <ImageFieldInput field={field} value={value} onChange={onChange} id={id} />
+    case 'money':
+      return <MoneyFieldInput field={field} value={value} onChange={onChange} id={id} />
+    case 'number':
+      return (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={id}>
+            {field.label}
+          </label>
+          <input
+            id={id}
+            className={styles.input}
+            type="number"
+            inputMode="numeric"
+            dir="ltr"
+            min={field.min}
+            max={field.max}
+            value={value === null || value === undefined ? '' : String(value)}
+            onChange={(event) => {
+              if (event.target.value === '') {
+                onChange(field.nullable ? null : 0)
+                return
+              }
+              const parsed = Number(event.target.value)
+              if (Number.isFinite(parsed)) onChange(parsed)
+            }}
+          />
+        </div>
+      )
+    case 'datetime':
+      return (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={id}>
+            {field.label}
+          </label>
+          {/* Read and written as Riyadh wall-clock time (UTC+3 all year). */}
+          <input
+            id={id}
+            className={styles.input}
+            type="datetime-local"
+            value={typeof value === 'string' && value !== '' ? isoToRiyadhLocal(value) : ''}
+            onChange={(event) => {
+              const local = event.target.value
+              if (local === '') {
+                onChange(field.nullable ? null : '')
+                return
+              }
+              onChange(riyadhLocalToIso(local))
+            }}
+          />
+        </div>
+      )
     case 'video': {
       const listId = `${id}-list`
       const clearable = field.nullable || field.required === false

@@ -337,6 +337,75 @@ describe('admin function: commerce settings save (P06 round 3, D34)', () => {
   })
 })
 
+describe('admin function: commerce policies approve (P07 round 2)', () => {
+  const body = { action: 'commerce-policies-approve', expectedVersion: 3 }
+
+  it('an editor or operations member is refused with 403 and nothing runs', async () => {
+    const rpc = vi.fn(async () => null)
+    for (const role of ['editor', 'operations'] as const) {
+      const response = await handleAdmin(post(body), { rpc, staff: staffAs(role, true), store: memoryStore() })
+      expect(response.status).toBe(403)
+      expect(((await response.json()) as { error: { code: string } }).error.code).toBe('FORBIDDEN')
+    }
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('an owner without a fresh TOTP is told to step up and the RPC is not called', async () => {
+    const rpc = vi.fn(async () => null)
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner'), store: memoryStore() })
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: { code: 'STEP_UP_REQUIRED' } })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('a body without expectedVersion is 422 with field errors', async () => {
+    const rpc = vi.fn(async () => null)
+    const response = await handleAdmin(post({ action: 'commerce-policies-approve' }), {
+      rpc,
+      staff: staffAs('owner', true),
+      store: memoryStore(),
+    })
+    expect(response.status).toBe(422)
+    expect(((await response.json()) as { error: { code: string; fields: unknown } }).error.fields).toBeTruthy()
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('a stale version (SQL 40001) answers 409 CONFLICT', async () => {
+    const rpc: Rpc = async () => {
+      throw Object.assign(new Error('stale version'), { code: '40001' })
+    }
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ error: { code: 'CONFLICT' } })
+  })
+
+  it('a missing required policy (SQL P0001) answers 422 POLICIES_NOT_PUBLISHED', async () => {
+    const rpc: Rpc = async () => {
+      throw Object.assign(new Error('Publish the store, delivery and refund policies first.'), { code: 'P0001' })
+    }
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'POLICIES_NOT_PUBLISHED', message: 'انشر سياسات المتجر والتوصيل والاسترجاع أولًا.' },
+    })
+  })
+
+  it('a valid approval calls the SQL function as the actor and passes its reply through', async () => {
+    const calls: Array<[string, Record<string, unknown>]> = []
+    const reply = { version: 4, policyRevisions: { store: 2, delivery: 1, refund: 1 } }
+    const rpc: Rpc = async (fn, args) => {
+      calls.push([fn, args])
+      return reply
+    }
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true, data: reply })
+    expect(calls).toEqual([
+      ['commerce_policies_approve', { p_actor: '11111111-1111-4111-8111-111111111111', p_expected_version: 3 }],
+    ])
+  })
+})
+
 describe('outbox function (jobs bearer gate)', () => {
   const request = (authorization?: string) =>
     new Request('http://127.0.0.1:54321/functions/v1/outbox', {

@@ -84,6 +84,7 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
         {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/email">البريد</Link>}
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/content">المحتوى</Link>}
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/media">المكتبة</Link>}
+        {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/store">المتجر</Link>}
         {gate.role === 'owner' && <Link href="/admin/stats">الإحصاءات</Link>}
         {gate.role === 'owner' && <Link href="/admin/settings">الإعدادات</Link>}
         <Link href="/admin/security">الأمان</Link>

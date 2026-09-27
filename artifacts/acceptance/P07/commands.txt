@@ -73,3 +73,48 @@ demo catalog: 2 x paper 6900 + e-book 3500 (its id sent upper-case), Tabuk, DEMO
 subtotal 17300, discount 1730, shipping 3500, total 19070, no stock field on any line.
 Screenshots and next-env.d.ts the e2e run rewrote were restored.
 Not run: deno check (deno is not installed on this machine).
+
+2026-09-27 Round 2: the store admin and approved policies (glm-worker), audited
+
+Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P07/brief-r2-store-admin.md at
+152dff6; 116 turns, 40.0 min; exit 0, no permission denials. Diff: 42 paths, all inside the lock
+allowlist. Its report: unit 356, test:db 174 passed with 3 failures it called pre-existing
+(checkout.test.ts SELLER_NOT_CONFIGURED and POLICIES_NOT_CONFIGURED, commerce-settings.test.ts
+"the owner reads the singleton row"), build 0, e2e store-admin + cms + checkout-api 16/16.
+Orchestrator audit (every changed file read): 20260927170000_policy_approval.sql rechecks an
+active owner, locks the settings row, refuses a stale version (40001) and unpublished required
+policies (P0001), approves only published revisions, writes one audit row, and only
+service_role executes it; the admin action adds owner + fresh TOTP before it. The table screens
+write only through RLS and column grants, with version-checked updates (a stale save updates
+zero rows and keeps the typed values), no delete anywhere (retire by status or enabled), money
+parsed from text into integer halalas without float arithmetic, and a unit test proving every
+config writes only granted columns.
+The three failures were real test-isolation bugs, not the worker's: the orchestrator's local
+demo seed (D37) fills the settings row, and those tests assumed a pristine one. checkout.test.ts
+now clears the seller and policies in beforeAll (afterAll already restores the row);
+commerce-settings.test.ts compares the function's answer with the row as it stands.
+Fixes by the orchestrator:
+1. Saving waits for valid values (no drafts here, a save is live), and the error list names
+   the field's Arabic label instead of the column; the number and money schemas carry Arabic
+   messages instead of Zod's English defaults.
+2. Empty cells and read-only values say «لا يوجد» (or the field's own hint, «غير مسعّر: …»)
+   instead of a bare dash (DESIGN-AUDIT 2, as in the walk-through).
+3. The form's heading is the record's own name (a title, a city, a code, a customer), not the
+   table's label.
+4. Lists state their ceiling («تعرض القائمة أول 500 سجل.») instead of truncating silently.
+5. A coupon's product scope hides archived products unless the coupon already names them.
+Checks after the fixes: supabase db reset -> 0; db:import -> 0; db:demo-catalog -> 0;
+pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 356/356); TEST_ENV=local pnpm test:db with
+the demo seed in place -> 0 (14 files, 177/177), the demo settings left as found; pnpm build,
+check:export (244 scanned, no secrets), check:budgets (142.1 KiB) -> 0; e2e store-admin + cms +
+checkout-api -> 0, 16/16, then store-admin again after the last fix -> 9/9. After the runs: no
+published fixture product, no enabled fixture rate or coupon, only DEMO10.
+Screenshots reviewed (artifacts/acceptance/P07/screenshots/, 360 and 1440): the store home, the
+products list, a product with its variant cards, the rates list, the coupon form (only live
+products in its scope after fix 5) and the settings policy block. The riyal amounts render
+«ر.س» as the Saudi riyal sign through Thmanyah's ligature. The Next dev button overlaps the
+store home's last line at 360 in development only.
+The "without code changes" proof (WORK-PACKAGES P07): the e2e creates a published non-book
+product with a physical variant at 45.50 and stock 3 and a city rate in the admin, the checkout
+function quotes it at 4550 + 2500 = 7050, and with checkout on a create reaches a persisted
+pending order.

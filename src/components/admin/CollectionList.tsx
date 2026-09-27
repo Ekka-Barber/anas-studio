@@ -10,7 +10,14 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-import { COLLECTION_LABELS, documentTitle, roomSchemas, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
+import {
+  COLLECTION_LABELS,
+  documentTitle,
+  POLICY_DOC_IDS,
+  roomSchemas,
+  SITE_SETTINGS_DOC_ID,
+  type Collection,
+} from '@/admin/collections'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { documentHref } from '@/lib/supabase/functions'
 
@@ -57,14 +64,18 @@ export function CollectionList({ collection }: { collection: Collection }) {
     })()
   }, [collection])
 
+  // Fixed documents (rooms, site settings, policies) are always listed, even
+  // before a first save; posts and taxonomies list what exists.
   const docIds: string[] =
     collection === 'rooms'
       ? Object.keys(roomSchemas)
       : collection === 'site_settings'
         ? [SITE_SETTINGS_DOC_ID]
-        : rows
-          ? Array.from(rows.keys())
-          : []
+        : collection === 'policies'
+          ? [...POLICY_DOC_IDS]
+          : rows
+            ? Array.from(rows.keys())
+            : []
 
   function createPost() {
     router.push(documentHref('posts', crypto.randomUUID().toLowerCase()))

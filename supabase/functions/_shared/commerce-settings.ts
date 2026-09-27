@@ -39,4 +39,10 @@ export const commerceSettingsSaveSchema = z.strictObject({
   settings: commerceSettingsSchema,
 })
 
+/** The P07 round 2 approval's whole body: `{ action, expectedVersion }`. */
+export const commercePoliciesApproveSchema = z.strictObject({
+  action: z.literal('commerce-policies-approve'),
+  expectedVersion: z.number().int().min(0),
+})
+
 export type CommerceSettings = z.infer<typeof commerceSettingsSchema>

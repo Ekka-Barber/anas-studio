@@ -28,6 +28,9 @@ export type FieldType =
   | 'slug'
   | 'relation'
   | 'richtext'
+  | 'number'
+  | 'money'
+  | 'datetime'
 
 interface FieldBase {
   name: string
@@ -40,11 +43,19 @@ interface FieldBase {
 }
 
 export type Field =
-  | (FieldBase & { type: 'text' | 'textarea' | 'paragraphs' | 'boolean' | 'image' | 'video' | 'date' | 'slug' | 'relation' | 'richtext' })
+  | (FieldBase & {
+      type: 'text' | 'textarea' | 'paragraphs' | 'boolean' | 'image' | 'video' | 'date' | 'slug' | 'relation' | 'richtext' | 'datetime'
+    })
   // `optionLabels` gives the Arabic text shown for each stored option value.
   | (FieldBase & { type: 'select'; options: readonly string[]; optionLabels?: Readonly<Record<string, string>> })
   | (FieldBase & { type: 'group'; fields: readonly Field[] })
   | (FieldBase & { type: 'list'; fields: readonly Field[]; hideable?: boolean })
+  // P07 round 2: an integer within `min`/`max`, integer halalas (D06) with an
+  // optional `min`/`max` — `min: 0` where a table allows a zero fee — and an
+  // ISO timestamp. `unit: 'percent'` types a coupon's basis points as a
+  // percentage (10 → 1000), with the same two-decimal folding as riyals.
+  | (FieldBase & { type: 'number'; min?: number; max?: number })
+  | (FieldBase & { type: 'money'; min?: number; max?: number; unit?: 'percent'; nullHint?: string })
 
 /**
  * The plain value shape a field list validates to, computed from the field
@@ -57,8 +68,9 @@ export type Field =
  */
 // prettier-ignore
 type BaseValue<F extends Field> =
-  F extends { type: 'text' | 'textarea' | 'slug' | 'date' | 'image' | 'video' } ? string :
+  F extends { type: 'text' | 'textarea' | 'slug' | 'date' | 'image' | 'video' | 'datetime' } ? string :
   F extends { type: 'paragraphs' | 'relation' } ? string[] :
+  F extends { type: 'number' | 'money' } ? number :
   F extends { type: 'boolean' } ? boolean :
   F extends { type: 'select'; options: infer O } ? (O extends readonly (infer S extends string)[] ? S : string) :
   F extends { type: 'richtext' } ? RichTextDocument :
@@ -115,6 +127,22 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
       return z.array(slugSchema)
     case 'date':
       return isoDateSchema
+    case 'datetime':
+      return isoDateSchema
+    case 'number': {
+      let schema = z.number({ message: 'أدخل رقمًا.' }).int('أدخل عددًا صحيحًا.')
+      if (field.min !== undefined) schema = schema.min(field.min, `أقل قيمة ${field.min}.`)
+      if (field.max !== undefined) schema = schema.max(field.max, `أكبر قيمة ${field.max}.`)
+      return schema
+    }
+    case 'money': {
+      const min = field.min ?? 1
+      return z
+        .number({ message: field.unit === 'percent' ? 'أدخل نسبة.' : 'أدخل مبلغًا.' })
+        .int()
+        .min(min, min === 0 ? 'لا يقل عن صفر.' : 'أدخل قيمة أكبر من صفر.')
+        .max(field.max ?? 10_000_000, 'القيمة أكبر من المسموح.')
+    }
     case 'richtext':
       // D14 allowlist (src/admin/richtext.ts).
       return richTextSchema

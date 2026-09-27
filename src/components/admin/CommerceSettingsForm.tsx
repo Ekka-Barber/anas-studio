@@ -5,13 +5,18 @@
  * fills before the store opens. Read through `commerce_settings_get`, saved
  * through the `admin` Edge Function's `commerce-settings-save` action behind
  * the same TOTP step-up dialog as the team screen; a STEP_UP_REQUIRED reply
- * opens the dialog and the same save retries exactly once. Payment stays off
- * until the payment gateway (P08) and there is no tax field of any kind
- * (D34): prices are what the buyer pays. Only existing admin CSS classes.
+ * opens the dialog and the same save retries exactly once. P07 round 2 adds
+ * the policy approval (`commerce-policies-approve`) through the same dialog:
+ * the owner approves the published policy revisions, listed here with their
+ * names and version numbers, and the checkout policy is what he approved.
+ * Payment stays off until the payment gateway (P08) and there is no tax
+ * field of any kind (D34): prices are what the buyer pays. Only existing
+ * admin CSS classes.
  */
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
 
+import { POLICY_DOC_LABELS, type PolicyDocId } from '@/admin/collections/policies'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 import { commerceSettingsSchema } from '../../../supabase/functions/_shared/commerce-settings.ts'
@@ -39,6 +44,12 @@ async function loadRow(): Promise<CommerceRow | null> {
 /** An empty input clears the field; the schema and the SQL take it from there. */
 const orNull = (value: string): string | null => (value.trim() === '' ? null : value)
 
+/** The approved revision's policy name and version, e.g. «سياسة المتجر: نسخة 3». */
+function policyName(kind: string, revision: unknown): string {
+  const label = POLICY_DOC_LABELS[kind as PolicyDocId] ?? kind
+  return `${label}: نسخة ${String(revision)}`
+}
+
 export function CommerceSettingsForm() {
   const [row, setRow] = useState<CommerceRow | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -47,9 +58,9 @@ export function CommerceSettingsForm() {
   const [registration, setRegistration] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
+  const [saved, setSaved] = useState<string | null>(null)
   const [needsEnrollment, setNeedsEnrollment] = useState(false)
-  const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown> } | null>(null)
+  const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown>; successMessage: string } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -70,9 +81,9 @@ export function CommerceSettingsForm() {
     }
   }, [])
 
-  async function applyResult(ok: boolean, code: string, message: string, body: Record<string, unknown>) {
+  async function applyResult(ok: boolean, code: string, message: string, body: Record<string, unknown>, successMessage: string) {
     if (ok) {
-      setSaved(true)
+      setSaved(successMessage)
       const loaded = await loadRow()
       if (loaded) setRow(loaded)
       return
@@ -85,31 +96,31 @@ export function CommerceSettingsForm() {
         setNeedsEnrollment(true)
         return
       }
-      setStepUp({ factorId: verified.id, body })
+      setStepUp({ factorId: verified.id, body, successMessage })
       return
     }
     setError(message)
   }
 
-  async function runSave(body: Record<string, unknown>) {
+  async function runAction(body: Record<string, unknown>, successMessage: string) {
     setBusy(true)
     setError(null)
-    setSaved(false)
+    setSaved(null)
     setNeedsEnrollment(false)
     const result = await callFunction<{ version: number }>('admin', body)
     setBusy(false)
-    await applyResult(result.ok, result.ok ? '' : result.error.code, result.ok ? '' : result.error.message, body)
+    await applyResult(result.ok, result.ok ? '' : result.error.code, result.ok ? '' : result.error.message, body, successMessage)
   }
 
   async function onStepUpVerified() {
     if (!stepUp) return
-    const { body } = stepUp
+    const { body, successMessage } = stepUp
     setStepUp(null)
     setBusy(true)
     setError(null)
     const result = await callFunction<{ version: number }>('admin', body)
     setBusy(false)
-    await applyResult(result.ok, result.ok ? '' : result.error.code, result.ok ? '' : result.error.message, body)
+    await applyResult(result.ok, result.ok ? '' : result.error.code, result.ok ? '' : result.error.message, body, successMessage)
   }
 
   async function submit(event: FormEvent) {
@@ -120,11 +131,11 @@ export function CommerceSettingsForm() {
       sellerRegistration: orNull(registration),
     })
     if (!parsed.success) {
-      setSaved(false)
+      setSaved(null)
       setError(parsed.error.issues[0]?.message ?? 'تحقق من الحقول.')
       return
     }
-    await runSave({ action: 'commerce-settings-save', expectedVersion: row?.version ?? 0, settings: parsed.data })
+    await runAction({ action: 'commerce-settings-save', expectedVersion: row?.version ?? 0, settings: parsed.data }, 'تم الحفظ.')
   }
 
   if (loadError) return <p className={styles.error}>تعذّر تحميل إعدادات المتجر.</p>
@@ -141,10 +152,10 @@ export function CommerceSettingsForm() {
         </li>
         <li>الدفع مغلق حاليًا؛ يُفتح بعد ربط بوابة الدفع.</li>
         <li>
-          مراجعات السياسات:{' '}
+          مراجعات السياسات المعتمدة:{' '}
           {policyEntries.length === 0
             ? 'لم تُعتمد بعد'
-            : policyEntries.map(([kind, revision]) => `${kind}: ${String(revision)}`).join('، ')}
+            : policyEntries.map(([kind, revision]) => policyName(kind, revision)).join('، ')}
         </li>
         <li>إصدار الإعدادات: {row.version}</li>
         <li>آخر تغيير: {row.configuredAt ? formatRiyadh(row.configuredAt) : 'لا يوجد بعد'}</li>
@@ -198,6 +209,24 @@ export function CommerceSettingsForm() {
         </button>
       </form>
 
+      <h3>اعتماد السياسات</h3>
+      <p className={styles.message}>
+        يثبّت الاعتماد النسخ المنشورة من سياسات المتجر والتوصيل والاسترجاع (والخصوصية إن نُشرت) كما يقبَلها المشتري عند الدفع؛
+        انشر التعديلات من{' '}
+        <Link href="/admin/content/policies">السياسات</Link> أولًا.
+      </p>
+      <div className={styles.row}>
+        <button
+          type="button"
+          className={styles.button}
+          disabled={busy}
+          onClick={() => void runAction({ action: 'commerce-policies-approve', expectedVersion: row.version }, 'تم اعتماد السياسات.')}
+        >
+          اعتماد السياسات المنشورة
+        </button>
+      </div>
+      <p className={styles.message}>الشراء يفتح بعد ربط بوابة الدفع (المرحلة القادمة).</p>
+
       {needsEnrollment && (
         <p className={styles.error} role="alert">
           يلزم تفعيل تطبيق المصادقة أولًا. اذهب إلى <Link href="/admin/security">صفحة الأمان</Link>.
@@ -205,7 +234,7 @@ export function CommerceSettingsForm() {
       )}
       {saved && (
         <p className={styles.message} role="status">
-          تم الحفظ.
+          {saved}
         </p>
       )}
       {error && (

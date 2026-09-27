@@ -366,7 +366,58 @@ holds behind Turnstile, and a `cancel` releases them. The SQL contract is
   (`pnpm db:demo-catalog`) and the tests turn it on; P08 adds the owner's
   switch behind the verified payment gateway.
 
+## Store admin (P07)
+
+`/admin/store` (owner and operations; editors see nothing of the store):
+المنتجات, التوصيل, أكواد الخصم (owner only — RLS refuses coupons to anyone
+else) and العملاء, plus السياسات, which links to the policy documents under
+`/admin/content/policies`. While any demo row exists (D37), the page says
+«بيانات المتجر الحالية تجريبية، يحرّرها أنس أو يستبدلها قبل الافتتاح.»
+
+**Who can do what.** Only the owner writes catalog rows — every save is a
+Data API write under his JWT, and RLS plus the migration's column grants
+decide (a config that wrote a column the migration never grants is caught by
+`tests/unit/collections.test.ts`). Operations reads products, variants,
+rates and customers, sees values without inputs, and has no «جديد» button.
+The owner edits a customer's `name` and `phone` only; customers are written
+by checkout, never created by hand, and `email` is read-only because every
+order keeps its own contact snapshot.
+
+**Retire, never delete.** There is no delete button anywhere: orders
+reference rows. A product is retired with `الحالة = مؤرشف`, a variant, rate
+or coupon with its enabled flag off. Every price, stock, fee, coupon term
+and status change is written to `audit_events` by the catalog's own
+triggers, with old and new values for the financial columns.
+
+**Stale saves.** Every catalog row carries a `version` the database bumps on
+each update; a save sends the version it read, so when another session
+changed the row first the update matches zero rows: the form shows «تغيّر
+هذا السجل من جلسة أخرى. حمّل آخر نسخة ثم أعد التعديل.» and keeps what
+was typed. A duplicate slug, SKU, code or city answers with the field's own
+message, and a database check violation answers «تحقق من القيم.» with no
+internal detail.
+
+**Prices.** Money is entered in riyals (« ر.س») and stored as integer
+halalas (D06); Arabic-Indic digits are accepted, and an unpriced variant or
+city is null — never free: «غير مسعّر: لا يُعرض للبيع.» / «غير مسعّر: لا
+نوصل إليها». A coupon percentage is typed as a percentage (12.5) and
+stored as basis points (1250).
+
+**Policy approval.** Editors draft and publish policy text as content; it
+becomes the store's checkout policy only when the owner approves it:
+`/admin/settings` carries «اعتماد السياسات المنشورة», which runs through
+the same TOTP step-up dialog as the seller-details save. The approval
+records the published revisions of سياسة المتجر, سياسة التوصيل and
+سياسة الاسترجاع (plus سياسة الخصوصية when it is published) into
+`finance.commerce_settings.policy_revisions`, bumps the settings version and
+writes one audit row. Unpublished required policies answer «انشر سياسات
+المتجر والتوصيل والاسترجاع أولًا.», and a version changed in another
+session answers 409 like the seller save. The checkout compares the buyer's
+accepted revisions with the approved ones and refuses a mismatch. Buying
+itself opens only after the payment gateway is linked (P08).
+
 ## Backups (D35)
+
 
 Anas runs backups himself, on his own machine, whenever he chooses (the habit:
 after every editing session). One command writes one encrypted file; a second

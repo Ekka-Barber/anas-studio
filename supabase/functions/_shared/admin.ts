@@ -21,13 +21,17 @@
  * - `commerce-settings-save` (owner, fresh TOTP): the store's seller details
  *   through `commerce_settings_save`; a stale version answers 409 so the
  *   owner can reload (D34: no tax field anywhere).
+ * - `commerce-policies-approve` (owner, fresh TOTP): the P07 round 2
+ *   approval of the published policy revisions through
+ *   `commerce_policies_approve`; a stale version answers 409 and a missing
+ *   required policy answers 422 POLICIES_NOT_PUBLISHED.
  *
  * Every SQL function rechecks the actor's role itself; the role check here
  * only shapes the reply. Tokens and bodies are never logged.
  */
 import { createHash } from 'node:crypto'
 
-import { commerceSettingsSaveSchema } from './commerce-settings.ts'
+import { commercePoliciesApproveSchema, commerceSettingsSaveSchema } from './commerce-settings.ts'
 import { type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { emailProvider } from './email.ts'
 import { optionalEnv } from './env.ts'
@@ -159,6 +163,10 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
       return commerceSettingsSave(deps, staff.userId, body)
+    case 'commerce-policies-approve':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return commercePoliciesApprove(deps, staff.userId, body)
     default:
       return fail(422, 'INVALID', 'إجراء غير معروف.')
   }
@@ -350,6 +358,28 @@ async function commerceSettingsSave(deps: AdminDeps, actor: string, body: Record
   } catch (error) {
     if ((error as { code?: string } | null)?.code === '40001') {
       return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
+    }
+    return sqlFail(error)
+  }
+}
+
+/** The P07 round 2 policy approval. The role and step-up checks ran in `handleAdmin`. */
+async function commercePoliciesApprove(deps: AdminDeps, actor: string, body: Record<string, unknown>): Promise<Response> {
+  const parsed = commercePoliciesApproveSchema.safeParse(body)
+  if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
+  try {
+    const result = await deps.rpc('commerce_policies_approve', {
+      p_actor: actor,
+      p_expected_version: parsed.data.expectedVersion,
+    })
+    return ok(result)
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code
+    if (code === '40001') {
+      return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
+    }
+    if (code === 'P0001') {
+      return fail(422, 'POLICIES_NOT_PUBLISHED', 'انشر سياسات المتجر والتوصيل والاسترجاع أولًا.')
     }
     return sqlFail(error)
   }

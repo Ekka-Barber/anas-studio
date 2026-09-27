@@ -92,11 +92,17 @@ describe('commerce_settings_get', () => {
     const client = await signIn(owner.email)
     const { data, error } = await client.rpc('commerce_settings_get')
     expect(error).toBeNull()
+    // The row as it stands (the local demo seed, D37, may have filled it).
+    const row = (
+      await postgres.query<{ checkout_enabled: boolean; version: number; policy_revisions: unknown }>(
+        'select checkout_enabled, version, policy_revisions from finance.commerce_settings where id = 1',
+      )
+    ).rows[0]!
     expect(data).toMatchObject({
-      checkoutEnabled: false,
+      checkoutEnabled: row.checkout_enabled,
       currency: 'SAR',
-      version: expect.any(Number),
-      policyRevisions: {},
+      version: row.version,
+      policyRevisions: row.policy_revisions,
     })
     expect((await anonClient().rpc('commerce_settings_get')).error).toBeTruthy()
   })
