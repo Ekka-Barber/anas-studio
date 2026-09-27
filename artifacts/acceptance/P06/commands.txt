@@ -878,3 +878,39 @@ Checks after the fixes (Windows, full local stack):
   line) re-captured and reviewed; email and stats captures restored.
 Not run: a --linked backup (it would read and write the hosted project; P11 with the owner),
 macOS.
+
+2026-09-27 P06 round 3, step 4: privacy erase functions (I31) and contact retention (D36)
+
+Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-r3-privacy.md at
+49d6354; 30 turns, 10 min; exit 0. Its report: pnpm check 236; test:db 139 (8 new). Its
+judgment calls, both accepted: a repeat erase that removes nothing adds no audit row; the D36
+purge treats delivery IS NULL as "not reported bounced" (the brief's literal
+`delivery not in (...)` would have excluded every unreported send).
+
+Orchestrator audit (both files read line by line; 0 paths outside the allowlist): all three
+functions security definer with search_path '', no grant to anon, authenticated or
+service_role; the active-member refusal; auth.refresh_tokens.user_id matched as text; the
+append-only audit_events untouched except for one insert; D36's purge as specified; the
+unused retain_until column dropped after a repo-wide check.
+Finding (fixed by the orchestrator): the erase left the departed member's address in two
+places. (1) auth.audit_log_entries where someone else acted on them: the local log held 266
+such user_signedup/user_modified entries whose payload.traits.user_email is the target's
+address; only entries where they were the actor were deleted. Now those entries keep the
+action but their traits.user_email becomes the placeholder (traits.user_phone emptied).
+(2) finance.email_outbox rows addressed to them as a staff recipient: unsent ones are dropped,
+sent ones keep their delivery history under the placeholder. Also cleared: auth.users
+email_change and phone_change (set to '', which Auth expects, not null). A repeat call still
+matches nothing. The erase test now proves the address appears nowhere in the Auth log and
+nowhere in the outbox (it did before the erase), the unsent notice is gone and the sent one
+carries the placeholder. docs/privacy-data-map.md says the same.
+Checks: supabase db reset -> 0 (every migration from scratch); db:import -> 0 (5 documents);
+pnpm check -> 0 (unit 236/236); TEST_ENV=local pnpm test:db -> 0 (12 files, 139/139; the
+privacy file 8/8).
+Hosted check left for P11 (I32): that the migration role on the hosted project may update
+auth.users and auth.audit_log_entries (it may locally).
+e2e for step 4: owner-operations.spec.ts on a cold dev server -> 18/19 three times; the one
+failure is the settings test, whose page.goto('/admin/content/site_settings/edit?id=site') got
+the public 404 (the route did not change). Same test on a warm server -> 1/1; curl on a fresh
+server -> 200 for that route; with .next deleted (git-ignored build output) -> 19/19 cold in
+41 s. Cause: leftovers of the earlier `pnpm build` in .next confuse a cold `next dev`
+(recorded as I37); step 4 changed no route or UI. Screenshots and next-env.d.ts restored.

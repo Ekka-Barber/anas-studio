@@ -22,6 +22,8 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I31 — Append-only `audit_events` blocks deleting auth users
 
+**Status (2026-09-27, P06 round 3):** resolved: a departed staff member is erased, not deleted. `public.privacy_erase_staff` replaces the address everywhere (auth.users, the Auth log about them, the email outbox) and deletes their identities, sessions, factors and tokens; the Auth user and the append-only trail keep only the id. Runbook: `docs/privacy-data-map.md`. Buyers are guests (D08) and never touch auth.users.
+
 **Package:** P06 (recorded 2026-09-26 from the independent audit, L9). During round 2's local run the worker deleted 710 `auth.users` rows as superuser and found that the append-only `audit_events` trigger refuses to delete any auth user who has audit rows — a deletion a privacy request ("delete my account") must be able to perform. The round 3 privacy runbook must define the path: either the runbook archives/pseudonymizes instead of deleting, or the trigger gains an owner-executable purge procedure with its own audit record. Nothing in the current plan covers it; `docs/operations.md` should state the chosen path once decided.
 
 ## I32 — hosted checks the local stack cannot make
@@ -41,6 +43,10 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 ## I35 — the email job reads as stale on an idle site
 
 **Package:** P06 (found 2026-09-27 during round 3). Since D32, `outbox_kick()` calls the `outbox` function only while a row is due, so on a quiet hosted site the last `email_outbox` run can be hours old. The owner home still applies M4's 10-minute rule to that job and would show «آخر تشغيل قديم — تأكد من الجدولة» even though nothing is wrong. Locally it never shows, because the Vault values are unset and the e2e runs the job itself. A correct signal is "a row has been due for more than a few minutes and no run followed", which needs a small SQL function the home can call. Decide before P11.
+
+## I37 — a cold `next dev` after `pnpm build` 404s an admin route
+
+**Package:** P06 (found 2026-09-27 during the step 4 acceptance). After `pnpm build` (the static export), a cold `next dev` answered the public 404 for `/admin/content/site_settings/edit?id=site` when a run reached that route late: `owner-operations.spec.ts` alone failed its settings test three times cold, while the same test passes on a warm server, the full suite passes (earlier specs reach the edit route first), and with `.next` deleted the spec passed 19/19 cold. Production is unaffected: the export ships that page as a file. Fix: give the e2e dev server its own dist dir so a build never shares state with it (for example `distDir: process.env.NEXT_DIST_DIR ?? '.next'` in `next.config.ts`, `NEXT_DIST_DIR=.next-e2e` in the Playwright web server command, and the folder git-ignored). Until then, delete `.next` before an e2e run that follows a build.
 
 ## Small UI items for when design reopens
 
