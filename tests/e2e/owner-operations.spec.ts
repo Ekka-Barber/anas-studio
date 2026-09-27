@@ -39,6 +39,9 @@ let noticeRecipient: string
 // Round 2 (browser) state: the email fixture rows this spec inserts (removed
 // in afterAll).
 const fixtureRecipients: string[] = []
+// The store settings row the seller-save test overwrites, restored in afterAll
+// (the local demo seed fills it, D37).
+let savedSettings: Record<string, unknown>
 
 /** Inserts one attention-worthy outbox row directly (local postgres fixture). */
 async function insertOutboxRow(rowStatus: string, firstAttemptAgoSeconds: number | null): Promise<string> {
@@ -62,6 +65,11 @@ async function insertOutboxRow(rowStatus: string, firstAttemptAgoSeconds: number
 test.beforeAll(async () => {
   db = new Client({ connectionString: status.DB_URL })
   await db.connect()
+  savedSettings = (
+    await db.query(
+      'select checkout_enabled, seller_legal_name, seller_address, seller_registration, policy_revisions, version, configured_at, approved_by from finance.commerce_settings where id = 1',
+    )
+  ).rows[0]!
   // Guarantees at least one active notice recipient for every submission.
   const owner = await createStaff('owner')
   ownerEmail = owner.email
@@ -85,6 +93,21 @@ test.afterAll(async () => {
       [fixtureRecipients],
     )
   }
+  await db.query(
+    `update finance.commerce_settings set checkout_enabled = $1, seller_legal_name = $2, seller_address = $3,
+       seller_registration = $4, policy_revisions = $5::jsonb, version = $6, configured_at = $7, approved_by = $8
+     where id = 1`,
+    [
+      savedSettings.checkout_enabled,
+      savedSettings.seller_legal_name,
+      savedSettings.seller_address,
+      savedSettings.seller_registration,
+      JSON.stringify(savedSettings.policy_revisions),
+      savedSettings.version,
+      savedSettings.configured_at,
+      savedSettings.approved_by,
+    ],
+  )
   await db.end()
 })
 

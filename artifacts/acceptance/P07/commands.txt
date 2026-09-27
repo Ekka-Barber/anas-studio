@@ -259,7 +259,8 @@ Committed as d10dd1d; Linux CI on d10dd1d (run 36345088302) -> success: lint, ty
 frozen sources, copy, local Supabase with the import, static build with no published product,
 export check, budget.
 
-2026-09-27 P07 acceptance battery (ACCEPTANCE_PACKAGE=P07), orchestrator, Windows: INCOMPLETE
+2026-09-27 P07 acceptance battery (ACCEPTANCE_PACKAGE=P07), orchestrator, Windows: e2e cut short
+(completed by the rerun of 2026-09-28 below)
 
 At d10dd1d, one script, every exit code recorded; port 3000 free before the run. (A first attempt
 stopped at db:import because the script exported DATABASE_URL only later; fixed, rerun from the
@@ -288,18 +289,43 @@ reset.)
   2.8 GB, ZCode 2.3 GB, 4.3 GB compressed). Not an acceptance pass: store-admin and visual must
   run to completion before P07 is offered for acceptance.
 After the run: no leftover next dev, Playwright or Chromium process; the P05, P06 and P07
-screenshots and next-env.d.ts the run rewrote were restored; store-admin's afterAll never ran,
-so its test seller stayed in finance.commerce_settings, and pnpm db:demo-catalog put the demo
-settings back (one settings update, nothing else changed). The run's 16 pending holds expire
-through the checkout-expire job. Its report and traces (artifacts/acceptance/P07/playwright*,
-untracked) are from the incomplete run and are not evidence; the next acceptance run replaces
-them.
+screenshots and next-env.d.ts the run rewrote were restored; a test seller was left in
+finance.commerce_settings, and pnpm db:demo-catalog put the demo settings back (one settings
+update, nothing else changed). (Recorded at first as store-admin's skipped afterAll; the rerun
+below showed the real cause.) The run's 16 pending holds expired through the checkout-expire
+job. Its report and traces were replaced by the rerun.
 
-P07 proof map (WORK-PACKAGES P07), to confirm when the e2e completes:
+2026-09-28 P07 acceptance e2e, rerun to completion (owner: "go, rerun the P07 e2e")
+
+The owner closed other sessions first: 11.8 GB free before the run (6.2 GB at the crash), MCP
+node processes down from 75 to 8. Port 3000 free, local stack as documented (demo catalog, the
+demo seller DEMO-0000, no pending hold).
+- ACCEPTANCE_PACKAGE=P07 pnpm test:e2e at 45dbfa6 -> 0, 95/95 in 6.3 min on a cold .next/e2e
+  server: auth 2, cart-checkout 11, checkout-api 4, cms 3, media 8, owner-operations 20,
+  public 18, store-admin 9, visual 20. Report artifacts/acceptance/P07/playwright-report/
+  (index.html only, no failure trace), .last-run.json "passed".
+- The rest of the battery stands from the d10dd1d run above (build empty and seeded, test:db
+  178, unit 375, export, budgets); since then only tests and records changed (45dbfa6: one unit
+  case, unit 376).
+Screenshots: the P07 captures this run re-took were reviewed and kept: the store admin (products,
+a product with its variant card, rates, the coupon form, the settings policy block) and the
+public cart, checkout and order. The admin lists now also show the day's archived products and
+disabled rates from test runs (orders reference them, so they cannot be deleted); the screens
+and their behaviour are as in round 2. The P01, P05 and P06 captures and next-env.d.ts it
+rewrote were restored.
+Finding, fixed: after this complete run the settings row still held a test seller. The cause is
+P06's owner-operations.spec.ts: «the owner saves the store seller details through the step-up
+dialog» saves a seller through the admin and never restored the row, written before the demo
+seed (D37) filled it, so every e2e run replaced the local demo seller. The spec now saves the row
+in beforeAll and restores it in afterAll, like store-admin and cart-checkout. Proof:
+pnpm db:demo-catalog (the demo seller back), lint 0 errors, typecheck 0, owner-operations
+20/20, and the row afterwards is still DEMO-0000.
+
+P07 proof map (WORK-PACKAGES P07), confirmed by the complete runs above:
 - A new non-book product reaches a persisted pending order without code changes: e2e
-  store-admin «the owner creates product, variant city rate without code changes», «the
-  checkout function prices admin-created catalog», «with checkout on (a fixture), create reaches
-  persisted pending order» (all three passed in the battery above).
+  store-admin «the owner creates a product, a variant and a city rate without code changes»,
+  «the checkout function prices the admin-created catalog», «with checkout on (a fixture), a
+  create reaches a persisted pending order» (passed in both runs).
 - Concurrent last unit and coupon: integration «five creates for the last unit of a stock-1
   variant: exactly one succeeds», «two creates for a coupon limited to one use», «two concurrent
   creates with one idempotency key: one order».

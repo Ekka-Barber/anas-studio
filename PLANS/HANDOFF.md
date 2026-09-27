@@ -35,7 +35,7 @@ Follow `CLAUDE.md`, `AGENTS.md` and `PLANS/README.md`. No lock is held: take `.a
 
 ## Status after the third session (2026-09-27)
 
-Step 1 is DONE (`d10dd1d`, details in `artifacts/acceptance/P07/commands.txt`). Step 3's battery ran at `d10dd1d` and is INCOMPLETE: every step passed except e2e, where 69 tests passed and `store-admin.spec.ts` and `visual.spec.ts` were cut short when the machine ran out of memory (crashes, no assertion failure). Next: with the owner's go-ahead and memory freed, run `ACCEPTANCE_PACKAGE=P07 pnpm test:e2e` to completion, record it, then ask the owner to accept P07 (the proof map is already in `commands.txt`). The orchestrator's lock for P07 is still held on the owner's machine.
+Step 1 is DONE (`d10dd1d`, details in `artifacts/acceptance/P07/commands.txt`). Step 3's battery is green: every step at `d10dd1d`, and the e2e, cut short there by a memory crash, rerun on 2026-09-28 at `45dbfa6` to 95/95. The proof map is in `commands.txt`. Next: the owner's P07 acceptance, then release the lock and start P08 (step 4). The orchestrator's lock for P07 is still held on the owner's machine until that acceptance.
 
 ## Next work, in order
 
