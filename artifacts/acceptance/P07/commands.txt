@@ -169,3 +169,14 @@ OPEN, for the next session (recorded as I38 and I39):
   mass delete, so it waits for the owner's decision.
 - Not yet reviewed: CartView, CheckoutForm, cart.ts beyond storage, store.ts, the policies page,
   store.module.css, the store screenshots, docs changes.
+
+2026-09-27 I39 resolved: every build starts without an earlier build's fetch cache (owner approved)
+
+The owner approved clearing Next's fetch cache before each build ("okay do stale-build fix
+(I39)"). package.json "build" now runs rmSync('.next/cache/fetch-cache', recursive, force) and
+then next build, so the same line runs locally, in CI and on Cloudflare Pages (which restores
+.next/cache between builds). Proof, the way I39 was found: 11 cached entries before; every
+product archived as the superuser; pnpm build -> 0, out/store.html says «لا توجد منتجات بعد.» and
+lists no demo product; pnpm db:demo-catalog; pnpm build -> 0, out/store.html lists the demo
+products again and out/store/ holds their 3 pages; check:export -> 0 (25 required files, 299
+scanned, no secrets); check:budgets -> 0 (largest 143.6 KiB).

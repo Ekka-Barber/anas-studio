@@ -62,6 +62,8 @@ Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whos
 
 ## I39: a build can reuse an earlier build's data (fetch cache)
 
+**Status (2026-09-27):** resolved with the owner's approval: `pnpm build` removes `.next/cache/fetch-cache` before `next build`, locally, in CI and on Pages. Proven with an archived catalog (the build shows the empty store) and after reseeding (the demo products return). Evidence in `artifacts/acceptance/P07/commands.txt`.
+
 **Package:** P07 (found 2026-09-27, round 3); affects every page built from Supabase (D32). The build loaders use plain `fetch`, and Next keeps responses in `.next/cache/fetch-cache` across builds. Proof: after archiving every product, `pnpm build` wrote `out/store.html` still listing the three demo products while `generateStaticParams` in the same build saw none. Cloudflare Pages keeps `.next/cache` between builds, so a rebuild after a publish could serve stale content or prices (checkout re-prices live, so no wrong charge). Candidate fixes, for the owner to choose: clear `.next/cache/fetch-cache` before `next build` (the orchestrator's attempt was denied by the auto-mode classifier as a mass delete), or a per-fetch cache option that keeps the static export valid.
 
 ## Small UI items for when design reopens

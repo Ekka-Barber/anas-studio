@@ -53,10 +53,7 @@ Follow `CLAUDE.md`, `AGENTS.md` and `PLANS/README.md`. No lock is held: take `.a
      - for I38, find why `next dev` 404s the fixture product page mid-run, or seed the cart through localStorage in the flows that do not test the product page.
    - **Review the store screenshots** (`artifacts/acceptance/P07/screenshots/store-*.png`) at 360 and 1440.
    - Then run the full battery and commit.
-2. **I39 needs the owner's choice before P11:**
-   - The build reuses earlier fetch responses from `.next/cache/fetch-cache`, so a Pages rebuild can serve stale content and store data.
-   - Proven with an archived catalog still listed on `out/store.html`.
-   - Clearing that folder before `next build` was denied by the auto-mode classifier. Ask the owner to allow it, or find a per-fetch option that keeps the static export valid, and prove it the same way.
+2. **I39 is done** (owner approved): `pnpm build` clears `.next/cache/fetch-cache` first, so every build reads fresh data. Nothing to do.
 3. **Close P07:**
    - the acceptance battery with `ACCEPTANCE_PACKAGE=P07`;
    - the proof map in `commands.txt` (WORK-PACKAGES P07 proof list);
