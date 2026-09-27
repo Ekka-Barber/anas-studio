@@ -1031,3 +1031,61 @@ failed 2 tests only because the deliberate old-code check above left the started
 an unpublished restore; pnpm db:import --force republished the canonical content and both
 passed. Screenshots of every screen after the fixes: artifacts/acceptance/P06/walkthrough/.
 The security screenshots show the TOTP seed of a throwaway local test account.
+
+2026-09-27 P06 acceptance battery (ACCEPTANCE_PACKAGE=P06), orchestrator, Windows, full local stack
+
+At 556e910, one script, every exit code recorded; port 3000 free before the run:
+- pnpm install --frozen-lockfile -> 0
+- supabase db reset -> 0 (every migration from scratch, 20260927150000 included)
+- pnpm db:import -> 0 (5 documents)
+- pnpm check -> 0 (lint 0 errors, 3 old warnings; typecheck; check:frozen 50 files unchanged;
+  check:copy 103 files; unit 237/237)
+- TEST_ENV=local pnpm test:db -> 0 (12 files, 141/141)
+- pnpm build -> 0; pnpm check:export -> 0 (18 files, 178 scanned, no secrets);
+  pnpm check:budgets -> 0 (largest 142.1 KiB of 150)
+- ACCEPTANCE_PACKAGE=P06 pnpm test:e2e -> 0, 71/71 in 3.2 min on a cold .next/e2e server;
+  report in artifacts/acceptance/P06/playwright-report/, .last-run.json "passed"
+Linux CI on 556e910 (run 36320561040) -> success: typecheck, frozen sources, local Supabase with
+the import, static build, export check, budget.
+Screenshots: the eight P06 captures (home, email, stats, settings at 360 and 1440) re-captured
+by this run and reviewed (no em dash, «لا يوجد» in empty cells, the webhook step reads
+«(delivered, bounced, complained…)»); the P01 and P05 captures it rewrote and next-env.d.ts
+restored. Every admin screen after the fixes: artifacts/acceptance/P06/walkthrough/.
+
+P06 proof map (WORK-PACKAGES P06, with the D32/D35/D36 amendments):
+- Settings save and reload: e2e «settings: SEO and WhatsApp persist…» and «the owner saves the
+  store seller details through the step-up dialog».
+- A contact message survives an email outage, and its notice reaches the mailbox with Reply-To
+  after recovery: e2e «with no jobs run the message is stored…» and «a jobs run delivers the
+  notices through Mailpit…»; integration email-delivery «accepted end to end…Reply-To».
+- Dedupe and retry: forms «a repeated submission key stores and queues nothing new», throttles;
+  outbox backoff, attempt cap, lease expiry, skip-locked claims.
+- Signed delivery events, duplicated and reordered events, suppression, provider acceptance is
+  not delivery: e2e «a signed delivered webhook marks delivery; a forged signature is 401»;
+  integration email-delivery (13 cases); unit resend-webhook.
+- Quota exhaustion and priority: outbox «at quota − reserve priority 2 waits…».
+- Safe replay: outbox replay cases; e2e «email problems: replay exhausted, confirm uncertain,
+  suppressed is refused» and the operations replay flow.
+- Unauthorized stats denied, owner-only 5-minute cache: integration stats (6 cases).
+- Analytics fixture reconciles the response: unit analytics (window, filters, zero versus
+  unavailable, malformed answers).
+- Restore includes assets and roles: step 5, pnpm restore-check 44 tables and 222 objects
+  sha256-verified in 49.2 s (D35 footprint and prices in docs/costs.md).
+- Staff invite and sign-in mail in Mailpit: e2e auth «sign-in by code reaches /admin, enrols
+  TOTP, invites member through step-up».
+- Privacy runbook: docs/privacy-data-map.md; integration privacy-requests (5 cases, repeat
+  erasure is a no-op); D36 contacts-purge job.
+- Email job health on a quiet site (I35) and the site-build and media-sweep jobs (I29, I34):
+  outbox, static-site and e2e cases above.
+- Phase 2 gate: the walk-through entry above.
+Recorded, not closed by P06 (prerequisites stay explicit):
+- Customer privacy cases (cross-customer isolation, export, correction, accounting exceptions)
+  and the SQL paid/refund stats test need the customer and order tables: P07/P08, then P10.
+- Re-applying deletions after a restore is a documented procedure (the deletion ledger in
+  docs/privacy-data-map.md) on functions proven safe to repeat; a restore-then-reapply drill
+  has not been run. It belongs with the hosted restore drill (P10/P11).
+- Hosted only (P11, owner authorization): I28 Auth settings and Resend SMTP, I32 probes, the
+  migration role's rights on auth.users and auth.audit_log_entries, the first hosted backup,
+  the Analytics token, Google sign-in once an OAuth client exists.
+- Owner and Anas: E08 privacy-policy wording (D35 backups, D36 90-day retention), the R2 note,
+  I33 room videos, key rotation.
