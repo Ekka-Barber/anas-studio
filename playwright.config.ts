@@ -9,9 +9,18 @@ import { defineConfig, devices } from '@playwright/test'
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 
+// Routine runs write to the git-ignored test-results/, so they never overwrite
+// an accepted package's report; an acceptance run names its package
+// (ACCEPTANCE_PACKAGE=P06) to keep the report under artifacts/acceptance/P06/.
+const acceptancePackage = process.env.ACCEPTANCE_PACKAGE
+if (acceptancePackage && !/^P\d{2}$/.test(acceptancePackage)) {
+  throw new Error(`ACCEPTANCE_PACKAGE must look like P06, got "${acceptancePackage}"`)
+}
+const runDir = acceptancePackage ? `./artifacts/acceptance/${acceptancePackage}` : './test-results'
+
 export default defineConfig({
   testDir: './tests/e2e',
-  outputDir: './artifacts/acceptance/P00/playwright',
+  outputDir: `${runDir}/playwright`,
   timeout: 90_000,
   expect: { timeout: 20_000 },
   fullyParallel: false,
@@ -20,7 +29,7 @@ export default defineConfig({
   retries: 0,
   reporter: [
     ['list'],
-    ['html', { outputFolder: './artifacts/acceptance/P00/playwright-report', open: 'never' }],
+    ['html', { outputFolder: `${runDir}/playwright-report`, open: 'never' }],
   ],
   use: {
     baseURL,

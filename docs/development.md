@@ -272,7 +272,11 @@ pnpm check           # lint + typecheck + check:frozen + check:copy + test
 
 `pnpm test:e2e` starts `pnpm dev` itself unless one is already running at
 `http://localhost:3000` (the origin the local `contact` function accepts); it
-needs the local stack with the functions serving.
+needs the local stack with the functions serving. Its report goes to the
+git-ignored `test-results/playwright-report/`; for a package acceptance run, set
+`ACCEPTANCE_PACKAGE=P06` (for example) to keep the report under
+`artifacts/acceptance/P06/` instead. Accepted reports of other packages are
+never touched.
 
 ### `pnpm test:db` refuses a non-local database
 
