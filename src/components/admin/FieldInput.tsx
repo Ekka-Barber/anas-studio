@@ -146,6 +146,7 @@ function ImageFieldInput({
         className={styles.input}
         list={`${id}-list`}
         type="text"
+        dir="auto"
         value={typeof value === 'string' ? value : ''}
         onChange={(event) => onChange(event.target.value)}
       />
@@ -241,10 +242,13 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
           <label className={styles.label} htmlFor={id}>
             {field.label}
           </label>
+          {/* dir="auto": a Latin value (a slug, a link, an email, a phone
+              number) reads left to right, not as "started/". */}
           <input
             id={id}
             className={styles.input}
             type="text"
+            dir="auto"
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
           />
@@ -306,7 +310,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
           >
             {field.options.map((option) => (
               <option key={option} value={option}>
-                {option}
+                {field.optionLabels?.[option] ?? option}
               </option>
             ))}
           </select>
@@ -323,7 +327,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
           <div className={styles.field}>
             <span className={styles.label}>{field.label}</span>
             <button type="button" className={styles.buttonSecondary} onClick={() => onChange('')}>
-              إضافة صورة
+              إضافة مقطع
             </button>
           </div>
         )
@@ -338,6 +342,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
             className={styles.input}
             list={listId}
             type="text"
+            dir="auto"
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
           />

@@ -3,7 +3,7 @@ import { TeamView } from '@/components/admin/TeamView'
 
 export default function TeamPage() {
   return (
-    <AdminShell>
+    <AdminShell wide>
       <TeamView />
     </AdminShell>
   )

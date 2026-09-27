@@ -190,7 +190,7 @@ export async function handleContact(request: Request, rpc: Rpc = serviceRpc()): 
       // lost the unique insert: its twin already stored the message, so the
       // visitor is told it arrived — accurately and without any internal
       // detail. The 409 stays so the form's own retry logic still steps aside.
-      return fail(409, 'CONFLICT', 'وصلتنا رسالتك — لا حاجة للإعادة.')
+      return fail(409, 'CONFLICT', 'وصلتنا رسالتك، فلا حاجة لإرسالها مرة ثانية.')
     }
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }

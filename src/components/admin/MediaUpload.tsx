@@ -303,7 +303,7 @@ export function MediaUpload({
   return (
     <dialog
       ref={dialogRef}
-      className={styles.dialogWide}
+      className={`${styles.dialog} ${styles.dialogWide}`}
       onCancel={(event) => {
         if (busy) event.preventDefault()
       }}

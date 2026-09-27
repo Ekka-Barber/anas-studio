@@ -508,7 +508,7 @@ export function MediaLibrary() {
               {selected.derivatives.map((derivative) => (
                 <li key={derivative.key}>
                   {derivative.width}×{derivative.height}
-                  {derivative.bytes ? ` — ${formatBytes(derivative.bytes)}` : ''}
+                  {derivative.bytes ? `، ${formatBytes(derivative.bytes)}` : ''}
                 </li>
               ))}
             </ul>

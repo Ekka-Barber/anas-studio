@@ -10,7 +10,13 @@ import { type Field, schemaFromFields } from '../fields'
  * without deleting it, and the public loader drops hidden items.
  */
 export const jewelSchema = z.enum(['forest', 'midnight', 'plum', 'oud'])
-const JEWEL_FIELD = { name: 'jewel', label: 'اللون', type: 'select', options: ['forest', 'midnight', 'plum', 'oud'] } as const satisfies Field
+const JEWEL_FIELD = {
+  name: 'jewel',
+  label: 'اللون',
+  type: 'select',
+  options: ['forest', 'midnight', 'plum', 'oud'],
+  optionLabels: { forest: 'أخضر داكن', midnight: 'كحلي', plum: 'برقوقي', oud: 'عودي' },
+} as const satisfies Field
 
 export const roomVignetteFields = [{ name: 'id', label: 'المعرّف', type: 'image' }] as const satisfies Field[]
 export const roomVignetteSchema = schemaFromFields(roomVignetteFields)

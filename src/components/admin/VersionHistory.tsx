@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
 import type { Collection } from '@/admin/collections'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
-import { formatRiyadh } from './PublishBar'
+import { formatRiyadh } from '@/lib/format'
 import styles from './admin.module.css'
 
 interface VersionRow {

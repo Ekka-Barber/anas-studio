@@ -34,7 +34,7 @@ export function MediaPicker({
   }
 
   return (
-    <dialog ref={dialogRef} className={styles.dialogWide} onClose={onClose}>
+    <dialog ref={dialogRef} className={`${styles.dialog} ${styles.dialogWide}`} onClose={onClose}>
       <h2>اختيار من المكتبة</h2>
       <MediaBrowser folder={null} reloadToken={0} onSelect={choose} />
       <div className={styles.row}>

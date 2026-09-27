@@ -19,6 +19,17 @@ export function formatDate(value: Date | string): string {
   )
 }
 
+/**
+ * Riyadh wall-clock date and time for every admin screen. The space before
+ * «م»/«ص» is made unbreakable, so a narrow table cell never leaves the period
+ * on its own line.
+ */
+export function formatRiyadh(iso: string): string {
+  return new Intl.DateTimeFormat(LOCALE, { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' })
+    .format(new Date(iso))
+    .replace(/ (?=[مص]$)/u, ' ')
+}
+
 /** A bare year label ("2013"), always Latin digits regardless of caller locale. */
 export function formatYear(year: number): string {
   return new Intl.NumberFormat(LOCALE, { useGrouping: false }).format(year)

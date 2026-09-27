@@ -162,6 +162,7 @@ function Toolbar(): JSX.Element {
       <input
         className={styles.input}
         type="text"
+        dir="ltr"
         aria-label="رابط https"
         placeholder="https://"
         value={linkUrl}

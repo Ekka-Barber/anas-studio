@@ -87,7 +87,7 @@ export function MfaEnroll() {
 
   if (state.status === 'error') {
     return (
-      <div className={styles.page}>
+      <div>
         <h1>الأمان</h1>
         <p className={styles.error}>تعذّر تحميل بيانات المصادقة. حاول مرة أخرى.</p>
       </div>
@@ -96,7 +96,7 @@ export function MfaEnroll() {
 
   if (state.status === 'enrolled') {
     return (
-      <div className={styles.page}>
+      <div>
         <h1>الأمان</h1>
         <p>تطبيق المصادقة مفعّل.</p>
         {role === 'owner' && <p className={styles.message}>مطلوب لتفعيل إجراءات الفريق: الدعوة وتغيير الدور والإيقاف.</p>}
@@ -105,11 +105,13 @@ export function MfaEnroll() {
   }
 
   return (
-    <div className={styles.page}>
+    <div>
       <h1>الأمان</h1>
       <p>امسح رمز الاستجابة السريعة بتطبيق المصادقة، أو أدخل الرمز السري يدويًا.</p>
       <img className={styles.qr} src={state.enrollment.qrCode} alt="رمز الاستجابة السريعة لتطبيق المصادقة" />
-      <p className={styles.secret}>{state.enrollment.secret}</p>
+      <p>
+        <span className={styles.secret}>{state.enrollment.secret}</span>
+      </p>
       <form className={styles.form} onSubmit={verify}>
         <div className={styles.field}>
           <label className={styles.label} htmlFor="totp-code">

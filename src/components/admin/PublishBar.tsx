@@ -12,22 +12,9 @@ import { useState } from 'react'
 
 import type { Collection } from '@/admin/collections'
 import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument } from '@/lib/admin-publish'
+import { formatRiyadh } from '@/lib/format'
 
 import styles from './admin.module.css'
-
-/**
- * Riyadh wall-clock date and time for every admin screen. The calendar is
- * pinned: current Chromium defaults `ar-SA` to Umm al-Qura (Hijri) while Node
- * and older browsers give Gregorian, so without `-u-ca-gregory` the same
- * timestamp read differently per viewer.
- */
-export function formatRiyadh(iso: string): string {
-  return new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', {
-    timeZone: 'Asia/Riyadh',
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(iso))
-}
 
 /** `<input type="datetime-local">`'s value, read as Riyadh wall-clock time. */
 function riyadhLocalToIso(localValue: string): string {
@@ -60,6 +47,7 @@ export function PublishBar({
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [scheduleValue, setScheduleValue] = useState('')
+  const scheduleId = `${collection}-${docId}-schedule`
 
   async function run(
     label: string,
@@ -89,10 +77,32 @@ export function PublishBar({
         >
           نشر
         </button>
+        {canArchive && (
+          <button
+            type="button"
+            className={styles.buttonSecondary}
+            disabled={busy}
+            onClick={() => run('أرشفة', () => archiveDocument(collection, docId), true)}
+          >
+            أرشفة
+          </button>
+        )}
+        {previewPath && (
+          <a className={styles.buttonSecondary} href={previewPath} target="_blank" rel="noopener">
+            معاينة
+          </a>
+        )}
+      </div>
+      {/* The schedule time, its label and its buttons wrap as one group, so
+          on a phone the time never sits beside «نشر» as if it belonged there. */}
+      <div className={styles.row}>
+        <label className={styles.label} htmlFor={scheduleId}>
+          موعد الجدولة
+        </label>
         <input
+          id={scheduleId}
           className={styles.input}
           type="datetime-local"
-          aria-label="موعد الجدولة"
           value={scheduleValue}
           onChange={(event) => setScheduleValue(event.target.value)}
         />
@@ -115,21 +125,6 @@ export function PublishBar({
           >
             إلغاء الجدولة
           </button>
-        )}
-        {canArchive && (
-          <button
-            type="button"
-            className={styles.buttonSecondary}
-            disabled={busy}
-            onClick={() => run('أرشفة', () => archiveDocument(collection, docId), true)}
-          >
-            أرشفة
-          </button>
-        )}
-        {previewPath && (
-          <a className={styles.buttonSecondary} href={previewPath} target="_blank" rel="noopener">
-            معاينة
-          </a>
         )}
       </div>
       {liveSeq !== null && <p className={styles.message}>منشور حاليًا: نسخة {liveSeq}.</p>}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDate, formatNumber, formatYear, normalizeSaudiMobile, whatsappLink } from '../../src/lib/format'
+import { formatDate, formatNumber, formatRiyadh, formatYear, normalizeSaudiMobile, whatsappLink } from '../../src/lib/format'
 
 describe('format', () => {
   it('formats numbers with Latin digits, never Arabic-Indic', () => {
@@ -113,5 +113,12 @@ describe('normalizeSaudiMobile', () => {
     expect(normalizeSaudiMobile('‎+966 50 123 4567‏')).toBe('966501234567') // LRM … RLM
     expect(normalizeSaudiMobile('050 123 4567')).toBe('966501234567') // no-break spaces
     expect(normalizeSaudiMobile('؜05٠١234567')).toBe('966501234567') // ALM, mixed digits
+  })
+})
+
+describe('formatRiyadh', () => {
+  it('keeps the time and its period marker on one line (no breakable space before م)', () => {
+    // 11:45 UTC is 2:45 in the afternoon in Riyadh.
+    expect(formatRiyadh('2026-09-27T11:45:00Z')).toMatch(/2:45 م$/)
   })
 })

@@ -223,6 +223,9 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   const historyTable = page.locator('table')
   await historyTable.locator('tbody tr').last().getByRole('button', { name: 'استعادة' }).click()
   await expect(heroLine).toHaveValue(original)
+  // The edit was saved, so nothing is offered as unsaved work after the
+  // restore (the copy a save removed once came back and was offered here).
+  await expect(page.getByText('يوجد تعديل غير محفوظ محليًا لهذا المستند.')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'نشر' }).click()
   await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()

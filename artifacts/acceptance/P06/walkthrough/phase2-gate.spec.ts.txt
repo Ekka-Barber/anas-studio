@@ -1,0 +1,221 @@
+// P06 phase 2 gate walk-through, a one-off evidence run (not part of the
+// suite): acting as the owner, add and crop an image, write and publish a
+// post, edit and reorder a room section, then open every admin screen at 360
+// and 1440. Screenshots, overflow and console notes go to
+// artifacts/acceptance/P06/walkthrough/ for the orchestrator's review.
+import { appendFileSync, mkdirSync } from 'node:fs'
+import path from 'node:path'
+
+import { Client } from 'pg'
+import sharp from 'sharp'
+import { expect, test, type Page } from '@playwright/test'
+
+import { createOwner, signInByCode, status } from './helpers'
+
+const DIR = 'artifacts/acceptance/P06/walkthrough'
+const stamp = Date.now()
+function publicUrl(key: string): string {
+  return `${status.API_URL}/storage/v1/object/public/media-public/${key}`
+}
+const WARNING = 'بريد ينتظر الإرسال منذ أكثر من 10 دقائق. تأكد من الجدولة.'
+
+function note(file: string, line: string): void {
+  appendFileSync(path.join(DIR, file), `${line}\n`)
+}
+
+function watchConsole(page: Page, label: string): void {
+  page.on('console', (message) => {
+    if (message.type() === 'error') note('console.txt', `${label} ${page.url()} console.error: ${message.text()}`)
+  })
+  page.on('pageerror', (error) => note('console.txt', `${label} ${page.url()} pageerror: ${error.message}`))
+}
+
+/** Waits for the client-rendered data, then records overflow and a screenshot. */
+async function shot(page: Page, name: string): Promise<void> {
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByText('يحمّل...')).toHaveCount(0)
+  const { scroll, inner, height } = await page.evaluate(() => ({
+    scroll: document.documentElement.scrollWidth,
+    inner: window.innerWidth,
+    height: document.documentElement.scrollHeight,
+  }))
+  note('overflow.txt', `${name} scrollWidth=${scroll} innerWidth=${inner} scrollHeight=${height}`)
+  expect.soft(scroll, `${name} overflows horizontally`).toBeLessThanOrEqual(inner)
+  await page.screenshot({ path: path.join(DIR, `${name}.png`), fullPage: height <= 5000 })
+}
+
+test('phase 2 gate: the owner walks the admin', async ({ page, context, browser }) => {
+  test.setTimeout(15 * 60_000)
+  mkdirSync(DIR, { recursive: true })
+  note('overflow.txt', `run ${new Date().toISOString()}`)
+  note('console.txt', `run ${new Date().toISOString()}`)
+  watchConsole(page, 'owner')
+  const db = new Client({ connectionString: status.DB_URL })
+  await db.connect()
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const email = await createOwner('أنس في الجولة')
+  await signInByCode(page, email)
+
+  // 1. Add and crop an image: a real 1800x771 room photo, cropped 1:1 in the
+  //    browser, so the square derivatives prove the crop happened.
+  const photo = await sharp('public/images/built/02c-built-seven-lanterns-1800.webp').jpeg({ quality: 88 }).toBuffer()
+  const imageName = `جولة المرحلة الثانية ${stamp}`
+  await page.goto('/admin/media')
+  await page.getByRole('button', { name: 'رفع صورة' }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('input[type="file"]').setInputFiles({ name: `${imageName}.jpg`, mimeType: 'image/jpeg', buffer: photo })
+  await expect(dialog.getByRole('group', { name: 'النسبة' })).toBeVisible()
+  await dialog.getByRole('button', { name: '1:1', exact: true }).click()
+  await dialog.getByLabel('الوصف البديل').fill('سبعة فوانيس في بنيتُ هنا')
+  await dialog.getByLabel('الحقوق').fill('تصوير أنس')
+  await page.screenshot({ path: path.join(DIR, 'flow-media-crop-1440.png') })
+  await dialog.getByRole('button', { name: 'رفع', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  const tile = page.getByRole('button', { name: new RegExp(imageName) })
+  await expect(tile).toBeVisible()
+  await tile.click()
+  await shot(page, 'flow-media-details-1440')
+  const tileSrc = await tile.locator('img').getAttribute('src')
+  const mediaId = tileSrc?.match(/\/m\/([0-9a-f-]{36})\//)?.[1]
+  expect(mediaId, 'media id in the tile src').toBeTruthy()
+  const derivative = await page.request.get(publicUrl(`m/${mediaId}/720.webp`))
+  expect(derivative.status()).toBe(200)
+  const cropped = await sharp(await derivative.body()).metadata()
+  note('overflow.txt', `crop: original 1800x771, 720 derivative ${cropped.width}x${cropped.height} ${cropped.format}`)
+  expect([cropped.width, cropped.height, cropped.format]).toEqual([720, 720, 'webp'])
+
+  // 2. Write and publish a post.
+  await page.goto('/admin/content/posts')
+  await page.getByRole('button', { name: 'جديد' }).click()
+  await expect(page).toHaveURL(/\/admin\/content\/posts\/edit\?id=[0-9a-f-]{36}$/)
+  const postId = page.url().match(/id=([0-9a-f-]{36})$/)![1]!
+  await page.getByLabel('المعرّف').fill(`phase2-walk-${stamp}`)
+  await page.getByLabel('العنوان').fill('ما تعلّمته من حجر الرحى')
+  await page.getByLabel('مقتطف').fill('ملاحظة قصيرة كتبتها أثناء جولة لوحة التحكم.')
+  await page.getByLabel('الكاتب').fill('أنس')
+  const editor = page.getByLabel('محرر النص المنسق')
+  await editor.click()
+  await editor.pressSequentially('الحجر يدور ببطء، والدقيق يخرج ناعماً.')
+  await page.getByLabel('ظاهر').check()
+  await page.getByRole('button', { name: 'حفظ' }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+  await shot(page, 'flow-post-published-1440')
+
+  // 3. Edit and reorder a room section, preview, publish, see it public.
+  await page.goto('/admin/content/rooms/edit?id=started')
+  const heroLine = page.getByLabel('سطر البداية')
+  await expect(heroLine).toHaveValue(/./)
+  const original = await heroLine.inputValue()
+  const updated = `سطر من جولة المرحلة الثانية ${stamp}`
+  await heroLine.fill(updated)
+  const movements = page.getByRole('group', { name: 'المحطّات' }).locator('> div')
+  const secondYear = await movements.nth(1).locator('input[id$="-year"]').inputValue()
+  await movements.nth(1).getByRole('button', { name: 'أعلى' }).last().click()
+  await expect(movements.first().locator('input[id$="-year"]')).toHaveValue(secondYear)
+  await page.getByRole('button', { name: 'حفظ' }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.screenshot({ path: path.join(DIR, 'flow-room-saved-1440.png') })
+
+  const popupPromise = context.waitForEvent('page')
+  await page.getByRole('link', { name: 'معاينة' }).click()
+  const preview = await popupPromise
+  watchConsole(preview, 'preview')
+  await preview.waitForLoadState()
+  await expect(preview.getByText(updated)).toBeVisible()
+  await preview.setViewportSize({ width: 1440, height: 900 })
+  await preview.screenshot({ path: path.join(DIR, 'flow-room-preview-1440.png') })
+  await preview.close()
+
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.', { exact: false })).toBeVisible()
+  const visitor = await browser.newContext()
+  const visitorPage = await visitor.newPage()
+  watchConsole(visitorPage, 'visitor')
+  for (const width of [360, 1440]) {
+    await visitorPage.setViewportSize({ width, height: width === 360 ? 800 : 900 })
+    await visitorPage.goto('/started')
+    await expect(visitorPage.getByText(updated)).toBeVisible()
+    await expect(visitorPage.locator('#year-0-title')).toHaveText(secondYear)
+    await visitorPage.screenshot({ path: path.join(DIR, `flow-started-public-${width}.png`) })
+  }
+
+  // Put the room back as it was: restore the first version and publish.
+  await page.goto('/admin/content/rooms/edit?id=started')
+  await expect(heroLine).toHaveValue(updated)
+  await page.locator('table').locator('tbody tr').last().getByRole('button', { name: 'استعادة' }).click()
+  await expect(heroLine).toHaveValue(original)
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.', { exact: false })).toBeVisible()
+  await visitorPage.goto('/started')
+  await expect(visitorPage.getByText(original)).toBeVisible()
+  await visitor.close()
+
+  // 4. The I35 warning as the owner sees it: one row due 15 minutes ago and
+  //    no email run in the last 10 minutes (local Vault is empty, so pg_cron
+  //    never sends it).
+  const dedupeKey = `phase2-walk-${stamp}`
+  await db.query("delete from finance.job_runs where job = 'email_outbox' and finished_at > now() - interval '10 minutes'")
+  await db.query(
+    `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, next_at)
+     values ($1, 'contact_notice', 1, $2, '{"contactId":"00000000-0000-0000-0000-000000000000"}'::jsonb,
+             now() - interval '15 minutes')`,
+    [dedupeKey, `${dedupeKey}@example.com`],
+  )
+  for (const width of [360, 1440]) {
+    await page.setViewportSize({ width, height: width === 360 ? 800 : 900 })
+    await page.goto('/admin')
+    await expect(page.getByText(WARNING)).toBeVisible()
+    await shot(page, `flow-home-email-warning-${width}`)
+  }
+  await db.query('delete from finance.email_outbox where dedupe_key = $1', [dedupeKey])
+
+  // 5. Every admin screen at 360 and 1440.
+  const taxonomy = await db.query<{ doc_id: string }>(
+    "select doc_id from public.content_documents where collection = 'taxonomies' order by doc_id limit 1",
+  )
+  const screens: Array<[string, string]> = [
+    ['home', '/admin'],
+    ['content', '/admin/content'],
+    ['rooms-list', '/admin/content/rooms'],
+    ['room-edit', '/admin/content/rooms/edit?id=started'],
+    ['posts-list', '/admin/content/posts'],
+    ['post-edit', `/admin/content/posts/edit?id=${postId}`],
+    ['taxonomies-list', '/admin/content/taxonomies'],
+    ['site-settings-list', '/admin/content/site_settings'],
+    ['site-settings-edit', '/admin/content/site_settings/edit?id=site'],
+    ['media', '/admin/media'],
+    ['email', '/admin/email'],
+    ['stats', '/admin/stats'],
+    ['settings', '/admin/settings'],
+    ['team', '/admin/team'],
+    ['security', '/admin/security'],
+    ['preview', '/admin/preview?id=started'],
+  ]
+  if (taxonomy.rows[0]) screens.push(['taxonomy-edit', `/admin/content/taxonomies/edit?id=${taxonomy.rows[0].doc_id}`])
+  for (const width of [360, 1440]) {
+    await page.setViewportSize({ width, height: width === 360 ? 800 : 900 })
+    for (const [name, url] of screens) {
+      await page.goto(url)
+      await shot(page, `${name}-${width}`)
+    }
+  }
+
+  const signedOut = await browser.newContext()
+  const signInPage = await signedOut.newPage()
+  watchConsole(signInPage, 'signed-out')
+  for (const width of [360, 1440]) {
+    await signInPage.setViewportSize({ width, height: width === 360 ? 800 : 900 })
+    await signInPage.goto('/admin/sign-in')
+    await shot(signInPage, `sign-in-${width}`)
+  }
+  await signedOut.close()
+
+  // Leave the post as the cms suite does: archived.
+  await page.goto(`/admin/content/posts/edit?id=${postId}`)
+  await page.getByRole('button', { name: 'أرشفة' }).click()
+  await expect(page.getByText('أرشفة: تم بنجاح.')).toBeVisible()
+  await db.end()
+})

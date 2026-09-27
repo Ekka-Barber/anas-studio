@@ -11,6 +11,8 @@
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-body);
+  /* Checkboxes and the crop zoom slider take the theme, not browser blue. */
+  accent-color: var(--color-forest);
 }
 
 .nav {
@@ -379,6 +381,16 @@
 /* A form right under a meta list keeps the form's own rhythm. */
 .metaList + .form {
   margin-block-start: 1rem;
+}
+
+/* The draft preview's note sits above the full-width room, outside the admin
+   page, so it carries its own gutter instead of touching the window edge. */
+.previewNote {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-block-end: 1px solid var(--color-hairline);
+  background: var(--color-sand);
+  color: var(--color-ink);
 }
 
 .previewRow {

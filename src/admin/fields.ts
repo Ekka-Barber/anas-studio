@@ -41,7 +41,8 @@ interface FieldBase {
 
 export type Field =
   | (FieldBase & { type: 'text' | 'textarea' | 'paragraphs' | 'boolean' | 'image' | 'video' | 'date' | 'slug' | 'relation' | 'richtext' })
-  | (FieldBase & { type: 'select'; options: readonly string[] })
+  // `optionLabels` gives the Arabic text shown for each stored option value.
+  | (FieldBase & { type: 'select'; options: readonly string[]; optionLabels?: Readonly<Record<string, string>> })
   | (FieldBase & { type: 'group'; fields: readonly Field[] })
   | (FieldBase & { type: 'list'; fields: readonly Field[]; hideable?: boolean })
 

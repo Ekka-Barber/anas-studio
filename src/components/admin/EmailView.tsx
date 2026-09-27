@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
-import { formatRiyadh } from './PublishBar'
+import { formatRiyadh } from '@/lib/format'
 import styles from './admin.module.css'
 
 interface AttentionRow {
@@ -31,6 +31,8 @@ interface AttentionRow {
 const KIND_LABEL: Record<string, string> = { receipt: 'إيصال', contact_notice: 'إشعار رسالة', availability: 'إشعار توفر' }
 const STATUS_LABEL: Record<string, string> = { exhausted: 'مستنفد', uncertain: 'غير مؤكد', suppressed: 'محظور' }
 const DELIVERY_LABEL: Record<string, string> = { bounced: 'ارتد', complained: 'شكوى', failed: 'فشل' }
+/** An empty cell says so in words (a screen reader reads a bare dash as punctuation). */
+const NONE = 'لا يوجد'
 const SUPPRESSED_MESSAGE = 'المستلم محظور بعد ارتداد أو شكوى؛ لا يمكن الإرسال إليه.'
 /** `outbox_replay()` refuses anything but exhausted/uncertain rows (the
  * suppressed are hard-blocked), so the replay button only appears for them. */
@@ -174,7 +176,7 @@ export function EmailView() {
                     {STATUS_LABEL[row.status] ?? row.status}
                   </td>
                   <td data-label="التسليم" className={styles.cellNowrap}>
-                    {row.delivery ? (DELIVERY_LABEL[row.delivery] ?? row.delivery) : '—'}
+                    {row.delivery ? (DELIVERY_LABEL[row.delivery] ?? row.delivery) : NONE}
                   </td>
                   <td data-label="المحاولات" className={styles.cellNowrap}>
                     {row.attempts}
@@ -185,10 +187,10 @@ export function EmailView() {
                     className={styles.cellEllipsis}
                     title={row.last_error ?? undefined}
                   >
-                    {row.last_error ?? '—'}
+                    {row.last_error ?? NONE}
                   </td>
                   <td data-label="تاريخ المحاولة الأولى" className={styles.cellNowrap}>
-                    {row.first_attempt_at ? formatRiyadh(row.first_attempt_at) : '—'}
+                    {row.first_attempt_at ? formatRiyadh(row.first_attempt_at) : NONE}
                   </td>
                   <td data-label="إجراء">
                     {REPLAYABLE_STATUSES.has(row.status) ? (
@@ -201,7 +203,7 @@ export function EmailView() {
                         إعادة الإرسال
                       </button>
                     ) : (
-                      '—'
+                      NONE
                     )}
                     {rowError?.id === row.id && <p className={styles.error}>{rowError.message}</p>}
                   </td>

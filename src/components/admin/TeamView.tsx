@@ -122,19 +122,22 @@ export function TeamView() {
 
   if (members === null) {
     return (
-      <div className={styles.page}>
+      <div>
         <h1>الفريق</h1>
         {loadError ? <p className={styles.error}>{loadError}</p> : null}
       </div>
     )
   }
 
+  // The team page is wide (AdminShell `wide`) and the table turns into cards
+  // on phones, like the email screen: six columns inside the reading measure
+  // scrolled sideways and hid the revoke button.
   return (
-    <div className={styles.page}>
+    <div>
       <h1>الفريق</h1>
 
       <div className={styles.tableWrap}>
-        <table className={styles.table}>
+        <table className={`${styles.table} ${styles.responsive}`}>
           <thead>
             <tr>
               <th>الاسم</th>
@@ -142,7 +145,7 @@ export function TeamView() {
               <th>الدور</th>
               <th>الحالة</th>
               <th>تطبيق المصادقة</th>
-              <th></th>
+              <th>إجراء</th>
             </tr>
           </thead>
           <tbody>
@@ -150,9 +153,13 @@ export function TeamView() {
               const role = roleEdits[member.user_id] ?? member.role
               return (
                 <tr key={member.user_id}>
-                  <td>{member.display_name}</td>
-                  <td>{member.email}</td>
-                  <td>
+                  <td dir="auto" data-label="الاسم">
+                    {member.display_name}
+                  </td>
+                  <td dir="auto" data-label="البريد" className={styles.cellEllipsis} title={member.email}>
+                    {member.email}
+                  </td>
+                  <td data-label="الدور">
                     <div className={styles.row}>
                       <select
                         className={styles.input}
@@ -178,12 +185,16 @@ export function TeamView() {
                       </button>
                     </div>
                   </td>
-                  <td>{member.active ? 'نشط' : 'موقوف'}</td>
-                  <td>{member.has_totp ? 'مفعّل' : 'غير مفعّل'}</td>
-                  <td>
+                  <td data-label="الحالة" className={styles.cellNowrap}>
+                    {member.active ? 'نشط' : 'موقوف'}
+                  </td>
+                  <td data-label="تطبيق المصادقة" className={styles.cellNowrap}>
+                    {member.has_totp ? 'مفعّل' : 'غير مفعّل'}
+                  </td>
+                  <td data-label="إجراء">
                     <button
                       type="button"
-                      className={styles.buttonSecondary}
+                      className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
                       disabled={busy}
                       onClick={() =>
                         runAction({ action: 'set_active', userId: member.user_id, active: !member.active })

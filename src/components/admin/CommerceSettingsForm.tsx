@@ -17,7 +17,7 @@ import { callFunction } from '@/lib/supabase/functions'
 import { commerceSettingsSchema } from '../../../supabase/functions/_shared/commerce-settings.ts'
 
 import { StepUp } from './StepUp'
-import { formatRiyadh } from './PublishBar'
+import { formatRiyadh } from '@/lib/format'
 import styles from './admin.module.css'
 
 type CommerceRow = {

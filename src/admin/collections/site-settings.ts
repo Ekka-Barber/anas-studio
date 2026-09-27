@@ -41,9 +41,9 @@ export const contactFields = [
  * whatsapp must be a Saudi mobile in any everyday spelling
  * (`normalizeSaudiMobile`) and a filled email a plausible address. Exported
  * messages so SettingsView mirrors the exact same rule client-side. */
-export const WHATSAPP_ERROR = 'رقم واتساب غير صالح — لازم رقم سعودي يبدأ بـ 5، مثل 0501234567.'
+export const WHATSAPP_ERROR = 'رقم واتساب غير صالح. لازم رقم سعودي يبدأ بـ 5، مثل 0501234567.'
 export const CONTACT_EMAIL_PATTERN = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,63}$/
-export const CONTACT_EMAIL_ERROR = 'بريد التواصل غير صالح — لازم بريد كامل، مثل name@example.com.'
+export const CONTACT_EMAIL_ERROR = 'بريد التواصل غير صالح. لازم بريد كامل، مثل name@example.com.'
 
 export const siteSettingsFields = [
   { name: 'nav', label: 'التنقل', type: 'list', fields: navItemFields },

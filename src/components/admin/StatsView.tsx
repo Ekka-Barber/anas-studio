@@ -8,11 +8,10 @@
  */
 import { useEffect, useState } from 'react'
 
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 
-import { formatRiyadh } from './PublishBar'
 import styles from './admin.module.css'
 
 interface StatsPayload {
@@ -30,12 +29,12 @@ interface StatsPayload {
 }
 
 const REASON_LABEL: Record<string, string> = {
-  NOT_CONFIGURED: 'الإحصاءات غير مُعدّة بعد (تتطلب ANALYTICS_TOKEN و CLOUDFLARE_ZONE_ID).',
+  NOT_CONFIGURED: 'الإحصاءات غير مُعدّة بعد. تحتاج إلى ANALYTICS_TOKEN و CLOUDFLARE_ZONE_ID.',
   HTTP_ERROR: 'تعذّر الوصول إلى خدمة الإحصاءات.',
   TIMEOUT: 'انتهت مهلة الاستعلام.',
   GRAPHQL_ERROR: 'ردّ الإحصاءات يحتوي على خطأ.',
   SAMPLED: 'البيانات معيّنة (sampled)، فلا تُعرض أرقام تقديرية.',
-  UNEXPECTED_SHAPE: 'تعذّر قراءة بيانات الزيارات — حدّث الصفحة.',
+  UNEXPECTED_SHAPE: 'تعذّر قراءة بيانات الزيارات. حدّث الصفحة.',
 }
 
 export function StatsView() {
@@ -62,7 +61,7 @@ export function StatsView() {
     return (
       <div>
         <h1>الإحصاءات</h1>
-        <p className={styles.error}>غير متاحة — الإحصاءات للمالك فقط.</p>
+        <p className={styles.error}>غير متاحة: الإحصاءات للمالك فقط.</p>
       </div>
     )
   }
@@ -70,7 +69,7 @@ export function StatsView() {
     return (
       <div>
         <h1>الإحصاءات</h1>
-        <p className={styles.error}>تعذّر تحميل الإحصاءات — حدّث الصفحة وجرّب مرة ثانية.</p>
+        <p className={styles.error}>تعذّر تحميل الإحصاءات. حدّث الصفحة وجرّب مرة ثانية.</p>
       </div>
     )
   }
@@ -89,7 +88,7 @@ export function StatsView() {
 
       <section>
         <h2>المتجر</h2>
-        <p className={styles.message}>غير مُعدّ بعد — يبدأ مع المتجر.</p>
+        <p className={styles.message}>غير مُعدّ بعد. تظهر أرقامه عند افتتاح المتجر.</p>
       </section>
 
       <section>
@@ -98,7 +97,7 @@ export function StatsView() {
           <>
             <p>الزيارات في آخر 7 أيام: {formatNumber(stats.analytics.visits)}</p>
             <p className={styles.message}>
-              المدى: {formatRiyadh(stats.analytics.range.start)} — {formatRiyadh(stats.analytics.range.end)}
+              المدى: من {formatRiyadh(stats.analytics.range.start)} إلى {formatRiyadh(stats.analytics.range.end)}
             </p>
             <p className={styles.message}>وقت الجلب: {formatRiyadh(stats.analytics.fetchedAt)}</p>
             <h3>أكثر الصفحات طلبًا</h3>
@@ -108,7 +107,7 @@ export function StatsView() {
               <ul className={styles.metaList}>
                 {stats.analytics.topPaths.map((path) => (
                   <li key={path.path}>
-                    <span dir="ltr">{path.path}</span> — {formatNumber(path.count)}
+                    <span dir="ltr">{path.path}</span>: {formatNumber(path.count)}
                   </li>
                 ))}
               </ul>
@@ -117,7 +116,7 @@ export function StatsView() {
         ) : (
           // N2-UI: a raw reason code must never reach the owner; unknown
           // reasons (anything added server-side later) fall back to Arabic copy.
-          <p className={styles.message}>غير متاح — {REASON_LABEL[stats.analytics.reason] ?? 'خطأ غير معروف.'}</p>
+          <p className={styles.message}>غير متاح: {REASON_LABEL[stats.analytics.reason] ?? 'خطأ غير معروف.'}</p>
         )}
       </section>
 

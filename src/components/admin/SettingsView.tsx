@@ -142,16 +142,16 @@ export function SettingsView() {
 
       <section>
         <h2>حالة الإعداد</h2>
-        {statusError && <p className={styles.error}>تعذّر تحميل الحالة — هذه الصفحة للمالك فقط.</p>}
+        {statusError && <p className={styles.error}>تعذّر تحميل الحالة. هذه الصفحة للمالك فقط.</p>}
         {!statusError && !status && <p className={styles.message}>يحمّل...</p>}
         {status && (
           <ul className={styles.metaList}>
             <li>
-              البريد: {PROVIDER_LABEL[status.email.provider]} — عنوان المُرسِل {setOrNot(status.email.fromSet)}
+              البريد: {PROVIDER_LABEL[status.email.provider]}، وعنوان المُرسِل {setOrNot(status.email.fromSet)}
             </li>
             <li>
               حماية النماذج (Turnstile): {setOrNot(status.turnstile.configured)}
-              {status.turnstile.configured && status.turnstile.testSecret ? ' — بمفتاح اختباري' : ''}
+              {status.turnstile.configured && status.turnstile.testSecret ? '، بمفتاح اختباري' : ''}
             </li>
             <li>أحداث تسليم البريد (Webhook): {setOrNot(status.webhook)}</li>
             <li>مهام التشغيل: {setOrNot(status.jobs)}</li>
@@ -176,7 +176,7 @@ export function SettingsView() {
             (السحابة البرتقالية) على سجل CNAME. يكتمل التوثيق عادة خلال دقائق وقد يصل إلى 72 ساعة.
           </li>
           <li>
-            إضافة Webhook في Resend لأحداث التسليم (delivered, bounced, complained…) يشير إلى دالة{' '}
+            إضافة Webhook في Resend لأحداث التسليم (<span dir="ltr">delivered, bounced, complained…</span>) يشير إلى دالة{' '}
             <span dir="ltr">resend-webhook</span> في Supabase (<span dir="ltr">…supabase.co/functions/v1/resend-webhook</span>)،
             وحفظ سرّه كسرّ للدوال باسم <span dir="ltr">RESEND_WEBHOOK_SECRET</span>.
           </li>

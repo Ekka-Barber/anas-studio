@@ -7,9 +7,10 @@
  * `src/lib/admin-publish.ts`. Autosave keeps an unsaved local copy in
  * `localStorage` so a conflict or a closed tab never loses text.
  */
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
-import { collections, schemaFor, type Collection } from '@/admin/collections'
+import { collections, COLLECTION_LABELS, documentTitle, schemaFor, type Collection } from '@/admin/collections'
 import type { Field } from '@/admin/fields'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
@@ -156,10 +157,18 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collection, docId])
 
-  // Autosave: debounce 1s into localStorage, skipped until hydrated.
+  // Autosave: debounce 1s into localStorage, skipped until hydrated. A form
+  // equal to its saved version keeps no copy: the copy a save removed would
+  // otherwise come back a second later and, once a restore or another
+  // session changed the document, be offered as unsaved work. A copy still
+  // on offer stays until the user answers it.
   useEffect(() => {
     if (!hydratedRef.current) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (equalData(data, initialData)) {
+      if (!localOffer) window.localStorage.removeItem(draftKey(collection, docId))
+      return
+    }
     debounceRef.current = setTimeout(() => {
       const draft: StoredDraft = { baseSeq, data, savedAt: Date.now() }
       window.localStorage.setItem(draftKey(collection, docId), JSON.stringify(draft))
@@ -167,7 +176,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [data, baseSeq, collection, docId])
+  }, [data, initialData, localOffer, baseSeq, collection, docId])
 
   function clearStoredDraft() {
     window.localStorage.removeItem(draftKey(collection, docId))
@@ -213,6 +222,10 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
 
   return (
     <div className={styles.field}>
+      <p>
+        <Link href={`/admin/content/${collection}`}>{COLLECTION_LABELS[collection]}</Link>
+      </p>
+      <h1>{documentTitle(collection, docId, initialData)}</h1>
       {localOffer && (
         <div className={styles.row}>
           <p className={styles.message}>يوجد تعديل غير محفوظ محليًا لهذا المستند.</p>

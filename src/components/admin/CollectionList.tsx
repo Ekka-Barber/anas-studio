@@ -10,11 +10,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-import { COLLECTION_LABELS, ROOM_DOC_LABELS, roomSchemas, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
+import { COLLECTION_LABELS, documentTitle, roomSchemas, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { documentHref } from '@/lib/supabase/functions'
 
-import { formatRiyadh } from './PublishBar'
+import { formatRiyadh } from '@/lib/format'
 import styles from './admin.module.css'
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/
@@ -34,22 +34,6 @@ function statusFor(row: DocumentRow | undefined): string {
   if (row.live_seq === null) return 'مسودة لم تُنشر'
   if (row.latest_seq > row.live_seq) return 'تعديلات غير منشورة'
   return 'منشور'
-}
-
-function titleFor(collection: Collection, docId: string, row: DocumentRow | undefined): string {
-  if (collection === 'rooms') {
-    const fallback = docId in ROOM_DOC_LABELS ? ROOM_DOC_LABELS[docId as keyof typeof ROOM_DOC_LABELS] : docId
-    const label = typeof row?.latest_data.roomLabel === 'string' ? row.latest_data.roomLabel : null
-    const title = typeof row?.latest_data.title === 'string' ? row.latest_data.title : null
-    return label && title ? `${label} — ${title}` : (title ?? fallback)
-  }
-  if (collection === 'site_settings') return COLLECTION_LABELS.site_settings
-  if (collection === 'posts') {
-    const title = row?.latest_data.title
-    return typeof title === 'string' && title ? title : docId
-  }
-  const label = row?.latest_data.label
-  return typeof label === 'string' && label ? label : docId
 }
 
 export function CollectionList({ collection }: { collection: Collection }) {
@@ -113,6 +97,7 @@ export function CollectionList({ collection }: { collection: Collection }) {
             id="new-taxonomy-slug"
             className={styles.input}
             type="text"
+            dir="auto"
             value={newSlug}
             onChange={(event) => {
               setNewSlug(event.target.value)
@@ -127,7 +112,9 @@ export function CollectionList({ collection }: { collection: Collection }) {
       {newSlugError && <p className={styles.error}>{newSlugError}</p>}
 
       <div className={styles.tableWrap}>
-        <table className={styles.table}>
+        {/* Cards on phones, like the email and team tables: one long word in a
+            title otherwise widened the table past its box and cut the dates. */}
+        <table className={`${styles.table} ${styles.responsive}`}>
           <thead>
             <tr>
               <th>العنوان</th>
@@ -140,11 +127,11 @@ export function CollectionList({ collection }: { collection: Collection }) {
               const row = rows?.get(docId)
               return (
                 <tr key={docId}>
-                  <td>
-                    <Link href={documentHref(collection, docId)}>{titleFor(collection, docId, row)}</Link>
+                  <td data-label="العنوان">
+                    <Link href={documentHref(collection, docId)}>{documentTitle(collection, docId, row?.latest_data)}</Link>
                   </td>
-                  <td>{statusFor(row)}</td>
-                  <td>{row ? formatRiyadh(row.latest_at) : '-'}</td>
+                  <td data-label="الحالة">{statusFor(row)}</td>
+                  <td data-label="آخر حفظ">{row ? formatRiyadh(row.latest_at) : 'لم يُحفظ بعد'}</td>
                 </tr>
               )
             })}

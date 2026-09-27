@@ -10,11 +10,10 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { formatNumber } from '@/lib/format'
+import { formatNumber, formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 
-import { formatRiyadh } from './PublishBar'
 import styles from './admin.module.css'
 
 type StaffRole = 'owner' | 'editor' | 'operations'
@@ -182,7 +181,7 @@ export function AdminHome() {
       <h1>لوحة أنس</h1>
       {own && (
         <p>
-          مرحبًا <bdi>{own.display_name}</bdi> — {ROLE_LABEL[own.role] ?? own.role}
+          مرحبًا <bdi>{own.display_name}</bdi> ({ROLE_LABEL[own.role] ?? own.role})
         </p>
       )}
 
@@ -214,9 +213,9 @@ export function AdminHome() {
                   <li key={job}>
                     {JOB_LABEL[job] ?? job}:{' '}
                     {trouble ? (
-                      <span className={styles.error}>{JOB_STALE_TEXT[job] ?? 'آخر تشغيل قديم — تأكد من الجدولة'}</span>
+                      <span className={styles.error}>{JOB_STALE_TEXT[job] ?? 'آخر تشغيل قديم. تأكد من الجدولة.'}</span>
                     ) : run ? (
-                      `${JOB_STATUS_LABEL[run.status] ?? run.status} — ${formatRiyadh(run.finished_at)}`
+                      `${JOB_STATUS_LABEL[run.status] ?? run.status} (${formatRiyadh(run.finished_at)})`
                     ) : (
                       JOB_NEVER_TEXT[job] ?? 'لم يعمل بعد'
                     )}
@@ -239,7 +238,7 @@ export function AdminHome() {
       {own?.role === 'owner' && (
         <section>
           <h2>الإحصاءات</h2>
-          {store.state === 'not-configured' && <p className={styles.message}>المتجر غير مُهيأ — يبدأ مع المتجر.</p>}
+          {store.state === 'not-configured' && <p className={styles.message}>المتجر غير مُهيأ بعد. تظهر أرقامه عند افتتاحه.</p>}
           <p>
             زيارات آخر 7 أيام:{' '}
             {visits.state === 'ok' ? formatNumber(visits.value) : visits.state === 'loading' ? 'يحمّل...' : 'غير متاحة'}

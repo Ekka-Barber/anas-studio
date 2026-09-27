@@ -5,7 +5,13 @@ import { type Field, schemaFromFields } from '../fields'
  * slug itself.
  */
 export const taxonomyFields = [
-  { name: 'kind', label: 'النوع', type: 'select', options: ['category', 'tag'] },
+  {
+    name: 'kind',
+    label: 'النوع',
+    type: 'select',
+    options: ['category', 'tag'],
+    optionLabels: { category: 'تصنيف', tag: 'وسم' },
+  },
   { name: 'label', label: 'التسمية', type: 'text' },
 ] as const satisfies Field[]
 export const taxonomySchema = schemaFromFields(taxonomyFields)

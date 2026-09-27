@@ -46,6 +46,23 @@ function isRoomSlug(docId: string): docId is RoomSlug {
   return docId in roomSchemas
 }
 
+/** A document's display title from its saved data, for the list and the editor. */
+export function documentTitle(collection: Collection, docId: string, data: Record<string, unknown> | undefined): string {
+  if (collection === 'rooms') {
+    const fallback = isRoomSlug(docId) ? ROOM_DOC_LABELS[docId] : docId
+    const label = typeof data?.roomLabel === 'string' ? data.roomLabel : null
+    const title = typeof data?.title === 'string' ? data.title : null
+    return label && title ? `${label}: ${title}` : (title ?? fallback)
+  }
+  if (collection === 'site_settings') return COLLECTION_LABELS.site_settings
+  if (collection === 'posts') {
+    const title = data?.title
+    return typeof title === 'string' && title ? title : 'بلا عنوان'
+  }
+  const label = data?.label
+  return typeof label === 'string' && label ? label : docId
+}
+
 /** The Zod schema a document of `collection`/`docId` must validate against. */
 export function schemaFor(collection: Collection, docId: string): z.ZodTypeAny {
   switch (collection) {

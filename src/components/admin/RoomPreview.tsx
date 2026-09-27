@@ -108,8 +108,8 @@ export function RoomPreview() {
   const view = render(state.data)
   return (
     <>
-      <p className={styles.message} role="status">
-        معاينة المسودة (نسخة {state.seq}) — لم تُنشر بعد.{' '}
+      <p className={styles.previewNote} role="status">
+        معاينة المسودة (نسخة {state.seq}). لم تُنشر بعد.{' '}
         <Link href={documentHref('rooms', id)}>العودة للتحرير</Link>
       </p>
       {view ?? <p className={styles.error}>المسودة غير صالحة؛ صحّح الحقول ثم احفظ.</p>}

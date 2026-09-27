@@ -969,3 +969,65 @@ restored; the warning state is reviewed on screen in the phase 2 walk-through.
 Residual for P08: while a Resend daily or monthly quota holds mail back, rows stay due and the
 job keeps running every minute (bounded by the quota period), so the home shows no warning.
 Quota-delayed mail needs its own owner signal once receipts exist.
+
+2026-09-27 Phase 2 gate walk-through (WORK-PACKAGES P06), orchestrator
+
+Read PLANS/DESIGN-AUDIT.md first. Acting as the owner, in one Playwright run on a cold dev
+server (artifacts/acceptance/P06/walkthrough/phase2-gate.spec.ts.txt, kept out of the suite):
+- added and cropped an image: a real 1800x771 room photo through the library dialog, 1:1 crop
+  in the browser; the 720 derivative is 720x720 WebP (overflow.txt records it);
+- wrote and published a post (title, excerpt, author, rich text, visible), archived it after;
+- edited a room section and moved the 2018 movement above 2013, saved, opened the draft
+  preview, published, saw both on /started at 360 and 1440, then restored version 1 and
+  published it again;
+- saw the I35 warning with one row due 15 minutes ago, at 360 and 1440;
+- opened every admin screen at 360 and 1440 (home, content, the four lists, room, post,
+  taxonomy and site-settings editors, media, email, stats, settings, team, security, preview,
+  sign-in): no blank CRUD screen, no page overflow, no console error.
+Findings from the screenshot review, all fixed by the orchestrator:
+1. Team table (P03): six columns inside the reading measure scrolled sideways inside their box;
+   at 360 the email column was cut, at 1440 the revoke column was hidden. Now the page is wide
+   and the table becomes cards on phones, like the email screen.
+2. The autosave put a copy back one second after every save (the save's baseSeq change re-ran
+   the effect), so after a restore, or another session's newer save, the editor offered the
+   earlier saved text as unsaved work. A form equal to its saved version now keeps no copy.
+   tests/e2e/cms.spec.ts asserts no offer after the restore; against the old code that
+   assertion failed (1 offer), with the fix it passes.
+3. Select fields showed raw values (taxonomy kind category/tag, room colour forest...); an
+   optional optionLabels map now shows «تصنيف»/«وسم» and «أخضر داكن»/«كحلي»/«برقوقي»/«عودي».
+   Stored values are unchanged.
+4. Latin values in text inputs rendered right to left («started/», a manifest id reversed, the
+   link box «//:https»): single-line inputs are dir="auto", the link box dir="ltr"; prose
+   textareas stay right to left.
+5. Document editors had no heading: each now has the document title as h1 and a link back to
+   its list (the title logic moved to documentTitle in src/admin/collections).
+6. The schedule time had no visible label and wrapped beside «نشر» at 360: it is now a
+   labelled group with its «جدولة» button; «نشر», «أرشفة», «معاينة» share the first row.
+7. Em dashes in admin prose (DESIGN-AUDIT item 2): home, settings, stats, preview note, rooms
+   list, media derivative sizes, both site-settings errors and the contact function's repeat
+   message now use a colon, a comma, parentheses or a full stop; empty email cells say
+   «لا يوجد» instead of a bare dash. Kept: the 404 page title, which follows the frozen design's
+   title form. Code comments were not touched.
+8. Bidi: the webhook step's «(delivered, bounced, complained…)» is isolated; the stats
+   reason no longer wraps Latin names in parentheses.
+9. Dates broke before «م» in narrow cells: formatRiyadh (moved to src/lib/format.ts, with a
+   unit case) joins the time and its period with a no-break space. The collection lists
+   become cards on phones: a long word in a title had widened the table and cut the dates.
+10. The draft preview note touched the window edges; it is now a padded sand bar.
+11. The upload and picker dialogs used the browser's white box and black border; they now use
+   the admin dialog style. Checkboxes and the zoom slider take the forest accent colour.
+12. The TOTP secret sat at the far left, away from its QR code; team and security pages no
+   longer nest a second page wrapper (the narrower gutters).
+13. An empty video field's button said «إضافة صورة»; it says «إضافة مقطع».
+14. Posts without a title listed their UUID; they read «بلا عنوان». A never-saved date reads
+   «لم يُحفظ بعد».
+Not a defect: 27 of 76 local library rows show broken tiles; they are rows that
+tests/integration/media-security.test.ts inserts without objects (72 rows carry its fixture
+names). A real row always has its derivatives, because completion promotes them.
+Checks after the fixes: pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 237/237);
+auth + cms + owner-operations + the walk-through on a cold server -> 0, 26/26; media 7/7 in
+the run before the last three edits, which did not touch the library. An intermediate run
+failed 2 tests only because the deliberate old-code check above left the started room with
+an unpublished restore; pnpm db:import --force republished the canonical content and both
+passed. Screenshots of every screen after the fixes: artifacts/acceptance/P06/walkthrough/.
+The security screenshots show the TOTP seed of a throwaway local test account.
