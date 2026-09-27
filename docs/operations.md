@@ -28,7 +28,10 @@ Cloudflare Email Routing forwards to it.
    manual database action re-allows it. Remember: provider acceptance is not
    delivery.
 2. **مهام التشغيل** — the latest run of each job; a job never run shows
-   «لم يعمل بعد».
+   «لم يعمل بعد». «إرسال البريد» is the outbox, «بناء الموقع» the Pages
+   deploy hook after a publish, «تنظيف الوسائط» the daily media sweep. A
+   «فاشل» on «بناء الموقع» after five tries means the hook itself is broken
+   (see "Site rebuilds" below).
 3. **الإحصاءات** (owner only) — see below.
 
 Operations members see the same email screen; editors do not (the email RPC
@@ -237,6 +240,34 @@ editor `select vault.create_secret('<the same value>', 'jobs_secret')` and
 `select vault.create_secret('https://<project-ref>.supabase.co/functions/v1', 'functions_url')`.
 The same Vault holds `pages_deploy_hook`, the Cloudflare Pages deploy hook
 that `site_build_trigger()` calls after a publish.
+
+### Site rebuilds (I34)
+
+`site_build_trigger()` runs every minute and calls the deploy hook at most
+once per two minutes after a publish. It keeps the id `net.http_post`
+returns and, on the next run, reads pg_net's answer (`net._http_response`,
+kept about six hours). Each answered call is one `site_build` run in
+`finance.job_runs`: `ok` for a 2xx, `failed` for any other status, a
+timeout, or no answer after ten minutes (the detail carries `httpStatus`,
+`timedOut`, `error`, `noAnswer` and `attempt`). A failed call is re-armed
+and tried again the next minute, up to five times in a row; after the fifth
+the owner home shows «بناء الموقع: فاشل» and the next publish tries once
+more. A 2xx only means Cloudflare accepted the hook: a build that then
+breaks is visible only in the Pages dashboard, so check it after the first
+publishes.
+
+### Media sweep (I29)
+
+pg_cron runs `media_sweep_kick()` at 03:41 UTC, which calls the `outbox`
+function with `{"job": "media_sweep"}`. The job removes, through the Storage
+API, every `media-private` object under `quarantine/` older than a day (parts
+of uploads that never completed; a completed or failed upload removes its
+own), then deletes `media_upload_tickets` rows older than a day (tickets
+expire after five minutes). Storage refuses direct deletes from
+`storage.objects`, and one would orphan the stored bytes, so the removal
+never runs in SQL. The run is recorded as `media_sweep`; the owner home
+flags it when the last run is over 26 hours old. Public derivatives that
+outlive a deleted media row (I34's residual) are not swept yet.
 
 ### Uncertain-send reconciliation, in one paragraph
 

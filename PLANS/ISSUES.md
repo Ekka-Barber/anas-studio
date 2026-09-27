@@ -16,6 +16,8 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I29 — media housekeeping in Storage
 
+**Status (2026-09-27, P06 round 3):** resolved by `20260927120000_rebuild_delivery_and_media_sweep.sql` and the `media_sweep` job (`supabase/functions/_shared/media-sweep.ts`, daily pg_cron kick): quarantine parts and ticket rows older than a day are removed, the parts through the Storage API because Storage refuses direct deletes from `storage.objects`. Not covered: orphaned public derivatives (I34 residual). Details in `docs/operations.md` "Media sweep".
+
 **Package:** P06 round 3 (cleanup job), from P05, restated for D32. Supabase Storage has no lifecycle rules, so nothing expires yet: staged parts under `quarantine/` in `media-private` stay when a ticket expires or fails before completion (a failed completion removes its own parts), and so do old `media_upload_tickets` rows. A cleanup job (pg_cron, like the outbox) should remove quarantine objects and ticket rows older than a day. Known limit: an AVIF whose `irot` rotation swaps width and height is refused with a dimension mismatch.
 
 ## I31 — Append-only `audit_events` blocks deleting auth users
@@ -32,7 +34,13 @@ The owner rejected the long-scroll rooms and then both open-book prototypes. Dir
 
 ## I34 — site rebuild delivery is fire-and-forget
 
+**Status (2026-09-27, P06 round 3):** the delivery half is done: `site_build_trigger` keeps the pg_net request id, reads `net._http_response` on the next run, records each answered call as a `site_build` job run, and re-arms a failed call up to five times in a row (then the owner home shows «فاشل» until the next publish). Still open for P11: a Pages build that breaks after the hook answered is visible only in the Pages dashboard; the LOW residuals below.
+
 **Package:** P11 (hosted setup), from the 2026-09-27 local audit of D32. `site_build_trigger` fires the Pages deploy hook through pg_net and stamps `triggered_at` unconditionally: if the hook answers 4xx/5xx or the request fails, the build request is consumed with no retry and no signal — the database says delivered, the public site stays stale, and the only recovery is the next publish. A failed Pages build itself is invisible too (the last good deploy stays live, which is fine, but nobody is told). With the owner, decide the observability: at minimum, check the Pages build history after the first few publishes; better, record the pg_net request id and its outcome, or move the hook call into the `outbox` function where failures already leave a trail. Recommended (cloud audit of `3c4347c`), in round 3 with the I29 sweep, since both are pg_cron + SQL: `site_build_trigger` stores the id `net.http_post` returns; the next run reads `net._http_response` for it (kept about 6 hours), re-arms the request (`triggered_at = null`) when the status is not 2xx or the call timed out, and records each attempt in `finance.job_runs` as `site_build`, so the owner home's job health shows a failing hook with no new service. A failed Pages build (the hook answered, the build broke) stays visible only in the Pages dashboard; the owner checks it after the first publishes. Related residuals from the same audit, all LOW: `media-delete` swallows Storage-removal failures so orphaned public derivatives can outlive their row until the I29 sweep exists, the `contact:email` throttle key is an unsalted sha256 (DB-read-only concern), and the public bearer/401 endpoints answer unthrottled. The original-promotion TOCTOU is closed: signed upload URLs no longer allow upsert, so a verified part cannot be replaced before it is moved (local e2e proof pending).
+
+## I35 — the email job reads as stale on an idle site
+
+**Package:** P06 (found 2026-09-27 during round 3). Since D32, `outbox_kick()` calls the `outbox` function only while a row is due, so on a quiet hosted site the last `email_outbox` run can be hours old. The owner home still applies M4's 10-minute rule to that job and would show «آخر تشغيل قديم — تأكد من الجدولة» even though nothing is wrong. Locally it never shows, because the Vault values are unset and the e2e runs the job itself. A correct signal is "a row has been due for more than a few minutes and no run followed", which needs a small SQL function the home can call. Decide before P11.
 
 ## Small UI items for when design reopens
 

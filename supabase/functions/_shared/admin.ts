@@ -67,7 +67,7 @@ export interface AdminDeps {
   store: MediaStore
 }
 
-function storageStore(): MediaStore {
+export function storageStore(): MediaStore {
   const storage = () => serviceClient().storage
   return {
     async signedUpload(bucket, key) {

@@ -40,6 +40,8 @@ const SERVER_ONLY = [
   'public.media_claim(uuid, uuid)',
   'public.media_complete(uuid, uuid, text)',
   'public.media_delete(uuid, uuid)',
+  'public.media_sweep_candidates(integer)',
+  'public.media_tickets_purge()',
 ]
 
 const PUBLISHING = [
@@ -49,7 +51,12 @@ const PUBLISHING = [
   'public.archive_document(public.content_collection, text)',
 ]
 
-const INTERNAL = ['public.site_build_request()', 'public.site_build_trigger()', 'public.outbox_kick()']
+const INTERNAL = [
+  'public.site_build_request()',
+  'public.site_build_trigger()',
+  'public.outbox_kick()',
+  'public.media_sweep_kick()',
+]
 
 describe('grants (D32)', () => {
   it.each(SERVER_ONLY)('%s: service_role only', async (signature) => {
@@ -120,11 +127,37 @@ async function scalar<T>(sql: string): Promise<T> {
   return result.rows[0]!.v
 }
 
+/** Writes pg_net's answer for the call in flight, as its worker would. */
+async function answer(status: number | null, timedOut: boolean): Promise<void> {
+  await postgres.query(
+    `insert into net._http_response (id, status_code, timed_out, error_msg)
+     select request_id, $1, $2, case when $2 then 'Timeout was reached' end
+     from finance.site_builds where id = 1 and request_id is not null`,
+    [status, timedOut],
+  )
+}
+
+async function lastRun(): Promise<{ status: string; detail: Record<string, unknown> } | undefined> {
+  const result = await postgres.query<{ status: string; detail: Record<string, unknown> }>(
+    "select status, detail from finance.job_runs where job = 'site_build' order by id desc limit 1",
+  )
+  return result.rows[0]
+}
+
+async function builds(): Promise<{ request_id: string | null; failures: number; rearmed: boolean }> {
+  const result = await postgres.query<{ request_id: string | null; failures: number; rearmed: boolean }>(
+    'select request_id, failures, triggered_at is null as rearmed from finance.site_builds where id = 1',
+  )
+  return result.rows[0]!
+}
+
 describe('site rebuilds (D32)', () => {
   it('a burst of requests is one build; nothing is triggered without the deploy hook', async () => {
     await rolledBack(async () => {
       await postgres.query("delete from vault.secrets where name = 'pages_deploy_hook'")
-      await postgres.query('update finance.site_builds set requested_at = null, triggered_at = null')
+      await postgres.query(
+        'update finance.site_builds set requested_at = null, triggered_at = null, request_id = null, failures = 0',
+      )
       expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
 
       await postgres.query('select public.site_build_request()')
@@ -140,9 +173,58 @@ describe('site rebuilds (D32)', () => {
       // A new request inside the two-minute window waits for the next run.
       await postgres.query("update finance.site_builds set requested_at = now() + interval '1 second'")
       expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
-      // Once the window has passed, the pending request triggers one build.
+      // Still waiting for the last call's answer: no second call.
+      await postgres.query("update finance.site_builds set triggered_at = now() - interval '3 minutes'")
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      // Once it answered 2xx and the window has passed, the pending request triggers one build.
+      await answer(204, false)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+    })
+  })
+
+  it('records every answered call as a site_build run and re-arms a failed one (I34)', async () => {
+    await rolledBack(async () => {
+      await postgres.query("delete from vault.secrets where name = 'pages_deploy_hook'")
+      await postgres.query("select vault.create_secret('http://127.0.0.1:9/deploy-hook', 'pages_deploy_hook')")
+      await postgres.query('delete from finance.job_runs where job = $1', ['site_build'])
+      await postgres.query(
+        `update finance.site_builds
+         set requested_at = now() - interval '5 minutes', triggered_at = null, request_id = null, failures = 0`,
+      )
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+
+      // 2xx: recorded ok, nothing owed, nothing called.
+      await answer(204, false)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      expect(await lastRun()).toMatchObject({ status: 'ok', detail: { httpStatus: 204, attempt: 1 } })
+      expect(await builds()).toMatchObject({ request_id: null, failures: 0, rearmed: false })
+
+      // A 500: recorded failed, re-armed and called again in the same run.
+      await postgres.query("update finance.site_builds set requested_at = now() - interval '1 minute'")
       await postgres.query("update finance.site_builds set triggered_at = now() - interval '3 minutes'")
       expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+      await answer(500, false)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+      expect(await lastRun()).toMatchObject({ status: 'failed', detail: { httpStatus: 500, attempt: 1 } })
+      expect((await builds()).failures).toBe(1)
+
+      // A timeout is a failure too.
+      await answer(null, true)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+      expect(await lastRun()).toMatchObject({ status: 'failed', detail: { timedOut: true, attempt: 2 } })
+
+      // No answer yet: wait. No answer after ten minutes: the call is lost.
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      await postgres.query("update finance.site_builds set triggered_at = now() - interval '11 minutes'")
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+      expect(await lastRun()).toMatchObject({ status: 'failed', detail: { noAnswer: true, attempt: 3 } })
+
+      // The fifth failure in a row is not re-armed: the owner sees it failed.
+      await postgres.query('update finance.site_builds set failures = 4')
+      await answer(404, false)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      expect(await lastRun()).toMatchObject({ status: 'failed', detail: { httpStatus: 404, attempt: 5 } })
+      expect(await builds()).toMatchObject({ request_id: null, failures: 5, rearmed: false })
     })
   })
 
@@ -154,6 +236,55 @@ describe('site rebuilds (D32)', () => {
       await postgres.query('update finance.site_builds set requested_at = null')
       expect(await scalar<number>('public.publish_due()')).toBe(0)
       expect(await scalar<string | null>('(select requested_at from finance.site_builds)')).toBeNull()
+    })
+  })
+})
+
+describe('media housekeeping (I29)', () => {
+  it('lists only quarantine parts older than a day and purges only day-old tickets', async () => {
+    await rolledBack(async () => {
+      const user = await postgres.query<{ id: string }>(
+        `insert into auth.users (id, instance_id, aud, role, email)
+         values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
+                 'sweep-' || gen_random_uuid() || '@example.com')
+         returning id`,
+      )
+      const actor = user.rows[0]!.id
+      const tickets = await postgres.query<{ id: string }>(
+        `insert into public.media_upload_tickets (actor, declared, created_at)
+         values ($1, '{"original": {"bytes": 1}}', now() - interval '25 hours'),
+                ($1, '{"original": {"bytes": 1}}', now() - interval '1 hour')
+         returning id`,
+        [actor],
+      )
+      const [oldTicket, newTicket] = tickets.rows.map((row) => row.id)
+      await postgres.query(
+        `insert into storage.objects (bucket_id, name, created_at) values
+           ('media-private', 'quarantine/' || $1 || '/original', now() - interval '25 hours'),
+           ('media-private', 'quarantine/' || $2 || '/original', now() - interval '1 hour'),
+           ('media-private', 'originals/' || $1, now() - interval '25 hours')`,
+        [oldTicket, newTicket],
+      )
+
+      const candidates = await scalar<string[]>('public.media_sweep_candidates(1000)')
+      expect(candidates).toContain(`quarantine/${oldTicket}/original`)
+      expect(candidates).not.toContain(`quarantine/${newTicket}/original`)
+      expect(candidates.every((name) => name.startsWith('quarantine/'))).toBe(true)
+      expect(await scalar<string[]>('public.media_sweep_candidates(0)')).toHaveLength(1)
+
+      expect(await scalar<number>('public.media_tickets_purge()')).toBeGreaterThanOrEqual(1)
+      const left = await postgres.query<{ id: string }>('select id from public.media_upload_tickets where actor = $1', [actor])
+      expect(left.rows.map((row) => row.id)).toEqual([newTicket])
+    })
+  })
+
+  it('kicks the sweep only when Vault holds the functions address', async () => {
+    await rolledBack(async () => {
+      await postgres.query("delete from vault.secrets where name in ('functions_url', 'jobs_secret')")
+      expect(await scalar<boolean>('public.media_sweep_kick()')).toBe(false)
+      await postgres.query("select vault.create_secret('http://127.0.0.1:9/functions/v1', 'functions_url')")
+      await postgres.query("select vault.create_secret('test-jobs-secret', 'jobs_secret')")
+      expect(await scalar<boolean>('public.media_sweep_kick()')).toBe(true)
     })
   })
 })

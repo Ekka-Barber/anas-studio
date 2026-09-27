@@ -189,6 +189,37 @@ test('a jobs run delivers the notices through Mailpit, sent but not yet delivere
   expect(found).toBe(true)
 })
 
+test('the daily media sweep removes day-old quarantine parts through Storage and records the run (I29)', async ({
+  request,
+}) => {
+  // Every quarantine part left on this stack counts as day-old, plus one
+  // planted row so the run always has something to remove.
+  const planted = `quarantine/${randomUUID()}/original`
+  await db.query(
+    "insert into storage.objects (bucket_id, name, created_at) values ('media-private', $1, now() - interval '25 hours')",
+    [planted],
+  )
+  await db.query(
+    "update storage.objects set created_at = now() - interval '25 hours' where bucket_id = 'media-private' and name like 'quarantine/%'",
+  )
+  const response = await request.post(functionUrl('outbox'), {
+    headers: { authorization: `Bearer ${env.JOBS_SECRET}`, 'content-type': 'application/json' },
+    data: { job: 'media_sweep' },
+  })
+  expect(response.status()).toBe(200)
+  const body = (await response.json()) as { ok: boolean; data: Array<{ job: string; status: string; objects: number }> }
+  expect(body.data[0]).toMatchObject({ job: 'media_sweep', status: 'ok' })
+  expect(body.data[0]!.objects).toBeGreaterThanOrEqual(1)
+  const left = await db.query(
+    "select 1 from storage.objects where bucket_id = 'media-private' and name like 'quarantine/%' and created_at < now() - interval '1 day'",
+  )
+  expect(left.rowCount).toBe(0)
+  const run = await db.query<{ status: string }>(
+    "select status from finance.job_runs where job = 'media_sweep' order by id desc limit 1",
+  )
+  expect(run.rows[0]?.status).toBe('ok')
+})
+
 test('a signed delivered webhook marks delivery; a forged signature is 401', async ({ request }) => {
   const rawBody = JSON.stringify({
     type: 'email.delivered',
@@ -293,6 +324,9 @@ test('the owner home shows real counts and no inbox (D31)', async ({ page }) => 
   await expect(page.getByText('تعذّر التحميل')).toHaveCount(0)
   await expect(page.getByText('مهام التشغيل')).toBeVisible()
   await expect(page.getByText('إرسال البريد:')).toBeVisible()
+  await expect(page.getByText('بناء الموقع:')).toBeVisible()
+  // The sweep test above recorded a run, so the daily job shows its status.
+  await expect(page.getByText(/تنظيف الوسائط: سليم/)).toBeVisible()
   await expect(page.getByText('غير متاحة', { exact: false })).toBeVisible() // analytics: not configured locally
   // Contact messages are not an admin concern any more.
   await expect(page.getByText('رسائل جديدة', { exact: false })).toHaveCount(0)

@@ -21,14 +21,22 @@ type StaffRole = 'owner' | 'editor' | 'operations'
 type Count = { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: number }
 
 const ROLE_LABEL: Record<StaffRole, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل' }
-const JOB_LABEL: Record<string, string> = { email_outbox: 'إرسال البريد' }
+const JOB_LABEL: Record<string, string> = {
+  email_outbox: 'إرسال البريد',
+  site_build: 'بناء الموقع',
+  media_sweep: 'تنظيف الوسائط',
+}
 const JOB_STATUS_LABEL: Record<string, string> = { ok: 'سليم', partial: 'جزئي', failed: 'فاشل', skipped: 'متجاوز' }
 /** Jobs that exist in code today; a job with no run yet shows «لم يعمل بعد». */
-const KNOWN_JOBS = ['email_outbox'] as const
+const KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep'] as const
 
-/** A last completion older than 10 minutes means the cron probably died and
- * the recorded «سليم» is stale (M4). */
-const STALE_JOB_MS = 10 * 60 * 1000
+/** How old a last completion may be before the cron probably died and the
+ * recorded «سليم» is stale (M4). The site build runs only after a publish,
+ * so it has no limit; the media sweep runs daily. */
+const STALE_JOB_MS: Partial<Record<string, number>> = {
+  email_outbox: 10 * 60 * 1000,
+  media_sweep: 26 * 60 * 60 * 1000,
+}
 /** `outbox_attention()` caps its result at 200 rows (its SQL limit), so once
  * the count reaches the cap it renders «200+» instead of a silent 200 (L6). */
 const ATTENTION_CAP = 200
@@ -47,11 +55,12 @@ function countText(count: Count): string {
   return formatNumber(count.value)
 }
 
-/** True when the job's last completion is older than STALE_JOB_MS — compared
- * client-side from the run's own finished_at (M4). */
+/** True when the job's last completion is older than its STALE_JOB_MS limit —
+ * compared client-side from the run's own finished_at (M4). */
 function isStaleRun(run: JobRun): boolean {
+  const limit = STALE_JOB_MS[run.job]
   const finished = Date.parse(run.finished_at)
-  return !Number.isNaN(finished) && Date.now() - finished > STALE_JOB_MS
+  return limit !== undefined && !Number.isNaN(finished) && Date.now() - finished > limit
 }
 
 export function AdminHome() {

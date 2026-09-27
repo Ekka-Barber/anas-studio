@@ -721,3 +721,69 @@ recreated with fs.openSync(path, 'wx') for this step.
    touched no UI), so all of them were restored to HEAD.
 
 Not run: the I32 hosted probes (P11). Nothing is pending for 00586ea.
+
+2026-09-27 P06 round 3, step 1: H2 (per-package Playwright report dir)
+
+Change: playwright.config.ts derives outputDir and the html report folder from
+ACCEPTANCE_PACKAGE. Unset, a run writes to the git-ignored test-results/{playwright,
+playwright-report}; ACCEPTANCE_PACKAGE=P06 writes to artifacts/acceptance/P06/. Any other
+shape (not P + two digits) throws before a test is collected. docs/development.md says so.
+- ACCEPTANCE_PACKAGE=../x playwright test --list -> exit 1, "ACCEPTANCE_PACKAGE must look
+  like P06, got "../x"".
+- playwright test visual.spec.ts -g "JS off" (unset) -> exit 0, 4/4; report at
+  test-results/playwright-report/index.html; artifacts/acceptance/P00 unchanged.
+- ACCEPTANCE_PACKAGE=P06, same spec -> exit 0; report at
+  artifacts/acceptance/P06/playwright-report/index.html; P00 unchanged. Probe output removed.
+- pnpm typecheck -> 0; eslint playwright.config.ts -> 0.
+Out of H2's scope: visual.spec and the admin specs still save their screenshots to fixed
+evidence paths under artifacts/acceptance/P0x/screenshots/ by design; a run that only
+verifies should restore them when the UI did not change.
+
+2026-09-27 P06 round 3, step 2: one pg_cron migration for I29 and I34
+
+Design finding first: storage.objects carries `protect_objects_delete` (storage.protect_delete,
+42501 "Direct deletion from storage tables is not allowed. Use the Storage API instead.").
+Forcing it with storage.allow_delete_query would drop the metadata and orphan the stored
+bytes, so I29's object removal runs through the Storage API: a `media_sweep` job in the
+existing jobs entry point (the `outbox` function, _shared/jobs.ts), kicked daily by pg_cron.
+SQL only lists the stale keys and purges the ticket rows.
+
+Changes:
+- supabase/migrations/20260927120000_rebuild_delivery_and_media_sweep.sql:
+  finance.site_builds gains request_id and failures; site_build_trigger() reads the last
+  call's net._http_response first (no answer within 10 minutes = lost), records a
+  `site_build` job run (ok for 2xx; failed with httpStatus/timedOut/error/noAnswer/attempt
+  otherwise), re-arms a failure (triggered_at = null) up to five in a row, never calls again
+  while an answer is pending, and stores the new net.http_post id. New
+  media_sweep_candidates(limit) (quarantine/ in media-private, older than a day, capped at
+  1000), media_tickets_purge() (tickets older than a day), media_sweep_kick() and the cron
+  `media-sweep` at 41 3 * * *. Grants: the first two service_role only; the kick no API role.
+- supabase/functions/_shared/media-sweep.ts (new): batches of 100, at most 10 per run; a
+  removed key still listed afterwards means Storage refused it (the store's remove() does
+  not report errors) and the run is failed; records `media_sweep`.
+- _shared/jobs.ts: an empty body or {} runs the outbox as before; {"job":"media_sweep"} runs
+  the sweep; any other job or a non-JSON body is 400 and runs nothing. _shared/admin.ts
+  exports storageStore for it.
+- src/components/admin/AdminHome.tsx: «بناء الموقع» and «تنظيف الوسائط» in مهام التشغيل;
+  the M4 stale rule is per job (email 10 min, sweep 26 h, site build none, it runs only
+  after a publish).
+- docs/operations.md: owner routine, "Site rebuilds (I34)", "Media sweep (I29)".
+- PLANS/ISSUES.md: I29 resolved, I34 delivery half done, new I35 (the email job reads stale
+  on an idle hosted site since D32; decide before P11).
+
+Checks (Windows, full local stack; migration applied with supabase migration up --local):
+- vitest tests/unit/admin-function.test.ts -> 22/22 (new: unknown job / non-JSON 400;
+  sweep of 130 stale parts in two batches + 7 tickets recorded ok; a part Storage keeps
+  -> failed, no ticket purge).
+- static-site integration -> 29/29 (new: I34 ok/500/timeout/no-answer/cap with re-arm and
+  attempts; in-flight blocks a second call; I29 candidates only day-old quarantine, limit
+  clamp, ticket purge keeps the fresh one; kick needs Vault; grants).
+- playwright owner-operations.spec.ts -> 17/17 (new: the sweep through the real edge
+  runtime and Storage leaves no day-old quarantine object and records `ok`; the owner home
+  shows «بناء الموقع:» and «تنظيف الوسائط: سليم»).
+- pnpm check -> 0 (lint 0 errors, 3 old warnings; unit 218/218). test:db -> 121/121.
+  pnpm build, check:export, check:budgets -> 0.
+- Screenshots: home-360/home-1440 re-captured (the two new job rows, no overflow at 360,
+  reviewed); the unchanged email/stats captures and next-env.d.ts restored.
+Not run: the hosted pg_net/Pages path (P11); deno check (no deno on this machine; the local
+edge runtime served the changed function in the e2e above).

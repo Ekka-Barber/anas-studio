@@ -284,4 +284,57 @@ describe('outbox function (jobs bearer gate)', () => {
     expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'email_outbox', status: 'skipped' }] })
     expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_job: 'email_outbox', p_status: 'skipped' }))
   })
+
+  const jobRequest = (body: string) =>
+    new Request('http://127.0.0.1:54321/functions/v1/outbox', {
+      method: 'POST',
+      headers: { authorization: 'Bearer local-jobs-secret', 'content-type': 'application/json' },
+      body,
+    })
+
+  it('an unknown job or a body that is not JSON is 400 and runs nothing', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const rpc = vi.fn(async () => null)
+    expect((await handleJobs(jobRequest('{"job":"drop_everything"}'), rpc)).status).toBe(400)
+    expect((await handleJobs(jobRequest('not json'), rpc)).status).toBe(400)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('media_sweep removes stale quarantine parts in batches, purges old tickets and records the run (I29)', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const store = memoryStore()
+    const stale = Array.from({ length: 130 }, (_, i) => `quarantine/${randomUUID()}/${i}.webp`)
+    for (const key of stale) store.objects.set(`${PRIVATE_BUCKET}/${key}`, new Uint8Array([1]))
+    const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+      if (fn === 'media_sweep_candidates') {
+        return stale.filter((key) => store.objects.has(`${PRIVATE_BUCKET}/${key}`)).slice(0, args.p_limit as number)
+      }
+      if (fn === 'media_tickets_purge') return 7
+      return null
+    })
+    const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
+    expect(await response.json()).toEqual({
+      ok: true,
+      data: [{ job: 'media_sweep', status: 'ok', objects: 130, tickets: 7 }],
+    })
+    expect(store.objects.size).toBe(0)
+    expect(store.removed.every((key) => key.startsWith(`${PRIVATE_BUCKET}/quarantine/`))).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('job_run_record', {
+      p_job: 'media_sweep',
+      p_status: 'ok',
+      p_detail: { objects: 130, tickets: 7 },
+      p_started_at: expect.any(String),
+    })
+    expect(rpc).not.toHaveBeenCalledWith('outbox_claim', expect.anything())
+  })
+
+  it('media_sweep records a failed run when Storage keeps a removed part', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const store = { ...memoryStore(), async remove() {} }
+    const rpc = vi.fn(async (fn: string) => (fn === 'media_sweep_candidates' ? ['quarantine/a/original'] : null))
+    const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
+    expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed' }] })
+    expect(rpc).not.toHaveBeenCalledWith('media_tickets_purge', expect.anything())
+    expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_job: 'media_sweep', p_status: 'failed' }))
+  })
 })
