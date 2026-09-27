@@ -1,0 +1,30 @@
+P07 catalog plus transactional cart and checkout (D06, D07, D34, D37, D38)
+
+2026-09-27 Round 1, part 1: the migration (orchestrator, Opus 5.5; D28 major design)
+
+supabase/migrations/20260927160000_catalog_and_checkout.sql:
+- public catalog under RLS: products, product_variants, coupons, shipping_rates, customers;
+  owner-only writes through column grants, a version bump on every update, audit rows for
+  every catalog change (prices, stock, fees and coupon terms with from/to; other columns by
+  name; customers by name only), a site rebuild request when a public column changes;
+- finance: orders (random 8-character number, hash-only 7-day access token, contact, delivery,
+  seller and policy snapshots, idempotency key and request hash), order_items, inventory
+  holds and coupon holds;
+- finance.checkout_price: stateless pricing with a quote hash, integer money, largest-remainder
+  discount allocation, city delivery for physical and signed lines only;
+- checkout_quote / checkout_create / checkout_cancel for service_role; availability computed
+  from unexpired holds under the variant row locks; one active hold per email and per checkout
+  session under advisory locks; throttles 10/h per IP hash, 5/h per email, 500/day, quotes
+  300/h per IP hash; checkout_expire every minute; the P06 checkout_enabled check lifted with no
+  API path to set it.
+Checks: supabase migration up --local -> 0; a one-off smoke in a rolled-back transaction:
+quote 17133 - 1713 + 2500 = 17920 with the line discounts summing to the order discount;
+CHECKOUT_DISABLED, QUOTE_CHANGED, the order, the same key (duplicate, tokenMatches),
+IDEMPOTENCY_CONFLICT, ACTIVE_HOLD, OUT_OF_STOCK while held, NOT_FOUND on a wrong token, cancel
+freeing the stock, line errors (INVALID_LINE, INVALID_QUANTITY, DEDICATION_NOT_ALLOWED,
+COUPON_INVALID), a 33.33% coupon on 333+333+334 allocating 111+111+111. Audit empty-column noise
+fixed in place, then supabase db reset -> 0 (every migration from scratch), db:import -> 0,
+smoke again green. tests/integration/commerce-settings.test.ts: its "table refuses
+checkout_enabled = true" case now proves the save takes no checkout argument. TEST_ENV=local
+pnpm test:db -> 0 (12 files, 141/141).
+Next: round 1 part 2, glm-worker from artifacts/acceptance/P07/brief-r1-checkout.md.

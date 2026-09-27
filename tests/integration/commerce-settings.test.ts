@@ -207,12 +207,13 @@ describe('commerce_settings_save', () => {
     })
   })
 
-  it('the table refuses checkout_enabled = true (P08 lifts it) and any currency but SAR', async () => {
-    await rolledBack(postgres, async () => {
-      await expect(
-        postgres.query('update finance.commerce_settings set checkout_enabled = true where id = 1'),
-      ).rejects.toMatchObject({ code: '23514' })
-    })
+  it('no API path switches checkout on (P07 lifted the table check), and the table refuses any currency but SAR', async () => {
+    // The save takes no checkout argument; P08 adds the owner's switch behind
+    // the verified gateway.
+    const save = await postgres.query<{ args: string }>(
+      "select pg_get_function_identity_arguments('public.commerce_settings_save'::regproc) as args",
+    )
+    expect(save.rows[0]!.args).not.toMatch(/checkout/)
     await rolledBack(postgres, async () => {
       await expect(postgres.query("update finance.commerce_settings set currency = 'USD' where id = 1")).rejects.toMatchObject(
         { code: '23514' },
