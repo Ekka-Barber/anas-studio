@@ -1,0 +1,207 @@
+{
+  "tool": "render",
+  "scanned": 4,
+  "findings": [
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.45 (< 1.6)",
+      "count": 1,
+      "evidence": "header.band-module__D_o5aq__band > div.room-hero-module__SC32Ua__text > p.t-lead",
+      "width": 360,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.15 (< 1.25)",
+      "count": 2,
+      "evidence": "a.shelf-module__OW2jNW__door > span.shelf-module__OW2jNW__doorFoot > span.t-card | article#thura > section.band-module__D_o5aq__band > p.t-band-xl",
+      "width": 360,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.22 (< 1.25)",
+      "count": 1,
+      "evidence": "article#thura > section.band-module__D_o5aq__band > p.t-band-xl",
+      "width": 360,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 5,
+      "evidence": "ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden",
+      "width": 360,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.55 (< 1.6)",
+      "count": 1,
+      "evidence": "footer.site-module__oB1X9q__footer > p.site-module__oB1X9q__poem > span",
+      "width": 360,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | ul.layout-module__M94H1q__lattice > li > a.shelf-module__OW2jNW__door | ul.layout-module__M94H1q__lattice > li > a.shelf-module__OW2jNW__door",
+      "width": 360,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.45 (< 1.6)",
+      "count": 1,
+      "evidence": "header.band-module__D_o5aq__band > div.room-hero-module__SC32Ua__text > p.t-lead",
+      "width": 768,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.15 (< 1.25)",
+      "count": 1,
+      "evidence": "a.shelf-module__OW2jNW__door > span.shelf-module__OW2jNW__doorFoot > span.t-card",
+      "width": 768,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 5,
+      "evidence": "ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden",
+      "width": 768,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.55 (< 1.6)",
+      "count": 1,
+      "evidence": "footer.site-module__oB1X9q__footer > p.site-module__oB1X9q__poem > span",
+      "width": 768,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | ul.layout-module__M94H1q__lattice > li > a.shelf-module__OW2jNW__door | ul.layout-module__M94H1q__lattice > li > a.shelf-module__OW2jNW__door",
+      "width": 768,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.15 (< 1.25)",
+      "count": 1,
+      "evidence": "a.shelf-module__OW2jNW__door > span.shelf-module__OW2jNW__doorFoot > span.t-card",
+      "width": 1024,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 5,
+      "evidence": "ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden",
+      "width": 1024,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 10,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1024,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 5,
+      "evidence": "ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden | ol.layout-module__M94H1q__lattice > li.shelf-module__OW2jNW__flavour > p.visually-hidden",
+      "width": 1440,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1440,
+      "url": "http://localhost:3000/shelf",
+      "channel": "render"
+    }
+  ],
+  "meta": {
+    "url": "http://localhost:3000/shelf",
+    "widths": [
+      360,
+      768,
+      1024,
+      1440
+    ],
+    "screenshots": [
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_shelf-360.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_shelf-768.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_shelf-1024.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_shelf-1440.png"
+    ],
+    "fonts": {
+      "360": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      },
+      "768": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      },
+      "1024": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      },
+      "1440": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      }
+    },
+    "scripts": [
+      "arabic",
+      "latin"
+    ]
+  }
+}

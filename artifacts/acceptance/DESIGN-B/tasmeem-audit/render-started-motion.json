@@ -1,0 +1,181 @@
+{
+  "tool": "render",
+  "scanned": 4,
+  "findings": [
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.45 (< 1.6)",
+      "count": 1,
+      "evidence": "header.band-module__D_o5aq__band > div.room-hero-module__SC32Ua__text > p.t-lead",
+      "width": 360,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.22 (< 1.25)",
+      "count": 1,
+      "evidence": "section#year-3 > section.band-module__D_o5aq__band > p.t-band-xl",
+      "width": 360,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.55 (< 1.6)",
+      "count": 1,
+      "evidence": "footer.site-module__oB1X9q__footer > p.site-module__oB1X9q__poem > span",
+      "width": 360,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play",
+      "width": 360,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "QA-05",
+      "severity": "P1",
+      "message": "target smaller than 44×44",
+      "count": 1,
+      "evidence": "figcaption.figure-module__E35f6q__below > span.story-module__DZdz3a__captionLink > a",
+      "width": 360,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.45 (< 1.6)",
+      "count": 1,
+      "evidence": "header.band-module__D_o5aq__band > div.room-hero-module__SC32Ua__text > p.t-lead",
+      "width": 768,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.55 (< 1.6)",
+      "count": 1,
+      "evidence": "footer.site-module__oB1X9q__footer > p.site-module__oB1X9q__poem > span",
+      "width": 768,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 6,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play",
+      "width": 768,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "QA-05",
+      "severity": "P1",
+      "message": "target smaller than 44×44",
+      "count": 1,
+      "evidence": "figcaption.figure-module__E35f6q__below > span.story-module__DZdz3a__captionLink > a",
+      "width": 768,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 9,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1024,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "QA-05",
+      "severity": "P1",
+      "message": "target smaller than 44×44",
+      "count": 1,
+      "evidence": "figcaption.figure-module__E35f6q__below > span.story-module__DZdz3a__captionLink > a",
+      "width": 1024,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 9,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1440,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "QA-05",
+      "severity": "P1",
+      "message": "target smaller than 44×44",
+      "count": 1,
+      "evidence": "figcaption.figure-module__E35f6q__below > span.story-module__DZdz3a__captionLink > a",
+      "width": 1440,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    }
+  ],
+  "meta": {
+    "url": "http://localhost:3000/started",
+    "widths": [
+      360,
+      768,
+      1024,
+      1440
+    ],
+    "screenshots": [
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_started-360-motion.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_started-768-motion.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_started-1024-motion.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_started-1440-motion.png"
+    ],
+    "fonts": {
+      "360": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      },
+      "768": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      },
+      "1024": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      },
+      "1440": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      }
+    },
+    "scripts": [
+      "arabic",
+      "latin"
+    ]
+  }
+}

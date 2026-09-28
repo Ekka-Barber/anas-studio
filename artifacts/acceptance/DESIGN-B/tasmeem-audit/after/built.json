@@ -1,0 +1,592 @@
+{
+  "tool": "built",
+  "scanned": 52,
+  "findings": [
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "out/404.html",
+      "line": 32,
+      "message": "one word styled differently inside the headline",
+      "channel": "built",
+      "evidence": "<span data-enter=\"\" data-fx=\"band\" style=\"--enter-delay:80ms\">هذا الطريق</span> <span clas",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "out/admin/sign-in.html",
+      "line": 29,
+      "message": "one word styled differently inside the headline",
+      "channel": "built",
+      "evidence": "<span aria-hidden=\"true\" class=\"action-module__GSKUEa__mark \"></span>لوحة أنس",
+      "count": 1,
+      "lines": [
+        29
+      ]
+    },
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "out/book.html",
+      "line": 32,
+      "message": "one word styled differently inside the headline",
+      "channel": "built",
+      "evidence": "<span class=\"t-mega book-module__mwyVwq__titleWord\" data-enter=\"\" data-fx=\"band\" style=\"--",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "TY-05",
+      "severity": "P1",
+      "file": "out/book.html",
+      "line": 32,
+      "message": "eyebrow label above a heading",
+      "channel": "built",
+      "evidence": "<p class=\"book-module__mwyVwq__roomLabel\" data-enter=\"\" style=\"--enter-delay:80ms\">كتبتُ ه",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "out/contact.html",
+      "line": 32,
+      "message": "one word styled differently inside the headline",
+      "channel": "built",
+      "evidence": "<span class=\"contact-module__QaVcTG__titleLine\" data-enter=\"\" data-fx=\"band\" style=\"--ente",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "CP-08",
+      "severity": "P0",
+      "file": "out/policies/delivery.html",
+      "line": 32,
+      "message": "\"نص تجريبي\"",
+      "channel": "built",
+      "evidence": "نص تجريبي يكتبه أنس ويعتمده قبل فتح المتجر.",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "CP-08",
+      "severity": "P0",
+      "file": "out/policies/refund.html",
+      "line": 32,
+      "message": "\"نص تجريبي\"",
+      "channel": "built",
+      "evidence": "نص تجريبي يكتبه أنس ويعتمده قبل فتح المتجر.",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "CP-08",
+      "severity": "P0",
+      "file": "out/policies/store.html",
+      "line": 32,
+      "message": "\"نص تجريبي\"",
+      "channel": "built",
+      "evidence": "نص تجريبي يكتبه أنس ويعتمده قبل فتح المتجر.",
+      "count": 1,
+      "lines": [
+        32
+      ]
+    },
+    {
+      "id": "CP-03",
+      "severity": "P1",
+      "file": "out/shelf.html",
+      "line": 35,
+      "message": "\"ليست مجرد\"",
+      "channel": "built",
+      "evidence": "من قلب المباني النجدية وصحراء الجزيرة العربية ولدت قطعة فنية، تجسدت في شكل مثلثا",
+      "count": 1,
+      "lines": [
+        35
+      ]
+    },
+    {
+      "id": "CO-16",
+      "severity": "P1",
+      "message": "52 non-token file(s) with many raw colour literals",
+      "channel": "built",
+      "count": 1,
+      "lines": []
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/policies/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/policies/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/policies.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/policies.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/posts/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/posts/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/posts.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/posts.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/rooms/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/rooms/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/rooms.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/rooms.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/site_settings/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/site_settings/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/site_settings.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/site_settings.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/taxonomies/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/taxonomies/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content/taxonomies.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content/taxonomies.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/content.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/content.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/email.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/email.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/media.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/media.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/preview.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/preview.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/security.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/security.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/settings.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/settings.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/sign-in.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/stats.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/stats.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/coupons/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/coupons/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/coupons.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/coupons.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/customers/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/customers/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/customers.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/customers.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/products/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/products/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/products.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/products.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/shipping-rates/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/shipping-rates/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/shipping-rates.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/shipping-rates.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store/variants/edit.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store/variants/edit.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/store.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/store.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin/team.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin/team.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P1",
+      "file": "out/admin.html",
+      "message": "no <h1>",
+      "channel": "built"
+    },
+    {
+      "id": "QA-12",
+      "severity": "P2",
+      "file": "out/admin.html",
+      "message": "no skip link to the main content",
+      "channel": "built"
+    },
+    {
+      "id": "IG-09",
+      "severity": "P1",
+      "file": "out/built.html",
+      "message": "first image is lazy-loaded (a likely LCP image)",
+      "channel": "built",
+      "evidence": "<img src=\"/images/built/raha-logo-720.webp\" width=\"720\" height=\"720\" alt=\"شعار رحى المكان\" loading=\""
+    },
+    {
+      "id": "IG-09",
+      "severity": "P1",
+      "file": "out/passed.html",
+      "message": "first image is lazy-loaded (a likely LCP image)",
+      "channel": "built",
+      "evidence": "<img src=\"/images/passed/soub-720.webp\" width=\"720\" height=\"720\" alt=\"\" loading=\"lazy\" decoding=\"asy"
+    },
+    {
+      "id": "IG-09",
+      "severity": "P1",
+      "file": "out/shelf.html",
+      "message": "first image is lazy-loaded (a likely LCP image)",
+      "channel": "built",
+      "evidence": "<img src=\"/images/shelf/thura-81-980.webp\" width=\"980\" height=\"1600\" alt=\"\" loading=\"lazy\" decoding="
+    },
+    {
+      "id": "IG-09",
+      "severity": "P1",
+      "file": "out/started.html",
+      "message": "first image is lazy-loaded (a likely LCP image)",
+      "channel": "built",
+      "evidence": "<img src=\"/images/passed/31-murady-french-toast-banana-1200.webp\" width=\"1200\" height=\"869\" alt=\"توس"
+    }
+  ],
+  "meta": {
+    "pages": 52,
+    "signals": {
+      "arabic": true,
+      "rtl": true,
+      "reducedMotion": true,
+      "focusVisible": true,
+      "motion": true,
+      "tokens": true,
+      "langScopedReset": false
+    },
+    "fontFamilies": [
+      "thmanyah serif display",
+      "thmanyah sans"
+    ]
+  }
+}

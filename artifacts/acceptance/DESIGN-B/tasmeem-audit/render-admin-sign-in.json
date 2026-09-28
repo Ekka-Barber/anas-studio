@@ -1,0 +1,82 @@
+{
+  "tool": "render",
+  "scanned": 4,
+  "findings": [
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "div.admin-module__nc4JNq__page > form.admin-module__nc4JNq__form > button.admin-module__nc4JNq__button",
+      "width": 360,
+      "url": "http://localhost:3000/admin/sign-in",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "div.admin-module__nc4JNq__page > form.admin-module__nc4JNq__form > button.admin-module__nc4JNq__button",
+      "width": 768,
+      "url": "http://localhost:3000/admin/sign-in",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "div.admin-module__nc4JNq__page > form.admin-module__nc4JNq__form > button.admin-module__nc4JNq__button",
+      "width": 1024,
+      "url": "http://localhost:3000/admin/sign-in",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "div.admin-module__nc4JNq__page > form.admin-module__nc4JNq__form > button.admin-module__nc4JNq__button",
+      "width": 1440,
+      "url": "http://localhost:3000/admin/sign-in",
+      "channel": "render"
+    }
+  ],
+  "meta": {
+    "url": "http://localhost:3000/admin/sign-in",
+    "widths": [
+      360,
+      768,
+      1024,
+      1440
+    ],
+    "screenshots": [
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_admin_sign-in-360.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_admin_sign-in-768.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_admin_sign-in-1024.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_admin_sign-in-1440.png"
+    ],
+    "fonts": {
+      "360": {
+        "arabic:heading": "Thmanyah Sans",
+        "arabic:text": "Thmanyah Sans"
+      },
+      "768": {
+        "arabic:heading": "Thmanyah Sans",
+        "arabic:text": "Thmanyah Sans"
+      },
+      "1024": {
+        "arabic:heading": "Thmanyah Sans",
+        "arabic:text": "Thmanyah Sans"
+      },
+      "1440": {
+        "arabic:heading": "Thmanyah Sans",
+        "arabic:text": "Thmanyah Sans"
+      }
+    },
+    "scripts": [
+      "arabic"
+    ]
+  }
+}

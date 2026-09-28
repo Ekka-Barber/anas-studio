@@ -1,0 +1,34 @@
+DESIGN-B: direction B «أنساق» ported into the product (D39), 2026-09-28
+Orchestrator only (owner: no sub-agents, no GLM). Branch agent/design-b from 788cbbe. Local Supabase stack, content re-imported with `pnpm db:import --force`.
+
+Checks (all run on the final tree)
+- pnpm check                      exit 0: lint 0 errors (3 warnings, all pre-existing admin <img>), types clean, check:frozen 50 files unchanged, check:copy 157 files, unit 382/382 (21 files; new: tests/unit/design-b.test.ts).
+- TEST_ENV=local pnpm test:db     exit 0: 178/178 (14 files). tests/integration/content.test.ts now compares each room with its shaped fixture (hidden films dropped); media-security.test.ts removes the cover-only "posts" it creates.
+- pnpm build                      exit 0: static export, every public page prerendered (journal/[slug] builds `_` as the 404 with no posts).
+- pnpm check:export               exit 0: 25 required files, 305 text files scanned, no secrets.
+- pnpm check:budgets              exit 0: largest initial public JS 145.3 KiB gzip (checkout; was 142.1 at P07), rooms ~139 KiB, budget 150.
+
+End to end (Playwright against `next dev` on the local stack, workers 1)
+- tests/e2e/public.spec.ts        26/26: every page (/, 4 rooms, book, journal, scenes, contact, store) one h1, main#main, no console errors, no placeholder wording; 404; menu dialog (aria-current, Escape, focus return); inline nav from 1024px; skip link; films play only when asked; scenes filter and keyboard lightbox; book cover B + standing B and the contents strip; contact errors and service prefill; five pages readable without JS.
+- tests/e2e/cms.spec.ts           3/3: the room test now restores the version that was live at its start (the oldest row can predate the D39 fields) and compares text in its typeset form.
+- tests/e2e/media.spec.ts         8/8: same restore fix; the library image shows on /built from the room's own field.
+- tests/e2e/cart-checkout.spec.ts 11/11 (restyled store, cart and checkout).
+- tests/e2e/visual.spec.ts        50/50: 10 pages at 360/768/1024/1440 with 0px horizontal overflow, plus 768 without JS; screenshots in screenshots/. (Waits for `load`, not `networkidle`: Turnstile keeps a connection open.)
+
+Motion (static export served from out/, `npx serve out -l 4010`)
+- stuck.mjs (session scratchpad): motion on, a slow scroll to the end, then every [data-reveal], its children and [data-enter] checked for a held 1ms animation or opacity < 1: 0 held on all 10 pages at 1440 and at 390; no script errors.
+
+Contact function round trip (browser, local stack)
+- Filled and sent the real form: Turnstile (test key) token, `contact` Edge Function answered ok, the page announced «وصلت رسالتك. شكراً لك.», the row was in public.contacts. The test row was then deleted.
+
+Visual review (orchestrator)
+- Every public page reviewed at 1440 and 390, the tablet widths from the visual evidence, the journal with three temporary posts (list and article; removed afterwards), and the admin sign-in on the new tokens.
+
+tasmeem audit acted on, round 2 (2026-09-28, orchestrator solo): rows 10, 15, 16 and 20-36
+- Record: tasmeem-audit/after/FIXES.md (per row, with proof); live reads and screenshots in tasmeem-audit/after/rows-16-36/.
+- pnpm check                      exit 0: lint 0 errors (3 old admin <img> warnings), types, frozen, copy, unit 382/382.
+- pnpm build, check:export, check:budgets   exit 0: largest initial public JS 145.9 KiB gzip (budget 150).
+- Playwright (dev server, workers 1, 8.8 GB free): public 26/26, cart-checkout 11/11, auth 2/2, visual 50/50, cms 3/3, media 8/8.
+- stuck.mjs on out/ (served on :4010): 0 held reveals on 10 pages at 1440 and 390, no script errors.
+- tasmeem scan/built/render re-run into tasmeem-audit/after/; merged report P0 15 · P1 100 · P2 30 (was 65), every remaining item ruled not a defect or out of scope (FIXES.md).
+- The media and cart-checkout suites rewrite screenshots under artifacts/acceptance/P05/ and P07/ (accepted packages, outside the lock); those files were restored to their committed versions.

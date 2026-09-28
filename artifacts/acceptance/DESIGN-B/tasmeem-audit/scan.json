@@ -1,0 +1,99 @@
+{
+  "tool": "scan",
+  "scanned": 157,
+  "findings": [
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "src/app/(public)/error.tsx",
+      "line": 15,
+      "message": "one word styled differently inside the headline",
+      "channel": "scan",
+      "evidence": " حدث خطأ <span className=\"t-accent\">غير متوقع</span> ",
+      "count": 1,
+      "lines": [
+        15
+      ]
+    },
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "src/components/public/book/BookView.tsx",
+      "line": 45,
+      "message": "one word styled differently inside the headline",
+      "channel": "scan",
+      "evidence": " <span className={`t-mega ${styles.titleWord}`} {...enter(200, 'band')}> {BOOK.title} </sp",
+      "count": 1,
+      "lines": [
+        45
+      ]
+    },
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "src/components/public/Lost.tsx",
+      "line": 18,
+      "message": "one word styled differently inside the headline",
+      "channel": "scan",
+      "evidence": " <span {...enter(80, 'band')}>{title}</span> <span className=\"t-accent\" {...enter(260, 'ba",
+      "count": 1,
+      "lines": [
+        18
+      ]
+    },
+    {
+      "id": "MO-09",
+      "severity": "P2",
+      "file": "src/components/public/scenes/scenes.module.css",
+      "line": 79,
+      "message": "UI transition 800ms",
+      "channel": "scan",
+      "evidence": ".open img",
+      "count": 1,
+      "lines": [
+        79
+      ]
+    },
+    {
+      "id": "MO-09",
+      "severity": "P2",
+      "file": "src/components/site/site.module.css",
+      "line": 9,
+      "message": "UI transition 500ms",
+      "channel": "scan",
+      "evidence": ".header",
+      "count": 1,
+      "lines": [
+        9
+      ]
+    },
+    {
+      "id": "MO-09",
+      "severity": "P2",
+      "file": "src/components/weave/section-nav.module.css",
+      "line": 8,
+      "message": "UI transition 500ms",
+      "channel": "scan",
+      "evidence": ".bar",
+      "count": 1,
+      "lines": [
+        8
+      ]
+    }
+  ],
+  "meta": {
+    "signals": {
+      "arabic": true,
+      "rtl": true,
+      "reducedMotion": true,
+      "focusVisible": true,
+      "motion": true,
+      "tokens": true,
+      "langScopedReset": false
+    },
+    "fontFamilies": [
+      "thmanyah serif display",
+      "thmanyah sans"
+    ]
+  }
+}

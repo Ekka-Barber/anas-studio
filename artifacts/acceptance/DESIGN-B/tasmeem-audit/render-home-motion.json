@@ -1,0 +1,187 @@
+{
+  "tool": "render",
+  "scanned": 4,
+  "findings": [
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.10 (< 1.25)",
+      "count": 1,
+      "evidence": "h2#rooms-title",
+      "width": 360,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.55 (< 1.6)",
+      "count": 1,
+      "evidence": "footer.site-module__oB1X9q__footer > p.site-module__oB1X9q__poem > span",
+      "width": 360,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 11,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | ol.home-module__rj-LAW__doors > li.home-module__rj-LAW__doorItem > a.home-module__rj-LAW__door | ol.home-module__rj-LAW__doors > li.home-module__rj-LAW__doorItem > a.home-module__rj-LAW__door",
+      "width": 360,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "QA-11",
+      "severity": "P0",
+      "message": "a without an accessible name",
+      "count": 1,
+      "evidence": "section.home-module__rj-LAW__book > section.band-module__D_o5aq__band > a.home-module__rj-LAW__cover",
+      "width": 360,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.10 (< 1.25)",
+      "count": 1,
+      "evidence": "h2#rooms-title",
+      "width": 768,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P0",
+      "message": "arabic body line-height 1.55 (< 1.6)",
+      "count": 1,
+      "evidence": "footer.site-module__oB1X9q__footer > p.site-module__oB1X9q__poem > span",
+      "width": 768,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 11,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | ol.home-module__rj-LAW__doors > li.home-module__rj-LAW__doorItem > a.home-module__rj-LAW__door | ol.home-module__rj-LAW__doors > li.home-module__rj-LAW__doorItem > a.home-module__rj-LAW__door",
+      "width": 768,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "QA-11",
+      "severity": "P0",
+      "message": "a without an accessible name",
+      "count": 1,
+      "evidence": "section.home-module__rj-LAW__book > section.band-module__D_o5aq__band > a.home-module__rj-LAW__cover",
+      "width": 768,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.10 (< 1.25)",
+      "count": 1,
+      "evidence": "h2#rooms-title",
+      "width": 1024,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 14,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1024,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "QA-11",
+      "severity": "P0",
+      "message": "a without an accessible name",
+      "count": 1,
+      "evidence": "section.home-module__rj-LAW__book > section.band-module__D_o5aq__band > a.home-module__rj-LAW__cover",
+      "width": 1024,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "SC-03",
+      "severity": "P1",
+      "message": "arabic display line-height 1.10 (< 1.25)",
+      "count": 1,
+      "evidence": "h2#rooms-title",
+      "width": 1440,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 16,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1440,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    },
+    {
+      "id": "QA-11",
+      "severity": "P0",
+      "message": "a without an accessible name",
+      "count": 1,
+      "evidence": "section.home-module__rj-LAW__book > section.band-module__D_o5aq__band > a.home-module__rj-LAW__cover",
+      "width": 1440,
+      "url": "http://localhost:3000/",
+      "channel": "render"
+    }
+  ],
+  "meta": {
+    "url": "http://localhost:3000/",
+    "widths": [
+      360,
+      768,
+      1024,
+      1440
+    ],
+    "screenshots": [
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_-360-motion.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_-768-motion.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_-1024-motion.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\screenshots\\localhost_3000_-1440-motion.png"
+    ],
+    "fonts": {
+      "360": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      },
+      "768": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      },
+      "1024": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      },
+      "1440": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display"
+      }
+    },
+    "scripts": [
+      "arabic",
+      "latin"
+    ]
+  }
+}

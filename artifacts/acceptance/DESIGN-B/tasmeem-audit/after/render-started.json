@@ -1,0 +1,91 @@
+{
+  "tool": "render",
+  "scanned": 4,
+  "findings": [
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play",
+      "width": 360,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 6,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | li > div.video-module__LHbloq__tile > button.video-module__LHbloq__play",
+      "width": 768,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1024,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    },
+    {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "header.site-module__oB1X9q__header > div.site-module__oB1X9q__bar > a.site-module__oB1X9q__brand | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link | div.site-module__oB1X9q__bar > nav.site-module__oB1X9q__inline > a.site-module__oB1X9q__link",
+      "width": 1440,
+      "url": "http://localhost:3000/started",
+      "channel": "render"
+    }
+  ],
+  "meta": {
+    "url": "http://localhost:3000/started",
+    "widths": [
+      360,
+      768,
+      1024,
+      1440
+    ],
+    "screenshots": [
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\after\\screenshots\\localhost_3000_started-360.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\after\\screenshots\\localhost_3000_started-768.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\after\\screenshots\\localhost_3000_started-1024.png",
+      "artifacts\\acceptance\\DESIGN-B\\tasmeem-audit\\after\\screenshots\\localhost_3000_started-1440.png"
+    ],
+    "fonts": {
+      "360": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      },
+      "768": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      },
+      "1024": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      },
+      "1440": {
+        "arabic:text": "Thmanyah Sans",
+        "latin:text": "Thmanyah Sans",
+        "arabic:heading": "Thmanyah Serif Display",
+        "latin:heading": "Thmanyah Serif Display"
+      }
+    },
+    "scripts": [
+      "arabic",
+      "latin"
+    ]
+  }
+}
