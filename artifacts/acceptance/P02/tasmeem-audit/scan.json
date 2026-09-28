@@ -1,0 +1,31 @@
+{
+  "tool": "scan",
+  "scanned": 9,
+  "findings": [
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "src/components/public/book/BookView.tsx",
+      "line": 50,
+      "message": "one word styled differently inside the headline",
+      "channel": "scan",
+      "evidence": " <span className={`t-mega ${styles.titleWord}`} {...enter(200, 'band')}> {BOOK.title} </sp",
+      "count": 1,
+      "lines": [
+        50
+      ]
+    }
+  ],
+  "meta": {
+    "signals": {
+      "arabic": true,
+      "rtl": true,
+      "reducedMotion": true,
+      "focusVisible": true,
+      "motion": false,
+      "tokens": true,
+      "langScopedReset": false
+    },
+    "fontFamilies": []
+  }
+}

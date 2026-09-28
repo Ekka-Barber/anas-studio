@@ -1,0 +1,60 @@
+P02: the book preview reader, 2026-09-28
+Orchestrator only (owner: "you should do it"; no sub-agents, no GLM). Branch agent/design-b on top of 7ac94e8, under its own .anasaq-execution.lock.
+
+Scope and approval
+- Owner, 2026-09-28: "P02 should done !! ANAS provide two or three PDF texts !! we only want to let users see these then had to buy the whole book to read".
+- Published range (E04 preview range): «الإهداء» (1 page), «المقدمة» (2 pages), two pages of «صورة الروضة», from BOOK_ASSETS/ (8).pdf, (11).pdf, (9).pdf. The final manuscript and the digital sale stay open under E04.
+
+The public copy
+- python scripts/prepare-preview.py        public/book/khous-preview.pdf: 5 pages, 364,653 bytes, sha256 9c9845fa506c7863…; the same bytes on a second run.
+  Checked before writing: no /JavaScript, /JS, /OpenAction, /AA, /EmbeddedFile, /Launch, /URI, /Annots or /Metadata; no email address; empty document info; every page's text equals its source page (pypdf).
+- PyMuPDF render at 50 dpi, output vs source, page by page: 5/5 pixel-identical.
+- content/book-source-manifest.json: input and output hashes, page labels, the approval. content/book-preview-text.json: each page's text in reading order.
+- python scripts/prepare-preview.py --fixtures   tests/fixtures/reader/: one-page.pdf, three-pages.pdf (synthetic, no book text), corrupt.pdf.
+
+Checks
+- pnpm check                      exit 0: lint 0 errors (3 old admin <img> warnings), types, frozen, copy (163 files), unit 394/394 (new: tests/unit/reader-mapping.test.ts 12, among them the real preview read through pdf.js in Node).
+- pnpm build                      exit 0. pdf.js's worker is emitted as out/_next/static/media/pdf.worker.min.*.mjs; out/book/khous-preview.pdf present.
+- pnpm check:export               exit 0: 26 required files (book/khous-preview.pdf added), 309 text files, no secrets.
+- pnpm check:budgets              exit 0: book.html initial JS 141.2 KiB gzip; largest 145.9 KiB (budget 150). pdf.js and page-flip load only when the book is opened.
+- tasmeem scan src/components/book: 0 findings. impeccable detect on the reader files: clean. avoid-ai-design: only the known SD5 on the book title (brand exception).
+
+End to end (Playwright, workers 1, free RAM 8.1 GB)
+- tests/e2e/reader.spec.ts against next dev (:3000): 12/12. Against the static export (npx serve out, :4010): 12/12 (the first test ran before the server listened; rerun alone, passed).
+  The published file equals the manifest's hash and holds no email; nothing loads before «افتح الكتاب»; the only PDF fetched is /book/khous-preview.pdf; the book is focused and opens to «الإهداء · المقدمة 1–2 / 5»; page 1's leaf is right of page 2's; ← 3–4, → back, End «5 / 5» with «النسخ ←», next stops at the back cover; page jump; at most 6 drawn canvases; a mouse drag from the left page turns forward; reduced motion turns in place; a resize redraws; full screen and back; the pages one under the other end at #editions; odd (3) and single (1) page fixtures; corrupt file, network failure, retry; a 360 phone opens the pages one under the other with the zoom hint, no overflow, and the book turns one page at a time; without JavaScript the button is the PDF link and the file is served as application/pdf.
+- tests/e2e/public.spec.ts + visual.spec.ts: 76/76. The visual suite rewrites artifacts/acceptance/DESIGN-B/screenshots/ (committed evidence of an accepted package, outside this lock); those files were restored to their committed versions.
+
+Screenshots (screenshots/, 2x): closed-1440, open-1440, turning-1440 (mid-turn: the left page lifting to the right, both faces drawn), end-1440, fullscreen-1440, pages-1440, closed-360, pages-360, pages-end-360, book-360. No console errors in the capture run.
+
+Findings handled on the way (docs/book-preview.md, "Two pdf.js findings")
+- Joined Arabic: through browser font faces Chrome drew Word's already-joined glyphs as unjoined letters; the reader sets disableFontFace, and pdf.js draws glyph outlines, identical to the PDF.
+- Text order: pdf.js reverses lam-alef ligatures («اإلهداء»); fixLigatures restores them against pypdf's text in the selectable layer, and screen readers get pypdf's text per page (the pdf.js layer is aria-hidden). The reference applies only to a PDF with the preview's page count.
+- page-flip's autoSize sized the book by width alone and overflowed the screen; the box sets the height (autoSize off).
+- A leaf page-flip hides measures 0 wide, so pages are drawn at the book's page width; a turning page is never blank.
+
+Round 2, after the owner's audit (2026-09-28: "GO AHEAD DO THE BEST, VERY THOUGHTFULLY")
+- Audit: tasmeem-audit/FINDINGS.md (15 findings, no changes). Result per finding: tasmeem-audit/after/FIXES.md.
+- The book is 4:5 (8x10 in, cover B's shape). Endpapers, parts on left-hand pages, boards, page edges, the spine's shadow, warm paper (--paper-page), the closed book centred, one stage for closed/loading/open, a reduced-motion fade, phones open the book, «عرض للقراءة» at reading size.
+- pnpm check                      exit 0: lint 0 errors, unit 397/397.
+- pnpm build, check:export, check:budgets   exit 0: book.html 141.6 KiB gzip (largest 145.9 of 150).
+- e2e reader 14/14 on next dev and 14/14 on the static export; public + visual 76/76 (DESIGN-B screenshots the visual suite rewrites were restored). stuck.mjs /book: 0 held.
+- Stage height closed/loading/open: 1440 1405/1405/1405, 693 1106/1106/1106, 360 942/942/942 (before: 1005/581/1389, layout shift 0.64-1.00).
+- Turn smoothness at 1440 with the GPU (Intel Iris Xe, --use-angle=d3d11): 0-1 frames over 32ms per turn in three runs; with software rendering (SwiftShader) about 13 of 54.
+- tasmeem after: scan MO-09 (the book's 700ms slide) and CO-13 (the page edges) are documented in DESIGN.md; built TY-04/TY-05 brand exceptions; render LA-22 false positive; merged verdict PASS.
+- Screenshots: screenshots/ (360, 693, 1440: closed, opening, open, turning, end, back cover, reading view); videos: tasmeem-audit/video (before) and tasmeem-audit/after/video (after).
+
+Round 3, audit-2 (2026-09-28). Owner: "RERUN DEEP AUDIT" (scroll animations missing on some pages; the reader's bottom-right corner), then "go, yes on 3", with the serious money pages kept official and calm, and "once all fixes done commit".
+- Findings: audit-2/FINDINGS.md (probes in audit-2/probes, video frame sheets in audit-2/frames). The main cause: on `next dev`, React's StrictMode double run made MotionLayer take every first visit for a return, so no scroll reveal played on any page (0 of 15; the export played them all).
+- Fixed by the orchestrator:
+  - MotionLayer keeps its decision for a re-run of the same page, and a return skips only the entrances (owner's item 3);
+  - the calm pages: /cart, /checkout and /policies/* have a plain head with a rule, a modest title, the order summary in a bordered panel beside the form from 1024, money in tabular digits, only the title's 280ms fade, and no reveals;
+  - motion for the store list, a product and the scenes grid;
+  - the reader: one page at a time a click turns by its half; a drag never stops on a blank or an endpaper; corner hints both ways; a corner click that closes the book slides with the turn.
+- Tests by an opus-worker (Opus 5.5, effort xhigh, owner: "hand it to opus 5.5 … and you over audit"), from audit-2/worker-brief-tests.md: tests/e2e/motion.spec.ts (new, 15 tests) and 4 new reader tests. The worker's drag test found a real bug in the orchestrator's first fix: a follow-on turn started inside page-flip's own end of turn never ended, and `data-turning` stuck. Fixed: the turn now starts on the next frame, and the book stays "turning" until it reaches a page with words. The diff was audited; only the two spec files changed.
+- pnpm check                      exit 0: lint 0 errors (3 old admin <img> warnings), types, frozen, copy (164 files), unit 397/397.
+- e2e on next dev: motion + reader 33/33; the timing-sensitive reader tests 20/20 with --repeat-each=5; public + visual + cart-checkout 87/87 (the DESIGN-B and P07 screenshots those suites rewrite were restored to their committed versions).
+- Build: `NEXT_DIST_DIR=.next/export pnpm build` (so the pane's running dev server keeps `.next`). With a custom distDir, Next 16 writes the static export into that folder, not `out/`. The first export run therefore tested the stale `out/` of 21:37 and failed. `out/` was then replaced with `.next/export` (the same exporter's output, 26 required files).
+- pnpm check:export              exit 0: 26 required files, 309 text files, no secrets.
+- pnpm check:budgets             exit 0: largest 146.1 KiB (checkout.html; budget 150); book.html 141.7 KiB.
+- e2e on the export (PLAYWRIGHT_BASE_URL=http://localhost:4010): motion + reader 33/33.
+- tasmeem scan (store, weave motion, book, the money routes, scenes, Picture): only MO-09 and CO-13 on the book, both documented in DESIGN.md.

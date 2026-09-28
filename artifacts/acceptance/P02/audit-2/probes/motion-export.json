@@ -1,0 +1,404 @@
+[
+ {
+  "w": 1440,
+  "route": "/",
+  "enter": 8,
+  "cssAnims": 5,
+  "screens": 6,
+  "reveal": 18,
+  "scrub": 1,
+  "played": 18,
+  "stillScreens": "1/5",
+  "quiet": []
+ },
+ {
+  "w": 1440,
+  "route": "/book",
+  "enter": 7,
+  "cssAnims": 14,
+  "screens": 9,
+  "reveal": 26,
+  "scrub": 5,
+  "played": 26,
+  "stillScreens": "0/8",
+  "quiet": []
+ },
+ {
+  "w": 1440,
+  "route": "/built",
+  "enter": 2,
+  "cssAnims": 1,
+  "screens": 10,
+  "reveal": 34,
+  "scrub": 1,
+  "played": 38,
+  "stillScreens": "1/9",
+  "quiet": []
+ },
+ {
+  "w": 1440,
+  "route": "/started",
+  "enter": 2,
+  "cssAnims": 0,
+  "screens": 10,
+  "reveal": 46,
+  "scrub": 0,
+  "played": 45,
+  "stillScreens": "0/9",
+  "quiet": []
+ },
+ {
+  "w": 1440,
+  "route": "/passed",
+  "enter": 2,
+  "cssAnims": 10,
+  "screens": 7,
+  "reveal": 42,
+  "scrub": 8,
+  "played": 36,
+  "stillScreens": "0/6",
+  "quiet": []
+ },
+ {
+  "w": 1440,
+  "route": "/shelf",
+  "enter": 2,
+  "cssAnims": 6,
+  "screens": 14,
+  "reveal": 54,
+  "scrub": 6,
+  "played": 54,
+  "stillScreens": "0/13",
+  "quiet": [
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/scenes",
+  "enter": 2,
+  "cssAnims": 0,
+  "screens": 4,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "1/3",
+  "quiet": [
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/journal",
+  "enter": 4,
+  "cssAnims": 4,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 1,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": []
+ },
+ {
+  "w": 1440,
+  "route": "/store",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": [
+   "المتجر",
+   "خلفيات من الغرف (تجريبي)"
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/store/demo-khous",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": [
+   "خوص (تجريبي)",
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/cart",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 1,
+  "stillScreens": "0/1",
+  "quiet": [
+   "السلة",
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/checkout",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 1,
+  "stillScreens": "0/1",
+  "quiet": [
+   "إتمام الطلب",
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/contact",
+  "enter": 2,
+  "cssAnims": 0,
+  "screens": 4,
+  "reveal": 10,
+  "scrub": 0,
+  "played": 10,
+  "stillScreens": "0/3",
+  "quiet": [
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/policies/privacy",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 1,
+  "stillScreens": "0/1",
+  "quiet": [
+   "سياسة الخصوصية",
+   ""
+  ]
+ },
+ {
+  "w": 1440,
+  "route": "/no-such-page",
+  "enter": 4,
+  "cssAnims": 2,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/",
+  "enter": 8,
+  "cssAnims": 5,
+  "screens": 7,
+  "reveal": 18,
+  "scrub": 1,
+  "played": 18,
+  "stillScreens": "1/6",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/book",
+  "enter": 7,
+  "cssAnims": 14,
+  "screens": 10,
+  "reveal": 26,
+  "scrub": 5,
+  "played": 26,
+  "stillScreens": "0/9",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/built",
+  "enter": 2,
+  "cssAnims": 1,
+  "screens": 9,
+  "reveal": 34,
+  "scrub": 1,
+  "played": 38,
+  "stillScreens": "0/8",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/started",
+  "enter": 2,
+  "cssAnims": 0,
+  "screens": 9,
+  "reveal": 46,
+  "scrub": 0,
+  "played": 44,
+  "stillScreens": "0/8",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/passed",
+  "enter": 2,
+  "cssAnims": 10,
+  "screens": 8,
+  "reveal": 42,
+  "scrub": 8,
+  "played": 33,
+  "stillScreens": "0/7",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/shelf",
+  "enter": 2,
+  "cssAnims": 6,
+  "screens": 17,
+  "reveal": 54,
+  "scrub": 6,
+  "played": 54,
+  "stillScreens": "1/16",
+  "quiet": [
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/scenes",
+  "enter": 2,
+  "cssAnims": 0,
+  "screens": 5,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "2/4",
+  "quiet": [
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/journal",
+  "enter": 4,
+  "cssAnims": 4,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 1,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": []
+ },
+ {
+  "w": 390,
+  "route": "/store",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": [
+   "المتجر",
+   "خلفيات من الغرف (تجريبي)"
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/store/demo-khous",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": [
+   "خوص (تجريبي)",
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/cart",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 0,
+  "stillScreens": "1/1",
+  "quiet": [
+   "السلة",
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/checkout",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 0,
+  "stillScreens": "1/1",
+  "quiet": [
+   "إتمام الطلب",
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/contact",
+  "enter": 2,
+  "cssAnims": 0,
+  "screens": 5,
+  "reveal": 10,
+  "scrub": 0,
+  "played": 10,
+  "stillScreens": "0/4",
+  "quiet": [
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/policies/privacy",
+  "enter": 0,
+  "cssAnims": 0,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 0,
+  "stillScreens": "1/1",
+  "quiet": [
+   "سياسة الخصوصية",
+   ""
+  ]
+ },
+ {
+  "w": 390,
+  "route": "/no-such-page",
+  "enter": 4,
+  "cssAnims": 2,
+  "screens": 2,
+  "reveal": 2,
+  "scrub": 0,
+  "played": 2,
+  "stillScreens": "0/1",
+  "quiet": []
+ }
+]

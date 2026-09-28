@@ -1,0 +1,48 @@
+{
+ "tool": "built",
+ "scanned": 52,
+ "findings": [
+  {
+   "id": "TY-04",
+   "severity": "P1",
+   "file": "out/book.html",
+   "line": 33,
+   "message": "one word styled differently inside the headline",
+   "channel": "built",
+   "evidence": "<span class=\"t-mega book-module__mwyVwq__titleWord\" data-enter=\"\" data-fx=\"band\" style=\"--",
+   "count": 1,
+   "lines": [
+    33
+   ]
+  },
+  {
+   "id": "TY-05",
+   "severity": "P1",
+   "file": "out/book.html",
+   "line": 33,
+   "message": "eyebrow label above a heading",
+   "channel": "built",
+   "evidence": "<p class=\"book-module__mwyVwq__roomLabel\" data-enter=\"\" style=\"--enter-delay:80ms\">كتبتُ ه",
+   "count": 1,
+   "lines": [
+    33
+   ]
+  }
+ ],
+ "meta": {
+  "pages": 52,
+  "signals": {
+   "arabic": true,
+   "rtl": true,
+   "reducedMotion": true,
+   "focusVisible": true,
+   "motion": true,
+   "tokens": true,
+   "langScopedReset": false
+  },
+  "fontFamilies": [
+   "thmanyah serif display",
+   "thmanyah sans"
+  ]
+ }
+}

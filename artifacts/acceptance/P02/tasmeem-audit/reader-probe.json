@@ -1,0 +1,1038 @@
+{
+ "1440-no-preference": {
+  "closed": {
+   "section": [
+    1440,
+    1005
+   ],
+   "cover": [
+    360,
+    450,
+    1.25
+   ],
+   "coverLeft": 1008,
+   "button": [
+    792,
+    394
+   ]
+  },
+  "msToFirstSpread": 1613,
+  "atCover": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 224,
+     "w": 496,
+     "h": 702,
+     "ratio": 1.414,
+     "art": {
+      "w": 496,
+      "h": 620,
+      "barEach": 41
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "page 2",
+     "x": 224,
+     "w": 496,
+     "h": 702,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 10.8,
+     "shadow": "none"
+    },
+    {
+     "kind": "page 1",
+     "x": 720,
+     "w": 496,
+     "h": 702,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 8.6,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء · المقدمة1–2 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1440-no-preference-00.png",
+    "ms": 648
+   },
+   {
+    "file": "turn-1440-no-preference-01.png",
+    "ms": 1025
+   },
+   {
+    "file": "turn-1440-no-preference-02.png",
+    "ms": 1392
+   },
+   {
+    "file": "turn-1440-no-preference-03.png",
+    "ms": 1772
+   },
+   {
+    "file": "turn-1440-no-preference-04.png",
+    "ms": 2167
+   },
+   {
+    "file": "turn-1440-no-preference-05.png",
+    "ms": 2535
+   },
+   {
+    "file": "turn-1440-no-preference-06.png",
+    "ms": 2832
+   },
+   {
+    "file": "turn-1440-no-preference-07.png",
+    "ms": 3177
+   },
+   {
+    "file": "turn-1440-no-preference-08.png",
+    "ms": 3532
+   },
+   {
+    "file": "turn-1440-no-preference-09.png",
+    "ms": 3918
+   }
+  ],
+  "turnPerf": {
+   "frames": 33,
+   "over32": 18,
+   "max": 83
+  },
+  "afterTurn": "المقدمة · من فصل «صورة الروضة»3–4 / 5",
+  "errors": []
+ },
+ "1440-reduce": {
+  "closed": {
+   "section": [
+    1440,
+    1005
+   ],
+   "cover": [
+    360,
+    450,
+    1.25
+   ],
+   "coverLeft": 1008,
+   "button": [
+    792,
+    394
+   ]
+  },
+  "msToFirstSpread": 916,
+  "atCover": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 224,
+     "w": 496,
+     "h": 702,
+     "ratio": 1.414,
+     "art": {
+      "w": 496,
+      "h": 620,
+      "barEach": 41
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "page 2",
+     "x": 224,
+     "w": 496,
+     "h": 702,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 10.8,
+     "shadow": "none"
+    },
+    {
+     "kind": "page 1",
+     "x": 720,
+     "w": 496,
+     "h": 702,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 8.6,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء · المقدمة1–2 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1440-reduce-00.png",
+    "ms": 341
+   },
+   {
+    "file": "turn-1440-reduce-01.png",
+    "ms": 721
+   },
+   {
+    "file": "turn-1440-reduce-02.png",
+    "ms": 1089
+   },
+   {
+    "file": "turn-1440-reduce-03.png",
+    "ms": 1467
+   },
+   {
+    "file": "turn-1440-reduce-04.png",
+    "ms": 1813
+   },
+   {
+    "file": "turn-1440-reduce-05.png",
+    "ms": 2173
+   },
+   {
+    "file": "turn-1440-reduce-06.png",
+    "ms": 2507
+   },
+   {
+    "file": "turn-1440-reduce-07.png",
+    "ms": 2894
+   },
+   {
+    "file": "turn-1440-reduce-08.png",
+    "ms": 3238
+   },
+   {
+    "file": "turn-1440-reduce-09.png",
+    "ms": 3585
+   }
+  ],
+  "turnPerf": {
+   "frames": 54,
+   "over32": 8,
+   "max": 67
+  },
+  "afterTurn": "المقدمة · من فصل «صورة الروضة»3–4 / 5",
+  "errors": []
+ },
+ "1024-no-preference": {
+  "closed": {
+   "section": [
+    1024,
+    822
+   ],
+   "cover": [
+    360,
+    450,
+    1.25
+   ],
+   "coverLeft": 613,
+   "button": [
+    418,
+    394
+   ]
+  },
+  "msToFirstSpread": 1575,
+  "atCover": {
+   "host": [
+    922,
+    599
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 89,
+     "w": 424,
+     "h": 599,
+     "ratio": 1.414,
+     "art": {
+      "w": 424,
+      "h": 530,
+      "barEach": 34
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    922,
+    599
+   ],
+   "shown": [
+    {
+     "kind": "page 2",
+     "x": 89,
+     "w": 424,
+     "h": 599,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 9.3,
+     "shadow": "none"
+    },
+    {
+     "kind": "page 1",
+     "x": 512,
+     "w": 424,
+     "h": 599,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 7.4,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء · المقدمة1–2 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1024-no-preference-00.png",
+    "ms": 438
+   },
+   {
+    "file": "turn-1024-no-preference-01.png",
+    "ms": 880
+   },
+   {
+    "file": "turn-1024-no-preference-02.png",
+    "ms": 1179
+   },
+   {
+    "file": "turn-1024-no-preference-03.png",
+    "ms": 1451
+   },
+   {
+    "file": "turn-1024-no-preference-04.png",
+    "ms": 1774
+   },
+   {
+    "file": "turn-1024-no-preference-05.png",
+    "ms": 2088
+   },
+   {
+    "file": "turn-1024-no-preference-06.png",
+    "ms": 2380
+   },
+   {
+    "file": "turn-1024-no-preference-07.png",
+    "ms": 2674
+   },
+   {
+    "file": "turn-1024-no-preference-08.png",
+    "ms": 2992
+   },
+   {
+    "file": "turn-1024-no-preference-09.png",
+    "ms": 3290
+   }
+  ],
+  "turnPerf": {
+   "frames": 39,
+   "over32": 17,
+   "max": 83
+  },
+  "afterTurn": "المقدمة · من فصل «صورة الروضة»3–4 / 5",
+  "errors": []
+ },
+ "1024-reduce": {
+  "closed": {
+   "section": [
+    1024,
+    822
+   ],
+   "cover": [
+    360,
+    450,
+    1.25
+   ],
+   "coverLeft": 613,
+   "button": [
+    418,
+    394
+   ]
+  },
+  "msToFirstSpread": 930,
+  "atCover": {
+   "host": [
+    922,
+    599
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 89,
+     "w": 424,
+     "h": 599,
+     "ratio": 1.414,
+     "art": {
+      "w": 424,
+      "h": 530,
+      "barEach": 34
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    922,
+    599
+   ],
+   "shown": [
+    {
+     "kind": "page 2",
+     "x": 89,
+     "w": 424,
+     "h": 599,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 9.3,
+     "shadow": "none"
+    },
+    {
+     "kind": "page 1",
+     "x": 512,
+     "w": 424,
+     "h": 599,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 7.4,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء · المقدمة1–2 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1024-reduce-00.png",
+    "ms": 265
+   },
+   {
+    "file": "turn-1024-reduce-01.png",
+    "ms": 567
+   },
+   {
+    "file": "turn-1024-reduce-02.png",
+    "ms": 860
+   },
+   {
+    "file": "turn-1024-reduce-03.png",
+    "ms": 1193
+   },
+   {
+    "file": "turn-1024-reduce-04.png",
+    "ms": 1491
+   },
+   {
+    "file": "turn-1024-reduce-05.png",
+    "ms": 1802
+   },
+   {
+    "file": "turn-1024-reduce-06.png",
+    "ms": 2094
+   },
+   {
+    "file": "turn-1024-reduce-07.png",
+    "ms": 2393
+   },
+   {
+    "file": "turn-1024-reduce-08.png",
+    "ms": 2732
+   },
+   {
+    "file": "turn-1024-reduce-09.png",
+    "ms": 3045
+   }
+  ],
+  "turnPerf": {
+   "frames": 59,
+   "over32": 4,
+   "max": 50
+  },
+  "afterTurn": "المقدمة · من فصل «صورة الروضة»3–4 / 5",
+  "errors": []
+ },
+ "693-no-preference": {
+  "closed": {
+   "section": [
+    693,
+    773
+   ],
+   "cover": [
+    360,
+    450,
+    1.25
+   ],
+   "coverLeft": 298,
+   "button": [
+    120,
+    394
+   ]
+  },
+  "msToFirstSpread": 1395,
+  "atCover": {
+   "host": [
+    624,
+    441
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 35,
+     "w": 312,
+     "h": 441,
+     "ratio": 1.414,
+     "art": {
+      "w": 312,
+      "h": 390,
+      "barEach": 26
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    624,
+    441
+   ],
+   "shown": [
+    {
+     "kind": "page 2",
+     "x": 35,
+     "w": 312,
+     "h": 441,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 6.8,
+     "shadow": "none"
+    },
+    {
+     "kind": "page 1",
+     "x": 347,
+     "w": 312,
+     "h": 441,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 5.4,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء · المقدمة1–2 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-693-no-preference-00.png",
+    "ms": 255
+   },
+   {
+    "file": "turn-693-no-preference-01.png",
+    "ms": 495
+   },
+   {
+    "file": "turn-693-no-preference-02.png",
+    "ms": 691
+   },
+   {
+    "file": "turn-693-no-preference-03.png",
+    "ms": 909
+   },
+   {
+    "file": "turn-693-no-preference-04.png",
+    "ms": 1143
+   },
+   {
+    "file": "turn-693-no-preference-05.png",
+    "ms": 1395
+   },
+   {
+    "file": "turn-693-no-preference-06.png",
+    "ms": 1583
+   },
+   {
+    "file": "turn-693-no-preference-07.png",
+    "ms": 1800
+   },
+   {
+    "file": "turn-693-no-preference-08.png",
+    "ms": 2027
+   },
+   {
+    "file": "turn-693-no-preference-09.png",
+    "ms": 2230
+   }
+  ],
+  "turnPerf": {
+   "frames": 58,
+   "over32": 9,
+   "max": 50
+  },
+  "afterTurn": "المقدمة · من فصل «صورة الروضة»3–4 / 5",
+  "errors": []
+ },
+ "693-reduce": {
+  "closed": {
+   "section": [
+    693,
+    773
+   ],
+   "cover": [
+    360,
+    450,
+    1.25
+   ],
+   "coverLeft": 298,
+   "button": [
+    120,
+    394
+   ]
+  },
+  "msToFirstSpread": 845,
+  "atCover": {
+   "host": [
+    624,
+    441
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 35,
+     "w": 312,
+     "h": 441,
+     "ratio": 1.414,
+     "art": {
+      "w": 312,
+      "h": 390,
+      "barEach": 26
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    624,
+    441
+   ],
+   "shown": [
+    {
+     "kind": "page 2",
+     "x": 35,
+     "w": 312,
+     "h": 441,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 6.8,
+     "shadow": "none"
+    },
+    {
+     "kind": "page 1",
+     "x": 347,
+     "w": 312,
+     "h": 441,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 5.4,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء · المقدمة1–2 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-693-reduce-00.png",
+    "ms": 174
+   },
+   {
+    "file": "turn-693-reduce-01.png",
+    "ms": 374
+   },
+   {
+    "file": "turn-693-reduce-02.png",
+    "ms": 610
+   },
+   {
+    "file": "turn-693-reduce-03.png",
+    "ms": 812
+   },
+   {
+    "file": "turn-693-reduce-04.png",
+    "ms": 1033
+   },
+   {
+    "file": "turn-693-reduce-05.png",
+    "ms": 1262
+   },
+   {
+    "file": "turn-693-reduce-06.png",
+    "ms": 1465
+   },
+   {
+    "file": "turn-693-reduce-07.png",
+    "ms": 1690
+   },
+   {
+    "file": "turn-693-reduce-08.png",
+    "ms": 1898
+   },
+   {
+    "file": "turn-693-reduce-09.png",
+    "ms": 2115
+   }
+  ],
+  "turnPerf": {
+   "frames": 67,
+   "over32": 0,
+   "max": 17
+  },
+  "afterTurn": "المقدمة · من فصل «صورة الروضة»3–4 / 5",
+  "errors": []
+ },
+ "360-no-preference": {
+  "closed": {
+   "section": [
+    360,
+    848
+   ],
+   "cover": [
+    320,
+    400,
+    1.25
+   ],
+   "coverLeft": 20,
+   "button": [
+    196,
+    432
+   ]
+  },
+  "msToFirstSpread": 1913,
+  "atCover": {
+   "host": [
+    320,
+    452
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 20,
+     "w": 320,
+     "h": 452,
+     "ratio": 1.414,
+     "art": {
+      "w": 320,
+      "h": 399,
+      "barEach": 26
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    320,
+    452
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 20,
+     "w": 320,
+     "h": 452,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 5.6,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-360-no-preference-00.png",
+    "ms": 1094
+   },
+   {
+    "file": "turn-360-no-preference-01.png",
+    "ms": 1292
+   },
+   {
+    "file": "turn-360-no-preference-02.png",
+    "ms": 1443
+   },
+   {
+    "file": "turn-360-no-preference-03.png",
+    "ms": 1638
+   },
+   {
+    "file": "turn-360-no-preference-04.png",
+    "ms": 1825
+   },
+   {
+    "file": "turn-360-no-preference-05.png",
+    "ms": 2019
+   },
+   {
+    "file": "turn-360-no-preference-06.png",
+    "ms": 2230
+   },
+   {
+    "file": "turn-360-no-preference-07.png",
+    "ms": 2446
+   },
+   {
+    "file": "turn-360-no-preference-08.png",
+    "ms": 2639
+   },
+   {
+    "file": "turn-360-no-preference-09.png",
+    "ms": 2828
+   }
+  ],
+  "turnPerf": {
+   "frames": 67,
+   "over32": 0,
+   "max": 17
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "360-reduce": {
+  "closed": {
+   "section": [
+    360,
+    848
+   ],
+   "cover": [
+    320,
+    400,
+    1.25
+   ],
+   "coverLeft": 20,
+   "button": [
+    196,
+    432
+   ]
+  },
+  "msToFirstSpread": 1429,
+  "atCover": {
+   "host": [
+    320,
+    452
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 20,
+     "w": 320,
+     "h": 452,
+     "ratio": 1.414,
+     "art": {
+      "w": 320,
+      "h": 399,
+      "barEach": 26
+     },
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    320,
+    452
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 20,
+     "w": 320,
+     "h": 452,
+     "ratio": 1.414,
+     "art": null,
+     "textPx": 5.6,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-360-reduce-00.png",
+    "ms": 147
+   },
+   {
+    "file": "turn-360-reduce-01.png",
+    "ms": 312
+   },
+   {
+    "file": "turn-360-reduce-02.png",
+    "ms": 509
+   },
+   {
+    "file": "turn-360-reduce-03.png",
+    "ms": 714
+   },
+   {
+    "file": "turn-360-reduce-04.png",
+    "ms": 913
+   },
+   {
+    "file": "turn-360-reduce-05.png",
+    "ms": 1106
+   },
+   {
+    "file": "turn-360-reduce-06.png",
+    "ms": 1308
+   },
+   {
+    "file": "turn-360-reduce-07.png",
+    "ms": 1500
+   },
+   {
+    "file": "turn-360-reduce-08.png",
+    "ms": 1713
+   },
+   {
+    "file": "turn-360-reduce-09.png",
+    "ms": 1910
+   }
+  ],
+  "turnPerf": {
+   "frames": 67,
+   "over32": 0,
+   "max": 17
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ }
+}

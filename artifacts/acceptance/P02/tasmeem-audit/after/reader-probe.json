@@ -1,0 +1,1026 @@
+{
+ "1440-no-preference": {
+  "closed": {
+   "section": [
+    1440,
+    1405
+   ],
+   "cover": [
+    562,
+    702,
+    1.25
+   ],
+   "coverLeft": 439,
+   "button": [
+    855,
+    726
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 2205,
+  "atCover": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 439,
+     "w": 562,
+     "h": 702,
+     "ratio": 1.25,
+     "art": {
+      "w": 562,
+      "h": 702,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 158,
+     "w": 562,
+     "h": 702,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 9.6,
+     "shadow": "none"
+    },
+    {
+     "kind": "back",
+     "x": 720,
+     "w": 562,
+     "h": 702,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1440-no-preference-00.png",
+    "ms": 501
+   },
+   {
+    "file": "turn-1440-no-preference-01.png",
+    "ms": 937
+   },
+   {
+    "file": "turn-1440-no-preference-02.png",
+    "ms": 1244
+   },
+   {
+    "file": "turn-1440-no-preference-03.png",
+    "ms": 1586
+   },
+   {
+    "file": "turn-1440-no-preference-04.png",
+    "ms": 1902
+   },
+   {
+    "file": "turn-1440-no-preference-05.png",
+    "ms": 2238
+   },
+   {
+    "file": "turn-1440-no-preference-06.png",
+    "ms": 2556
+   },
+   {
+    "file": "turn-1440-no-preference-07.png",
+    "ms": 2888
+   },
+   {
+    "file": "turn-1440-no-preference-08.png",
+    "ms": 3224
+   },
+   {
+    "file": "turn-1440-no-preference-09.png",
+    "ms": 3591
+   }
+  ],
+  "turnPerf": {
+   "frames": 37,
+   "over32": 20,
+   "max": 67
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "1440-reduce": {
+  "closed": {
+   "section": [
+    1440,
+    1405
+   ],
+   "cover": [
+    562,
+    702,
+    1.25
+   ],
+   "coverLeft": 439,
+   "button": [
+    855,
+    726
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 1429,
+  "atCover": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 439,
+     "w": 562,
+     "h": 702,
+     "ratio": 1.25,
+     "art": {
+      "w": 562,
+      "h": 702,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    1296,
+    702
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 158,
+     "w": 562,
+     "h": 702,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 9.6,
+     "shadow": "none"
+    },
+    {
+     "kind": "back",
+     "x": 720,
+     "w": 562,
+     "h": 702,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1440-reduce-00.png",
+    "ms": 257
+   },
+   {
+    "file": "turn-1440-reduce-01.png",
+    "ms": 565
+   },
+   {
+    "file": "turn-1440-reduce-02.png",
+    "ms": 861
+   },
+   {
+    "file": "turn-1440-reduce-03.png",
+    "ms": 1146
+   },
+   {
+    "file": "turn-1440-reduce-04.png",
+    "ms": 1468
+   },
+   {
+    "file": "turn-1440-reduce-05.png",
+    "ms": 1798
+   },
+   {
+    "file": "turn-1440-reduce-06.png",
+    "ms": 2081
+   },
+   {
+    "file": "turn-1440-reduce-07.png",
+    "ms": 2413
+   },
+   {
+    "file": "turn-1440-reduce-08.png",
+    "ms": 2728
+   },
+   {
+    "file": "turn-1440-reduce-09.png",
+    "ms": 3038
+   }
+  ],
+  "turnPerf": {
+   "frames": 60,
+   "over32": 6,
+   "max": 50
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "1024-no-preference": {
+  "closed": {
+   "section": [
+    1024,
+    1096
+   ],
+   "cover": [
+    461,
+    576,
+    1.25
+   ],
+   "coverLeft": 282,
+   "button": [
+    647,
+    600
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 2067,
+  "atCover": {
+   "host": [
+    922,
+    576
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 282,
+     "w": 461,
+     "h": 576,
+     "ratio": 1.25,
+     "art": {
+      "w": 461,
+      "h": 576,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    922,
+    576
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 51,
+     "w": 461,
+     "h": 576,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 7.9,
+     "shadow": "none"
+    },
+    {
+     "kind": "back",
+     "x": 512,
+     "w": 461,
+     "h": 576,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1024-no-preference-00.png",
+    "ms": 319
+   },
+   {
+    "file": "turn-1024-no-preference-01.png",
+    "ms": 620
+   },
+   {
+    "file": "turn-1024-no-preference-02.png",
+    "ms": 996
+   },
+   {
+    "file": "turn-1024-no-preference-03.png",
+    "ms": 1235
+   },
+   {
+    "file": "turn-1024-no-preference-04.png",
+    "ms": 1513
+   },
+   {
+    "file": "turn-1024-no-preference-05.png",
+    "ms": 1748
+   },
+   {
+    "file": "turn-1024-no-preference-06.png",
+    "ms": 2013
+   },
+   {
+    "file": "turn-1024-no-preference-07.png",
+    "ms": 2265
+   },
+   {
+    "file": "turn-1024-no-preference-08.png",
+    "ms": 2589
+   },
+   {
+    "file": "turn-1024-no-preference-09.png",
+    "ms": 2840
+   }
+  ],
+  "turnPerf": {
+   "frames": 53,
+   "over32": 12,
+   "max": 50
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "1024-reduce": {
+  "closed": {
+   "section": [
+    1024,
+    1096
+   ],
+   "cover": [
+    461,
+    576,
+    1.25
+   ],
+   "coverLeft": 282,
+   "button": [
+    647,
+    600
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 1337,
+  "atCover": {
+   "host": [
+    922,
+    576
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 282,
+     "w": 461,
+     "h": 576,
+     "ratio": 1.25,
+     "art": {
+      "w": 461,
+      "h": 576,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    922,
+    576
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 51,
+     "w": 461,
+     "h": 576,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 7.9,
+     "shadow": "none"
+    },
+    {
+     "kind": "back",
+     "x": 512,
+     "w": 461,
+     "h": 576,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": null,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-1024-reduce-00.png",
+    "ms": 335
+   },
+   {
+    "file": "turn-1024-reduce-01.png",
+    "ms": 590
+   },
+   {
+    "file": "turn-1024-reduce-02.png",
+    "ms": 857
+   },
+   {
+    "file": "turn-1024-reduce-03.png",
+    "ms": 1135
+   },
+   {
+    "file": "turn-1024-reduce-04.png",
+    "ms": 1394
+   },
+   {
+    "file": "turn-1024-reduce-05.png",
+    "ms": 1657
+   },
+   {
+    "file": "turn-1024-reduce-06.png",
+    "ms": 1902
+   },
+   {
+    "file": "turn-1024-reduce-07.png",
+    "ms": 2156
+   },
+   {
+    "file": "turn-1024-reduce-08.png",
+    "ms": 2428
+   },
+   {
+    "file": "turn-1024-reduce-09.png",
+    "ms": 2680
+   }
+  ],
+  "turnPerf": {
+   "frames": 59,
+   "over32": 6,
+   "max": 50
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "693-no-preference": {
+  "closed": {
+   "section": [
+    693,
+    1106
+   ],
+   "cover": [
+    508,
+    635,
+    1.25
+   ],
+   "coverLeft": 92,
+   "button": [
+    275,
+    659
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 2221,
+  "atCover": {
+   "host": [
+    624,
+    635
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 93,
+     "w": 508,
+     "h": 635,
+     "ratio": 1.25,
+     "art": {
+      "w": 508,
+      "h": 635,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    624,
+    635
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 93,
+     "w": 508,
+     "h": 635,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 8.7,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-693-no-preference-00.png",
+    "ms": 199
+   },
+   {
+    "file": "turn-693-no-preference-01.png",
+    "ms": 456
+   },
+   {
+    "file": "turn-693-no-preference-02.png",
+    "ms": 715
+   },
+   {
+    "file": "turn-693-no-preference-03.png",
+    "ms": 961
+   },
+   {
+    "file": "turn-693-no-preference-04.png",
+    "ms": 1160
+   },
+   {
+    "file": "turn-693-no-preference-05.png",
+    "ms": 1363
+   },
+   {
+    "file": "turn-693-no-preference-06.png",
+    "ms": 1570
+   },
+   {
+    "file": "turn-693-no-preference-07.png",
+    "ms": 1779
+   },
+   {
+    "file": "turn-693-no-preference-08.png",
+    "ms": 1995
+   },
+   {
+    "file": "turn-693-no-preference-09.png",
+    "ms": 2214
+   }
+  ],
+  "turnPerf": {
+   "frames": 66,
+   "over32": 1,
+   "max": 33
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "693-reduce": {
+  "closed": {
+   "section": [
+    693,
+    1106
+   ],
+   "cover": [
+    508,
+    635,
+    1.25
+   ],
+   "coverLeft": 92,
+   "button": [
+    275,
+    659
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 1376,
+  "atCover": {
+   "host": [
+    624,
+    635
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 93,
+     "w": 508,
+     "h": 635,
+     "ratio": 1.25,
+     "art": {
+      "w": 508,
+      "h": 635,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    624,
+    635
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 93,
+     "w": 508,
+     "h": 635,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 8.7,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-693-reduce-00.png",
+    "ms": 147
+   },
+   {
+    "file": "turn-693-reduce-01.png",
+    "ms": 441
+   },
+   {
+    "file": "turn-693-reduce-02.png",
+    "ms": 639
+   },
+   {
+    "file": "turn-693-reduce-03.png",
+    "ms": 866
+   },
+   {
+    "file": "turn-693-reduce-04.png",
+    "ms": 1066
+   },
+   {
+    "file": "turn-693-reduce-05.png",
+    "ms": 1267
+   },
+   {
+    "file": "turn-693-reduce-06.png",
+    "ms": 1457
+   },
+   {
+    "file": "turn-693-reduce-07.png",
+    "ms": 1669
+   },
+   {
+    "file": "turn-693-reduce-08.png",
+    "ms": 1882
+   },
+   {
+    "file": "turn-693-reduce-09.png",
+    "ms": 2101
+   }
+  ],
+  "turnPerf": {
+   "frames": 66,
+   "over32": 2,
+   "max": 33
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "360-no-preference": {
+  "closed": {
+   "section": [
+    360,
+    942
+   ],
+   "cover": [
+    320,
+    400,
+    1.25
+   ],
+   "coverLeft": 20,
+   "button": [
+    108,
+    424
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 1694,
+  "atCover": {
+   "host": [
+    320,
+    400
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 20,
+     "w": 320,
+     "h": 400,
+     "ratio": 1.25,
+     "art": {
+      "w": 320,
+      "h": 400,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    320,
+    400
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 20,
+     "w": 320,
+     "h": 400,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 5.5,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "none/1",
+    "none/1",
+    "none/1",
+    "none/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-360-no-preference-00.png",
+    "ms": 189
+   },
+   {
+    "file": "turn-360-no-preference-01.png",
+    "ms": 439
+   },
+   {
+    "file": "turn-360-no-preference-02.png",
+    "ms": 743
+   },
+   {
+    "file": "turn-360-no-preference-03.png",
+    "ms": 942
+   },
+   {
+    "file": "turn-360-no-preference-04.png",
+    "ms": 1128
+   },
+   {
+    "file": "turn-360-no-preference-05.png",
+    "ms": 1308
+   },
+   {
+    "file": "turn-360-no-preference-06.png",
+    "ms": 1478
+   },
+   {
+    "file": "turn-360-no-preference-07.png",
+    "ms": 1661
+   },
+   {
+    "file": "turn-360-no-preference-08.png",
+    "ms": 1853
+   },
+   {
+    "file": "turn-360-no-preference-09.png",
+    "ms": 2045
+   }
+  ],
+  "turnPerf": {
+   "frames": 66,
+   "over32": 2,
+   "max": 33
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ },
+ "360-reduce": {
+  "closed": {
+   "section": [
+    360,
+    942
+   ],
+   "cover": [
+    320,
+    400,
+    1.25
+   ],
+   "coverLeft": 20,
+   "button": [
+    108,
+    424
+   ]
+  },
+  "opensAs": "book",
+  "msToFirstSpread": 1263,
+  "atCover": {
+   "host": [
+    320,
+    400
+   ],
+   "shown": [
+    {
+     "kind": "cover",
+     "x": 20,
+     "w": 320,
+     "h": 400,
+     "ratio": 1.25,
+     "art": {
+      "w": 320,
+      "h": 400,
+      "barEach": 0
+     },
+     "textPx": null,
+     "shadow": "rgba(0, 0, 0, 0.35) 0px 2px 4px 0px, rgba(0, 0, 0, 0.75) 0px 28px 54px -20px"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الغلاف"
+  },
+  "firstSpread": {
+   "host": [
+    320,
+    400
+   ],
+   "shown": [
+    {
+     "kind": "page 1",
+     "x": 20,
+     "w": 320,
+     "h": 400,
+     "ratio": 1.25,
+     "art": null,
+     "textPx": 5.5,
+     "shadow": "none"
+    }
+   ],
+   "restShadows": [
+    "block/1",
+    "block/1",
+    "block/1",
+    "block/1"
+   ],
+   "where": "الإهداء1 / 5"
+  },
+  "turnFrames": [
+   {
+    "file": "turn-360-reduce-00.png",
+    "ms": 119
+   },
+   {
+    "file": "turn-360-reduce-01.png",
+    "ms": 393
+   },
+   {
+    "file": "turn-360-reduce-02.png",
+    "ms": 594
+   },
+   {
+    "file": "turn-360-reduce-03.png",
+    "ms": 791
+   },
+   {
+    "file": "turn-360-reduce-04.png",
+    "ms": 976
+   },
+   {
+    "file": "turn-360-reduce-05.png",
+    "ms": 1175
+   },
+   {
+    "file": "turn-360-reduce-06.png",
+    "ms": 1381
+   },
+   {
+    "file": "turn-360-reduce-07.png",
+    "ms": 1563
+   },
+   {
+    "file": "turn-360-reduce-08.png",
+    "ms": 1723
+   },
+   {
+    "file": "turn-360-reduce-09.png",
+    "ms": 1908
+   }
+  ],
+  "turnPerf": {
+   "frames": 66,
+   "over32": 1,
+   "max": 33
+  },
+  "afterTurn": "المقدمة2 / 5",
+  "errors": []
+ }
+}

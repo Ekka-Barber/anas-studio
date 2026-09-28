@@ -1,0 +1,31 @@
+node probes/click-corners.mjs (dev server, headless Chromium, 2026-09-28)
+Each line: the corner clicked, the leaf it was on, then the label under the book after the turn.
+
+== 1440x900
+start                                          → الإهداء 1 / 5
+click left on page1                            → المقدمة 2 / 5
+click left on page2                            → المقدمة · من فصل «صورة الروضة» 3–4 / 5
+click left on page4                            → من فصل «صورة الروضة» 5 / 5
+click right on page5                           → المقدمة · من فصل «صورة الروضة» 3–4 / 5
+click right on page3                           → المقدمة 2 / 5
+click right on blank                           → الإهداء 1 / 5
+click right on endpaper                        → الغلاف
+
+== 693x794
+start                                          → الإهداء 1 / 5
+click left on page1                            → (empty: a blank leaf)
+click left on blank                            → المقدمة 2 / 5
+click left on page2                            → المقدمة 3 / 5
+click right on page3                           → المقدمة 2 / 5
+click right on page2                           → (empty: a blank leaf)
+click right on blank                           → الإهداء 1 / 5
+click right on page1                           → الغلاف (the endpaper)
+
+== 390x794
+(the same sequence and results as 693)
+
+In the owner's pane (390x794, real pointer), rAF sampler from mousedown, 1.5 s:
+right corner, blank → page1: 33 turning frames
+right corner, page1 → endpaper («الغلاف»): 33 turning frames
+left corner, endpaper → page1: 33 turning frames
+left corner, page1 → blank (empty label): 33 turning frames

@@ -1,0 +1,57 @@
+{
+  "tool": "scan",
+  "scanned": 10,
+  "findings": [
+    {
+      "id": "MO-09",
+      "severity": "P2",
+      "file": "src/components/book/reader.module.css",
+      "line": 95,
+      "message": "UI transition 700ms",
+      "channel": "scan",
+      "evidence": ".flip",
+      "count": 1,
+      "lines": [
+        95
+      ]
+    },
+    {
+      "id": "CO-13",
+      "severity": "P2",
+      "file": "src/components/book/reader.module.css",
+      "line": 124,
+      "message": "repeating stripes",
+      "channel": "scan",
+      "evidence": ".case::before,\n.case::after",
+      "count": 1,
+      "lines": [
+        124
+      ]
+    },
+    {
+      "id": "TY-04",
+      "severity": "P1",
+      "file": "src/components/public/book/BookView.tsx",
+      "line": 50,
+      "message": "one word styled differently inside the headline",
+      "channel": "scan",
+      "evidence": " <span className={`t-mega ${styles.titleWord}`} {...enter(200, 'band')}> {BOOK.title} </sp",
+      "count": 1,
+      "lines": [
+        50
+      ]
+    }
+  ],
+  "meta": {
+    "signals": {
+      "arabic": true,
+      "rtl": true,
+      "reducedMotion": true,
+      "focusVisible": true,
+      "motion": false,
+      "tokens": true,
+      "langScopedReset": false
+    },
+    "fontFamilies": []
+  }
+}
