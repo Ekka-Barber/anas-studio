@@ -1,8 +1,11 @@
 /*
- * The store in direction B (D38, D39): each page opens on its band (the
- * list on aubergine, a product on saffron, the cart and checkout on paper),
- * then works in plain, calm forms: B's 3px field lines, 56px controls, and
- * the band's own action colours. RTL through logical properties; 44px
+ * The store in direction B (D38, D39): the list opens on aubergine and a
+ * product on saffron, with B's woven edges. The cart, the checkout and the
+ * policies are the serious pages (owner, 2026-09-28): a plain paper head
+ * closed by a rule, a modest title, the order summary in a bordered panel,
+ * figures in tabular digits, and no motion but the title's short fade.
+ * Forms are plain and calm: B's 3px field lines, 56px controls, and the
+ * band's own action colours. RTL through logical properties; 44px
  * targets; errors in coral-deep, never colour alone (they are always words).
  * Nothing overflows 360px, and the cart's lines are cards on phones.
  */
@@ -24,25 +27,33 @@
 .inner {
   max-inline-size: 880px;
 }
+/* The cart and the checkout: room for the summary panel beside them. */
+.innerWide {
+  max-inline-size: 1180px;
+}
+
+/* The head of a serious page: straight, closed by a rule, no woven edge. */
+.docHead {
+  border-block-end: var(--border-control) solid var(--aub);
+}
 
 .title {
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: var(--size-h2-lg);
-  line-height: 1.1;
+  font-size: var(--size-card);
+  line-height: 1.2;
   text-wrap: balance;
 }
 
-.cartLink {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-block-size: var(--tap);
-  min-inline-size: var(--tap);
-  font-weight: 700;
-  font-size: var(--size-action);
-  text-decoration: underline;
-  text-underline-offset: 0.35em;
+/* Money is set in tabular digits, so figures line up and never jitter. */
+.price,
+.variantPrice,
+.linePrice,
+.lineTotal,
+.summaryPrice,
+.totals dd,
+.orderNumber {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- the store list ---- */
@@ -500,12 +511,87 @@
   line-height: 1.4;
 }
 .policyBody h2 {
-  font-size: var(--size-display);
+  font-size: var(--size-h3);
 }
 .policyBody h3 {
-  font-size: var(--size-h3);
+  font-size: var(--size-line);
 }
 .policyBody ul,
 .policyBody ol {
   padding-inline-start: 1.4em;
+}
+
+/* ---- the order summary: a bordered panel, beside the lines from 1024 (after .fields, which it overrides) ---- */
+
+.withSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+@media (min-width: 1024px) {
+  .withSummary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    column-gap: clamp(40px, 5vw, 80px);
+    align-items: start;
+  }
+  .withSummary > .summaryPanel {
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    inset-block-start: calc(var(--header-h) + 24px);
+  }
+  .withSummary > :not(.summaryPanel) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+.summaryPanel {
+  min-inline-size: 0;
+  margin: 0;
+  padding: clamp(20px, 2.4vw, 32px);
+  border: 1px solid var(--aub);
+  background: var(--sand-50);
+  color: var(--aub);
+}
+.panelTitle {
+  margin-block-end: 16px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-line);
+  line-height: 1.4;
+}
+.summaryPanel .totals {
+  max-inline-size: none;
+  margin-block: 24px;
+}
+.summaryPanel .coupon {
+  margin-block: 16px 0;
+}
+.formMain {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.cartLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
+  font-weight: 700;
+  font-size: var(--size-action);
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+.summaryPanel legend {
+  float: inline-start;
+  inline-size: 100%;
+  margin-block-end: 16px;
+  font-size: var(--size-line);
+  line-height: 1.4;
+}
+.summaryPanel legend + * {
+  clear: both;
 }

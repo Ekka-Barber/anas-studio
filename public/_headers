@@ -18,6 +18,11 @@
   Content-Security-Policy: frame-ancestors 'none'
   X-Frame-Options: DENY
 
+# P02: the book's preview is read on /book; the PDF itself is not a page to
+# index on its own.
+/book/*
+  X-Robots-Tag: noindex
+
 # Built assets are content-hashed and safe to cache for a year.
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable

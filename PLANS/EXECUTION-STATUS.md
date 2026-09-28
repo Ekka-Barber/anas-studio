@@ -183,14 +183,68 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 - Also fixed: the webhook acknowledged failed writes (lost bounces); malformed event fields could fail every redelivery.
 - Results: `pnpm check` 0 (152 unit); `test:db` 0 (78); e2e 20 passed on `next dev` with no real provider call. Evidence: `artifacts/acceptance/P06/commands.txt`.
 
+## P02: the book preview reader (orchestrator, 2026-09-28)
+
+**Scope.** The owner: "P02 should done ... ANAS provide two or three PDF texts ... we only want to let users see these then had to buy the whole book to read ... you should do it". Built by the orchestrator alone (no GLM, no sub-agents) under its own lock.
+
+**What was built** (details in `docs/book-preview.md`):
+- **The public copy.** `scripts/prepare-preview.py` exports the three fragments (الإهداء، المقدمة، two pages of «صورة الروضة») into one 5-page `public/book/khous-preview.pdf`.
+  - Page content and fonts are copied unchanged; metadata (Anas's email), actions, scripts, attachments, annotations and the structure tree are dropped.
+  - It is checked before it is written, and it is pixel-identical to the sources.
+  - Hashes and the approval are recorded in `content/book-source-manifest.json`.
+- **The reader, on /book «صفحات من الكتاب».**
+  - The closed book loads nothing; «افتح الكتاب» loads pdf.js 6.3.289 and page-flip 2.0.7 (pinned, D10) in their own chunk.
+  - The book is physical and Arabic: bound on the right, the left page turns to the right, ← is next.
+  - At most six canvases, and a stale render is cancelled.
+  - Controls: keys, page jump, full screen. Pages change in place under reduced motion.
+  - Phones open «صفحات متتالية», where two fingers zoom.
+  - A closing leaf «بقية الحكاية في الكتاب» leads to the editions.
+  - Failures say so, with a retry and the PDF link. Without JavaScript the button is the PDF link.
+- **Two pdf.js findings, handled.**
+  - Chrome drew Word's joined Arabic glyphs as unjoined letters through font faces, so the reader draws glyph outlines.
+  - pdf.js reverses lam-alef ligatures in its text, so the selectable layer is fixed against pypdf's text, which is also what screen readers get.
+
+**Evidence.** `artifacts/acceptance/P02/commands.txt` and `screenshots/`:
+- `pnpm check`: unit 394;
+- build, export (26 required files, the preview among them) and budgets (/book 141.2 KiB, largest 145.9);
+- e2e: reader 12/12 on the dev server and 12/12 on the static export; public and visual 76/76.
+
+**Round 2, after the owner's audit (2026-09-28).** The owner asked for a deep tasmeem audit ("it looks weak … I should see flipping action … the cover looks shorter than the actual pages"), read the 15 findings, then said "GO AHEAD DO THE BEST, VERY THOUGHTFULLY".
+- The book is now a 4:5 hardcover (8×10 in, cover B's shape), with:
+  - boards, endpapers, parts on left-hand pages;
+  - page edges and the spine's shadow;
+  - warm paper;
+  - the closed book centred on one stage (no layout jump).
+- Motion and phones:
+  - under reduced motion, a fade instead of a rotation;
+  - phones open the book;
+  - «عرض للقراءة» shows the pages at reading size.
+- Record: `artifacts/acceptance/P02/tasmeem-audit/FINDINGS.md` and `after/FIXES.md`. tasmeem after: PASS. e2e: reader 14/14 on dev and on the export; public and visual 76/76.
+
+**Round 3, audit-2 (2026-09-28).** The owner asked for a new deep audit: some pages had no scroll animations, and the reader's bottom-right corner seemed not to turn. Then: "go, yes on 3", the money pages "serious and official", and "once all fixes done commit".
+- **The cause of the missing animations.** On `next dev`, React's StrictMode double run made `MotionLayer` take every first visit for a return, so no reveal played. The export was right.
+  - Fixed: a return now skips only the entrances.
+  - Fixed: the cart, the checkout and the policies are calm and official, and have no reveals.
+  - Added: motion for the store, a product and the scenes grid.
+- **The reader.** One page at a time, a click now turns by its half and never stops on an empty leaf. There are corner hints both ways, and a corner click that closes the book slides with the turn.
+- **Tests.** An opus-worker (Opus 5.5, effort xhigh, on the owner's word) wrote `tests/e2e/motion.spec.ts` and 4 reader tests, audited by the orchestrator; they caught one real bug in the first fix.
+- **Proof.**
+  - Unit 397/397.
+  - e2e on dev: motion + reader 33/33 (the reader's timing tests 20/20 ×5), public + visual + cart-checkout 87/87.
+  - e2e on the export: motion + reader 33/33.
+  - Budgets: largest 146.1 KiB.
+- Record: `artifacts/acceptance/P02/audit-2/FINDINGS.md` (findings and result) and `commands.txt`.
+
+**Open.** E04's final manuscript, and with it the digital sale (the typeset interior, when it exists, replaces the Word pages through the same script). When Anas approves other pages, `docs/book-preview.md` "Updating it" is the recipe.
+
 ## Package ledger
 
 | Package | Status | Evidence |
 |---|---|---|
 | P00 | public runtime accepted; D29 swap audited and committed `6f09321` | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
-| P01 | part 1 committed (`c98b091`); D39 direction B ported for every public page (DESIGN-B, uncommitted, awaiting the owner's review) | `artifacts/acceptance/P01/`, `artifacts/acceptance/DESIGN-B/` |
-| DESIGN-B | building → owner review: direction B «أنساق» across the site, store and admin tokens (D39) | `artifacts/acceptance/DESIGN-B/` |
-| P02 | not_started; the book page's reader slot waits for it (E04) | — |
+| P01 | part 1 committed (`c98b091`); D39 direction B ported for every public page (DESIGN-B, committed `1ffb8a1`, `7ac94e8`) | `artifacts/acceptance/P01/`, `artifacts/acceptance/DESIGN-B/` |
+| DESIGN-B | committed on the owner's word (2026-09-28: "commit"): `1ffb8a1` (code and docs), `7ac94e8` (evidence); lock released | `artifacts/acceptance/DESIGN-B/` |
+| P02 | committed on the owner's word (2026-09-28: "once all fixes done commit") on `agent/design-b`, after audit-2: the book preview reader on /book with Anas's three approved fragments, plus the audit-2 site fixes (motion on dev, calm money pages); E04's preview range approved by the owner, the final manuscript still open; lock released | `artifacts/acceptance/P02/`, `docs/book-preview.md` |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
 | P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |

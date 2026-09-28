@@ -6,6 +6,7 @@ import { CartLink } from '@/components/store/CartLink'
 import styles from '@/components/store/store.module.css'
 import { Band } from '@/components/weave/Band'
 import { Edge } from '@/components/weave/Edge'
+import { enter } from '@/components/weave/motion'
 import { RichText } from '@/lib/richtext'
 import { formatMoney } from '@/lib/format'
 import { getProducts } from '@/lib/store'
@@ -49,17 +50,30 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     <main id="main" className={styles.page}>
       <Band as="header" tone="saffron" edge="crenel" pad="hero" padEnd="l" className={styles.head}>
         <div>
-          <h1 className="t-band-xl">{product.title}</h1>
-          {product.summary !== '' && <p className={styles.productSummary}>{product.summary}</p>}
+          <h1 className="t-band-xl" {...enter(80, 'band')}>
+            {product.title}
+          </h1>
+          {product.summary !== '' && (
+            <p className={styles.productSummary} {...enter(360)}>
+              {product.summary}
+            </p>
+          )}
         </div>
         <CartLink />
       </Band>
       <Edge kind="weave" />
       <Band tone="sand" pad="l">
         {product.cover !== null && (
-          <Picture id={product.cover} alt={product.title} sizes="(min-width: 768px) 480px, 100vw" className={styles.productCover} />
+          <Picture
+            id={product.cover}
+            alt={product.title}
+            sizes="(min-width: 768px) 480px, 100vw"
+            className={styles.productCover}
+            data-reveal=""
+            data-fx="media"
+          />
         )}
-        <div className={styles.productBody}>
+        <div className={styles.productBody} data-reveal="">
           <RichText document={product.body} />
         </div>
         <ul className={styles.variants}>

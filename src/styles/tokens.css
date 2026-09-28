@@ -28,6 +28,10 @@
   --coral-deep: #8e3324;
   --saffron: #efa032;
   --saffron-ink: #5a3210;
+  /* The book preview (P02): cover B's linen (the boards of the open book and
+     the back cover) and the warm paper its pages are printed on. */
+  --cover-board: #e59110;
+  --paper-page: #f7f0e5;
 
   /* Thmanyah only (D33): Serif Display for display lines, Sans for reading
      and for every control. */

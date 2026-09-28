@@ -5,7 +5,7 @@ The public site of anas.studio, as Anas chose it on 2026-09-28 (D39): his own pa
 - Tokens: `src/styles/tokens.css`
 - Surfaces (tones), base, text roles: `src/styles/globals.css`
 - Motion: `src/styles/motion.css` and `src/components/weave/motion.ts`
-- Components: `src/components/weave/` (the system), `src/components/site/` (header and footer), `src/components/public/` (pages)
+- Components: `src/components/weave/` (the system), `src/components/site/` (header and footer), `src/components/public/` (pages), `src/components/book/` (the book's reader)
 - Words that are not in the CMS: `src/content/`
 
 ## 1. Colour
@@ -28,6 +28,8 @@ Anas's palette board (sand, coral, aubergine), with the shades direction B added
 | `--coral-deep` | #8E3324 | Field errors on light surfaces |
 | `--saffron` | #EFA032 | The book's band |
 | `--saffron-ink` | #5A3210 | Ink on saffron |
+| `--cover-board` | #E59110 | Cover B's linen: the boards of the open book in the reader, and its back cover |
+| `--paper-page` | #F7F0E5 | The warm paper the book's pages are printed on in the reader (the manuscript's black text on it is 18.6:1) |
 
 ### Tones
 
@@ -107,6 +109,8 @@ B's identity is what sits between the bands.
 
 Use a crenel to open a band of a new colour; use the weave after a page title and before the footer. Never both on the same seam.
 
+The serious pages, the cart, the checkout and the policies, carry no edge at their head: a plain paper band closed by a 3px rule (`.docHead`). They also use a modest title (`--size-card`), and the order summary in a bordered panel beside the form from 1024px (first on a phone). Money is set in tabular digits. The footer keeps its weave (owner, 2026-09-28: "money related pages … look serious and official").
+
 Both start from the right, the reading start, so a partial tile always falls on the left.
 
 ## 5. Components
@@ -124,6 +128,7 @@ Both start from the right, the reading start, so a partial tile always falls on 
 | `SectionNav` | `weave/SectionNav.tsx` | A page's own contents under the header (the book), with the current section marked. On a narrow screen the strip scrolls sideways to keep the current link in view, and fades at an end that has more links past it. |
 | `RoomHero` | `public/RoomHero.tsx` | A page's opening band: triangles, title, the room's line, then the weave. |
 | `StoryText`, `StatementBand`, `StoryFigure` | `public/story/Story.tsx` | A room's text run, a line on its own band, the CMS picture beside a text. |
+| `BookPreview`, `ClosedBook`, `PdfBookReader` | `book/` | The book's pages on /book (P02), described under "The book reader" below. See also `docs/book-preview.md`. |
 | `SiteHeader`, `Footer` | `site/` | The sticky header (it tucks away while you scroll down) with the full-screen woven menu (a native modal `<dialog>`), and the footer with Anas's closing line. |
 
 ## 6. Motion
@@ -135,11 +140,36 @@ Everything is visible without motion, without JavaScript, when printed and in a 
 - Scroll-linked zoom (`.motion-scrub`) and opening (`.motion-expand`): CSS scroll timelines where the browser has them, nothing where it does not.
 - Two easings: `--ease-out` for movement, `--ease-weave` for wipes.
 - Durations: `--dur-ui` (280ms) for what answers the visitor (the header's slide, the section bar, the lightbox opening, a photo step), `--dur-quick` for hover and press, `--dur-base` (560ms) for the menu's woven bands. Entrances and reveals are slower on purpose; `--enter-dur` shortens one, as the home portrait's 500ms wipe, which starts at once because it is the first screen's largest picture.
-- A page plays its entrances and reveals once per visit: opened again after a client navigation, it comes back still (`data-seen` on the root, set by `MotionLayer` before paint). A filtered grid animates only the tiles that arrive, never the ones already shown.
+- A page plays its entrances once per visit: opened again after a client navigation, it comes back without them (`data-seen` on the root, set by `MotionLayer` before paint). Its scroll reveals below the fold still play (owner, 2026-09-28). React's development double run of an effect is not a return. A filtered grid animates only the tiles that arrive, never the ones already shown.
+- The serious pages (`/cart`, `/checkout`, `/policies/*`, `CALM` in `MotionLayer`) have no scroll reveals: only the title's 280ms fade (`calmEnter`). On the store list and a product, the pictures and titles move; prices and the buy controls never do.
 - The book's section bar follows the header's slide by animating its sticky `top`, the one layout property animated on purpose. A transform cannot do this, because it would also move the bar when it is not stuck: a browser test on 2026-09-28 caught the bar drawn up to 66px out of place on a quick scroll up.
-- `prefers-reduced-motion: reduce` turns all of it off, including the header's slide and the lightbox wipes.
+- The book reader's page turn (900ms) and the book's slide to the middle when it closes (700ms) are longer than the interface's 280ms, on purpose: opening and turning a book is the section's moment, and it happens only when the visitor asks.
+- `prefers-reduced-motion: reduce` turns all of it off, including the header's slide and the lightbox wipes. A turn of the book becomes a 150ms fade instead of a rotation.
 
-A check (`stuck.mjs` in the DESIGN-B evidence) scrolls every page with motion on and confirms no reveal is still held.
+Two checks guard it:
+- `tests/e2e/motion.spec.ts`, on the dev server and on the export: every held reveal plays on every story page; the serious pages stay still apart from the title; a return visit skips the entrances but plays the reveals; reduced motion holds nothing.
+- `stuck.mjs` in the DESIGN-B evidence: no reveal is left held after scrolling. On its own it cannot catch reveals that never mount; the audit of 2026-09-28 found exactly that on the dev server.
+
+### The book reader
+
+«صفحات من الكتاب» on /book shows the pages Anas approved (P02) as the book itself: a 4:5 hardcover (8×10 in), the shape of cover B (owner, 2026-09-28: "find the best suit our own design").
+
+- **One stage.** The closed book, the loading state and the open book stand on the same stage. Two pages side by side up to 78% of the screen's height, one page at a time below 800px; opening never moves the page.
+- **Closed.** Cover B, centred, with its shadow. Under it are «افتح الكتاب» and «ابدأ من» with the three parts; without JavaScript they link to the PDF at that page.
+- **Open.** An Arabic book, bound on the right, turning the left page to the right. Its parts:
+  - boards of cover linen (`--cover-board`) around the page block, and a cast shadow;
+  - coffee endpapers (`--saffron-ink`) inside both covers;
+  - each part starting on a left-hand page;
+  - the spine's shadow on the pages;
+  - the pages' edges drawn as fine lines of paper, thicker on the side still to read (the inline end);
+  - the back cover in cover B's own linen.
+- **The pages.** Each A4 page is drawn on a 4:5 sheet of warm paper (`--paper-page`), framed around the text. The words are Anas's, untouched.
+- **Turning.**
+  - The corner of the next page is lifted a little, the way to turn by hand. Past the first page, the other bottom corner of the page that turns back is lifted too, smaller.
+  - Two pages at a time, a click on a page turns it, and a drag turns it by hand. A corner click that closes the book slides it to the middle with the turn.
+  - One page at a time, a click on the left half is the next page and on the right half the previous one. A drag or a swipe never stops on a blank back or an endpaper: the turn carries on to the next page with words.
+  - The controls and the focus ring follow the book's width.
+- **«عرض للقراءة».** The same pages one under the other, at reading size (up to 880px wide, about 16px text), from the page in view: the place to read closely, zoom and select.
 
 ## 7. Where the words live
 
@@ -166,8 +196,8 @@ Anas edits his words in the admin. The composition (which picture goes where, th
 - A section waiting for Anas's material is left out, never shown as a placeholder: the book's characters, the sketches, the 2013 photo.
 - A form whose backend does not exist yet is not shown:
   - the availability sign-ups arrive with P08;
-  - session booking arrives with P09 (a service's «اطلب جلسة» fills the contact form instead);
-  - the page-turning reader arrives with P02.
+  - session booking arrives with P09 (a service's «اطلب جلسة» fills the contact form instead).
+- The book's reader holds only the pages Anas approved for free reading (P02, E04 range); the whole book is never on the site, and the reader's last leaf says the rest is in the book.
 - The contact form is real: the `contact` Edge Function with Turnstile, a honeypot, and one submission key per message.
 - Prices are «يُعلن قريباً» until Anas sets them (D06).
 

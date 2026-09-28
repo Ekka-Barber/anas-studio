@@ -1,0 +1,603 @@
+/* The book preview (P02): a 4:5 hardcover in cover B's linen on the dark
+   band of «صفحات من الكتاب». The closed book, the loading state and the open
+   book share one stage, so opening never moves the page. Colours come from
+   the tokens: the board is --cover-board, the paper --paper-page, every shade
+   a mix of the book's own ink (--saffron-ink). */
+
+.reader {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ---- The stage ------------------------------------------------------------
+   Two 4:5 pages side by side (a 1.6:1 spread) up to 78% of the screen's
+   height; below 800px one page at a time (page-flip's portrait, minWidth
+   400 × 2), up to 80%. page-flip fits the pages to this box, and everything
+   around them (boards, controls, the closed book) is sized from it. */
+.book,
+.controls {
+  --stage-h: min(78svh, 62.5cqi);
+  --page-w: calc(var(--stage-h) * 0.8);
+  --book-w: calc(var(--page-w) * 2);
+  --board: clamp(5px, calc(var(--stage-h) * 0.016), 12px);
+  --shade: color-mix(in srgb, var(--saffron-ink) 30%, transparent);
+  --book-shadow: 0 2px 4px rgb(0 0 0 / 0.35), 0 28px 54px -20px rgb(0 0 0 / 0.75);
+}
+@container (width < 800px) {
+  .book,
+  .controls {
+    --stage-h: min(80svh, 125cqi);
+    --book-w: var(--page-w);
+  }
+}
+.reader:fullscreen .book,
+.reader:fullscreen .controls {
+  --stage-h: min(calc(100svh - 190px), 62.5cqi);
+}
+@container (width < 800px) {
+  .reader:fullscreen .book,
+  .reader:fullscreen .controls {
+    --stage-h: min(calc(100svh - 190px), 125cqi);
+  }
+}
+
+.book {
+  position: relative;
+  block-size: var(--stage-h);
+  /* The book slides half a page while closed; what slides past the stage is
+     clipped, never scrolled to (the shadow and the boards keep their room). */
+  overflow-x: clip;
+  overflow-clip-margin: 48px;
+}
+.book:focus-visible {
+  outline: none;
+}
+
+/* ---- The closed book ------------------------------------------------------ */
+.closedBook {
+  block-size: 100%;
+  aspect-ratio: 4 / 5;
+  max-inline-size: 100%;
+  margin-inline: auto;
+  box-shadow: var(--book-shadow);
+}
+.closedBook img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* ---- The open book --------------------------------------------------------
+   `.flip` is page-flip's root. Closed on a cover it shows one half of the
+   spread, so it slides by half a page to stand in the middle; the slide runs
+   with the turn. The fade is the turn without motion. */
+.flip {
+  block-size: 100%;
+  transition: opacity 150ms var(--ease-out);
+}
+.flip :global(.stf__wrapper) {
+  block-size: 100%;
+}
+.flip[data-at='front'] {
+  translate: calc(var(--page-w) / 2) 0;
+}
+.flip[data-at='back'] {
+  translate: calc(var(--page-w) / -2) 0;
+}
+.flip[data-fading] {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .flip {
+    transition:
+      translate 700ms var(--ease-out),
+      opacity 150ms var(--ease-out);
+  }
+}
+
+/* The case: boards of cover linen a little larger than the page block, the
+   page edges on either side, and the book's shadow. The unread pages lie at
+   the inline end (the left of an Arabic book), the read ones at the start;
+   their edges are the book's own lines of paper. Hidden while the book is
+   closed, when the cover is the board. */
+.case {
+  position: absolute;
+  z-index: -1;
+  inset-block: calc(var(--board) * -1);
+  /* Centred on the page block, whatever the reading direction. */
+  inset-inline: max(calc(var(--board) * -1), calc((100% - var(--book-w)) / 2 - var(--board)));
+  background: var(--cover-board);
+  box-shadow: var(--book-shadow);
+  transition: opacity 400ms var(--ease-out);
+}
+.flip:is([data-at='front'], [data-at='back']) .case {
+  opacity: 0;
+}
+.case::before,
+.case::after {
+  content: '';
+  position: absolute;
+  inset-block: calc(var(--board) + 3px);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--paper-page) 0 1px,
+    color-mix(in srgb, var(--paper-page), var(--saffron-ink) 26%) 1px 2px
+  );
+}
+.case::before {
+  inset-inline-end: calc(var(--board) - var(--edge-unread, 3px));
+  inline-size: var(--edge-unread, 3px);
+}
+.case::after {
+  inset-inline-start: calc(var(--board) - var(--edge-read, 3px));
+  inline-size: var(--edge-read, 3px);
+}
+.flip[data-portrait] .case::after {
+  display: none;
+}
+
+/* The focus ring hugs the book, not the stage. */
+.book:focus-visible .flip::after {
+  content: '';
+  position: absolute;
+  inset-block: calc(var(--board) * -1);
+  inset-inline: max(calc(var(--board) * -1), calc((100% - var(--book-w)) / 2 - var(--board)));
+  outline: 3px solid var(--focus);
+  outline-offset: 5px;
+  pointer-events: none;
+}
+/* Closed, the ring is the cover's: the front cover lies on the inline-end
+   half of the spread, the back cover on the start half (the book then slides
+   them to the middle). */
+.book:focus-visible .flip[data-at='front']::after {
+  inset-block: 0;
+  inset-inline: 50% calc(50% - var(--page-w));
+}
+.book:focus-visible .flip[data-at='back']::after {
+  inset-block: 0;
+  inset-inline: calc(50% - var(--page-w)) 50%;
+}
+
+/* ---- Leaves ---------------------------------------------------------------- */
+.leaf {
+  overflow: hidden;
+  background: var(--paper-page);
+  contain: layout paint style;
+}
+.leaf canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+/* The spine's shadow on each page, deepest at the binding. page-flip marks
+   the page on each side of the spine; one page alone is bound on its right. */
+.leaf::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.leaf:global(.--left)::after {
+  background: linear-gradient(to left, var(--shade), color-mix(in srgb, var(--saffron-ink) 7%, transparent) 4%, transparent 13%);
+}
+.leaf:global(.--right)::after {
+  background: linear-gradient(to right, var(--shade), color-mix(in srgb, var(--saffron-ink) 7%, transparent) 4%, transparent 13%);
+}
+.flip[data-portrait] .leaf::after {
+  background: linear-gradient(to left, var(--shade), transparent 10%);
+}
+
+.leaf[data-kind='cover'],
+.leaf[data-kind='back'] {
+  background: var(--cover-board);
+  box-shadow: var(--book-shadow);
+  contain: none;
+}
+.leaf[data-kind='cover']::after,
+.leaf[data-kind='back']::after {
+  display: none;
+}
+.leaf[data-kind='cover'] img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The inside of each cover: an endpaper in the book's coffee ink. */
+.leaf[data-kind='endpaper'] {
+  background: var(--saffron-ink);
+}
+.leafMark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  inline-size: 48px;
+  block-size: 16px;
+  background: conic-gradient(from 135deg at 50% 0, var(--saffron) 90deg, transparent 0) 100% 0 / 16px 16px repeat-x;
+}
+.leaf[data-kind='back'] {
+  background: var(--linen, none) 5% 56% / 500% auto no-repeat, var(--cover-board);
+}
+.leaf[data-kind='back'] .leafMark {
+  background-image: conic-gradient(from 135deg at 50% 0, var(--saffron-ink) 90deg, transparent 0);
+}
+
+/* The corner of the next page to turn, lifted a little: the way to turn by
+   hand, on touch screens too. */
+.leaf[data-corner]::before {
+  content: '';
+  position: absolute;
+  inset-inline-end: 0;
+  inset-block-end: 0;
+  z-index: 3;
+  inline-size: 7%;
+  aspect-ratio: 1;
+  background: linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--paper-page), var(--saffron-ink) 30%) 0 50%,
+    color-mix(in srgb, var(--paper-page), var(--saffron-ink) 12%) 50%,
+    var(--paper-page) 100%
+  );
+  pointer-events: none;
+}
+
+/* The way back, at the other bottom corner of the page that turns back:
+   the same fold, smaller and quieter. */
+.cornerBack {
+  display: none;
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  z-index: 3;
+  inline-size: 5%;
+  aspect-ratio: 1;
+  background: linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--paper-page), var(--saffron-ink) 22%) 0 50%,
+    color-mix(in srgb, var(--paper-page), var(--saffron-ink) 9%) 50%,
+    var(--paper-page) 100%
+  );
+  pointer-events: none;
+}
+.leaf[data-corner-back] .cornerBack {
+  display: block;
+}
+
+/* While a page turns, only the pictures of the pages move. */
+.flip[data-turning] :global(.textLayer),
+.flip[data-turning] .cornerBack,
+.flip[data-turning] .leaf::before {
+  visibility: hidden;
+}
+
+/* The closing leaf: the rest is in the book. */
+.leaf[data-kind='end'],
+.closing {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.9em;
+  text-align: center;
+  color: var(--aub);
+  font-weight: 700;
+}
+.leaf[data-kind='end'] {
+  padding: 12%;
+  font-size: clamp(var(--size-label), 2.4cqi, var(--size-read));
+}
+.endLine {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.6em;
+  line-height: 1.4;
+}
+.endLink {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  margin-block-start: 0.4em;
+  padding-inline: 1.2em;
+  background: var(--aub);
+  color: var(--sand-50);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .endLink:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.35em;
+  }
+}
+.endLink:focus-visible {
+  outline: 3px solid var(--aub);
+  outline-offset: 3px;
+}
+
+/* pdf.js's text layer (web/pdf_viewer.css, trimmed): invisible text laid
+   exactly over the drawn words, to select and to find. */
+.leaf :global(.textLayer),
+.sheet :global(.textLayer) {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  transform-origin: 0 0;
+  forced-color-adjust: none;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+.leaf :global(.textLayer) :is(span, br),
+.sheet :global(.textLayer) :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+.leaf :global(.textLayer) > :not(:global(.markedContent)),
+.sheet :global(.textLayer) > :not(:global(.markedContent)),
+.leaf :global(.textLayer) :global(.markedContent) span:not(:global(.markedContent)),
+.sheet :global(.textLayer) :global(.markedContent) span:not(:global(.markedContent)) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+.leaf :global(.textLayer) :global(.markedContent),
+.sheet :global(.textLayer) :global(.markedContent) {
+  display: contents;
+}
+.leaf :global(.textLayer) ::selection,
+.sheet :global(.textLayer) ::selection {
+  background: color-mix(in srgb, var(--saffron), transparent 45%);
+  color: transparent;
+}
+.leaf :global(.textLayer) :global(.endOfContent),
+.sheet :global(.textLayer) :global(.endOfContent) {
+  display: block;
+  position: absolute;
+  inset: 100% 0 0;
+  user-select: none;
+}
+
+/* ---- Controls: as wide as the open book ------------------------------------ */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  inline-size: min(100%, var(--book-w));
+  min-block-size: 124px;
+  margin-inline: auto;
+}
+.opening {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px 28px;
+}
+.parts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0 16px;
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+.parts > span {
+  color: var(--muted);
+}
+.closedNote {
+  text-align: center;
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+.closedNote a {
+  color: inherit;
+}
+.status {
+  text-align: center;
+  font-size: var(--size-read);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.control,
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 48px;
+  padding-inline: 18px;
+  border: var(--border-control) solid currentColor;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-body);
+  font-size: var(--size-small);
+  font-weight: 700;
+  text-decoration: none;
+}
+.control:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* On a narrow book the arrows carry the turn; the words stay for screen
+   readers, and the centre keeps room for where you are. */
+@container (width < 480px) {
+  .control {
+    padding-inline: 16px;
+  }
+  .controlLabel {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+.tool {
+  min-block-size: var(--tap);
+  border-width: 0;
+  padding-inline: 4px;
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+.tool:disabled {
+  opacity: 0.55;
+}
+@media (hover: hover) {
+  .control:not(:disabled):hover {
+    text-decoration: underline;
+    text-underline-offset: 0.35em;
+  }
+  .tool:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+.where {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-inline-size: 0;
+  text-align: center;
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+.count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 24px;
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+.jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.jump select {
+  min-block-size: var(--tap);
+  padding-inline: 12px;
+  border: var(--border-control) solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.jump option {
+  background: var(--aub-900);
+  color: var(--sand-50);
+}
+
+.reader:fullscreen {
+  justify-content: center;
+  padding: 16px var(--gutter);
+  background: var(--aub-900);
+  color: var(--sand-50);
+  --focus: var(--saffron);
+  --muted: var(--sand-muted);
+  overflow-y: auto;
+}
+
+/* ---- «عرض للقراءة»: the pages one under the other --------------------------- */
+.readingTools {
+  display: flex;
+  justify-content: center;
+}
+.sheets {
+  list-style: none;
+  inline-size: 100%;
+  max-inline-size: 880px;
+  margin: 0 auto;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.sheetItem {
+  scroll-margin-block-start: calc(var(--header-h) + 80px);
+}
+.sheet {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  background: var(--paper-page);
+  box-shadow: 0 18px 40px -22px rgb(0 0 0 / 0.7);
+}
+.sheet canvas {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+.sheetLabel {
+  display: flex;
+  justify-content: space-between;
+  margin-block-start: 8px;
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--muted);
+}
+.closing {
+  inline-size: 100%;
+  max-inline-size: 880px;
+  margin-inline: auto;
+  padding: var(--pad-s) var(--gutter);
+  background: var(--paper-page);
+  font-size: var(--size-read);
+}
+
+/* The hint shows only where fingers zoom. */
+.zoomHint {
+  display: none;
+  text-align: center;
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--muted);
+}
+@media (pointer: coarse) {
+  .zoomHint {
+    display: block;
+  }
+}
+
+.messageActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 16px 24px;
+}
+.plainLink {
+  color: inherit;
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+
+@media print {
+  .toolbar,
+  .tools {
+    display: none;
+  }
+}

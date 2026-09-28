@@ -1,3 +1,4 @@
+import { BookPreview } from '@/components/book/BookPreview'
 import { Picture } from '@/components/public/Picture'
 import { ActionLink } from '@/components/weave/Action'
 import { Band } from '@/components/weave/Band'
@@ -9,28 +10,32 @@ import { enter } from '@/components/weave/motion'
 import { RoomNav } from '@/components/weave/RoomNav'
 import { SectionNav } from '@/components/weave/SectionNav'
 import { BOOK } from '@/content/book'
+import { imageSources } from '@/lib/images'
 
 import styles from './book.module.css'
 
 /**
  * كتبتُ هنا (D39, direction B): «خوص | حكايات شارع 4» in cover B on its
  * saffron band, then the book's sections under their own sticky contents:
- * about, passages, his Street No. 4 photos, the book's journey with the
- * standing mockup B, and the editions, announced «قريباً».
+ * about, passages, the pages Anas approved for reading (P02, the book
+ * reader), his Street No. 4 photos, the book's journey with the standing
+ * mockup B, and the editions, announced «قريباً».
  *
  * Not here yet, on purpose: the characters (their names and lines wait for
- * Anas), the page-turning reader (P02, E04) and the availability sign-up
- * (P08). None of them is shown as a placeholder.
+ * Anas) and the availability sign-up (P08). Neither is shown as a
+ * placeholder.
  */
 const SECTIONS = [
   { id: 'about', label: 'نبذة' },
   { id: 'excerpts', label: 'اقتباسات' },
+  { id: 'pages', label: 'صفحات' },
   { id: 'photos', label: 'صور' },
   { id: 'journey', label: 'رحلة الكتاب' },
   { id: 'editions', label: 'الطلب' },
 ] as const
 
 export function BookView() {
+  const cover = imageSources(BOOK.cover.id)
   return (
     <>
       <main id="main">
@@ -58,6 +63,9 @@ export function BookView() {
             </p>
             <div className={styles.actions} {...enter(760)}>
               <ActionLink href="#editions">النسخ</ActionLink>
+              <ActionLink href="#pages" variant="outline" arrow={false}>
+                اقرأ صفحات منه
+              </ActionLink>
             </div>
           </div>
         </Band>
@@ -109,6 +117,18 @@ export function BookView() {
               </figure>
             ))}
           </div>
+        </Band>
+
+        <Band tone="deep" edge="crenel" pad="xl" id="pages" aria-labelledby="pages-title" className={styles.section}>
+          <div className={styles.pagesHead}>
+            <h2 id="pages-title" className={`t-h2 ${styles.h2}`} data-reveal="">
+              صفحات من الكتاب
+            </h2>
+            <p className="t-read" data-reveal="">
+              الإهداء، والمقدمة، وصفحتان من فصل «صورة الروضة»، كما كتبها أنس. وبقية الحكاية في الكتاب.
+            </p>
+          </div>
+          {cover && <BookPreview cover={cover} />}
         </Band>
 
         <section id="photos" aria-labelledby="photos-title" className={styles.section}>

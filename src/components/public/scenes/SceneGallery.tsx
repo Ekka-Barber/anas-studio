@@ -90,7 +90,15 @@ export function SceneGallery({ items, categories }: { items: SceneItem[]; catego
         {shown.map((item, i) => {
           const wide = item.sources.width / item.sources.height > 1.3
           return (
-            <li key={item.key} className={`${styles.tile} ${wide ? styles.wide : ''}`} style={{ '--i': Math.min(i, 10) } as CSSProperties}>
+            // A tile below the first screen rises in as it scrolls into view
+            // (motion.ts leaves the ones already on screen to tile-in).
+            <li
+              key={item.key}
+              className={`${styles.tile} ${wide ? styles.wide : ''}`}
+              style={{ '--i': Math.min(i, 10) } as CSSProperties}
+              data-reveal=""
+              data-delay={(i % 4) * 70}
+            >
               <button
                 type="button"
                 className={styles.open}

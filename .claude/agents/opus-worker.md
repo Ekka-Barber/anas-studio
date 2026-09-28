@@ -2,6 +2,7 @@
 name: opus-worker
 description: Not dispatched by default (D28) - the orchestrator does Opus-level work itself. Use only on the owner's request, for bounded implementation or review fixes, one at a time under the exclusive lock.
 model: opus
+effort: xhigh
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 

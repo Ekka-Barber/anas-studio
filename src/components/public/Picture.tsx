@@ -8,7 +8,8 @@ import { imageSources } from '@/lib/images'
  * an unresolved media-library id renders nothing, never a broken image.
  *
  * Server-rendered only (it reads the manifest through `imageSources`); a
- * client component takes `ImageSources` props instead.
+ * client component takes `ImageSources` props instead. `data-*` props (a
+ * scroll reveal, motion.ts) go on the `<picture>`.
  */
 export function Picture({
   id,
@@ -17,6 +18,7 @@ export function Picture({
   className,
   loading = 'lazy',
   fetchPriority,
+  ...data
 }: {
   id: string
   alt: string
@@ -25,11 +27,12 @@ export function Picture({
   loading?: 'lazy' | 'eager'
   /** `high` for the one image that is a page's largest first paint. */
   fetchPriority?: 'high'
+  [data: `data-${string}`]: string | number | undefined
 }) {
   const sources = imageSources(id)
   if (!sources) return null
   return (
-    <picture className={className}>
+    <picture className={className} {...data}>
       <source type="image/webp" srcSet={sources.srcSet} sizes={sizes} />
       <img src={sources.src} width={sources.width} height={sources.height} alt={alt} loading={loading} fetchPriority={fetchPriority} decoding="async" />
     </picture>

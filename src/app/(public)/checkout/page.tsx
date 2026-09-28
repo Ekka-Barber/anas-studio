@@ -4,7 +4,7 @@ import { CartProvider } from '@/components/store/CartProvider'
 import { CheckoutForm } from '@/components/store/CheckoutForm'
 import styles from '@/components/store/store.module.css'
 import { Band } from '@/components/weave/Band'
-import { Edge } from '@/components/weave/Edge'
+import { calmEnter } from '@/components/weave/motion'
 
 export const metadata: Metadata = { title: 'إتمام الطلب' }
 
@@ -12,12 +12,11 @@ export const metadata: Metadata = { title: 'إتمام الطلب' }
 export default function CheckoutPage() {
   return (
     <main id="main" className={styles.page}>
-      <Band as="header" tone="paper" edge="crenel" pad="hero" padEnd="m">
-        <h1 className={styles.title}>إتمام الطلب</h1>
+      <Band as="header" tone="paper" pad="hero" padEnd="m" className={styles.docHead}>
+        <h1 className={styles.title} {...calmEnter}>إتمام الطلب</h1>
       </Band>
-      <Edge kind="weave" />
       <Band tone="sand" pad="l" padEnd="xl">
-        <div className={styles.inner}>
+        <div className={styles.innerWide}>
           <noscript>السلة والطلب يحتاجان JavaScript.</noscript>
           <CartProvider>
             <CheckoutForm />

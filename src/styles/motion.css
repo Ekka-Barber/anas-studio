@@ -31,7 +31,8 @@
   [data-enter][data-fx='sign'] {
     animation: motion-sign 1800ms cubic-bezier(0.65, 0, 0.35, 1) var(--enter-delay, 0ms) backwards;
   }
-  /* A page opened before in this visit comes back still (MotionLayer). */
+  /* A page opened before in this visit comes back without its entrances;
+     its scroll reveals still play (MotionLayer). */
   :root[data-seen] [data-enter] {
     animation: none;
   }

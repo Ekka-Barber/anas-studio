@@ -1,0 +1,71 @@
+{
+  "note": "Written by scripts/prepare-preview.py. The public preview of «خوص»: only these pages are published (E04 range, owner 2026-09-28).",
+  "approval": {
+    "by": "owner",
+    "date": "2026-09-28",
+    "words": "ANAS provide two or three PDF texts !! we only want to let users see these then had to buy the whole book to read"
+  },
+  "tool": "pypdf 6.16.2",
+  "inputs": [
+    {
+      "file": "BOOK_ASSETS/ (8).pdf",
+      "sha256": "962b19091562e5b0fbdf8cdcb89bd3daff8f1835fcbb1b009b79da3517c345a7",
+      "bytes": 150110,
+      "pages": 1,
+      "label": "الإهداء"
+    },
+    {
+      "file": "BOOK_ASSETS/ (11).pdf",
+      "sha256": "801d0f50cd9f0ab9cceda7db366b4a0dddf4a88438fa95a4379cd2c9c12e69e9",
+      "bytes": 180425,
+      "pages": 2,
+      "label": "المقدمة"
+    },
+    {
+      "file": "BOOK_ASSETS/ (9).pdf",
+      "sha256": "adcc9f04831b43e1a3db1583d94c9017bd1ae38be0fb08091f09ef6720389b14",
+      "bytes": 155611,
+      "pages": 2,
+      "label": "من فصل «صورة الروضة»"
+    }
+  ],
+  "output": {
+    "file": "public/book/khous-preview.pdf",
+    "url": "/book/khous-preview.pdf",
+    "sha256": "9c9845fa506c7863ec94960c2bab2a507fd68a3d55975bc1fdb0169b5cee5496",
+    "bytes": 364653,
+    "pages": 5
+  },
+  "pages": [
+    {
+      "page": 1,
+      "label": "الإهداء",
+      "source": "BOOK_ASSETS/ (8).pdf",
+      "sourcePage": 1
+    },
+    {
+      "page": 2,
+      "label": "المقدمة",
+      "source": "BOOK_ASSETS/ (11).pdf",
+      "sourcePage": 1
+    },
+    {
+      "page": 3,
+      "label": "المقدمة",
+      "source": "BOOK_ASSETS/ (11).pdf",
+      "sourcePage": 2
+    },
+    {
+      "page": 4,
+      "label": "من فصل «صورة الروضة»",
+      "source": "BOOK_ASSETS/ (9).pdf",
+      "sourcePage": 1
+    },
+    {
+      "page": 5,
+      "label": "من فصل «صورة الروضة»",
+      "source": "BOOK_ASSETS/ (9).pdf",
+      "sourcePage": 2
+    }
+  ]
+}

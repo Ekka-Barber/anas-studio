@@ -36,6 +36,8 @@ const REQUIRED = [
   'policies/refund.html',
   'policies/privacy.html',
   '404.html',
+  // P02: the book preview the reader opens (the only PDF the site serves).
+  'book/khous-preview.pdf',
   '_headers',
   'admin.html',
   'admin/sign-in.html',

@@ -6,7 +6,7 @@ import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policySchema, type PolicyDocId } fro
 import { RichText } from '@/lib/richtext'
 import styles from '@/components/store/store.module.css'
 import { Band } from '@/components/weave/Band'
-import { Edge } from '@/components/weave/Edge'
+import { calmEnter } from '@/components/weave/motion'
 import { requireEnv } from '@/lib/env'
 
 /**
@@ -49,10 +49,9 @@ export default async function PolicyPage({ params }: { params: Promise<{ slug: s
 
   return (
     <main id="main" className={styles.page}>
-      <Band as="header" tone="paper" edge="crenel" pad="hero" padEnd="m">
-        <h1 className={styles.title}>{policy?.title ?? POLICY_DOC_LABELS[id]}</h1>
+      <Band as="header" tone="paper" pad="hero" padEnd="m" className={styles.docHead}>
+        <h1 className={styles.title} {...calmEnter}>{policy?.title ?? POLICY_DOC_LABELS[id]}</h1>
       </Band>
-      <Edge kind="weave" />
       <Band tone="sand" pad="l" padEnd="xl">
         {policy === null ? (
           <p className={styles.note}>لم تُنشر هذه السياسة بعد.</p>

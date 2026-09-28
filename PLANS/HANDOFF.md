@@ -5,8 +5,10 @@
 Anas picked direction B «أنساق» (cover B, standing mockup B). The orchestrator ported it into the product alone, as the owner asked (no sub-agents, no GLM).
 
 **State.**
-- The work is on branch `agent/design-b` (from `788cbbe`) and is uncommitted until the owner reviews it.
-- `.anasaq-execution.lock` is held by this orchestrator session for DESIGN-B, with its allowlist inside. It is released after the owner's decision (commit, or changes).
+- DESIGN-B is committed on branch `agent/design-b` (owner, 2026-09-28): `1ffb8a1` and `7ac94e8`, not pushed. Its lock was released.
+- P02 (the book preview reader), with the audit-2 fixes, is committed on top on the owner's word (2026-09-28: "once all fixes done commit"), not pushed; its lock was released. Evidence: `artifacts/acceptance/P02/commands.txt` and `audit-2/FINDINGS.md`; how it works: `docs/book-preview.md`.
+- From audit-2 on, the owner allows Opus 5.5 sub-agents (`opus-worker`, effort xhigh) for easier bounded work, one writer at a time, audited by the orchestrator. There is still no GLM for design.
+- Serious pages (the cart, the checkout, the policies, and P08's payment and order screens) stay calm and official: no reveals, only the title's short fade (DESIGN.md §4 and §6).
 - Evidence: `artifacts/acceptance/DESIGN-B/commands.txt`. The design reference is `DESIGN.md`; the product brief is `PRODUCT.md`.
 
 **How to look at it.**
@@ -15,13 +17,13 @@ Anas picked direction B «أنساق» (cover B, standing mockup B). The orchest
 
 **Next.**
 0. DONE 2026-09-28: the design audit (tasmeem, the sweep brief's primary skill) and every fix, in two rounds: `artifacts/acceptance/DESIGN-B/tasmeem-audit/after/FIXES.md`. Only row 4 (I40, a launch check), row 5 (an owner note) and row 19 (a documented exception) remain. The sweep brief's per-skill cross-checks were not run separately.
-1. The owner reviews, then asks for the commit.
+1. DONE 2026-09-28: the owner asked for the commit (`1ffb8a1`, `7ac94e8`).
 2. Anas's inputs:
    - the paper edition's details and prices;
    - the book's characters;
    - the 2013 photo;
    - consent for the five films with children (they stay hidden until then).
-3. P02 (the reader) fills the book page's reader, which is left out for now.
+3. DONE 2026-09-28, committed on the owner's word: P02, the book preview reader with Anas's three approved fragments (E04 range), and audit-2 (motion on the dev server, calm money pages, reader taps). The final manuscript stays open under E04.
 4. P08 adds the availability sign-ups, and P09 the booking. Until then, a service's «اطلب جلسة» fills the contact form.
 
 ---

@@ -123,176 +123,182 @@ export function CartView() {
       )}
       {quoteFailed && <p className={styles.warning} role="note">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>}
 
-      <ul className={styles.lineList}>
-        {cart.lines.map((line) => {
-          const quoteLine = quote?.lines.find((l) => l.variantId === line.variantId) ?? null
-          const lineErrors = errors.filter((error) => error.variantId === line.variantId)
-          return (
-            <li key={line.variantId} className={styles.lineCard}>
-              <div className={styles.lineHead}>
-                <p className={styles.lineTitle}>
-                  {/* A line the quote refused carries no title; its error below says why. */}
-                  {quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : quote === null ? '…' : 'منتج في السلة'}
-                </p>
-                <p className={styles.linePrice}>
-                  {quoteLine ? `${formatMoney(quoteLine.unitPrice)} × ${quoteLine.quantity}` : '…'}
-                </p>
+      <div className={styles.withSummary}>
+        <div>
+          <ul className={styles.lineList}>
+            {cart.lines.map((line) => {
+              const quoteLine = quote?.lines.find((l) => l.variantId === line.variantId) ?? null
+              const lineErrors = errors.filter((error) => error.variantId === line.variantId)
+              return (
+                <li key={line.variantId} className={styles.lineCard}>
+                  <div className={styles.lineHead}>
+                    <p className={styles.lineTitle}>
+                      {/* A line the quote refused carries no title; its error below says why. */}
+                      {quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : quote === null ? '…' : 'منتج في السلة'}
+                    </p>
+                    <p className={styles.linePrice}>
+                      {quoteLine ? `${formatMoney(quoteLine.unitPrice)} × ${quoteLine.quantity}` : '…'}
+                    </p>
+                  </div>
+                  {lineErrors.length > 0 && (
+                    <ul className={styles.lineErrors}>
+                      {lineErrors.map((error, i) => (
+                        <li key={i}>{quoteErrorMessage(error)}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className={styles.lineControls}>
+                    <div className={styles.quantity}>
+                      <button
+                        type="button"
+                        className={styles.stepButton}
+                        aria-label="إنقاص الكمية"
+                        onClick={() => update(setQuantity(cart, line.variantId, line.quantity - 1))}
+                        disabled={line.quantity <= 1}
+                      >
+                        −
+                      </button>
+                      <input
+                        className={styles.quantityInput}
+                        type="number"
+                        min={1}
+                        max={MAX_QUANTITY}
+                        inputMode="numeric"
+                        value={line.quantity}
+                        aria-label="الكمية"
+                        onChange={(event) => {
+                          const next = Number(event.target.value)
+                          if (Number.isFinite(next) && next >= 1 && next <= MAX_QUANTITY) {
+                            update(setQuantity(cart, line.variantId, next))
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className={styles.stepButton}
+                        aria-label="زيادة الكمية"
+                        onClick={() => update(setQuantity(cart, line.variantId, line.quantity + 1))}
+                        disabled={line.quantity >= MAX_QUANTITY}
+                      >
+                        +
+                      </button>
+                    </div>
+                    {quoteLine && <p className={styles.lineTotal}>{formatMoney(quoteLine.total)}</p>}
+                    <button type="button" className={styles.textButton} onClick={() => update(removeLine(cart, line.variantId))}>
+                      حذف
+                    </button>
+                  </div>
+                  {quoteLine?.fulfillment === 'signed' && (
+                    <label className={styles.dedication}>
+                      نص الإهداء
+                      <input
+                        type="text"
+                        maxLength={200}
+                        value={line.dedication ?? ''}
+                        onChange={(event) => update(setDedication(cart, line.variantId, event.target.value))}
+                      />
+                    </label>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+
+          {invalidVariants.length > 0 && (
+            <button type="button" className={styles.textButton} onClick={() => update(removeLines(cart, invalidVariants))}>
+              إزالة غير المتاح
+            </button>
+          )}
+        </div>
+        <div className={styles.summaryPanel}>
+          <h2 className={styles.panelTitle}>ملخص الطلب</h2>
+          {quote?.physical && (
+            <label className={styles.field}>
+              مدينة التوصيل
+              <select
+                value={city}
+                onChange={(event) => {
+                  setCity(event.target.value)
+                  writeSessionValue(CITY_KEY, event.target.value)
+                }}
+              >
+                <option value="">اختر المدينة</option>
+                {cities.map((rate) => (
+                  <option key={rate.city_key} value={rate.city_key}>
+                    {rate.name_ar}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <div className={styles.coupon}>
+            <label className={styles.field}>
+              كود الخصم
+              <input type="text" value={couponDraft} onChange={(event) => setCouponDraft(event.target.value)} dir="ltr" />
+            </label>
+            <ActionButton
+              variant="outline"
+              onClick={() => {
+                const applied = couponDraft.trim().toUpperCase()
+                setCoupon(applied)
+                writeSessionValue(COUPON_KEY, applied)
+              }}
+            >
+              تطبيق
+            </ActionButton>
+          </div>
+          {couponErrors.length > 0 && (
+            <ul className={styles.lineErrors}>
+              {couponErrors.map((error, i) => (
+                <li key={i}>{quoteErrorMessage(error)}</li>
+              ))}
+            </ul>
+          )}
+
+          {otherErrors.length > 0 && (
+            <ul className={styles.lineErrors}>
+              {otherErrors.map((error, i) => (
+                <li key={i}>{quoteErrorMessage(error)}</li>
+              ))}
+            </ul>
+          )}
+
+          {quote && (
+            <dl className={styles.totals}>
+              <div>
+                <dt>المجموع الفرعي</dt>
+                <dd>{formatMoney(quote.subtotal)}</dd>
               </div>
-              {lineErrors.length > 0 && (
-                <ul className={styles.lineErrors}>
-                  {lineErrors.map((error, i) => (
-                    <li key={i}>{quoteErrorMessage(error)}</li>
-                  ))}
-                </ul>
-              )}
-              <div className={styles.lineControls}>
-                <div className={styles.quantity}>
-                  <button
-                    type="button"
-                    className={styles.stepButton}
-                    aria-label="إنقاص الكمية"
-                    onClick={() => update(setQuantity(cart, line.variantId, line.quantity - 1))}
-                    disabled={line.quantity <= 1}
-                  >
-                    −
-                  </button>
-                  <input
-                    className={styles.quantityInput}
-                    type="number"
-                    min={1}
-                    max={MAX_QUANTITY}
-                    inputMode="numeric"
-                    value={line.quantity}
-                    aria-label="الكمية"
-                    onChange={(event) => {
-                      const next = Number(event.target.value)
-                      if (Number.isFinite(next) && next >= 1 && next <= MAX_QUANTITY) {
-                        update(setQuantity(cart, line.variantId, next))
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className={styles.stepButton}
-                    aria-label="زيادة الكمية"
-                    onClick={() => update(setQuantity(cart, line.variantId, line.quantity + 1))}
-                    disabled={line.quantity >= MAX_QUANTITY}
-                  >
-                    +
-                  </button>
+              {quote.discount > 0 && (
+                <div>
+                  <dt>الخصم</dt>
+                  <dd>−{formatMoney(quote.discount)}</dd>
                 </div>
-                {quoteLine && <p className={styles.lineTotal}>{formatMoney(quoteLine.total)}</p>}
-                <button type="button" className={styles.textButton} onClick={() => update(removeLine(cart, line.variantId))}>
-                  حذف
-                </button>
-              </div>
-              {quoteLine?.fulfillment === 'signed' && (
-                <label className={styles.dedication}>
-                  نص الإهداء
-                  <input
-                    type="text"
-                    maxLength={200}
-                    value={line.dedication ?? ''}
-                    onChange={(event) => update(setDedication(cart, line.variantId, event.target.value))}
-                  />
-                </label>
               )}
-            </li>
-          )
-        })}
-      </ul>
+              {quote.city !== null && (
+                <div>
+                  <dt>التوصيل</dt>
+                  <dd>{formatMoney(quote.shipping)}</dd>
+                </div>
+              )}
+              <div className={styles.totalRow}>
+                <dt>الإجمالي</dt>
+                <dd>{formatMoney(quote.total)}</dd>
+              </div>
+            </dl>
+          )}
 
-      {invalidVariants.length > 0 && (
-        <button type="button" className={styles.textButton} onClick={() => update(removeLines(cart, invalidVariants))}>
-          إزالة غير المتاح
-        </button>
-      )}
-
-      {quote?.physical && (
-        <label className={styles.field}>
-          مدينة التوصيل
-          <select
-            value={city}
-            onChange={(event) => {
-              setCity(event.target.value)
-              writeSessionValue(CITY_KEY, event.target.value)
-            }}
-          >
-            <option value="">اختر المدينة</option>
-            {cities.map((rate) => (
-              <option key={rate.city_key} value={rate.city_key}>
-                {rate.name_ar}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <div className={styles.coupon}>
-        <label className={styles.field}>
-          كود الخصم
-          <input type="text" value={couponDraft} onChange={(event) => setCouponDraft(event.target.value)} dir="ltr" />
-        </label>
-        <ActionButton
-          variant="outline"
-          onClick={() => {
-            const applied = couponDraft.trim().toUpperCase()
-            setCoupon(applied)
-            writeSessionValue(COUPON_KEY, applied)
-          }}
-        >
-          تطبيق
-        </ActionButton>
+          {quote !== null && !quote.checkoutEnabled && (
+            <p className={styles.warning} role="note">
+              الشراء غير متاح حاليًا، ويفتح قريبًا.
+            </p>
+          )}
+          {quote !== null && quote.checkoutEnabled && (
+            <ActionLink href="/checkout">المتابعة لإتمام الطلب</ActionLink>
+          )}
+        </div>
       </div>
-      {couponErrors.length > 0 && (
-        <ul className={styles.lineErrors}>
-          {couponErrors.map((error, i) => (
-            <li key={i}>{quoteErrorMessage(error)}</li>
-          ))}
-        </ul>
-      )}
-
-      {otherErrors.length > 0 && (
-        <ul className={styles.lineErrors}>
-          {otherErrors.map((error, i) => (
-            <li key={i}>{quoteErrorMessage(error)}</li>
-          ))}
-        </ul>
-      )}
-
-      {quote && (
-        <dl className={styles.totals}>
-          <div>
-            <dt>المجموع الفرعي</dt>
-            <dd>{formatMoney(quote.subtotal)}</dd>
-          </div>
-          {quote.discount > 0 && (
-            <div>
-              <dt>الخصم</dt>
-              <dd>−{formatMoney(quote.discount)}</dd>
-            </div>
-          )}
-          {quote.city !== null && (
-            <div>
-              <dt>التوصيل</dt>
-              <dd>{formatMoney(quote.shipping)}</dd>
-            </div>
-          )}
-          <div className={styles.totalRow}>
-            <dt>الإجمالي</dt>
-            <dd>{formatMoney(quote.total)}</dd>
-          </div>
-        </dl>
-      )}
-
-      {quote !== null && !quote.checkoutEnabled && (
-        <p className={styles.warning} role="note">
-          الشراء غير متاح حاليًا، ويفتح قريبًا.
-        </p>
-      )}
-      {quote !== null && quote.checkoutEnabled && (
-        <ActionLink href="/checkout">المتابعة لإتمام الطلب</ActionLink>
-      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { CartLink } from '@/components/store/CartLink'
 import styles from '@/components/store/store.module.css'
 import { Band } from '@/components/weave/Band'
 import { Edge } from '@/components/weave/Edge'
+import { enter } from '@/components/weave/motion'
 import { formatMoney } from '@/lib/format'
 import { getProducts } from '@/lib/store'
 
@@ -23,7 +24,9 @@ export default async function StorePage() {
   return (
     <main id="main" className={styles.page}>
       <Band as="header" tone="aub" edge="crenel" pad="hero" padEnd="m" className={styles.head}>
-        <h1 className="t-title">المتجر</h1>
+        <h1 className="t-title" {...enter(80, 'band')}>
+          المتجر
+        </h1>
         <CartLink />
       </Band>
       <Edge kind="weave" />
@@ -32,7 +35,7 @@ export default async function StorePage() {
           <p className={styles.note}>لا توجد منتجات بعد.</p>
         ) : (
           <ul className={styles.grid}>
-            {products.map((product) => {
+            {products.map((product, i) => {
               const prices = product.variants
                 .map((variant) => variant.priceHalalas)
                 .filter((price): price is number => price !== null)
@@ -41,7 +44,15 @@ export default async function StorePage() {
                 <li key={product.id} className={styles.card}>
                   <Link href={`/store/${product.slug}`} prefetch={false} className={styles.cardLink}>
                     {product.cover !== null && (
-                      <Picture id={product.cover} alt={product.title} sizes="(min-width: 640px) 50vw, 100vw" className={styles.cover} />
+                      <Picture
+                        id={product.cover}
+                        alt={product.title}
+                        sizes="(min-width: 640px) 50vw, 100vw"
+                        className={styles.cover}
+                        data-reveal=""
+                        data-fx="media"
+                        data-delay={(i % 3) * 120}
+                      />
                     )}
                     <h2 className={styles.cardTitle}>{product.title}</h2>
                   </Link>

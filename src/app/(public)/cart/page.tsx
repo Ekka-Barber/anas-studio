@@ -4,7 +4,7 @@ import { CartProvider } from '@/components/store/CartProvider'
 import { CartView } from '@/components/store/CartView'
 import styles from '@/components/store/store.module.css'
 import { Band } from '@/components/weave/Band'
-import { Edge } from '@/components/weave/Edge'
+import { calmEnter } from '@/components/weave/motion'
 
 export const metadata: Metadata = { title: 'السلة' }
 
@@ -12,12 +12,11 @@ export const metadata: Metadata = { title: 'السلة' }
 export default function CartPage() {
   return (
     <main id="main" className={styles.page}>
-      <Band as="header" tone="paper" edge="crenel" pad="hero" padEnd="m">
-        <h1 className={styles.title}>السلة</h1>
+      <Band as="header" tone="paper" pad="hero" padEnd="m" className={styles.docHead}>
+        <h1 className={styles.title} {...calmEnter}>السلة</h1>
       </Band>
-      <Edge kind="weave" />
       <Band tone="sand" pad="l" padEnd="xl">
-        <div className={styles.inner}>
+        <div className={styles.innerWide}>
         <noscript>السلة والطلب يحتاجان JavaScript.</noscript>
         <CartProvider>
           <CartView />

@@ -410,105 +410,18 @@ export function CheckoutForm() {
   )
 
   return (
-    <form ref={formRef} className={styles.form} onSubmit={submit} noValidate>
-      <fieldset className={styles.fields}>
-        <legend>بيانات التواصل</legend>
-        <div className={styles.field}>
-          <label htmlFor="checkout-email">البريد الإلكتروني</label>
-          <input
-            id="checkout-email"
-            type="email"
-            dir="ltr"
-            inputMode="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value)
-              clear('email')
-            }}
-            required
-            {...described('email')}
-          />
-          {problem('email')}
-        </div>
-        <div className={styles.field}>
-          <label htmlFor="checkout-name">الاسم</label>
-          <input
-            id="checkout-name"
-            type="text"
-            dir="auto"
-            autoComplete="name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value)
-              clear('name')
-            }}
-            required
-            {...described('name')}
-          />
-          {problem('name')}
-        </div>
-        {quote.physical && (
-          <>
-            <div className={styles.field}>
-              <label htmlFor="checkout-phone">رقم الجوال</label>
-              <input
-                id="checkout-phone"
-                type="tel"
-                dir="ltr"
-                inputMode="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value)
-                  clear('phone')
-                }}
-                required
-                {...described('phone')}
-              />
-              {problem('phone')}
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="checkout-city">مدينة التوصيل</label>
-              <select
-                id="checkout-city"
-                value={city}
-                onChange={(e) => {
-                  setCity(e.target.value)
-                  writeSessionValue(CITY_KEY, e.target.value)
-                  clear('city')
-                }}
-                required
-                {...described('city')}
-              >
-                <option value="">اختر المدينة</option>
-                {cities.map((rate) => (
-                  <option key={rate.city_key} value={rate.city_key}>
-                    {rate.name_ar}
-                  </option>
-                ))}
-              </select>
-              {problem('city')}
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="checkout-address">عنوان التوصيل</label>
-              <textarea
-                id="checkout-address"
-                rows={3}
-                dir="auto"
-                value={address}
-                onChange={(e) => {
-                  setAddress(e.target.value)
-                  clear('address')
-                }}
-                maxLength={2000}
-                required
-                {...described('address')}
-              />
-              {problem('address')}
-            </div>
-          </>
-        )}
+    <form ref={formRef} className={`${styles.form} ${styles.withSummary}`} onSubmit={submit} noValidate>
+      {/* The summary comes first: on a phone it is read before the fields; from 1024 it is the panel beside them. */}
+      <fieldset className={`${styles.fields} ${styles.summaryPanel}`}>
+        <legend>ملخص الطلب</legend>
+        <ul className={styles.summaryLines}>
+          {quote.lines.map((line) => (
+            <li key={line.variantId}>
+              {line.productTitle}: {line.variantTitle} × {line.quantity}
+              <span className={styles.summaryPrice}>{formatMoney(line.total)}</span>
+            </li>
+          ))}
+        </ul>
         <div className={styles.coupon}>
           <label className={styles.field}>
             كود الخصم
@@ -525,18 +438,6 @@ export function CheckoutForm() {
             تطبيق
           </ActionButton>
         </div>
-      </fieldset>
-
-      <fieldset className={styles.fields}>
-        <legend>ملخص الطلب</legend>
-        <ul className={styles.summaryLines}>
-          {quote.lines.map((line) => (
-            <li key={line.variantId}>
-              {line.productTitle}: {line.variantTitle} × {line.quantity}
-              <span className={styles.summaryPrice}>{formatMoney(line.total)}</span>
-            </li>
-          ))}
-        </ul>
         <dl className={styles.totals}>
           <div>
             <dt>المجموع الفرعي</dt>
@@ -570,44 +471,144 @@ export function CheckoutForm() {
           تعديل السلة
         </Link>
       </fieldset>
+      <div className={styles.formMain}>
+        <fieldset className={styles.fields}>
+          <legend>بيانات التواصل</legend>
+          <div className={styles.field}>
+            <label htmlFor="checkout-email">البريد الإلكتروني</label>
+            <input
+              id="checkout-email"
+              type="email"
+              dir="ltr"
+              inputMode="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value)
+                clear('email')
+              }}
+              required
+              {...described('email')}
+            />
+            {problem('email')}
+          </div>
+          <div className={styles.field}>
+            <label htmlFor="checkout-name">الاسم</label>
+            <input
+              id="checkout-name"
+              type="text"
+              dir="auto"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value)
+                clear('name')
+              }}
+              required
+              {...described('name')}
+            />
+            {problem('name')}
+          </div>
+          {quote.physical && (
+            <>
+              <div className={styles.field}>
+                <label htmlFor="checkout-phone">رقم الجوال</label>
+                <input
+                  id="checkout-phone"
+                  type="tel"
+                  dir="ltr"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value)
+                    clear('phone')
+                  }}
+                  required
+                  {...described('phone')}
+                />
+                {problem('phone')}
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="checkout-city">مدينة التوصيل</label>
+                <select
+                  id="checkout-city"
+                  value={city}
+                  onChange={(e) => {
+                    setCity(e.target.value)
+                    writeSessionValue(CITY_KEY, e.target.value)
+                    clear('city')
+                  }}
+                  required
+                  {...described('city')}
+                >
+                  <option value="">اختر المدينة</option>
+                  {cities.map((rate) => (
+                    <option key={rate.city_key} value={rate.city_key}>
+                      {rate.name_ar}
+                    </option>
+                  ))}
+                </select>
+                {problem('city')}
+              </div>
+              <div className={styles.field}>
+                <label htmlFor="checkout-address">عنوان التوصيل</label>
+                <textarea
+                  id="checkout-address"
+                  rows={3}
+                  dir="auto"
+                  value={address}
+                  onChange={(e) => {
+                    setAddress(e.target.value)
+                    clear('address')
+                  }}
+                  maxLength={2000}
+                  required
+                  {...described('address')}
+                />
+                {problem('address')}
+              </div>
+            </>
+          )}
+        </fieldset>
+        <div>
+          <label className={styles.consent}>
+            <input
+              id="checkout-consent"
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => {
+                setConsent(e.target.checked)
+                clear('consent')
+              }}
+              {...described('consent')}
+            />
+            {consentSentence}
+          </label>
+          {problem('consent')}
+        </div>
 
-      <div>
-        <label className={styles.consent}>
-          <input
-            id="checkout-consent"
-            type="checkbox"
-            checked={consent}
-            onChange={(e) => {
-              setConsent(e.target.checked)
-              clear('consent')
-            }}
-            {...described('consent')}
-          />
-          {consentSentence}
-        </label>
-        {problem('consent')}
+        <div className={styles.turnstileBox} ref={turnstileBox} />
+        {!siteKey && (
+          <p className={styles.warning} role="note">
+            التحقق غير متاح حاليًا.
+          </p>
+        )}
+        {turnstileFailed && (
+          <p className={styles.warning} role="note">
+            تعذّر تحميل التحقق؛ حدّث الصفحة.
+          </p>
+        )}
+
+        {submitError !== '' && (
+          <p className={styles.warning} role="alert">
+            {submitError}
+          </p>
+        )}
+        <ActionButton type="submit" className={styles.submit} disabled={!siteKey || submitting || awaitingToken}>
+          {submitting || awaitingToken ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
+        </ActionButton>
       </div>
-
-      <div className={styles.turnstileBox} ref={turnstileBox} />
-      {!siteKey && (
-        <p className={styles.warning} role="note">
-          التحقق غير متاح حاليًا.
-        </p>
-      )}
-      {turnstileFailed && (
-        <p className={styles.warning} role="note">
-          تعذّر تحميل التحقق؛ حدّث الصفحة.
-        </p>
-      )}
-
-      {submitError !== '' && (
-        <p className={styles.warning} role="alert">
-          {submitError}
-        </p>
-      )}
-      <ActionButton type="submit" className={styles.submit} disabled={!siteKey || submitting || awaitingToken}>
-        {submitting || awaitingToken ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
-      </ActionButton>
     </form>
   )
 }

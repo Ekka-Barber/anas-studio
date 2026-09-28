@@ -47,6 +47,13 @@ export function enter(delayMs: number, fx?: Fx): Record<string, unknown> & { sty
   }
 }
 
+/** The one entrance a calm page (cart, checkout, a policy) has: its title fades in, briefly. */
+export const calmEnter = {
+  'data-enter': '',
+  'data-fx': 'fade',
+  style: { '--enter-dur': 'var(--dur-ui)' } as CSSProperties,
+}
+
 export function motionAllowed(): boolean {
   return (
     typeof window !== 'undefined' &&
