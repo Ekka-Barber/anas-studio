@@ -1,3 +1,31 @@
+# Handoff
+
+## Design session of 2026-09-28: direction B (D39)
+
+Anas picked direction B «أنساق» (cover B, standing mockup B). The orchestrator ported it into the product alone, as the owner asked (no sub-agents, no GLM).
+
+**State.**
+- The work is on branch `agent/design-b` (from `788cbbe`) and is uncommitted until the owner reviews it.
+- `.anasaq-execution.lock` is held by this orchestrator session for DESIGN-B, with its allowlist inside. It is released after the owner's decision (commit, or changes).
+- Evidence: `artifacts/acceptance/DESIGN-B/commands.txt`. The design reference is `DESIGN.md`; the product brief is `PRODUCT.md`.
+
+**How to look at it.**
+1. `pnpm dev`, then open `/`, `/started`, `/built`, `/passed`, `/shelf`, `/book`, `/journal`, `/scenes`, `/contact`, `/store`.
+2. The local content must be the D39 import: `pnpm db:import --force`. Its fields are new: the room colour and line, band lines, the home page's words.
+
+**Next.**
+0. DONE 2026-09-28: the design audit (tasmeem, the sweep brief's primary skill) and every fix, in two rounds: `artifacts/acceptance/DESIGN-B/tasmeem-audit/after/FIXES.md`. Only row 4 (I40, a launch check), row 5 (an owner note) and row 19 (a documented exception) remain. The sweep brief's per-skill cross-checks were not run separately.
+1. The owner reviews, then asks for the commit.
+2. Anas's inputs:
+   - the paper edition's details and prices;
+   - the book's characters;
+   - the 2013 photo;
+   - consent for the five films with children (they stay hidden until then).
+3. P02 (the reader) fills the book page's reader, which is left out for now.
+4. P08 adds the availability sign-ups, and P09 the booking. Until then, a service's «اطلب جلسة» fills the contact form.
+
+---
+
 # Handoff: orchestrator session of 2026-09-27 (second) to the next session
 
 The repository is the source of truth. Read this, then `PLANS/EXECUTION-STATUS.md`, `PLANS/ISSUES.md` (I38, I39) and `artifacts/acceptance/P07/commands.txt`.

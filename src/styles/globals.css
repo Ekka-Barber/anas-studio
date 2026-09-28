@@ -1,14 +1,7 @@
 @import './tokens.css';
 
-/* Thmanyah only (D33): the free Thmanyah family, Serif Display for titles
-   and Sans for reading. Only the weights the rooms use are shipped in
-   public/fonts/. */
-@font-face {
-  font-family: 'Thmanyah Serif Display';
-  src: url('/fonts/thmanyah/thmanyahserifdisplay-Light.woff2') format('woff2');
-  font-weight: 300;
-  font-display: swap;
-}
+/* Thmanyah only (D33). Only the faces the design uses are declared, so no
+   other file is ever downloaded. */
 @font-face {
   font-family: 'Thmanyah Serif Display';
   src: url('/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2') format('woff2');
@@ -19,12 +12,6 @@
   font-family: 'Thmanyah Serif Display';
   src: url('/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2') format('woff2');
   font-weight: 500;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'Thmanyah Sans';
-  src: url('/fonts/thmanyah/thmanyahsans-Light.woff2') format('woff2');
-  font-weight: 300;
   font-display: swap;
 }
 @font-face {
@@ -46,6 +33,94 @@
   font-display: swap;
 }
 
+/* ---- Tones (tokens.css, layer 2) ------------------------------------------
+   Each band declares one tone with `data-tone`. The tone paints the band and
+   hands its colours to everything inside it through these variables:
+   --bg, --fg, --muted (secondary text), --accent (display accents),
+   --focus (the focus ring), --action-bg/--action-fg (a primary action),
+   --line (rules and outlines), --field-bg/--field-fg (text fields),
+   --error (a field error). */
+[data-tone] {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+[data-tone='sand'] {
+  --bg: var(--sand);
+  --fg: var(--aub);
+  --muted: var(--aub-muted);
+  --accent: var(--aub);
+  --focus: var(--aub);
+  --action-bg: var(--aub);
+  --action-fg: var(--sand-50);
+  --line: var(--aub);
+  --field-bg: var(--sand-50);
+  --field-fg: var(--aub);
+  --error: var(--coral-deep);
+}
+[data-tone='paper'] {
+  --bg: var(--sand-50);
+  --fg: var(--aub);
+  --muted: var(--aub-muted);
+  --accent: var(--aub);
+  --focus: var(--aub);
+  --action-bg: var(--aub);
+  --action-fg: var(--sand-50);
+  --line: var(--aub);
+  --field-bg: var(--sand);
+  --field-fg: var(--aub);
+  --error: var(--coral-deep);
+}
+[data-tone='aub'],
+[data-tone='night'],
+[data-tone='deep'] {
+  --fg: var(--sand-50);
+  --muted: var(--sand-muted);
+  --accent: var(--coral); /* large text only: 3.2:1 on aubergine */
+  --focus: var(--saffron);
+  --action-bg: var(--coral);
+  --action-fg: var(--aub-900);
+  --line: var(--sand-50);
+  --field-bg: var(--sand-50);
+  --field-fg: var(--aub);
+  --error: var(--saffron);
+}
+[data-tone='aub'] {
+  --bg: var(--aub);
+}
+[data-tone='night'] {
+  --bg: var(--aub-800);
+}
+[data-tone='deep'] {
+  --bg: var(--aub-900);
+}
+[data-tone='coral'] {
+  --bg: var(--coral);
+  --fg: var(--aub-900);
+  --muted: var(--aub-900);
+  --accent: var(--aub-900);
+  --focus: var(--aub-900);
+  --action-bg: var(--aub-900);
+  --action-fg: var(--sand-50);
+  --line: var(--aub-900);
+  --field-bg: var(--sand-50);
+  --field-fg: var(--aub);
+  --error: var(--aub-900);
+}
+[data-tone='saffron'] {
+  --bg: var(--saffron);
+  --fg: var(--saffron-ink);
+  --muted: var(--saffron-ink);
+  --accent: var(--saffron-ink);
+  --focus: var(--saffron-ink);
+  --action-bg: var(--saffron-ink);
+  --action-fg: var(--saffron);
+  --line: var(--saffron-ink);
+  --field-bg: var(--sand-50);
+  --field-fg: var(--aub);
+  --error: var(--saffron-ink);
+}
+
+/* ---- Base ----------------------------------------------------------------- */
 *,
 *::before,
 *::after {
@@ -53,7 +128,9 @@
 }
 
 html {
-  scroll-behavior: auto;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--sand);
 }
 @media (prefers-reduced-motion: no-preference) {
   html {
@@ -63,32 +140,229 @@ html {
 
 body {
   margin: 0;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  min-block-size: 100dvh;
   font-family: var(--font-body);
-  font-weight: 300;
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
-::selection {
-  background: var(--color-forest);
-  color: var(--color-paper);
+/* The public site sets every margin and heading size itself (text roles
+   below); the admin keeps the browser's defaults for its plain documents. */
+:where([data-surface='site']) :where(h1, h2, h3, h4, p, figure, blockquote, dl, dd) {
+  margin: 0;
+}
+:where([data-surface='site']) :where(h1, h2, h3, h4) {
+  font-weight: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 img,
-video {
-  max-width: 100%;
-  height: auto;
+video,
+svg {
   display: block;
+  max-inline-size: 100%;
+}
+img,
+video {
+  block-size: auto;
 }
 
 a {
   color: inherit;
+  text-underline-offset: 0.35em;
 }
 
-/* Visible focus everywhere (DESIGN-AUDIT #56/#118): never suppressed. */
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: var(--aub);
+  color: var(--sand-50);
+}
+
+/* Visible focus everywhere, in the colour its band chose (DESIGN-AUDIT #56). */
 :focus-visible {
-  outline: 2px solid var(--color-brass);
+  outline: 3px solid var(--focus, var(--aub));
   outline-offset: 3px;
+}
+/* A control that sets its own tone (a door, «القائمة», a menu band, a
+   dialog's «إغلاق») picked its ring for its own surface, so the ring is
+   drawn inside it: outside, it would sit on the parent band, often in that
+   band's own colour. */
+[data-tone]:is(a, button) {
+  outline-offset: -6px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* A pressed button moves down 1px. `translate` adds to a transform the
+   button already has, and the rule is weaker than any component's own. */
+:where([data-surface='site'] button:not(:disabled)):active {
+  translate: 0 1px;
+}
+
+/* ---- Text roles (DESIGN.md "Type") ----------------------------------------
+   One class per role. A component picks a role; it never restates sizes.
+   Arabic leading floors: a display line that can wrap keeps 1.25 or more so
+   the marks of two lines never meet; only single-word roles (`.t-mega`,
+   `.t-year`) and the home name bands (`.t-hero`, owner decision) sit tighter. */
+.t-hero,
+.t-mega,
+.t-year,
+.t-title,
+.t-band-xl,
+.t-band,
+.t-statement,
+.t-h2,
+.t-h2-lg,
+.t-display,
+.t-card,
+.t-h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  text-wrap: balance;
+}
+.t-hero {
+  font-size: var(--size-hero);
+  line-height: 1.15;
+}
+.t-mega {
+  font-size: var(--size-mega);
+  line-height: 1;
+}
+.t-year {
+  font-size: var(--size-year);
+  line-height: 1;
+}
+.t-title {
+  font-size: var(--size-title);
+  line-height: 1.25;
+}
+.t-band-xl {
+  font-size: var(--size-band-xl);
+  line-height: 1.25;
+}
+.t-band {
+  font-size: var(--size-band);
+  line-height: 1.3;
+}
+.t-statement {
+  font-size: var(--size-statement);
+  line-height: 1.35;
+}
+.t-h2 {
+  font-size: var(--size-h2);
+  line-height: var(--leading-tight);
+}
+.t-h2-lg {
+  font-size: var(--size-h2-lg);
+  line-height: 1.25;
+}
+.t-display {
+  font-size: var(--size-display);
+  line-height: var(--leading-display);
+}
+.t-card {
+  font-size: var(--size-card);
+  line-height: var(--leading-tight);
+}
+.t-h3 {
+  font-size: var(--size-h3);
+  line-height: 1.25;
+}
+.t-lead,
+.t-quote,
+.t-line {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-wrap: balance;
+}
+.t-lead {
+  font-size: var(--size-lead);
+  /* 1.45 at display size; at its 26px phone size Arabic needs 1.6 (44.8px
+     is 1.6 of the 28px display threshold). */
+  line-height: max(1.45em, 44.8px);
+}
+.t-quote {
+  font-size: var(--size-quote);
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+.t-line {
+  font-size: var(--size-line);
+  line-height: 1.65;
+}
+.t-read {
+  font-size: var(--size-read);
+  line-height: var(--leading-read);
+  text-wrap: pretty;
+}
+.t-body {
+  font-size: var(--size-body);
+  line-height: var(--leading-body);
+  text-wrap: pretty;
+}
+.t-label {
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.6;
+}
+.t-muted {
+  color: var(--muted);
+}
+.t-accent {
+  color: var(--accent);
+}
+
+/* ---- Utilities ------------------------------------------------------------ */
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-start: 8px;
+  z-index: calc(var(--z-menu) + 1);
+  padding-block: 12px;
+  padding-inline: 18px;
+  background: var(--aub);
+  color: var(--sand-50);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip-link:focus-visible {
+  transform: none;
+  outline-color: var(--saffron);
+}
+
+/* A menu or lightbox open: the page behind it stops scrolling. */
+html:has(dialog[open][data-lock-scroll]) {
+  overflow: hidden;
+}
+
+@media print {
+  [data-tone] {
+    background: none !important;
+    color: #000 !important;
+  }
 }

@@ -1,182 +1,175 @@
 /*
- * The store's plain styling (P07, D38): the store pages are deliberately
- * plain on the current tokens until a v2 design direction is accepted, so
- * everything here is functional layout on `src/styles/tokens.css` only — no
- * new colours or fonts. RTL through logical properties; 44 px targets;
- * visible focus comes from globals.css's brass outline (kept); text is ink,
- * ink-85 or muted-strong (all >= WCAG AA on paper and sand). Clay text
- * would reach only 3.9:1 on paper and 3.3:1 on sand, so errors and warnings
- * are ink with a clay rule at the inline start (DESIGN-AUDIT 56). Nothing
- * overflows 360 px, and the cart's lines are cards on phones.
+ * The store in direction B (D38, D39): each page opens on its band (the
+ * list on aubergine, a product on saffron, the cart and checkout on paper),
+ * then works in plain, calm forms: B's 3px field lines, 56px controls, and
+ * the band's own action colours. RTL through logical properties; 44px
+ * targets; errors in coral-deep, never colour alone (they are always words).
+ * Nothing overflows 360px, and the cart's lines are cards on phones.
  */
 
+/* ---- page frame ---- */
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+}
+
 .page {
-  min-height: 60vh;
-  padding-block: 72px 96px;
-  background: var(--color-paper);
+  min-block-size: 50vh;
 }
 
 .inner {
-  max-width: 880px;
-  margin-inline: auto;
-  padding-inline: 24px;
-}
-@media (min-width: 768px) {
-  .inner {
-    padding-inline: 56px;
-  }
+  max-inline-size: 880px;
 }
 
 .title {
-  margin: 0 0 32px;
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 40px;
-  line-height: 1.4;
-}
-@media (min-width: 768px) {
-  .title {
-    font-size: 56px;
-  }
-}
-
-.pageHead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px 24px;
-  margin-block-end: 40px;
-}
-.pageHead .title {
-  margin-block-end: 0;
+  font-weight: 500;
+  font-size: var(--size-h2-lg);
+  line-height: 1.1;
+  text-wrap: balance;
 }
 
 .cartLink {
-  font-family: var(--font-display);
-  font-size: 20px;
-  color: var(--color-forest);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
+  font-weight: 700;
+  font-size: var(--size-action);
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
 }
 
 /* ---- the store list ---- */
 
 .grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 24px;
-  margin: 0;
-  padding: 0;
   list-style: none;
-}
-@media (min-width: 640px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 32px;
-  }
+  margin: 0;
+  padding: 1px;
+  display: grid;
+  gap: 1px;
+  background: var(--aub);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
 }
 
 .card {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-hairline);
-  background: var(--color-sand);
-  padding: 16px;
+  gap: 10px;
+  padding: clamp(18px, 2vw, 28px);
+  background: var(--sand-50);
+  color: var(--aub);
 }
 .cardLink {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-block-size: var(--tap);
   text-decoration: none;
-  color: inherit;
+}
+@media (hover: hover) {
+  .cardLink:hover .cardTitle {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
 }
 .cardTitle {
-  margin: 16px 0 0;
   font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 26px;
-  line-height: 1.5;
+  font-weight: 500;
+  font-size: var(--size-quote);
+  line-height: 1.3;
 }
 .summary {
-  margin: 8px 0 0;
-  font-size: 15px;
-  line-height: 1.9;
-  color: var(--color-muted-strong);
+  font-size: var(--size-body);
+  line-height: 1.85;
   overflow-wrap: anywhere;
 }
 .price {
-  margin: auto 0 0;
-  padding-block-start: 16px;
-  font-family: var(--font-display);
-  font-size: 18px;
-  color: var(--color-ink);
+  margin-block-start: auto;
+  padding-block-start: 8px;
+  font-weight: 700;
+  font-size: var(--size-action);
 }
 .cover {
-  width: 100%;
-  aspect-ratio: 4 / 3;
+  display: block;
+  margin: calc(clamp(18px, 2vw, 28px) * -1);
+  margin-block-end: 0;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
+  background: var(--sand-300);
 }
 .cover img {
-  width: 100%;
-  height: 100%;
+  inline-size: 100%;
+  block-size: 100%;
   object-fit: cover;
 }
 
 /* ---- the product page ---- */
 
 .productCover {
-  width: 100%;
-  max-width: 480px;
-  margin-block: 24px 8px;
+  display: block;
+  inline-size: 100%;
+  max-inline-size: 480px;
   overflow: hidden;
+  box-shadow: calc(var(--offset-shadow) * -1) var(--offset-shadow) 0 var(--saffron-ink);
 }
 .productCover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  inline-size: 100%;
+  block-size: auto;
 }
 .productSummary {
-  max-width: var(--measure-reading);
-  margin: 16px 0 0;
-  font-size: 17px;
-  line-height: 2;
-  color: var(--color-ink-85);
+  max-inline-size: var(--measure);
+  font-family: var(--font-display);
+  font-size: var(--size-quote);
+  line-height: 1.7;
 }
 .productBody {
-  max-width: var(--measure-reading);
+  max-inline-size: var(--measure);
   margin-block: 24px 48px;
+  font-size: var(--size-read);
+  line-height: var(--leading-read);
 }
 .productBody p {
-  margin: 0 0 24px;
-  font-size: 17px;
-  line-height: 2;
-  color: var(--color-ink-85);
+  margin: 0 0 1.2em;
 }
 
 .variants {
-  margin: 0;
-  padding: 0;
   list-style: none;
-  border-top: 1px solid var(--color-hairline);
+  margin: 0;
+  padding: 1px;
+  display: grid;
+  gap: 1px;
+  background: var(--aub);
+  max-inline-size: 880px;
 }
 .variant {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 24px;
-  padding-block: 20px;
-  border-block-end: 1px solid var(--color-hairline);
+  padding: clamp(18px, 2vw, 28px);
+  background: var(--sand-50);
 }
 .variantTitle {
-  margin: 0;
-  font-size: 17px;
   flex: 1 1 12rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-quote);
+  line-height: 1.3;
 }
 .variantPrice {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 19px;
+  font-weight: 700;
+  font-size: var(--size-action);
 }
 .unpriced {
-  margin: 0;
-  font-size: 15px;
-  color: var(--color-muted-strong);
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--aub-muted);
 }
 
 .addToCart {
@@ -189,53 +182,35 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
-  color: var(--color-muted-strong);
+  font-size: var(--size-label);
+  font-weight: 700;
 }
 .addedNote {
-  margin: 12px 0 0;
-  font-size: 15px;
-  color: var(--color-forest);
   flex-basis: 100%;
+  font-size: var(--size-label);
+  font-weight: 700;
 }
 
-/* ---- shared controls (44 px targets) ---- */
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44px;
-  padding-inline: 28px;
-  border: 1px solid var(--color-ink);
-  background: var(--color-ink);
-  color: var(--color-paper);
-  font-family: var(--font-body);
-  font-size: 16px;
-  text-decoration: none;
-  cursor: pointer;
-}
-.button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+/* ---- shared controls ---- */
 
 .textButton {
-  min-height: 44px;
+  min-block-size: var(--tap);
   padding-inline: 8px;
   border: none;
   background: none;
-  color: var(--color-ink);
+  color: inherit;
   font-family: var(--font-body);
-  font-size: 15px;
+  font-size: var(--size-label);
+  font-weight: 700;
   text-decoration: underline;
-  cursor: pointer;
+  text-underline-offset: 0.35em;
 }
 
 .plainLink {
-  display: inline-block;
-  margin-block-start: 8px;
-  color: var(--color-forest);
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  font-weight: 700;
 }
 
 /* Every selector here carries a local class (CSS Modules purity). */
@@ -243,19 +218,21 @@
 .field select,
 .field textarea,
 .dedication input,
+.dedication textarea,
 .quantityInput {
+  max-inline-size: 100%;
+  min-block-size: var(--control-h);
+  padding-inline: 14px;
+  border: var(--border-control) solid var(--aub);
+  border-radius: 0;
+  background: var(--sand-50);
+  color: var(--aub);
   font-family: var(--font-body);
-  font-size: 16px;
-  color: var(--color-ink);
-  background: var(--color-paper);
-  border: 1px solid var(--color-hairline);
-  min-height: 44px;
-  padding-inline: 12px;
-  max-width: 100%;
+  font-size: var(--size-control);
 }
 .field textarea,
 .dedication textarea {
-  padding-block: 10px;
+  padding-block: 12px;
   line-height: 1.8;
   resize: vertical;
 }
@@ -266,40 +243,40 @@
   gap: 8px;
 }
 .stepButton {
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--color-hairline);
-  background: var(--color-sand);
-  color: var(--color-ink);
-  font-size: 20px;
-  cursor: pointer;
+  inline-size: var(--control-h);
+  block-size: var(--control-h);
+  border: var(--border-control) solid var(--aub);
+  background: transparent;
+  color: var(--aub);
+  font-size: var(--size-line);
+  font-weight: 700;
 }
 .stepButton:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 .quantityInput {
-  width: 4.5rem;
+  inline-size: 4.5rem;
   text-align: center;
 }
 
 /* ---- the cart ---- */
 
 .lineList {
-  display: grid;
-  gap: 16px;
-  margin: 0 0 24px;
-  padding: 0;
   list-style: none;
+  margin: 0 0 24px;
+  padding: 1px;
+  display: grid;
+  gap: 1px;
+  background: var(--aub);
 }
 /* Cards on phones; a row with the controls at the inline end from 768. */
 .lineCard {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border: 1px solid var(--color-hairline);
-  background: var(--color-sand);
-  padding: 16px;
+  padding: clamp(16px, 2vw, 24px);
+  background: var(--sand-50);
 }
 @media (min-width: 768px) {
   .lineCard {
@@ -313,117 +290,124 @@
   }
 }
 .lineTitle {
-  margin: 0;
-  font-size: 17px;
-  line-height: 1.8;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-line);
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 .linePrice {
-  margin: 4px 0 0;
-  font-size: 15px;
-  color: var(--color-muted-strong);
+  margin-block-start: 4px;
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--aub-muted);
 }
 .lineControls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-  flex-wrap: wrap;
 }
 .lineTotal {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 18px;
-  min-width: 7rem;
+  min-inline-size: 7rem;
+  font-weight: 700;
+  font-size: var(--size-action);
   text-align: center;
 }
 .lineErrors {
-  margin: 0;
-  padding-inline-start: 10px;
-  border-inline-start: 3px solid var(--color-clay);
-  list-style: none;
-  color: var(--color-ink);
-  font-size: 14.5px;
-  line-height: 1.8;
   flex-basis: 100%;
+  margin: 0;
+  padding: 10px 14px;
+  list-style: none;
+  background: var(--coral);
+  color: var(--aub-900);
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.8;
 }
 .dedication {
+  flex-basis: 100%;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 14.5px;
-  color: var(--color-muted-strong);
-  flex-basis: 100%;
+  font-size: var(--size-label);
+  font-weight: 700;
 }
 
 .coupon {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 12px;
-  flex-wrap: wrap;
   margin-block: 24px;
 }
 .coupon input {
-  width: 11rem;
+  inline-size: 12rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 15px;
-  color: var(--color-muted-strong);
-  margin-block-end: 16px;
-  max-width: 100%;
+  gap: 8px;
+  max-inline-size: 100%;
+  margin-block-end: 18px;
+  font-size: var(--size-control);
+  font-weight: 700;
 }
 .field input,
 .field select,
 .field textarea {
-  width: 100%;
-  max-width: 26rem;
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  font-weight: 400;
+}
+/* A field's error, in words under it (never colour alone). */
+.fieldError {
+  font-size: var(--size-label);
+  color: var(--error);
 }
 
 .totals {
   margin: 32px 0;
-  max-width: 26rem;
+  max-inline-size: 28rem;
 }
 .totals div {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding-block: 8px;
-  border-block-end: 1px solid var(--color-hairline);
+  padding-block: 10px;
+  border-block-end: 1px solid color-mix(in srgb, var(--aub) 30%, transparent);
 }
 .totals dt {
-  color: var(--color-muted-strong);
+  color: var(--aub-muted);
 }
 .totals dd {
   margin: 0;
-  font-family: var(--font-display);
+  font-weight: 700;
 }
 .totalRow {
   border-block-end: none;
-  border-block-start: 2px solid var(--color-ink);
+  border-block-start: var(--border-control) solid var(--aub);
 }
 .totalRow dt,
 .totalRow dd {
-  font-size: 18px;
-  color: var(--color-ink);
+  font-size: var(--size-action);
+  color: var(--aub);
 }
 
 .note {
-  font-size: 16px;
+  font-size: var(--size-body);
   line-height: 1.9;
-  color: var(--color-ink-85);
 }
 .warning {
-  font-size: 15px;
-  line-height: 1.9;
-  color: var(--color-ink);
-  border: 1px solid var(--color-hairline);
-  border-inline-start: 3px solid var(--color-clay);
-  padding: 12px 16px;
+  max-inline-size: 40rem;
   margin-block: 16px 0;
-  max-width: 40rem;
+  padding: 14px 18px;
+  background: var(--coral);
+  color: var(--aub-900);
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.9;
 }
 
 /* ---- checkout ---- */
@@ -434,81 +418,94 @@
   gap: 32px;
 }
 /* The submit sizes to its label like every other button here. */
-.form > .button {
+.submit {
   align-self: flex-start;
 }
 .fields {
-  border: none;
-  padding: 0;
   margin: 0;
+  padding: 0;
+  border: none;
 }
 .fields legend {
-  font-family: var(--font-display);
-  font-size: 22px;
   margin-block-end: 16px;
   padding: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-quote);
 }
 .summaryLines {
-  max-width: 26rem;
+  list-style: none;
+  max-inline-size: 28rem;
   margin: 0 0 8px;
   padding: 0;
-  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 .summaryLines li {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
-  font-size: 15.5px;
+  font-size: var(--size-body);
   line-height: 1.8;
 }
 .summaryPrice {
-  font-family: var(--font-display);
+  font-weight: 700;
 }
 .consent {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  max-width: 40rem;
-  font-size: 15.5px;
+  max-inline-size: 40rem;
+  font-size: var(--size-body);
   line-height: 1.9;
-  color: var(--color-ink-85);
 }
 .consent input {
-  min-height: 0;
-  width: 1.25rem;
-  height: 1.25rem;
   flex: 0 0 auto;
-  margin-block-start: 0.35rem;
-  accent-color: var(--color-forest);
+  inline-size: 1.4rem;
+  block-size: 1.4rem;
+  margin-block-start: 0.3rem;
+  accent-color: var(--aub);
 }
 .turnstileBox {
-  min-height: 65px;
+  min-block-size: 65px;
 }
 .orderBox {
   display: flex;
   flex-direction: column;
-  gap: 12px;
   align-items: flex-start;
+  gap: 12px;
 }
 .orderNumber {
-  margin: 0;
   font-family: var(--font-display);
-  font-size: 24px;
+  font-weight: 500;
+  font-size: var(--size-quote);
 }
 
 /* ---- policies ---- */
 
 .policyBody {
-  max-width: var(--measure-reading);
-  margin-block-start: 24px;
+  max-inline-size: var(--measure-article);
+  font-size: var(--size-read);
+  line-height: 2.05;
 }
-.policyBody p {
-  margin: 0 0 24px;
-  font-size: 17px;
-  line-height: 2;
-  color: var(--color-ink-85);
+.policyBody > * + * {
+  margin-block-start: 1.2em;
+}
+.policyBody h2,
+.policyBody h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.policyBody h2 {
+  font-size: var(--size-display);
+}
+.policyBody h3 {
+  font-size: var(--size-h3);
+}
+.policyBody ul,
+.policyBody ol {
+  padding-inline-start: 1.4em;
 }

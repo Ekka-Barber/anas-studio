@@ -1,83 +1,37 @@
-import imageManifestRaw from '../../../public/images/manifest.json'
-import { isMediaId, parseMediaRef } from '../../lib/media-ref'
+import { imageSources } from '@/lib/images'
 
 /**
  * `<picture>`/`srcset` from the widths `scripts/prepare-media.mjs` actually
  * generated (never upscaled past the source), with explicit width/height on
- * the fallback `<img>` so the layout never shifts while it loads.
+ * the fallback `<img>` so the layout never shifts while it loads. A
+ * media-library reference (P05) renders the same way from the media origin;
+ * an unresolved media-library id renders nothing, never a broken image.
  *
- * P05: a `media|…` reference (a resolved media-library id, substituted by
- * `src/lib/content.ts`) renders the same structure from the media origin; a
- * bare media-library id is an unresolved image and renders nothing. Manifest
- * ids render exactly as before.
- *
- * Reads the image manifest directly rather than via `@/lib/content`: Picture
- * is rendered from client components (Gallery), and any value-import from
- * content.ts there would bundle Anas's texts into client JS (P01 audit fix 10).
+ * Server-rendered only (it reads the manifest through `imageSources`); a
+ * client component takes `ImageSources` props instead.
  */
-interface ImageDerivative {
-  width: number
-  height: number
-  file: string
-}
-interface ImageManifestEntry {
-  derivatives?: ImageDerivative[]
-}
-const imageManifest = imageManifestRaw as unknown as Record<string, ImageManifestEntry>
-
-function getImage(id: string): ImageManifestEntry {
-  const entry = imageManifest[id]
-  if (!entry) throw new Error(`Missing image manifest entry: ${id}. Run scripts/prepare-media.mjs.`)
-  return entry
-}
 export function Picture({
   id,
   alt,
   sizes,
   className,
   loading = 'lazy',
+  fetchPriority,
 }: {
   id: string
   alt: string
   sizes: string
   className?: string
   loading?: 'lazy' | 'eager'
+  /** `high` for the one image that is a page's largest first paint. */
+  fetchPriority?: 'high'
 }) {
-  const mediaRef = parseMediaRef(id)
-  if (mediaRef) {
-    const srcSet = mediaRef.widths.map((w) => `${mediaRef.base}/${w}.webp ${w}w`).join(', ')
-    const largest = Math.max(...mediaRef.widths)
-    return (
-      <picture className={className}>
-        <source type="image/webp" srcSet={srcSet} sizes={sizes} />
-        <img
-          src={`${mediaRef.base}/${largest}.webp`}
-          width={mediaRef.width}
-          height={mediaRef.height}
-          alt={alt}
-          loading={loading}
-        />
-      </picture>
-    )
-  }
-  // An unresolved media-library id: nothing to render (never a broken img).
-  if (isMediaId(id)) return null
-
-  const entry = getImage(id)
-  const derivatives = entry.derivatives ?? []
-  const largest = derivatives[derivatives.length - 1]
-  if (!largest) return null
-  const srcSet = derivatives.map((d) => `/${d.file} ${d.width}w`).join(', ')
+  const sources = imageSources(id)
+  if (!sources) return null
   return (
     <picture className={className}>
-      <source type="image/webp" srcSet={srcSet} sizes={sizes} />
-      <img
-        src={`/${largest.file}`}
-        width={largest.width}
-        height={largest.height}
-        alt={alt}
-        loading={loading}
-      />
+      <source type="image/webp" srcSet={sources.srcSet} sizes={sizes} />
+      <img src={sources.src} width={sources.width} height={sources.height} alt={alt} loading={loading} fetchPriority={fetchPriority} decoding="async" />
     </picture>
   )
 }

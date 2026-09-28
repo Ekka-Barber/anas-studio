@@ -10,6 +10,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 
+import { ActionButton } from '@/components/weave/Action'
 import { addLine, MAX_QUANTITY, readCart, writeCart } from '@/lib/cart'
 
 import styles from './store.module.css'
@@ -41,9 +42,7 @@ export function AddToCart({ variantId }: { variantId: string }) {
           }}
         />
       </label>
-      <button type="button" className={styles.button} onClick={add}>
-        أضف إلى السلة
-      </button>
+      <ActionButton onClick={add}>أضف إلى السلة</ActionButton>
       {added && (
         <p className={styles.addedNote} role="status">
           أُضيف إلى السلة. <Link href="/cart" prefetch={false}>عرض السلة</Link>

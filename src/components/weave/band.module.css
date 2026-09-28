@@ -1,0 +1,50 @@
+.band {
+  position: relative;
+}
+.gutter {
+  padding-inline: var(--gutter);
+}
+
+.pad-none {
+  padding-block-start: 0;
+}
+.pad-hero {
+  padding-block-start: var(--pad-hero-start);
+}
+.pad-xs {
+  padding-block-start: var(--pad-xs);
+}
+.pad-s {
+  padding-block-start: var(--pad-s);
+}
+.pad-m {
+  padding-block-start: var(--pad-m);
+}
+.pad-l {
+  padding-block-start: var(--pad-l);
+}
+.pad-xl {
+  padding-block-start: var(--pad-xl);
+}
+
+.end-none {
+  padding-block-end: 0;
+}
+.end-hero {
+  padding-block-end: var(--pad-hero-start);
+}
+.end-xs {
+  padding-block-end: var(--pad-xs);
+}
+.end-s {
+  padding-block-end: var(--pad-s);
+}
+.end-m {
+  padding-block-end: var(--pad-m);
+}
+.end-l {
+  padding-block-end: var(--pad-l);
+}
+.end-xl {
+  padding-block-end: var(--pad-xl);
+}

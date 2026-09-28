@@ -13,9 +13,58 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
 | P05 | Committed (`79d8cf6`). |
 | P06 | Rounds 1 and 2 committed in `9b6d1e5`; audit fix pass 1 `a324577`; fix pass 2 `efa0e45`; cloud audit of `efa0e45` with 14 fixes in `2325466`…`f5fe74d` (desktop tables, calendar, email filter, webhook timestamps and outage handling, IDN delimiters, quota index, race test, dates in RTL, WhatsApp spellings, evidence). Local verification of those fixes is done (details at the end of `artifacts/acceptance/P06/commands.txt`): `db:reset`/`db:import`, `test:db` 93, `pnpm test` 215, Playwright 22/22, screenshots re-captured and reviewed. One timezone-dependent timestamp test surfaced and was fixed on both sides (route treats zone-naive ISO as UTC; test asserts shape for `Date.parse('1')`). The cloud verification of `ed1bc36` found the re-captured 360 cards still glue labels to Latin values (D13's `:dir(ltr)` is compiled away by Next); fixed in `87ebd1c` and locally verified (owner-operations 17/17 via `localhost:3000`, screenshots re-captured, every card label's computed `::before` serves the isolated label plus trailing space — details at the end of `artifacts/acceptance/P06/commands.txt`). Round 2 is closed (I30 is moot with D32). D31 (owner, 2026-09-26) then removed the admin inbox: `738801c`, `4e0684d`; D32 moved the contact, webhook, jobs and stats endpoints into Edge Functions. D31+D32 are locally verified on the full stack (2026-09-27, `artifacts/acceptance/P06/commands.txt`): test:db 115/115 including the 9 Auth-dependent files, check 216/216 unit after an independent 4-agent audit and its fix pass (forgeable rate-limit IP key fixed to the last x-forwarded-for hop, pg_net created, checks widened, MISSING_PART/shell negatives tested; residuals recorded as I34), build + export + budgets green, e2e 67/67 with the functions reaching Mailpit and the visitor IP passing the gateway, room screenshots in `artifacts/acceptance/P01/screenshots/` showing Thmanyah Serif Display titles. Round 3 not started; its notify routes moved to P08. |
-| P01 | Part 1 committed (`c98b091`); `/started` design pending. Design is paused by the owner. |
+| P01 | Part 1 committed (`c98b091`). D39 (2026-09-28): direction B accepted; every public page ported in DESIGN-B (below), uncommitted on `agent/design-b` until the owner reviews. |
 | Lock | The CLI orchestrator's `.anasaq-execution.lock` (P06 round 2) is on the owner's machine and unknown from the repo. The cloud writer of `2325466`…`f5fe74d`, `87ebd1c` and the D31 commits wrote only while the local session was idle or waiting on its verdict, by owner authorization, and holds nothing after its push. |
 | Hosted resources | Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). Unused since D32 and the owner's to delete once the Pages site works (irreversible, his own action): Worker `anas-studio` (test), R2 `anas-studio-media-test`, Hyperdrive `anasaq-cms`, D1 `anas-studio-tag-cache`. No deploys until P11 (local-first). |
+
+## DESIGN-B: direction B in the product (D39, orchestrator, 2026-09-28)
+
+**Scope.** Anas picked direction B «أنساق», with cover B and standing mockup B. The owner assigned the design work to the orchestrator alone (no sub-agents, no GLM). The work is on branch `agent/design-b` from `788cbbe`, under the lock, and is uncommitted until the owner reviews it.
+
+**What was built.**
+- **Design system:**
+  - tokens: the palette, the seven tones, type roles, spacing, motion and layering (`src/styles/`);
+  - the weave components (`src/components/weave/`): bands, crenel and weave edges, the signature from Anas's own vector, actions, figures, films, room doors, section contents, and motion as enhancement only.
+- **Site chrome:** a sticky header with the woven full-screen menu (native dialog), and the footer.
+- **Pages:**
+  - home; the four rooms; the book (cover B, standing B);
+  - المجلس (list, article, empty state); المَشاهد (filter and lightbox);
+  - تواصل (the real form on the `contact` function, services that fill it);
+  - 404 and error;
+  - the store, product, cart, checkout and policy pages restyled (D38);
+  - the admin retokenized.
+- **Content model:**
+  - rooms: `jewel` is the room's colour, plus `tagline`, `bandLines`, built's and moonlight's `pullLines`, the started movements' `films`, the thura flavours' `regions` and item `status`;
+  - `site_settings.home` holds the home page's words;
+  - `content/initial-content.json` updated and re-imported locally;
+  - words not yet in the CMS live in `src/content/`.
+- **Truthful states:**
+  - nothing is a placeholder;
+  - the availability sign-ups (P08), booking (P09) and the reader (P02) are not shown;
+  - the five films with children stay hidden until guardians consent.
+- **Docs:** `DESIGN.md` (the system and its recipes), `PRODUCT.md`, D39, the DESIGN-AUDIT recheck.
+
+**Evidence.** `artifacts/acceptance/DESIGN-B/commands.txt` and `screenshots/`:
+- check: unit 382, lint 0 errors;
+- test:db 178;
+- build, export and budgets (largest 145.3 KiB);
+- e2e: public 26/26, cms 3/3, media 8/8, cart-checkout 11/11, visual 50/50;
+- the motion-on scroll check: 0 held elements.
+
+**Design audit (tasmeem, 2026-09-28).** Every finding of `artifacts/acceptance/DESIGN-B/tasmeem-audit/FINDINGS.md` is acted on, in two rounds (`after/FIXES.md`): P0 4 → 1, P1 14 → 0, P2 18 → 1. What is left:
+- row 4, the local demo policies: a launch check (I40);
+- row 5, the owner's kept «عبدالله» crossing: a note;
+- row 19, the section bar's sticky `top` transition: a documented exception.
+
+Round 2 re-proved check, build, export, budgets, e2e (public, cart-checkout, auth, visual, cms, media: 100/100) and the motion check.
+
+**Open for the owner and Anas.**
+- The paper edition's details and prices.
+- The book's characters.
+- The 2013 photo.
+- Session booking (P09) and the reader (P02).
+- The social handles and services moving into the CMS if Anas wants to edit them.
+- Room versions saved before D39 lack the new fields: restoring one needs its colour and line filled before it can be published.
 
 ## Process note, 2026-09-26 (owner-authorized)
 
@@ -139,8 +188,9 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 | Package | Status | Evidence |
 |---|---|---|
 | P00 | public runtime accepted; D29 swap audited and committed `6f09321` | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
-| P01 | part 1 committed (`c98b091`); remaining rooms wait for design | `artifacts/acceptance/P01/` |
-| P02 | not_started; waits for design | — |
+| P01 | part 1 committed (`c98b091`); D39 direction B ported for every public page (DESIGN-B, uncommitted, awaiting the owner's review) | `artifacts/acceptance/P01/`, `artifacts/acceptance/DESIGN-B/` |
+| DESIGN-B | building → owner review: direction B «أنساق» across the site, store and admin tokens (D39) | `artifacts/acceptance/DESIGN-B/` |
+| P02 | not_started; the book page's reader slot waits for it (E04) | — |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
 | P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |

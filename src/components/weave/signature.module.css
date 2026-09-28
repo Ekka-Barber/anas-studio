@@ -1,0 +1,21 @@
+.signature {
+  display: block;
+  max-inline-size: 100%;
+  aspect-ratio: 1843.2 / 572.904;
+  background: currentColor;
+  -webkit-mask: url('/brand/anas-signature.svg') center / contain no-repeat;
+  mask: url('/brand/anas-signature.svg') center / contain no-repeat;
+}
+
+/* A mask prints as a solid block in some browsers; the name stays. */
+@media print {
+  .signature {
+    display: none;
+  }
+}
+@media (forced-colors: active) {
+  .signature {
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+}

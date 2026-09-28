@@ -1,0 +1,71 @@
+/* مررتُ من هنا */
+
+.brands {
+  --tile: min(200px, calc(33.333% - 1px));
+}
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding-block: clamp(18px, 2.2vw, 32px);
+  padding-inline: 8px;
+}
+.brandLogo {
+  inline-size: clamp(64px, 7.4vw, 112px);
+}
+.brandLogo img {
+  inline-size: 100%;
+  block-size: auto;
+}
+.brandName {
+  font-size: var(--size-label);
+  font-weight: 700;
+  text-align: center;
+}
+.brandFill {
+  min-block-size: 120px;
+  background: url('/brand/weave.svg') 0 0 / var(--edge-weave) var(--edge-weave);
+}
+
+.films {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(16px, 2vw, 28px);
+  margin-block-start: var(--pad-s);
+}
+.film {
+  flex: 1 1 280px;
+  max-inline-size: 520px;
+  margin: 0;
+}
+.filmBrand {
+  flex: 1 1 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-block: 8px;
+}
+.filmLogo {
+  inline-size: 64px;
+}
+.filmLogo img {
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.signature {
+  margin-block-start: 36px;
+}
+
+.galleryLine {
+  max-inline-size: 20em;
+}
+.products {
+  --tile: 340px;
+}
+.product {
+  min-inline-size: 0;
+}

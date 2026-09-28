@@ -333,6 +333,16 @@ test('round 2: library upload with crop and EXIF removal, reuse in a room, folde
   const email = await createOwner('أمين المكتبة')
   await signInByCode(page, email)
 
+  // The built room's live version, restored at the end (step 7): the oldest
+  // row can predate the current room fields (D39) and would not publish.
+  const liveAtStart = new Client({ connectionString: status.DB_URL })
+  await liveAtStart.connect()
+  const live = await liveAtStart.query<{ seq: number }>(
+    "select seq from public.published_documents where collection = 'rooms' and doc_id = 'built'",
+  )
+  await liveAtStart.end()
+  const originalSeq = String(live.rows[0]!.seq)
+
   // 1. Upload a 2400x1600 JPEG that carries EXIF, cropped 1:1 in the browser.
   await page.goto('/admin/media')
   await expect(page.getByRole('heading', { name: 'المكتبة' })).toBeVisible()
@@ -449,7 +459,11 @@ test('round 2: library upload with crop and EXIF removal, reuse in a room, folde
   // 7. Restore the room to its previous published state.
   await page.goto('/admin/content/rooms/edit?id=built')
   const historyTable = page.locator('table')
-  await historyTable.locator('tbody tr').last().getByRole('button', { name: 'استعادة' }).click()
+  await historyTable
+    .locator('tbody tr')
+    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
+    .getByRole('button', { name: 'استعادة' })
+    .click()
   await page.getByRole('button', { name: 'نشر' }).click()
   await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
   const restoredHtml = await (await request.get('/built')).text()

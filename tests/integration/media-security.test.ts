@@ -22,6 +22,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  // The cover-only "posts" these tests publish to reference an upload are
+  // not real posts; left behind, they fail the journal's build-time check.
+  const fixture = "collection = 'posts' and data ? 'cover' and not data ? 'title'"
+  await postgres.query(`delete from public.published_documents where ${fixture}`)
+  await postgres.query(`delete from public.content_versions where ${fixture}`)
   await app.end()
   await postgres.end()
 })

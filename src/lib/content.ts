@@ -149,8 +149,16 @@ export async function getFooter(): Promise<FooterContent> {
   return (await fetchSiteSettings()).footer
 }
 
-export async function getHomeIntroAddition(): Promise<string> {
-  return (await fetchSiteSettings()).home.introAddition
+export type HomeContent = SiteContent['home']
+
+/** The home page's words (site_settings.home, D39). */
+export async function getHome(): Promise<HomeContent> {
+  return (await fetchSiteSettings()).home
+}
+
+/** The site's contact details, when set (site_settings.contact). */
+export async function getContact(): Promise<SiteContent['contact']> {
+  return (await fetchSiteSettings()).contact
 }
 
 // What each room's page shows of its stored document: hidden list items are
@@ -200,7 +208,7 @@ export async function getShelfRoom(): Promise<ShelfRoom> {
 }
 
 // Media-manifest reads (getImage/getVideo) intentionally do NOT live here:
-// Picture and VideoReel are rendered from client components, and any
+// Picture and VideoTile are rendered from client components, and any
 // value-import from this module pulls its dependencies into the client
-// bundle. Each of Picture.tsx/VideoReel.tsx reads its own manifest JSON
+// bundle. Each of Picture.tsx/VideoTile.tsx reads its own manifest JSON
 // directly (P01 audit fix 10).

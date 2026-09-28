@@ -1,0 +1,24 @@
+.statement :is(p, h2) {
+  max-inline-size: 14em;
+}
+
+.captionLink {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+/* A 44px target that spans the caption's own padding, so the bar does not
+   grow; its focus ring is drawn inside, on the caption's aubergine. */
+.captionLink a {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 10px;
+  margin-block: -10px;
+  outline-offset: -3px;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .captionLink a:hover {
+    text-decoration: underline;
+  }
+}

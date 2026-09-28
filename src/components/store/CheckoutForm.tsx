@@ -8,7 +8,10 @@
  * with POLICY_CHANGED). Turnstile renders explicitly with the site key and
  * action `checkout` into its box when the box mounts, and every create
  * attempt resets it: a token is single-use, so a retry gets a fresh one. A
- * missing site key disables submission honestly.
+ * missing site key disables submission honestly; otherwise the button stays
+ * enabled, and a press before the check has finished waits for its token and
+ * then submits. Errors sit under their fields, like the contact form's, and
+ * the first invalid field takes focus.
  *
  * `create` sends one `checkoutSession` per tab and an `idempotencyKey` reused
  * only when retrying the identical request (fingerprint in component state)
@@ -35,49 +38,21 @@ import {
   type CreateRequestCore,
   type PendingOrder,
 } from '@/lib/cart'
+import { ActionButton } from '@/components/weave/Action'
 import { formatMoney, normalizeSaudiMobile } from '@/lib/format'
+import { loadTurnstile, TURNSTILE_LOOK, turnstileApi } from '@/lib/turnstile'
 
 import { useCart } from './CartProvider'
 import { fetchCities, fetchQuote, orderSchema, postCheckout, priceSchema, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
+
+type Field = 'email' | 'name' | 'phone' | 'city' | 'address' | 'consent'
 
 const POLICY_LABELS: Record<string, string> = {
   store: 'سياسة المتجر',
   delivery: 'سياسة التوصيل',
   refund: 'سياسة الاسترجاع',
   privacy: 'سياسة الخصوصية',
-}
-
-/** The part of the Turnstile API this page uses. */
-interface TurnstileApi {
-  render: (el: HTMLElement, options: Record<string, unknown>) => string
-  reset: (id: string) => void
-  remove: (id: string) => void
-}
-function turnstileApi(): TurnstileApi | undefined {
-  return (window as unknown as { turnstile?: TurnstileApi }).turnstile
-}
-
-/**
- * Loads the Turnstile script once per page with explicit rendering
- * (`…/turnstile/v0/api.js?render=explicit&onload=…`, the documented explicit
- * mode: developers.cloudflare.com/turnstile/get-started/client-side-rendering).
- */
-let turnstileScript: Promise<void> | null = null
-function loadTurnstile(): Promise<void> {
-  if (turnstileApi()) return Promise.resolve()
-  if (turnstileScript === null) {
-    turnstileScript = new Promise<void>((resolve, reject) => {
-      const global = window as unknown as Record<string, unknown>
-      global.__anasaqTurnstileOnload = () => resolve()
-      const script = document.createElement('script')
-      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__anasaqTurnstileOnload'
-      script.async = true
-      script.onerror = () => reject(new Error('turnstile script failed to load'))
-      document.head.appendChild(script)
-    })
-  }
-  return turnstileScript
 }
 
 export function CheckoutForm() {
@@ -99,7 +74,9 @@ export function CheckoutForm() {
   const [orderTotal, setOrderTotal] = useState<number | null>(null)
   const [closed, setClosed] = useState<'cancelled' | 'expired' | null>(null)
   const [submitError, setSubmitError] = useState('')
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   const [submitting, setSubmitting] = useState(false)
+  const [awaitingToken, setAwaitingToken] = useState(false)
 
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
   const widgetId = useRef<string | null>(null)
@@ -107,6 +84,7 @@ export function CheckoutForm() {
   const sessionRef = useRef<string | null>(null)
   const idempotencyRef = useRef<string | null>(null)
   const fingerprintRef = useRef<string | null>(null)
+  const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     // Deferred to a microtask so the setStates are not synchronous within the
@@ -164,6 +142,7 @@ export function CheckoutForm() {
           widgetId.current = turnstileApi()!.render(box, {
             sitekey: siteKey,
             action: 'checkout',
+            ...TURNSTILE_LOOK,
             callback: (value: string) => {
               setToken(value)
               setTurnstileFailed(false)
@@ -172,6 +151,7 @@ export function CheckoutForm() {
             'error-callback': () => {
               setToken('')
               setTurnstileFailed(true)
+              setAwaitingToken(false)
             },
           })
         })
@@ -185,6 +165,11 @@ export function CheckoutForm() {
     },
     [siteKey],
   )
+
+  // A press made before the check finished goes through once its token arrives.
+  useEffect(() => {
+    if (awaitingToken && token !== '') formRef.current?.requestSubmit()
+  }, [awaitingToken, token])
 
   // In the store's own order (store, delivery, refund, privacy), not the
   // stored JSON's key order.
@@ -210,21 +195,36 @@ export function CheckoutForm() {
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    if (!quote || !cart || submitting || token === '') return
-    const problems: string[] = []
+    if (!quote || !cart || submitting) return
+    // In the fields' own order, so the first one found is the first on screen.
+    const found: Partial<Record<Field, string>> = {}
     const trimmedEmail = email.trim()
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedEmail)) problems.push('أدخل بريدًا إلكترونيًا صحيحًا.')
-    if (!name.trim()) problems.push('أدخل الاسم.')
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedEmail)) found.email = 'أدخل بريدًا إلكترونيًا صحيحًا.'
+    if (!name.trim()) found.name = 'أدخل الاسم.'
     if (quote.physical) {
-      if (!city) problems.push('اختر مدينة التوصيل.')
-      if (normalizeSaudiMobile(phone) === null) problems.push('أدخل رقم جوال سعوديًا صحيحًا.')
-      if (address.replace(/\s+/g, ' ').trim().length < 5) problems.push('أدخل عنوان التوصيل.')
+      if (normalizeSaudiMobile(phone) === null) found.phone = 'أدخل رقم جوال سعوديًا صحيحًا.'
+      if (!city) found.city = 'اختر مدينة التوصيل.'
+      if (address.replace(/\s+/g, ' ').trim().length < 5) found.address = 'أدخل عنوان التوصيل.'
     }
-    if (!consent) problems.push('يجب الموافقة على السياسات.')
-    if (problems.length > 0) {
-      setSubmitError(problems.join(' '))
+    if (!consent) found.consent = 'يجب الموافقة على السياسات.'
+    setErrors(found)
+    const first = Object.keys(found)[0]
+    if (first !== undefined) {
+      setAwaitingToken(false)
+      setSubmitError('')
+      document.getElementById(`checkout-${first}`)?.focus()
       return
     }
+    if (token === '') {
+      if (turnstileFailed) {
+        setSubmitError('تعذّر تحميل التحقق؛ حدّث الصفحة.')
+      } else {
+        setSubmitError('')
+        setAwaitingToken(true)
+      }
+      return
+    }
+    setAwaitingToken(false)
 
     const core: CreateRequestCore = {
       lines: toApiLines(cart.lines),
@@ -353,9 +353,9 @@ export function CheckoutForm() {
         ) : (
           <>
             <p className={styles.note}>حُجز طلبك لمدة 20 دقيقة. الدفع يُضاف في المرحلة القادمة، ولن يُخصم أي مبلغ الآن.</p>
-            <button type="button" className={styles.button} onClick={cancelOrder} disabled={submitting}>
+            <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
               إلغاء الطلب
-            </button>
+            </ActionButton>
           </>
         )}
         {submitError !== '' && <p className={styles.warning} role="note">{submitError}</p>}
@@ -384,6 +384,16 @@ export function CheckoutForm() {
     return <p className={styles.warning} role="note">الشراء غير متاح حاليًا، ويفتح قريبًا.</p>
   }
 
+  const clear = (field: Field) => setErrors((e) => (e[field] ? { ...e, [field]: undefined } : e))
+  const described = (field: Field) =>
+    errors[field] ? { 'aria-invalid': true, 'aria-describedby': `checkout-${field}-error` } : {}
+  const problem = (field: Field) =>
+    errors[field] && (
+      <span id={`checkout-${field}-error`} className={styles.fieldError}>
+        {errors[field]}
+      </span>
+    )
+
   const consentSentence = (
     <span>
       قرأت{' '}
@@ -400,32 +410,76 @@ export function CheckoutForm() {
   )
 
   return (
-    <form className={styles.form} onSubmit={submit} noValidate>
+    <form ref={formRef} className={styles.form} onSubmit={submit} noValidate>
       <fieldset className={styles.fields}>
         <legend>بيانات التواصل</legend>
-        <label className={styles.field}>
-          البريد الإلكتروني
-          <input type="email" dir="ltr" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label className={styles.field}>
-          الاسم
-          <input type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required />
-        </label>
+        <div className={styles.field}>
+          <label htmlFor="checkout-email">البريد الإلكتروني</label>
+          <input
+            id="checkout-email"
+            type="email"
+            dir="ltr"
+            inputMode="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              clear('email')
+            }}
+            required
+            {...described('email')}
+          />
+          {problem('email')}
+        </div>
+        <div className={styles.field}>
+          <label htmlFor="checkout-name">الاسم</label>
+          <input
+            id="checkout-name"
+            type="text"
+            dir="auto"
+            autoComplete="name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value)
+              clear('name')
+            }}
+            required
+            {...described('name')}
+          />
+          {problem('name')}
+        </div>
         {quote.physical && (
           <>
-            <label className={styles.field}>
-              رقم الجوال
-              <input type="tel" dir="ltr" inputMode="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-            </label>
-            <label className={styles.field}>
-              مدينة التوصيل
+            <div className={styles.field}>
+              <label htmlFor="checkout-phone">رقم الجوال</label>
+              <input
+                id="checkout-phone"
+                type="tel"
+                dir="ltr"
+                inputMode="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value)
+                  clear('phone')
+                }}
+                required
+                {...described('phone')}
+              />
+              {problem('phone')}
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="checkout-city">مدينة التوصيل</label>
               <select
+                id="checkout-city"
                 value={city}
                 onChange={(e) => {
                   setCity(e.target.value)
                   writeSessionValue(CITY_KEY, e.target.value)
+                  clear('city')
                 }}
                 required
+                {...described('city')}
               >
                 <option value="">اختر المدينة</option>
                 {cities.map((rate) => (
@@ -434,11 +488,25 @@ export function CheckoutForm() {
                   </option>
                 ))}
               </select>
-            </label>
-            <label className={styles.field}>
-              عنوان التوصيل
-              <textarea rows={3} value={address} onChange={(e) => setAddress(e.target.value)} maxLength={2000} required />
-            </label>
+              {problem('city')}
+            </div>
+            <div className={styles.field}>
+              <label htmlFor="checkout-address">عنوان التوصيل</label>
+              <textarea
+                id="checkout-address"
+                rows={3}
+                dir="auto"
+                value={address}
+                onChange={(e) => {
+                  setAddress(e.target.value)
+                  clear('address')
+                }}
+                maxLength={2000}
+                required
+                {...described('address')}
+              />
+              {problem('address')}
+            </div>
           </>
         )}
         <div className={styles.coupon}>
@@ -446,9 +514,8 @@ export function CheckoutForm() {
             كود الخصم
             <input type="text" dir="ltr" value={couponDraft} onChange={(e) => setCouponDraft(e.target.value)} />
           </label>
-          <button
-            type="button"
-            className={styles.button}
+          <ActionButton
+            variant="outline"
             onClick={() => {
               const applied = couponDraft.trim().toUpperCase()
               setCoupon(applied)
@@ -456,7 +523,7 @@ export function CheckoutForm() {
             }}
           >
             تطبيق
-          </button>
+          </ActionButton>
         </div>
       </fieldset>
 
@@ -504,10 +571,22 @@ export function CheckoutForm() {
         </Link>
       </fieldset>
 
-      <label className={styles.consent}>
-        <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-        {consentSentence}
-      </label>
+      <div>
+        <label className={styles.consent}>
+          <input
+            id="checkout-consent"
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => {
+              setConsent(e.target.checked)
+              clear('consent')
+            }}
+            {...described('consent')}
+          />
+          {consentSentence}
+        </label>
+        {problem('consent')}
+      </div>
 
       <div className={styles.turnstileBox} ref={turnstileBox} />
       {!siteKey && (
@@ -526,9 +605,9 @@ export function CheckoutForm() {
           {submitError}
         </p>
       )}
-      <button type="submit" className={styles.button} disabled={token === '' || submitting}>
-        {submitting ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
-      </button>
+      <ActionButton type="submit" className={styles.submit} disabled={!siteKey || submitting || awaitingToken}>
+        {submitting || awaitingToken ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
+      </ActionButton>
     </form>
   )
 }

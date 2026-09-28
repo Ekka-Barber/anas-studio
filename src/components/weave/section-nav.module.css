@@ -1,0 +1,76 @@
+/* Stuck under the header, and following its slide. Its sticky `top` is the
+   one layout property animated on purpose: a transform would also move the
+   bar while it is not stuck (DESIGN.md "Motion"). */
+.bar {
+  position: sticky;
+  inset-block-start: var(--header-offset, var(--header-h));
+  z-index: var(--z-subnav);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bar {
+    transition: inset-block-start var(--dur-ui) var(--ease-weave);
+  }
+}
+
+.scroller {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.scroller::-webkit-scrollbar {
+  display: none;
+}
+/* A fade at an end with more links past it (SectionNav sets the flags). */
+.scroller[data-more-start] {
+  --fade-start: 48px;
+}
+.scroller[data-more-end] {
+  --fade-end: 48px;
+}
+.scroller:is([data-more-start], [data-more-end]) {
+  mask-image: linear-gradient(
+    to left,
+    transparent,
+    #000 var(--fade-start, 0px),
+    #000 calc(100% - var(--fade-end, 0px)),
+    transparent
+  );
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding-block: 0;
+  padding-inline: var(--gutter);
+  display: flex;
+  gap: 2px;
+  min-inline-size: max-content;
+}
+
+/* Every link keeps room for the triangle (hidden until its section is the
+   current one), so the labels never shift sideways while the page scrolls. */
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 54px;
+  padding-inline: 0 8px;
+  font-size: var(--size-label);
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .link:hover {
+    text-decoration: underline;
+  }
+}
+.here {
+  flex: none;
+  inline-size: 12px;
+  block-size: 10px;
+  background: var(--coral);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.link:not([aria-current]) .here {
+  visibility: hidden;
+}

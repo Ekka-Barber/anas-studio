@@ -1,0 +1,22 @@
+.hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px 56px;
+}
+
+.text {
+  flex: 1 1 520px;
+  min-inline-size: 0;
+}
+
+.title {
+  margin-block-start: 8px;
+  overflow-wrap: anywhere;
+}
+
+.tagline {
+  margin-block-start: clamp(12px, 1.6vw, 24px);
+  max-inline-size: 18em;
+}

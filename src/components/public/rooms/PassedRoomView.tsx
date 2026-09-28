@@ -1,90 +1,131 @@
-import { Gallery } from '@/components/public/Gallery'
-import { NextRoomLink } from '@/components/public/NextRoomLink'
+import { RoomHero } from '@/components/public/RoomHero'
+import { classify, toBlocks, type Para } from '@/components/public/story/flow'
+import { StatementBand, StoryFigure, StoryText } from '@/components/public/story/Story'
 import { Picture } from '@/components/public/Picture'
-import { RoomOpener } from '@/components/public/RoomOpener'
-import styles from '@/components/public/public.module.css'
-import { Vignette } from '@/components/public/Vignette'
-import { VideoReel } from '@/components/public/VideoReel'
+import { Band } from '@/components/weave/Band'
+import { Figure } from '@/components/weave/Figure'
+import layout from '@/components/weave/layout.module.css'
+import { Lines } from '@/components/weave/Lines'
+import { RoomNav } from '@/components/weave/RoomNav'
+import { Signature } from '@/components/weave/Signature'
+import { VideoTile } from '@/components/weave/VideoTile'
 import type { PassedRoom } from '@/lib/content'
 
+import passed from './passed.module.css'
+
 /**
- * مررتُ من هنا (renamed from «مرّت من هنا» — Anas, chat line 607). Hero line
- * is his own opening sentence (DESIGN-DIRECTION.md §2); brand wall and
- * product gallery are the confirmed real relationships (item 113), rights
- * pending E05.
+ * مررتُ من هنا (D39, direction B): the eleven brands as a woven wall, then
+ * the story in parts split by its band, each part with the next of its
+ * pictures beside it, the ارم films, and the products he made, edge to edge.
  */
+// The pictures beside the story's parts, in order, and the brand whose
+// films close it. Each is used only while it is still in the room's lists.
+const STORY_PICTURES = ['31-murady-french-toast-banana', '28-gold-tarts']
+const FILM_BRAND = 'arm'
+// Captions for the product photos whose brand is confirmed (PACK-INDEX).
+const PRODUCT_BRANDS: Record<string, string> = {
+  '32-arm-brownie-bites': 'ارم',
+  '26-murady-cake-and-coffee': 'مرادي',
+}
+
 export function PassedRoomView({ room }: { room: PassedRoom }) {
-  const jewelVar = `var(--color-${room.jewel})`
+  const gallery = room.media.gallery
+  const pictures = STORY_PICTURES.filter((id) => gallery.some((photo) => photo.id === id))
+  const paras: Para[] = [{ text: room.heroLine, kind: 'display' }, ...classify(room.paragraphs, room.pullLines, room.bandLines)]
+  const blocks = toBlocks(paras)
+  const brand = room.media.brandWall.find((entry) => entry.id === FILM_BRAND)
+  const shownProducts = gallery.filter((photo) => !pictures.includes(photo.id))
+  let text = 0
 
   return (
-    <main className={styles.roomSand}>
-      <div className={styles.roomInner}>
-        <div className={styles.chapter}>
-          <div className={styles.chapterText}>
-            <RoomOpener roomLabel={room.roomLabel} title={room.title} jewel={room.jewel} />
-            <p className={styles.heroLine} style={{ color: jewelVar }}>
-              {room.heroLine}
-            </p>
-          </div>
-          <div className={styles.chapterVisual}>
-            <Vignette id={room.vignette.id} />
-          </div>
-        </div>
-      </div>
+    <>
+      <main id="main">
+        <RoomHero tone={room.jewel} title={room.title} tagline={room.tagline} />
 
-      <div className={styles.roomInner}>
-        <div className={styles.chapter}>
-          <div className={styles.chapterText}>
-            {room.paragraphs.map((paragraph, index) =>
-              room.pullLines.includes(paragraph) ? (
-                <p key={index} className={styles.pullLine} style={{ color: jewelVar }}>
-                  {paragraph}
-                </p>
-              ) : (
-                <p key={index} className={styles.paragraph}>
-                  {paragraph}
-                </p>
-              ),
+        {room.media.brandWall.length > 0 && (
+          <Band tone="sand" pad="m" aria-label="العلامات">
+            <ul className={`${layout.lattice} ${passed.brands}`}>
+              {room.media.brandWall.map((entry, i) => (
+                <li key={entry.id} data-tone="paper" className={passed.brand} data-reveal="" data-delay={(i % 6) * 50}>
+                  <Picture id={entry.id} alt="" sizes="112px" className={passed.brandLogo} />
+                  <span className={passed.brandName}>{entry.name}</span>
+                </li>
+              ))}
+              <li aria-hidden="true" className={passed.brandFill} />
+            </ul>
+          </Band>
+        )}
+
+        <article>
+          {blocks.map((block, i) => {
+            if (block.kind === 'band') return <StatementBand key={i} text={block.text} heading />
+            const figure = pictures[text++]
+            return (
+              <Band key={i} tone="sand" pad={i === 0 ? 'xs' : 'l'} padEnd="xs">
+                <div className={layout.split}>
+                  <div className={layout.text}>
+                    <StoryText paras={block.paras} />
+                  </div>
+                  <StoryFigure id={figure} room="/passed" />
+                </div>
+              </Band>
+            )
+          })}
+
+          {room.media.reels.length > 0 && (
+            <Band tone="aub" pad="s" aria-label={brand ? `مقاطع من ${brand.name}` : 'مقاطع'} className={passed.films}>
+              {room.media.reels.map((reel, i) => (
+                <figure key={reel.id} className={passed.film} data-reveal="" data-fx="media" data-delay={i * 120}>
+                  <VideoTile id={reel.id} alt={reel.alt} ratio="1 / 1" />
+                </figure>
+              ))}
+              {brand && (
+                <div className={passed.filmBrand}>
+                  <Picture id={brand.id} alt="" sizes="64px" className={passed.filmLogo} />
+                  <span className="t-h3">{brand.name}</span>
+                </div>
+              )}
+            </Band>
+          )}
+
+          <Band tone="sand" pad="l">
+            <div className={layout.measure}>
+              <p className="t-display" data-reveal="">
+                <Lines text={room.closingLine} />
+              </p>
+              <Signature width={220} className={passed.signature} />
+            </div>
+          </Band>
+        </article>
+
+        {shownProducts.length > 0 && (
+          <section aria-label="منتجات">
+            {room.galleryLine && (
+              <Band tone="paper" edge="crenel" pad="m">
+                <h2 className={`t-display ${passed.galleryLine}`} data-reveal="">
+                  <Lines text={room.galleryLine} />
+                </h2>
+              </Band>
             )}
-            <p className={styles.closerLine} style={{ color: jewelVar }}>
-              {room.closingLine}
-            </p>
-          </div>
-          <div className={styles.chapterVisual}>
-            <Vignette id={room.heroVignette} />
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.roomInner}>
-        <span className={styles.sectionLabel}>مقاطع</span>
-        <ul className={styles.reelRow} tabIndex={0} aria-label="مقاطع الفيديو، مرّرها بالأسهم">
-          {room.media.reels.map((reel) => (
-            <li key={reel.id}>
-              <VideoReel id={reel.id} alt={reel.alt} className={styles.reel} />
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className={styles.roomInner}>
-        <span className={styles.sectionLabel}>العلامات</span>
-        <ul className={styles.brandWall}>
-          {room.media.brandWall.map((brand) => (
-            <li key={brand.id} className={styles.brandItem}>
-              <Picture id={brand.id} alt={brand.name} sizes="112px" className={styles.brandMark} />
-              <span className={styles.brandName}>{brand.name}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className={styles.roomInner}>
-        <span className={styles.sectionLabel}>المنتجات</span>
-        <Gallery photos={room.media.gallery} roomImagesSizes="(min-width: 768px) 33vw, 50vw" />
-      </div>
-
-      <NextRoomLink href="/shelf" label="على الرف" jewel="oud" />
-    </main>
+            <div className={`${layout.mosaic} ${passed.products}`}>
+              {shownProducts.map((photo) => (
+                <Figure
+                  key={photo.id}
+                  id={photo.id}
+                  alt={photo.alt}
+                  sizes="(min-width: 1024px) 25vw, 50vw"
+                  ratio="1 / 1"
+                  scrub
+                  caption={PRODUCT_BRANDS[photo.id]}
+                  captionPlacement="corner"
+                  className={passed.product}
+                />
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+      <RoomNav back={{ href: '/built', label: 'بنيتُ هنا' }} next={{ href: '/shelf', label: 'على الرف' }} nextTone="paper" />
+    </>
   )
 }

@@ -1,14 +1,19 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { Picture } from '@/components/public/Picture'
 import { CartLink } from '@/components/store/CartLink'
 import styles from '@/components/store/store.module.css'
+import { Band } from '@/components/weave/Band'
+import { Edge } from '@/components/weave/Edge'
 import { formatMoney } from '@/lib/format'
 import { getProducts } from '@/lib/store'
 
+export const metadata: Metadata = { title: 'المتجر' }
+
 /**
- * المتجر (P07): built at build time from the published catalog (D32), plain
- * on the current tokens until a v2 design direction is accepted (D38). Each
+ * المتجر (P07): built at build time from the published catalog (D32), in
+ * direction B (D39): the aubergine title band, then the products. Each
  * card shows the lowest configured price as «من …»; a product with no
  * priced, enabled variant is honestly unavailable.
  */
@@ -16,12 +21,13 @@ export default async function StorePage() {
   const products = await getProducts()
 
   return (
-    <main className={styles.page}>
-      <div className={styles.inner}>
-        <div className={styles.pageHead}>
-          <h1 className={styles.title}>المتجر</h1>
-          <CartLink />
-        </div>
+    <main id="main" className={styles.page}>
+      <Band as="header" tone="aub" edge="crenel" pad="hero" padEnd="m" className={styles.head}>
+        <h1 className="t-title">المتجر</h1>
+        <CartLink />
+      </Band>
+      <Edge kind="weave" />
+      <Band tone="sand" pad="l">
         {products.length === 0 ? (
           <p className={styles.note}>لا توجد منتجات بعد.</p>
         ) : (
@@ -48,7 +54,7 @@ export default async function StorePage() {
             })}
           </ul>
         )}
-      </div>
+      </Band>
     </main>
   )
 }

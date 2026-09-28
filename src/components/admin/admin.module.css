@@ -1,6 +1,7 @@
 /*
- * Admin shell and forms (P03). Main theme tokens only (src/styles/tokens.css);
- * no new colours or fonts. Plain and functional: design is paused. Logical
+ * Admin shell and forms (P03). Main theme tokens only (src/styles/tokens.css,
+ * direction B since D39): Anas's palette on calm surfaces, no marketing bands.
+ * Control borders are aubergine-muted (4.8:1 on paper, WCAG 1.4.11). Logical
  * properties throughout, 44px targets, visible focus.
  */
 
@@ -8,11 +9,11 @@
   display: flex;
   flex-direction: column;
   min-block-size: 100vh;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--sand-50);
+  color: var(--aub);
   font-family: var(--font-body);
   /* Checkboxes and the crop zoom slider take the theme, not browser blue. */
-  accent-color: var(--color-forest);
+  accent-color: var(--aub);
 }
 
 .nav {
@@ -21,8 +22,8 @@
   align-items: center;
   gap: 0.5rem 1rem;
   padding: 1rem;
-  border-block-end: 1px solid var(--color-hairline);
-  background: var(--color-sand);
+  border-block-end: 1px solid var(--aub-muted);
+  background: var(--sand);
 }
 
 .gate {
@@ -32,7 +33,7 @@
 
 .page {
   inline-size: 100%;
-  max-inline-size: var(--measure-reading);
+  max-inline-size: var(--measure);
   margin-inline: auto;
   padding: 1.5rem 1rem;
 }
@@ -65,10 +66,10 @@
   min-block-size: 2.75rem;
   padding-inline: 0.75rem;
   padding-block: 0.5rem;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.25rem;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--sand-50);
+  color: var(--aub);
   font: inherit;
 }
 
@@ -82,23 +83,38 @@
 }
 
 .button {
-  border: 1px solid var(--color-forest);
-  background: var(--color-forest);
-  color: var(--color-paper);
+  border: 1px solid var(--aub);
+  background: var(--aub);
+  color: var(--sand-50);
 }
 
 .buttonSecondary {
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   background: transparent;
-  color: var(--color-ink);
+  color: var(--aub);
 }
 
 .message {
-  color: var(--color-muted-strong);
+  color: var(--aub-muted);
+}
+.message:empty {
+  margin: 0;
+}
+
+/* The sign-in is the one admin screen a visitor can reach, so it carries the
+   site's mark, its serif and its square corners. */
+.signInTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--aub);
+}
+.signIn :is(.input, .button, .buttonSecondary) {
+  border-radius: 0;
 }
 
 .error {
-  color: var(--color-clay);
+  color: var(--coral-deep);
 }
 
 .row {
@@ -123,7 +139,7 @@
 .table td {
   padding-inline: 0.5rem;
   padding-block: 0.5rem;
-  border-block-end: 1px solid var(--color-hairline);
+  border-block-end: 1px solid var(--aub-muted);
   text-align: start;
 }
 
@@ -166,7 +182,7 @@
   .responsive tr {
     margin-block-end: 0.75rem;
     padding: 0.5rem;
-    border: 1px solid var(--color-hairline);
+    border: 1px solid var(--aub-muted);
     border-radius: 0.25rem;
   }
 
@@ -197,16 +213,16 @@
 }
 
 .dialog {
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.5rem;
   padding: 1.5rem;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--sand-50);
+  color: var(--aub);
   max-inline-size: 22rem;
 }
 
 .dialog::backdrop {
-  background: color-mix(in srgb, var(--color-ink) 50%, transparent);
+  background: color-mix(in srgb, var(--aub) 50%, transparent);
 }
 
 .qr {
@@ -224,7 +240,7 @@
 
 .shell :focus-visible,
 .dialog :focus-visible {
-  outline: 2px solid var(--color-brass);
+  outline: 2px solid var(--focus, var(--aub));
   outline-offset: 2px;
 }
 
@@ -238,11 +254,11 @@
 .tile {
   display: block;
   min-block-size: 2.75rem;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.25rem;
   padding: 1.5rem;
-  background: var(--color-sand);
-  color: var(--color-ink);
+  background: var(--sand);
+  color: var(--aub);
   text-decoration: none;
 }
 
@@ -251,14 +267,14 @@
   padding-inline: 0.5rem;
   padding-block: 0.125rem;
   border-radius: 999px;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   font-size: 0.875rem;
   white-space: nowrap;
 }
 
 .fieldset,
 .listItem {
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.25rem;
   padding: 1rem;
   display: flex;
@@ -278,43 +294,43 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0.5rem;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-block-end: none;
   border-start-start-radius: 0.25rem;
   border-start-end-radius: 0.25rem;
-  background: var(--color-sand);
+  background: var(--sand);
 }
 
 .toolbarButton {
   min-block-size: 2.75rem;
   min-inline-size: 2.75rem;
   padding-inline: 0.625rem;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.25rem;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--sand-50);
+  color: var(--aub);
   font: inherit;
   cursor: pointer;
 }
 
 .toolbarButton[aria-pressed='true'] {
-  background: var(--color-forest);
-  color: var(--color-paper);
-  border-color: var(--color-forest);
+  background: var(--aub);
+  color: var(--sand-50);
+  border-color: var(--aub);
 }
 
 .editor {
   min-block-size: 12rem;
   padding: 0.75rem;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-end-start-radius: 0.25rem;
   border-end-end-radius: 0.25rem;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--sand-50);
+  color: var(--aub);
 }
 
 .editor:focus-visible {
-  outline: 2px solid var(--color-brass);
+  outline: 2px solid var(--focus, var(--aub));
   outline-offset: -2px;
 }
 
@@ -342,17 +358,17 @@
   flex-direction: column;
   gap: 0.375rem;
   padding: 0.375rem;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.25rem;
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--sand-50);
+  color: var(--aub);
   font: inherit;
   text-align: start;
   cursor: pointer;
 }
 
 .mediaTile[aria-pressed='true'] {
-  box-shadow: inset 0 0 0 2px var(--color-forest);
+  box-shadow: inset 0 0 0 2px var(--aub);
 }
 
 .mediaTile img {
@@ -360,7 +376,7 @@
   block-size: auto;
   display: block;
   border-radius: 0.125rem;
-  background: var(--color-sand);
+  background: var(--sand);
 }
 
 .mediaTileName {
@@ -374,7 +390,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  color: var(--color-muted-strong);
+  color: var(--aub-muted);
   font-size: 0.875rem;
 }
 
@@ -388,9 +404,9 @@
 .previewNote {
   margin: 0;
   padding: 0.75rem 1rem;
-  border-block-end: 1px solid var(--color-hairline);
-  background: var(--color-sand);
-  color: var(--color-ink);
+  border-block-end: 1px solid var(--aub-muted);
+  background: var(--sand);
+  color: var(--aub);
 }
 
 .previewRow {
@@ -403,7 +419,7 @@
 .previewImg {
   inline-size: 6rem;
   block-size: auto;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--aub-muted);
   border-radius: 0.25rem;
 }
 
@@ -412,5 +428,5 @@
   block-size: 16rem;
   overflow: hidden;
   border-radius: 0.25rem;
-  background: var(--color-sand);
+  background: var(--sand);
 }

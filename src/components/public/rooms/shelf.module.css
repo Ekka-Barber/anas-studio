@@ -1,0 +1,181 @@
+/* على الرف */
+
+.doorsWrap {
+  padding-inline: var(--gutter);
+  padding-block: var(--pad-m);
+}
+.doors {
+  --tile: 280px;
+}
+.doors > li {
+  display: flex;
+}
+.door {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .door:hover .doorFoot > :first-child {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 2px;
+  }
+}
+.doorPicture img {
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.doorFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: clamp(18px, 2vw, 28px);
+}
+.doorText {
+  min-block-size: 280px;
+  justify-content: space-between;
+}
+.doorWait {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.article {
+  scroll-margin-block-start: var(--header-offset, var(--header-h));
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+}
+.headMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.thuraName {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-thura);
+  line-height: 1;
+}
+
+.meaning {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-h3);
+  line-height: 1.7;
+}
+
+.mosaic {
+  --tile: 220px;
+  margin-block-start: var(--pad-xs);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(28px, 3vw, 44px);
+}
+.notes h3 {
+  margin-block-end: 0.4em;
+}
+
+.sectionTitle {
+  margin-block-end: clamp(28px, 3.4vw, 48px);
+}
+.flavours {
+  --tile: 340px;
+}
+.flavour {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: clamp(22px, 2.6vw, 36px);
+}
+.flavourName {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-flavour);
+  line-height: 1.15;
+}
+
+/* Each flavour joins three regions: the triangle's apex and its two feet. */
+.triangle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-items: center;
+  align-items: center;
+  row-gap: 8px;
+  inline-size: min(100%, 300px);
+  margin-inline: auto;
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+}
+.regionTop,
+.triangleShape {
+  grid-column: 1 / -1;
+}
+.triangleShape {
+  inline-size: 150px;
+  aspect-ratio: 1.15 / 1;
+  background: var(--coral);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.regionStart {
+  justify-self: start;
+}
+.regionEnd {
+  justify-self: end;
+}
+
+.weaveCell {
+  min-block-size: 160px;
+  background: url('/brand/weave.svg') 0 0 / var(--edge-weave) var(--edge-weave);
+}
+
+.inspirers {
+  list-style: none;
+  margin: 0.5em 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--size-read);
+  line-height: var(--leading-read);
+  font-weight: 500;
+}
+
+.soon {
+  margin-block-start: clamp(24px, 3vw, 40px);
+  max-inline-size: 22em;
+  font-weight: 500;
+}
+
+.render img {
+  inline-size: min(100%, 1000px);
+  margin-inline: auto;
+  mix-blend-mode: multiply;
+}
+.renderSmall {
+  margin: 0 0 clamp(32px, 4vw, 56px);
+  padding: clamp(16px, 2vw, 28px);
+}
+.renderSmall img {
+  inline-size: 100%;
+  mix-blend-mode: multiply;
+}

@@ -1,107 +1,162 @@
-import { NextRoomLink } from '@/components/public/NextRoomLink'
-import { Picture } from '@/components/public/Picture'
-import { RoomOpener } from '@/components/public/RoomOpener'
-import styles from '@/components/public/public.module.css'
-import { VideoReel } from '@/components/public/VideoReel'
-import { YearNav } from '@/components/public/YearNav'
-import type { StartedRoom } from '@/lib/content'
+import Link from 'next/link'
+
+import { RoomHero } from '@/components/public/RoomHero'
+import { classify, splitAfterFirstDisplay, toBlocks, type Para } from '@/components/public/story/flow'
+import { StatementBand, StoryFigure, StoryText } from '@/components/public/story/Story'
+import { Tag } from '@/components/weave/Action'
+import { Band } from '@/components/weave/Band'
+import { Edge } from '@/components/weave/Edge'
+import layout from '@/components/weave/layout.module.css'
+import { Lines } from '@/components/weave/Lines'
+import { RoomNav } from '@/components/weave/RoomNav'
+import { Signature } from '@/components/weave/Signature'
+import type { Tone } from '@/components/weave/tones'
+import { VideoTile } from '@/components/weave/VideoTile'
+import type { StartedMovement, StartedRoom } from '@/lib/content'
+
+import styles from './rooms.module.css'
 
 /**
- * بدأتُ من هنا on the frozen handoff composition (deploy/design/بدأت هنا):
- * the room opener, then one alternating art/text row per year Anas names,
- * the last in the handoff's sand «قيد التكوين» panel. The art is the Khous
- * book's street-4 watercolours and Anas's own product films.
+ * بدأتُ من هنا (D39, direction B). Each year Anas names opens with its own
+ * band; a stretch that is not a year (his «وشيء لم يبدأ بعد») opens on paper
+ * between two weave strips. The family films sit after the first large line
+ * of the movement marked `films`. The room ends with his signature, then the
+ * store it leads to.
  */
-type Art = { image: string; alt: string } | { films: string[] }
+const YEAR_TONES: Tone[] = ['aub', 'saffron', 'coral']
 
-// Keyed by year, not position, so reordering movements in the admin keeps
-// each text with its own art (P04).
-const ART: Record<string, Art> = {
-  '2013': {
-    image: 'started-mothers-hands',
-    alt: 'يدا امرأة تغطّيان طبق طعام بغطاء مجدول من الخوص، وإلى جانبه قدر صغير ومنديل مطرّز.',
-  },
-  '2018': {
-    image: 'started-child-door',
-    alt: 'طفل يقف على عتبة باب خشبي وقد رفع يده ليطرقه، حاملاً بيده الأخرى طبقاً مغطّى.',
-  },
-  '2020': { films: ['46-kid-picnic-jam', '47-kid-bisht-honey-jar', '50-kid-cafe-croissant-jam'] },
-  'وشيء لم يبدأ بعد': {
-    image: 'started-closed-door',
-    alt: 'باب خشبي بنّي مغلق لبيت قديم تحت مظلّة خشبية مضلّعة، وقد نمت أمامه شجيرات وجذع نخلة حتى كاد يحجبه.',
-  },
+function Films({ reels }: { reels: StartedRoom['media']['reels'] }) {
+  if (reels.length === 0) return null
+  return (
+    <Band tone="aub" pad="s" aria-label="مقاطع من حكايات العائلة">
+      <ul className={styles.films}>
+        {reels.map((reel, i) => (
+          <li key={reel.id} data-reveal="" data-fx="media" data-delay={i * 120}>
+            {/* The family films are 16:9 scenes padded to 9:16 with blurred
+                copies; the 16:9 frame shows only the sharp scene. */}
+            <VideoTile id={reel.id} alt={reel.alt} ratio="16 / 9" />
+          </li>
+        ))}
+      </ul>
+    </Band>
+  )
+}
+
+function Movement({
+  movement,
+  index,
+  room,
+  last,
+}: {
+  movement: StartedMovement
+  index: number
+  room: StartedRoom
+  last: boolean
+}) {
+  const isYear = /^\d{4}$/.test(movement.year)
+  const tone = YEAR_TONES[index % YEAR_TONES.length] ?? 'aub'
+  const blocks = toBlocks(classify(movement.paragraphs, room.pullLines, room.bandLines))
+  const closing = (
+    <>
+      <Signature width={220} className={styles.signature} />
+      <p className={`t-h3 ${styles.closingLine}`} data-reveal="">
+        {room.closingLine}
+      </p>
+      <p className="t-label t-muted" data-reveal="">
+        {room.signature}
+      </p>
+    </>
+  )
+
+  return (
+    <section id={`year-${index}`} aria-labelledby={`year-${index}-title`}>
+      {isYear ? (
+        <>
+          <Edge kind="crenel" color={tone} />
+          <h2 id={`year-${index}-title`} data-tone={tone} className={`t-year ${styles.yearBand}`} data-reveal="" data-fx="band">
+            {movement.year}
+          </h2>
+        </>
+      ) : (
+        <>
+          <Edge kind="weave" />
+          <h2 id={`year-${index}-title`} data-tone="paper" className={`t-band-xl ${styles.labelBand}`} data-reveal="" data-fx="band">
+            {movement.year}
+          </h2>
+          <Edge kind="weave" />
+        </>
+      )}
+      {blocks.map((block, b) => {
+        const lastBlock = last && b === blocks.length - 1
+        if (block.kind === 'band') return <StatementBand key={b} text={block.text} edge={false} />
+        const withFigure = b === 0 && movement.vignette
+        let before: Para[] = block.paras
+        let after: Para[] = []
+        if (b === 0 && movement.films) [before, after] = splitAfterFirstDisplay(block.paras)
+        return (
+          <div key={b}>
+            <Band tone="sand" pad="m">
+              <div className={layout.split}>
+                <div className={layout.text}>
+                  <StoryText paras={before}>{lastBlock && after.length === 0 && closing}</StoryText>
+                </div>
+                {withFigure && <StoryFigure id={movement.vignette} drop />}
+              </div>
+            </Band>
+            {after.length > 0 && (
+              <>
+                <Films reels={room.media.reels} />
+                <Band tone="sand" pad="m">
+                  <div className={layout.text}>
+                    <StoryText paras={after}>{lastBlock && closing}</StoryText>
+                  </div>
+                </Band>
+              </>
+            )}
+          </div>
+        )
+      })}
+    </section>
+  )
 }
 
 export function StartedRoomView({ room }: { room: StartedRoom }) {
-  // Only films still in the room's reel list: a reel hidden in the admin disappears.
-  const reel = (id: string) => room.media.reels.find((entry) => entry.id === id)
   const last = room.movements.length - 1
-
   return (
-    <main className={styles.roomPaper}>
-      <section className={styles.startedHero}>
-        <div>
-          <RoomOpener roomLabel={room.roomLabel} title={room.title} jewel={room.jewel} />
-          <p className={styles.startedHeroLine}>{room.heroLine}</p>
-        </div>
-        <Picture
-          id="started-street-4"
-          alt="لوحة شارع زرقاء على عمود أبيض تحمل ثلاث لافتات: شارع رقم 4، و STREET NO. 4، ومنازل رقم 401-472، وخلفها بيوت الحي وأشجار النخيل."
-          sizes="(min-width: 1024px) 34vw, 78vw"
-          loading="eager"
-          className={styles.startedHeroArt}
-        />
-      </section>
+    <>
+      <main id="main">
+        <RoomHero tone={room.jewel} title={room.title} tagline={room.tagline} />
+        <article>
+          <Band tone="sand" pad="l">
+            <p className={styles.opening} data-reveal="">
+              <Lines text={room.heroLine} />
+            </p>
+          </Band>
+          {room.movements.map((movement, i) => (
+            <Movement key={`${movement.year}-${i}`} movement={movement} index={i} room={room} last={i === last} />
+          ))}
+        </article>
 
-      <YearNav years={room.movements.map((movement) => movement.year)} />
-
-      <div className={styles.stories}>
-        {room.movements.map((movement, i) => {
-          const art = ART[movement.year]
-          const [lead, ...rest] = movement.paragraphs
-          const classes = [styles.story, i % 2 ? styles.storyFlip : '', i === last ? styles.storyPending : '']
-          return (
-            <article
-              key={movement.year}
-              id={`year-${i}`}
-              aria-labelledby={`year-${i}-title`}
-              className={classes.join(' ')}
-            >
-              <div className={styles.storyArt}>
-                {art && 'films' in art ? (
-                  <div className={styles.filmTrio}>
-                    {art.films.flatMap((id) => {
-                      const film = reel(id)
-                      return film ? [<VideoReel key={id} id={id} alt={film.alt} className={styles.reel} />] : []
-                    })}
-                  </div>
-                ) : art ? (
-                  <Picture id={art.image} alt={art.alt} sizes="(min-width: 1024px) 40vw, 100vw" className={styles.storyPlate} />
-                ) : null}
-              </div>
-              <div className={styles.storyText}>
-                <h2 id={`year-${i}-title`} className={styles.storyYear}>
-                  {movement.year}
-                </h2>
-                <p className={styles.storyLead}>{lead}</p>
-                {rest.map((paragraph, k) => (
-                  <p key={k} className={room.pullLines.includes(paragraph) ? styles.storyPull : styles.storyBody}>
-                    {paragraph}
-                  </p>
-                ))}
-                {i === last && (
-                  <>
-                    <p className={styles.storyCloser}>{room.closingLine}</p>
-                    <p className={styles.signatureCaption}>{room.signature}</p>
-                  </>
-                )}
-              </div>
-            </article>
-          )
-        })}
-      </div>
-
-      <NextRoomLink href="/built" label="بنيتُ هنا" jewel="midnight" />
-    </main>
+        <section aria-labelledby="shop-title">
+          <Band tone="aub" edge="crenel" pad="xs" padEnd="s" className={styles.shopHead}>
+            <h2 id="shop-title" className="t-band-xl" data-reveal="" data-fx="band">
+              المتجر
+            </h2>
+            <Tag large>قريباً</Tag>
+          </Band>
+          <Edge kind="weave" />
+          <Band tone="sand" pad="l">
+            <Link href="/shelf#boutique" prefetch={false} data-tone="aub" className={styles.boutiqueDoor} data-reveal="">
+              <span className={`t-statement t-accent ${styles.boutiqueLine}`}>وشيء لم يبدأ بعد.</span>
+              <span className={styles.boutiqueName}>
+                <span className="t-h3">بوتيك أنس القرني</span>
+                <span className="t-label">على الرف ←</span>
+              </span>
+            </Link>
+          </Band>
+        </section>
+      </main>
+      <RoomNav back={{ href: '/', label: 'الرئيسية' }} backLabel="العودة" next={{ href: '/built', label: 'بنيتُ هنا' }} />
+    </>
   )
 }

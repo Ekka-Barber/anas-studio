@@ -1,0 +1,57 @@
+.lost {
+  display: flex;
+  flex-wrap: wrap;
+  min-block-size: calc(100dvh - var(--header-h));
+}
+.panel {
+  flex: 1.4 1 420px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(24px, 3vw, 40px);
+  padding: clamp(40px, 6vw, 96px) var(--gutter);
+}
+.title span {
+  display: inline-block;
+}
+.ways {
+  display: flex;
+  flex-wrap: wrap;
+  align-self: flex-start;
+  gap: 1px;
+  padding: 1px;
+  background: var(--aub-800);
+}
+.ways a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 48px;
+  padding-inline: 16px;
+  background: var(--aub);
+  font-weight: 700;
+  text-decoration: none;
+}
+.ways a[data-tone] {
+  background: var(--bg);
+}
+@media (hover: hover) {
+  .ways a:hover {
+    text-decoration: underline;
+  }
+}
+.photo {
+  position: relative;
+  flex: 1 1 300px;
+  min-block-size: 360px;
+  overflow: hidden;
+  background: var(--aub-900);
+}
+.photo picture,
+.photo img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: 50% 36%;
+}

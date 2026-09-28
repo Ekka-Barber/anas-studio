@@ -1,33 +1,111 @@
 /**
- * Frozen design tokens, read from `deploy/design/Style Board.dc.html` and the
- * eight room compositions (P01 read-only reference; values transcribed, never
- * imported). Logical CSS properties only; no ltr/rtl-specific physical props.
+ * Design tokens for direction B «أنساق» (D39). DESIGN.md explains every
+ * token and when to use it; change a value here and the whole site follows.
+ *
+ * Three layers:
+ *   1. Palette: Anas's own colours (his palette board) and their shades.
+ *      Components never use these directly for text or surfaces; they use
+ *      the tone variables below.
+ *   2. Tones: every band on a page is one of seven surfaces. A tone sets
+ *      the background, the text colour, the focus ring and the colours of
+ *      an action on that surface (globals.css applies them through
+ *      `data-tone`). Put an element on a band and it is already legible.
+ *   3. Scales: type, spacing, layout, motion and layering.
+ *
+ * Logical properties only; the site is Arabic, right to left.
  */
 :root {
-  /* Palette — Style Board §01 PALETTE */
-  --color-paper: #f4ece0;
-  --color-sand: #e7d8c3;
-  --color-ink: #1c1a17;
-  --color-forest: #234a30; /* room jewel: بدأتُ من هنا */
-  --color-plum: #4a2740; /* room jewel: مررتُ من هنا */
-  --color-midnight: #20223f; /* room jewel: بُنيت هنا */
-  --color-oud: #6e4b33; /* room jewel: على الرف (الورشة) */
-  --color-muted: #6f5e4e;
-  --color-muted-strong: #5c4e3f;
-  --color-brass: #b28e5a;
-  --color-clay: #b65c43;
-  --color-hairline: #d9c9b4;
-  /* Reading-body ink at ~85%: >=7:1 on both paper and sand (muted-strong
-     alone only reaches 6.85/5.74) — DESIGN-AUDIT reading-comfort fix. */
-  --color-ink-85: color-mix(in srgb, var(--color-ink) 85%, transparent);
+  /* 1. Palette */
+  --sand-50: #eadac8;
+  --sand: #e0c6ad;
+  --sand-300: #d5b89c;
+  --sand-muted: #cdb39c;
+  --aub: #54353b;
+  --aub-muted: #684a50;
+  --aub-800: #412a2f;
+  --aub-900: #2a191d;
+  --coral: #e1654d;
+  --coral-deep: #8e3324;
+  --saffron: #efa032;
+  --saffron-ink: #5a3210;
 
-  /* Type — Style Board §02 TYPE */
+  /* Thmanyah only (D33): Serif Display for display lines, Sans for reading
+     and for every control. */
   --font-display: 'Thmanyah Serif Display', serif;
-  --font-body: 'Thmanyah Sans', sans-serif;
+  --font-body: 'Thmanyah Sans', system-ui, sans-serif;
 
-  /* Reading column measure (DESIGN-DIRECTION.md §1: ~62–68 Arabic characters) */
-  --measure-reading: 38rem;
+  /* 3. Type scale. Fluid sizes, named by role. The big ones are the design:
+     B sets titles and bands at poster size on purpose. */
+  --size-hero: clamp(84px, 13.4vw, 212px); /* the name bands on the home page */
+  --size-mega: clamp(104px, 15vw, 240px); /* the book title, «خوص» */
+  --size-year: clamp(96px, 17vw, 280px); /* the year bands in بدأتُ من هنا */
+  --size-title: clamp(68px, 12.4vw, 200px); /* a page title */
+  --size-band-xl: clamp(48px, 8.4vw, 136px); /* a statement band */
+  --size-band: clamp(40px, 6.6vw, 108px); /* a smaller statement band */
+  --size-statement: clamp(36px, 5.6vw, 92px); /* a statement on a dark band */
+  --size-h2: clamp(44px, 5.2vw, 80px); /* a section heading */
+  --size-h2-lg: clamp(52px, 6.8vw, 112px); /* a page-level section heading */
+  --size-display: clamp(30px, 3.4vw, 50px); /* a pull line inside a text */
+  --size-lead: clamp(26px, 3.2vw, 48px); /* the line under a page title */
+  --size-card: clamp(36px, 3.2vw, 50px); /* a card or tile title */
+  --size-h3: clamp(28px, 2.8vw, 40px); /* a subsection heading */
+  --size-quote: clamp(24px, 2.6vw, 36px); /* a quotation */
+  --size-line: clamp(20px, 1.7vw, 24px); /* a short serif line on a card */
+  --size-read: clamp(18px, 0.55vw + 13px, 21px); /* reading text */
+  --size-action: 18px; /* a full-size button's label; a price */
+  --size-body: 17px; /* short text in cards and forms */
+  --size-control: 17px; /* fields and plain buttons */
+  --size-small: 16px; /* compact controls (filters, the header's buttons, a film's chip) and meta lines */
+  --size-label: 15px; /* labels, captions, meta: the floor for Arabic text */
 
-  /* Motion easing used by the frozen rooms' scroll reveal */
-  --ease-frozen: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Roles that belong to one place. */
+  --size-thura: clamp(120px, 20vw, 320px); /* the ذرى name on الرفّ */
+  --size-post-title: clamp(56px, 10vw, 168px); /* a journal post's title */
+  --size-opening: clamp(34px, 4.5vw, 70px); /* a room's opening line; the line beside Anas's name */
+  --size-flavour: clamp(40px, 4.2vw, 60px); /* a flavour's name on الرفّ */
+  --size-menu: clamp(26px, 6.6vw, 38px); /* a band in the full-screen menu */
+  --size-brand: 30px; /* «أنس» in the header */
+
+  --leading-read: 2.05;
+  --leading-body: 1.9;
+  --leading-display: 1.55;
+  --leading-tight: 1.25; /* the Arabic floor for display lines that wrap */
+
+  /* Spacing and layout */
+  --gutter: clamp(20px, 5vw, 72px);
+  --pad-xs: clamp(24px, 3vw, 48px);
+  --pad-s: clamp(40px, 5vw, 80px);
+  --pad-m: clamp(48px, 6vw, 96px);
+  --pad-l: clamp(56px, 7vw, 112px);
+  --pad-xl: clamp(64px, 9vw, 152px);
+  --pad-hero-start: clamp(28px, 4vw, 64px);
+  --gap-columns: clamp(32px, 5vw, 96px);
+  --gap-tight: clamp(12px, 1.6vw, 24px);
+  --measure: 700px; /* a reading column */
+  --measure-article: 33em; /* a journal article */
+  --header-h: 68px;
+  --tap: 44px; /* smallest touch target */
+  --control-h: 56px; /* buttons and fields */
+  --border-control: 3px; /* B draws fields and outlined buttons with a 3px line */
+
+  /* The woven edges between bands (see src/components/weave/Edge.tsx). */
+  --edge-crenel: 22px;
+  --edge-crenel-sm: 12px;
+  --edge-weave: 28px;
+  --offset-shadow: clamp(12px, 1.6vw, 22px); /* the solid shadow under the book */
+
+  /* Motion. One easing for movement, one for the woven wipes. */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ease-weave: cubic-bezier(0.77, 0, 0.18, 1);
+  --dur-quick: 180ms; /* hover and press */
+  --dur-ui: 280ms; /* the header's slide, a dialog opening, a photo step */
+  --dur-base: 560ms; /* a woven entrance: the menu's bands */
+
+  /* Layering, lowest to highest. */
+  --z-raised: 10;
+  --z-subnav: 30;
+  --z-header: 40;
+  --z-progress: 50;
+  --z-menu: 80;
+  --z-lightbox: 90;
 }

@@ -35,6 +35,17 @@ export function formatRiyadh(iso: string): string {
     .replace(/ (?=[مص]$)/u, '\u00a0')
 }
 
+/**
+ * Typesetting for Anas's texts as he typed them (D39): a comma or semicolon
+ * glued to the next word gets its space, and a space before closing
+ * punctuation or a separator « · » becomes unbreakable so the mark never
+ * starts a line alone.
+ * Presentation only; the stored text is never changed.
+ */
+export function typeset(text: string): string {
+  return text.replace(/([،؛])(?=[\p{L}\p{N}])/gu, '$1 ').replace(/ (?=[.،؛:؟!…»)·])/gu, ' ')
+}
+
 /** A bare year label ("2013"), always Latin digits regardless of caller locale. */
 export function formatYear(year: number): string {
   return new Intl.NumberFormat(LOCALE, { useGrouping: false }).format(year)

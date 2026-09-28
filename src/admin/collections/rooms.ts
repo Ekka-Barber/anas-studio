@@ -8,15 +8,25 @@ import { type Field, schemaFromFields } from '../fields'
  * exactly. Sections that are lists — movements, reels, the passed room's
  * brand wall and product gallery — are hideable: the admin can hide an item
  * without deleting it, and the public loader drops hidden items.
+ *
+ * D39 (direction B): the stored field `jewel` is the room's colour, the band
+ * its page opens on; `tagline` is the room's line under its title and on
+ * the home page; `pullLines` and `bandLines` name the paragraphs set as a
+ * large line or as a full-width coloured band (each must repeat a paragraph
+ * exactly). The field keeps its v1 name so stored documents stay valid.
  */
-export const jewelSchema = z.enum(['forest', 'midnight', 'plum', 'oud'])
+export const jewelSchema = z.enum(['coral', 'aub', 'saffron', 'paper'])
 const JEWEL_FIELD = {
   name: 'jewel',
-  label: 'اللون',
+  label: 'لون الغرفة',
   type: 'select',
-  options: ['forest', 'midnight', 'plum', 'oud'],
-  optionLabels: { forest: 'أخضر داكن', midnight: 'كحلي', plum: 'برقوقي', oud: 'عودي' },
+  options: ['coral', 'aub', 'saffron', 'paper'],
+  optionLabels: { coral: 'مرجاني', aub: 'باذنجاني', saffron: 'زعفراني', paper: 'رملي' },
 } as const satisfies Field
+
+const TAGLINE_FIELD = { name: 'tagline', label: 'سطر الغرفة', type: 'text' } as const satisfies Field
+const PULL_LINES_OPTIONAL = { name: 'pullLines', label: 'أسطر كبيرة', type: 'paragraphs', required: false } as const satisfies Field
+const BAND_LINES = { name: 'bandLines', label: 'أسطر على شريط ملوّن', type: 'paragraphs', required: false } as const satisfies Field
 
 export const roomVignetteFields = [{ name: 'id', label: 'المعرّف', type: 'image' }] as const satisfies Field[]
 export const roomVignetteSchema = schemaFromFields(roomVignetteFields)
@@ -38,6 +48,7 @@ export const startedMovementFields = [
   { name: 'year', label: 'السنة', type: 'text' },
   { name: 'vignette', label: 'الصورة', type: 'image', nullable: true },
   { name: 'paragraphs', label: 'الفقرات', type: 'paragraphs' },
+  { name: 'films', label: 'تظهر المقاطع هنا', type: 'boolean', required: false },
 ] as const satisfies Field[]
 export const startedMovementSchema = schemaFromFields(startedMovementFields)
 
@@ -45,11 +56,13 @@ export const startedRoomFields = [
   { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
   { name: 'title', label: 'العنوان', type: 'text' },
+  TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'vignette', label: 'الصورة الرئيسية', type: 'group', fields: roomVignetteFields },
   { name: 'heroLine', label: 'سطر البداية', type: 'text' },
   { name: 'movements', label: 'المحطّات', type: 'list', fields: startedMovementFields, hideable: true },
-  { name: 'pullLines', label: 'الاقتباسات', type: 'paragraphs' },
+  { name: 'pullLines', label: 'أسطر كبيرة', type: 'paragraphs' },
+  BAND_LINES,
   { name: 'closingLine', label: 'سطر الختام', type: 'text' },
   { name: 'signature', label: 'التوقيع', type: 'text' },
   {
@@ -74,6 +87,7 @@ export const builtRoomFields = [
   { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
   { name: 'title', label: 'العنوان', type: 'text' },
+  TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'vignette', label: 'الصورة الرئيسية', type: 'group', fields: roomVignetteFields },
   { name: 'heroLine', label: 'سطر البداية', type: 'text' },
@@ -96,6 +110,8 @@ export const builtRoomFields = [
       { name: 'displayLine', label: 'سطر العرض', type: 'text' },
     ],
   },
+  PULL_LINES_OPTIONAL,
+  BAND_LINES,
   { name: 'refrain', label: 'اللازمة', type: 'text' },
   { name: 'signature', label: 'التوقيع', type: 'text' },
   {
@@ -130,13 +146,16 @@ export const passedRoomFields = [
   { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
   { name: 'title', label: 'العنوان', type: 'text' },
+  TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'vignette', label: 'الصورة الرئيسية', type: 'group', fields: roomVignetteFields },
   { name: 'heroLine', label: 'سطر البداية', type: 'text' },
   { name: 'heroVignette', label: 'صورة البداية', type: 'image' },
   { name: 'paragraphs', label: 'الفقرات', type: 'paragraphs' },
-  { name: 'pullLines', label: 'الاقتباسات', type: 'paragraphs' },
+  { name: 'pullLines', label: 'أسطر كبيرة', type: 'paragraphs' },
+  BAND_LINES,
   { name: 'closingLine', label: 'سطر الختام', type: 'text' },
+  { name: 'galleryLine', label: 'سطر معرض المنتجات', type: 'text', required: false },
   {
     name: 'media',
     label: 'الوسائط',
@@ -154,6 +173,7 @@ export const passedRoomSchema = schemaFromFields(passedRoomFields)
 export const thuraFlavourFields = [
   { name: 'name', label: 'الاسم', type: 'text' },
   { name: 'description', label: 'الوصف', type: 'textarea' },
+  { name: 'regions', label: 'المناطق الثلاث', type: 'paragraphs', required: false },
 ] as const satisfies Field[]
 export const thuraFlavourSchema = schemaFromFields(thuraFlavourFields)
 
@@ -169,6 +189,7 @@ export const thuraItemFields = [
   { name: 'inspirers', label: 'الملهِمون', type: 'textarea' },
   { name: 'slogan', label: 'الشعار', type: 'text' },
   { name: 'comingSoonLine', label: 'سطر قريباً', type: 'text' },
+  { name: 'status', label: 'الحالة', type: 'text', required: false },
   { name: 'vignette', label: 'الصورة', type: 'image' },
   { name: 'divider', label: 'الفاصل', type: 'image' },
   { name: 'photos', label: 'الصور', type: 'list', fields: galleryPhotoFields },
@@ -179,6 +200,7 @@ export const thuraItemSchema = schemaFromFields(thuraItemFields)
 export const moonlightCupItemFields = [
   { name: 'title', label: 'العنوان', type: 'text' },
   { name: 'paragraphs', label: 'الفقرات', type: 'paragraphs' },
+  PULL_LINES_OPTIONAL,
   { name: 'status', label: 'الحالة', type: 'text' },
   { name: 'vignette', label: 'الصورة', type: 'image' },
   { name: 'images', label: 'الصور', type: 'list', fields: galleryPhotoFields },
@@ -188,6 +210,8 @@ export const moonlightCupItemSchema = schemaFromFields(moonlightCupItemFields)
 export const boutiqueItemFields = [
   { name: 'title', label: 'العنوان', type: 'text' },
   { name: 'paragraphs', label: 'الفقرات', type: 'paragraphs' },
+  BAND_LINES,
+  { name: 'status', label: 'الحالة', type: 'text', required: false },
   { name: 'closingLine', label: 'سطر الختام', type: 'text' },
   { name: 'vignette', label: 'الصورة', type: 'image' },
 ] as const satisfies Field[]
@@ -197,6 +221,7 @@ export const shelfRoomFields = [
   { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
   { name: 'title', label: 'العنوان', type: 'text' },
+  TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'vignette', label: 'الصورة الرئيسية', type: 'group', fields: roomVignetteFields },
   {

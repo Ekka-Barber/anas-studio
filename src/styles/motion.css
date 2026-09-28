@@ -1,0 +1,98 @@
+/**
+ * Motion for direction B (DESIGN.md "Motion"). Content is visible without
+ * any of it: entrances are CSS animations that always run to the end (no
+ * JavaScript, nothing to get stuck), scroll reveals are started by
+ * `src/components/weave/motion.ts`, and the scroll-linked zoom uses CSS
+ * scroll timelines where the browser has them. Everything here is off under
+ * `prefers-reduced-motion: reduce`.
+ *
+ * Hooks, set with `enter()` from motion.ts or by hand:
+ *   data-enter + style --enter-delay    one entrance when the page opens
+ *     (--enter-dur shortens one, as for the home portrait)
+ *   data-reveal (+ data-delay)          a reveal when it scrolls into view
+ *   data-fx                             rise (default) | band | fade | media | sign | grow
+ *   data-seq                            its children pop in one after another
+ *   .motion-scrub                       an image frame that zooms out slowly on scroll
+ *   .motion-expand                      a wide frame that opens to full width on scroll
+ */
+@media (prefers-reduced-motion: no-preference) {
+  [data-enter] {
+    animation: motion-rise var(--enter-dur, 850ms) var(--ease-out) var(--enter-delay, 0ms) backwards;
+  }
+  [data-enter][data-fx='band'] {
+    animation: motion-band var(--enter-dur, 900ms) var(--ease-weave) var(--enter-delay, 0ms) backwards;
+  }
+  [data-enter][data-fx='fade'] {
+    animation: motion-fade var(--enter-dur, 900ms) var(--ease-out) var(--enter-delay, 0ms) backwards;
+  }
+  [data-enter][data-fx='media'] {
+    animation: motion-media var(--enter-dur, 1100ms) var(--ease-weave) var(--enter-delay, 0ms) backwards;
+  }
+  [data-enter][data-fx='sign'] {
+    animation: motion-sign 1800ms cubic-bezier(0.65, 0, 0.35, 1) var(--enter-delay, 0ms) backwards;
+  }
+  /* A page opened before in this visit comes back still (MotionLayer). */
+  :root[data-seen] [data-enter] {
+    animation: none;
+  }
+
+  @supports (animation-timeline: view()) {
+    .motion-scrub > * {
+      animation: motion-scrub linear both;
+      animation-timeline: view();
+    }
+    .motion-expand {
+      animation: motion-expand linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 45%;
+    }
+  }
+}
+
+/* The keyframes hold only the starting state; the element's own styles are
+   the end state, so an animation that never runs leaves it as designed. */
+@keyframes motion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+}
+@keyframes motion-band {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes motion-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes motion-media {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+@keyframes motion-sign {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+@keyframes motion-scrub {
+  from {
+    transform: translateY(2.5%) scale(1.16);
+  }
+  55% {
+    transform: translateY(-0.25%) scale(1.06);
+  }
+  to {
+    transform: translateY(-2.5%) scale(1.06);
+  }
+}
+@keyframes motion-expand {
+  from {
+    clip-path: inset(0 min(120px, 8vw));
+  }
+  to {
+    clip-path: inset(0 0);
+  }
+}

@@ -112,7 +112,15 @@ export function RoomPreview() {
         معاينة المسودة (نسخة {state.seq}). لم تُنشر بعد.{' '}
         <Link href={documentHref('rooms', id)}>العودة للتحرير</Link>
       </p>
-      {view ?? <p className={styles.error}>المسودة غير صالحة؛ صحّح الحقول ثم احفظ.</p>}
+      {view ? (
+        // The public page's surface (D39): its sand, its tones and its text
+        // resets, so the draft looks exactly as it will be published.
+        <div data-surface="site" data-tone="sand">
+          {view}
+        </div>
+      ) : (
+        <p className={styles.error}>المسودة غير صالحة؛ صحّح الحقول ثم احفظ.</p>
+      )}
     </>
   )
 }

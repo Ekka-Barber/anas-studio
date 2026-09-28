@@ -2,9 +2,35 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "export",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "serve",
+        "out",
+        "-l",
+        "4010"
+      ],
+      "port": 4010
+    },
+    {
       "name": "showcase",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "serve", "deploy", "-l", "4321"],
+      "runtimeArgs": [
+        "-y",
+        "serve",
+        "deploy",
+        "-l",
+        "4321"
+      ],
       "port": 4321
     }
   ]

@@ -1,0 +1,108 @@
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-weight: 700;
+  line-height: 1.3;
+  touch-action: manipulation;
+}
+@media (hover: hover) {
+  .action:hover .label {
+    text-decoration: underline;
+    text-underline-offset: 0.35em;
+  }
+  .action:disabled:hover .label {
+    text-decoration: none;
+  }
+}
+/* The press, as every button on the site has it (globals.css). */
+.action:active {
+  translate: 0 1px;
+}
+.action:disabled,
+.action[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  translate: none;
+}
+
+.md {
+  min-block-size: var(--control-h);
+  font-size: var(--size-action);
+}
+.sm {
+  min-block-size: 50px;
+  font-size: var(--size-small);
+}
+
+.solid {
+  padding-inline: 30px;
+  background: var(--action-bg);
+  color: var(--action-fg);
+}
+.sm.solid {
+  padding-inline: 22px;
+}
+
+.outline {
+  padding-inline: 20px;
+  border: var(--border-control) solid currentColor;
+  background: transparent;
+  color: inherit;
+}
+
+.text {
+  min-block-size: var(--tap);
+  padding: 0;
+  background: none;
+  color: inherit;
+  font-size: var(--size-small);
+}
+
+.arrow {
+  font-family: var(--font-body);
+}
+
+.tag {
+  display: inline-block;
+  flex: none;
+  padding-block: 6px;
+  padding-inline: 12px;
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.5;
+}
+.tag-lg {
+  padding-block: 10px;
+  padding-inline: 18px;
+  font-size: var(--size-action);
+}
+.tag-coral {
+  background: var(--coral);
+  color: var(--aub-900);
+}
+.tag-ink {
+  background: var(--action-bg);
+  color: var(--action-fg);
+}
+
+.mark {
+  display: inline-block;
+  flex: none;
+  inline-size: 36px;
+  block-size: 12px;
+  background: conic-gradient(from 135deg at 50% 0, var(--coral) 90deg, transparent 0) 0 0 / 12px 12px repeat-x;
+}
+.markInk {
+  background-image: conic-gradient(from 135deg at 50% 0, currentColor 90deg, transparent 0);
+}
+
+@media (forced-colors: active) {
+  .solid,
+  .tag {
+    border: 2px solid CanvasText;
+  }
+}

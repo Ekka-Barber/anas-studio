@@ -23,24 +23,30 @@ describe('published-content loaders match the imported fixture', () => {
     expect(await getFooter()).toEqual(content.footer)
   })
 
-  it('getHomeIntroAddition', async () => {
-    const { getHomeIntroAddition } = await import('../../src/lib/content')
-    expect(await getHomeIntroAddition()).toBe(content.home.introAddition)
+  it('getHome', async () => {
+    const { getHome } = await import('../../src/lib/content')
+    expect(await getHome()).toEqual(content.home)
   })
 
   it('getStartedRoom', async () => {
-    const { getStartedRoom } = await import('../../src/lib/content')
-    expect(await getStartedRoom()).toEqual(content.rooms.started)
+    // The loader drops items hidden in the admin (D39 hides the films still
+    // waiting for consent or not in the design), exactly like shapeStartedRoom.
+    const { getStartedRoom, shapeStartedRoom } = await import('../../src/lib/content')
+    expect(await getStartedRoom()).toEqual(shapeStartedRoom(content.rooms.started as Parameters<typeof shapeStartedRoom>[0]))
   })
 
   it('getBuiltRoom', async () => {
-    const { getBuiltRoom } = await import('../../src/lib/content')
-    expect(await getBuiltRoom()).toEqual(content.rooms.built)
+    // The loader drops items hidden in the admin (D39 hides the films still
+    // waiting for consent or not in the design), exactly like shapeBuiltRoom.
+    const { getBuiltRoom, shapeBuiltRoom } = await import('../../src/lib/content')
+    expect(await getBuiltRoom()).toEqual(shapeBuiltRoom(content.rooms.built as Parameters<typeof shapeBuiltRoom>[0]))
   })
 
   it('getPassedRoom', async () => {
-    const { getPassedRoom } = await import('../../src/lib/content')
-    expect(await getPassedRoom()).toEqual(content.rooms.passed)
+    // The loader drops items hidden in the admin (D39 hides the films still
+    // waiting for consent or not in the design), exactly like shapePassedRoom.
+    const { getPassedRoom, shapePassedRoom } = await import('../../src/lib/content')
+    expect(await getPassedRoom()).toEqual(shapePassedRoom(content.rooms.passed as Parameters<typeof shapePassedRoom>[0]))
   })
 
   it('getShelfRoom', async () => {

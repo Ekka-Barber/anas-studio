@@ -68,6 +68,11 @@ function assertSharpNeverImportedBySrc() {
 const P = (...parts) => path.join(ASSETS, ...parts)
 const GEN_PILOT = (name) => P('_generated', 'pilot', name)
 const GEN_SET = (name) => P('_generated', 'set', name)
+// D39: the v2 direction B material, copied from the Claude Design pack
+// (`ANASAQ-claude-design-pack/stage-1`, `stage-2`, `book-cover`): Anas's
+// portrait, his Street No. 4 photos, the Raha poster, and the Khous book in
+// the cover and standing mockup he picked (B). Git-excluded like SORTED.
+const V2 = (name) => path.join(repoRoot, 'BOOK_ASSETS', 'v2-design', name)
 
 /** @type {{room:string,id:string,src:string,alt?:string}[]} */
 const IMAGES = [
@@ -130,6 +135,19 @@ const IMAGES = [
   { room: 'shelf', id: 'render-84', src: P('04-on-the-shelf', 'moonlight-cup', 'render-84.jpg') },
   { room: 'shelf', id: 'factory-yellow-mug_upscaled', src: P('04-on-the-shelf', 'moonlight-cup', 'factory-yellow-mug_upscaled.png') },
   { room: 'shelf', id: 'factory-mug-inside_original-ONLY', src: P('04-on-the-shelf', 'moonlight-cup', 'factory-mug-inside_original-ONLY.jpg') },
+
+  // D39 — the v2 direction B material (see V2 above).
+  { room: 'v2', id: 'anas-portrait', src: V2('anas-portrait.jpg') },
+  { room: 'v2', id: 'khous-cover-b', src: V2('khous-cover-b.png') },
+  { room: 'v2', id: 'khous-standing-b', src: V2('khous-standing-b.png') },
+  { room: 'v2', id: 'khous-spine', src: V2('khous-spine.png') },
+  { room: 'v2', id: 'khous-bookmark', src: V2('khous-bookmark.png') },
+  { room: 'v2', id: 'raha-poster-orange', src: V2('raha-poster-orange.jpg') },
+  { room: 'v2', id: 'street4-street-sign', src: V2('street4-street-sign.jpg') },
+  { room: 'v2', id: 'street4-school-gate', src: V2('street4-school-gate.jpg') },
+  { room: 'v2', id: 'street4-closed-door', src: V2('street4-closed-door.jpg') },
+  { room: 'v2', id: 'street4-majlis', src: V2('street4-majlis.jpg') },
+  { room: 'v2', id: 'street4-kindergarten-portrait', src: V2('street4-kindergarten-portrait.jpg') },
 ]
 
 /** @type {{room:string,id:string,src:string,keepAudio?:boolean}[]} */

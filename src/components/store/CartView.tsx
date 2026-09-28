@@ -25,6 +25,7 @@ import {
   toApiLines,
   writeSessionValue,
 } from '@/lib/cart'
+import { ActionButton, ActionLink } from '@/components/weave/Action'
 import { formatMoney } from '@/lib/format'
 
 import { useCart } from './CartProvider'
@@ -232,9 +233,8 @@ export function CartView() {
           كود الخصم
           <input type="text" value={couponDraft} onChange={(event) => setCouponDraft(event.target.value)} dir="ltr" />
         </label>
-        <button
-          type="button"
-          className={styles.button}
+        <ActionButton
+          variant="outline"
           onClick={() => {
             const applied = couponDraft.trim().toUpperCase()
             setCoupon(applied)
@@ -242,7 +242,7 @@ export function CartView() {
           }}
         >
           تطبيق
-        </button>
+        </ActionButton>
       </div>
       {couponErrors.length > 0 && (
         <ul className={styles.lineErrors}>
@@ -291,9 +291,7 @@ export function CartView() {
         </p>
       )}
       {quote !== null && quote.checkoutEnabled && (
-        <Link href="/checkout" prefetch={false} className={styles.button}>
-          المتابعة لإتمام الطلب
-        </Link>
+        <ActionLink href="/checkout">المتابعة لإتمام الطلب</ActionLink>
       )}
     </div>
   )

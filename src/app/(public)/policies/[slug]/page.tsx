@@ -5,6 +5,8 @@ import { z } from 'zod'
 import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policySchema, type PolicyDocId } from '@/admin/collections/policies'
 import { RichText } from '@/lib/richtext'
 import styles from '@/components/store/store.module.css'
+import { Band } from '@/components/weave/Band'
+import { Edge } from '@/components/weave/Edge'
 import { requireEnv } from '@/lib/env'
 
 /**
@@ -46,9 +48,12 @@ export default async function PolicyPage({ params }: { params: Promise<{ slug: s
   const policy = await getPublishedPolicy(id)
 
   return (
-    <main className={styles.page}>
-      <div className={styles.inner}>
+    <main id="main" className={styles.page}>
+      <Band as="header" tone="paper" edge="crenel" pad="hero" padEnd="m">
         <h1 className={styles.title}>{policy?.title ?? POLICY_DOC_LABELS[id]}</h1>
+      </Band>
+      <Edge kind="weave" />
+      <Band tone="sand" pad="l" padEnd="xl">
         {policy === null ? (
           <p className={styles.note}>لم تُنشر هذه السياسة بعد.</p>
         ) : (
@@ -56,7 +61,7 @@ export default async function PolicyPage({ params }: { params: Promise<{ slug: s
             <RichText document={policy.body} />
           </div>
         )}
-      </div>
+      </Band>
     </main>
   )
 }

@@ -1,11 +1,17 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 
 import PublicLayout from './(public)/layout'
 import NotFound from './(public)/not-found'
 
 export const metadata: Metadata = {
-  title: 'الصفحة غير موجودة — أنس',
+  title: 'هذا الطريق لم يُبنَ بعد · أنس عبدالله القرني',
   robots: { index: false, follow: false },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#e0c6ad',
 }
 
 /**

@@ -1,0 +1,44 @@
+.figure {
+  margin: 0;
+}
+
+.frame {
+  position: relative;
+  overflow: hidden;
+  background: var(--aub-900);
+}
+
+.picture,
+.picture img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.cropped .picture img {
+  aspect-ratio: var(--ratio);
+  object-fit: cover;
+  object-position: var(--focus-point, 50% 50%);
+}
+
+/* The caption is a solid label in the aubergine the site's captions share,
+   whatever band the figure stands on: its own `aub` tone, so a link in it
+   gets that tone's text and focus ring. */
+.below,
+.corner {
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.6;
+}
+.below {
+  padding-block: 10px;
+  padding-inline: 14px;
+}
+.corner {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  padding-block: 8px;
+  padding-inline: 12px;
+  font-size: var(--size-label);
+}

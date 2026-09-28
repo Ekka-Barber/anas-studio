@@ -1257,5 +1257,247 @@
         "file": "images/started/started-closed-door-900.webp"
       }
     ]
+  },
+  "anas-portrait": {
+    "room": "v2",
+    "sourceWidth": 1350,
+    "sourceHeight": 2400,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 640,
+        "file": "images/v2/anas-portrait-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1280,
+        "file": "images/v2/anas-portrait-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 2133,
+        "file": "images/v2/anas-portrait-1200.webp"
+      },
+      {
+        "width": 1350,
+        "height": 2400,
+        "file": "images/v2/anas-portrait-1350.webp"
+      }
+    ]
+  },
+  "khous-cover-b": {
+    "room": "v2",
+    "sourceWidth": 1792,
+    "sourceHeight": 2240,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 450,
+        "file": "images/v2/khous-cover-b-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 900,
+        "file": "images/v2/khous-cover-b-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1500,
+        "file": "images/v2/khous-cover-b-1200.webp"
+      },
+      {
+        "width": 1792,
+        "height": 2240,
+        "file": "images/v2/khous-cover-b-1792.webp"
+      }
+    ]
+  },
+  "khous-standing-b": {
+    "room": "v2",
+    "sourceWidth": 1792,
+    "sourceHeight": 2240,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 450,
+        "file": "images/v2/khous-standing-b-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 900,
+        "file": "images/v2/khous-standing-b-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 1500,
+        "file": "images/v2/khous-standing-b-1200.webp"
+      },
+      {
+        "width": 1792,
+        "height": 2240,
+        "file": "images/v2/khous-standing-b-1792.webp"
+      }
+    ]
+  },
+  "khous-spine": {
+    "room": "v2",
+    "sourceWidth": 360,
+    "sourceHeight": 3200,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 3200,
+        "file": "images/v2/khous-spine-360.webp"
+      }
+    ]
+  },
+  "khous-bookmark": {
+    "room": "v2",
+    "sourceWidth": 312,
+    "sourceHeight": 312,
+    "derivatives": [
+      {
+        "width": 312,
+        "height": 312,
+        "file": "images/v2/khous-bookmark-312.webp"
+      }
+    ]
+  },
+  "raha-poster-orange": {
+    "room": "v2",
+    "sourceWidth": 900,
+    "sourceHeight": 1600,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 640,
+        "file": "images/v2/raha-poster-orange-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1280,
+        "file": "images/v2/raha-poster-orange-720.webp"
+      },
+      {
+        "width": 900,
+        "height": 1600,
+        "file": "images/v2/raha-poster-orange-900.webp"
+      }
+    ]
+  },
+  "street4-street-sign": {
+    "room": "v2",
+    "sourceWidth": 1000,
+    "sourceHeight": 1778,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 640,
+        "file": "images/v2/street4-street-sign-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1280,
+        "file": "images/v2/street4-street-sign-720.webp"
+      },
+      {
+        "width": 1000,
+        "height": 1778,
+        "file": "images/v2/street4-street-sign-1000.webp"
+      }
+    ]
+  },
+  "street4-school-gate": {
+    "room": "v2",
+    "sourceWidth": 1000,
+    "sourceHeight": 1333,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 480,
+        "file": "images/v2/street4-school-gate-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 960,
+        "file": "images/v2/street4-school-gate-720.webp"
+      },
+      {
+        "width": 1000,
+        "height": 1333,
+        "file": "images/v2/street4-school-gate-1000.webp"
+      }
+    ]
+  },
+  "street4-closed-door": {
+    "room": "v2",
+    "sourceWidth": 1000,
+    "sourceHeight": 1333,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 480,
+        "file": "images/v2/street4-closed-door-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 960,
+        "file": "images/v2/street4-closed-door-720.webp"
+      },
+      {
+        "width": 1000,
+        "height": 1333,
+        "file": "images/v2/street4-closed-door-1000.webp"
+      }
+    ]
+  },
+  "street4-majlis": {
+    "room": "v2",
+    "sourceWidth": 1400,
+    "sourceHeight": 1046,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 269,
+        "file": "images/v2/street4-majlis-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 538,
+        "file": "images/v2/street4-majlis-720.webp"
+      },
+      {
+        "width": 1200,
+        "height": 897,
+        "file": "images/v2/street4-majlis-1200.webp"
+      },
+      {
+        "width": 1400,
+        "height": 1046,
+        "file": "images/v2/street4-majlis-1400.webp"
+      }
+    ]
+  },
+  "street4-kindergarten-portrait": {
+    "room": "v2",
+    "sourceWidth": 1000,
+    "sourceHeight": 1550,
+    "derivatives": [
+      {
+        "width": 360,
+        "height": 558,
+        "file": "images/v2/street4-kindergarten-portrait-360.webp"
+      },
+      {
+        "width": 720,
+        "height": 1116,
+        "file": "images/v2/street4-kindergarten-portrait-720.webp"
+      },
+      {
+        "width": 1000,
+        "height": 1550,
+        "file": "images/v2/street4-kindergarten-portrait-1000.webp"
+      }
+    ]
   }
 }

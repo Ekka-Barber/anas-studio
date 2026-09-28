@@ -1,11 +1,16 @@
-import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 
 import { Picture } from '@/components/public/Picture'
 import { AddToCart } from '@/components/store/AddToCart'
+import { CartLink } from '@/components/store/CartLink'
 import styles from '@/components/store/store.module.css'
+import { Band } from '@/components/weave/Band'
+import { Edge } from '@/components/weave/Edge'
 import { RichText } from '@/lib/richtext'
 import { formatMoney } from '@/lib/format'
 import { getProducts } from '@/lib/store'
+
+import NotFound from '../../not-found'
 
 /**
  * One published product (P07): a static page per published slug, rebuilt
@@ -19,8 +24,9 @@ export const dynamicParams = false
 // route must be generated", nextjs.org/docs/messages/generate-static-params),
 // and the hosted project has no products yet. The placeholder `_` can never
 // be a product slug (the products table allows only lower-case letters,
-// digits and hyphens): its page is the 404, never a fake product, and
-// out/store.html says «لا توجد منتجات بعد.».
+// digits and hyphens): its page is the site's not-found page inside the
+// public layout (`notFound()` would export Next's bare error document, with
+// no `lang`), never a fake product, and out/store.html says «لا توجد منتجات بعد.».
 const NO_PRODUCTS = '_'
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
@@ -28,19 +34,31 @@ export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
   return slugs.length > 0 ? slugs : [{ slug: NO_PRODUCTS }]
 }
 
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const product = (await getProducts()).find((entry) => entry.slug === slug)
+  return { title: product?.title ?? 'هذا الطريق لم يُبنَ بعد' }
+}
+
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const product = (await getProducts()).find((entry) => entry.slug === slug)
-  if (!product) notFound()
+  if (!product) return <NotFound />
 
   return (
-    <main className={styles.page}>
-      <div className={styles.inner}>
-        <h1 className={styles.title}>{product.title}</h1>
+    <main id="main" className={styles.page}>
+      <Band as="header" tone="saffron" edge="crenel" pad="hero" padEnd="l" className={styles.head}>
+        <div>
+          <h1 className="t-band-xl">{product.title}</h1>
+          {product.summary !== '' && <p className={styles.productSummary}>{product.summary}</p>}
+        </div>
+        <CartLink />
+      </Band>
+      <Edge kind="weave" />
+      <Band tone="sand" pad="l">
         {product.cover !== null && (
           <Picture id={product.cover} alt={product.title} sizes="(min-width: 768px) 480px, 100vw" className={styles.productCover} />
         )}
-        {product.summary !== '' && <p className={styles.productSummary}>{product.summary}</p>}
         <div className={styles.productBody}>
           <RichText document={product.body} />
         </div>
@@ -59,7 +77,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </li>
           ))}
         </ul>
-      </div>
+      </Band>
     </main>
   )
 }

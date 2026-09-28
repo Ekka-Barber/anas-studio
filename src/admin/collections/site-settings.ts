@@ -24,7 +24,16 @@ export const footerFields = [
 ] as const satisfies Field[]
 export const footerSchema = schemaFromFields(footerFields)
 
-export const homeFields = [{ name: 'introAddition', label: 'إضافة مقدمة الرئيسية', type: 'text' }] as const satisfies Field[]
+/** D39: the home page's words, all Anas's (his brief, section 1 and 2). */
+export const homeFields = [
+  { name: 'name', label: 'الاسم الكامل', type: 'text' },
+  { name: 'portrait', label: 'الصورة الشخصية', type: 'image' },
+  { name: 'portraitAlt', label: 'وصف الصورة الشخصية', type: 'text' },
+  { name: 'tagline', label: 'الوصف المختصر', type: 'text' },
+  { name: 'intro', label: 'النص الرئيسي', type: 'textarea' },
+  { name: 'introAddition', label: 'إضافة مقدمة الرئيسية', type: 'text' },
+  { name: 'statement', label: 'العبارة الكبيرة', type: 'text' },
+] as const satisfies Field[]
 
 export const seoFields = [
   { name: 'title', label: 'عنوان SEO', type: 'text' },

@@ -8,7 +8,9 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## I25 — public design direction, paused
 
-**Status (2026-09-27):** the owner reopened design as a v2 in Claude Design, outside the repository, built on Anas's own palette and material; v1 stays the reference until a v2 direction is accepted, and that acceptance needs a DECISIONS entry. Meanwhile P07's store pages are built plain on the current tokens (D38).
+**Status (2026-09-28): closed by D39.** Anas picked direction B «أنساق», with cover B and standing mockup B. The port into the product is the DESIGN-B package (EXECUTION-STATUS).
+
+**Earlier status (2026-09-27):** the owner reopened design as a v2 in Claude Design, outside the repository, built on Anas's own palette and material; v1 stays the reference until a v2 direction is accepted, and that acceptance needs a DECISIONS entry. Meanwhile P07's store pages are built plain on the current tokens (D38).
 
 The owner rejected the long-scroll rooms and then both open-book prototypes. Direction: the frozen handoff design (`deploy/design/`), improved only with Anas's full texts and real artwork, never a new metaphor. The orchestrator's `/started` rework was not accepted. Design is paused until the owner reopens it. Open owner question: Tabuk imagery (the generated photos do not represent Tabuk; real reference photos and film frames are preferred).
 
@@ -67,6 +69,10 @@ Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whos
 **Status (2026-09-27):** resolved with the owner's approval: `pnpm build` removes `.next/cache/fetch-cache` before `next build`, locally, in CI and on Pages. Proven with an archived catalog (the build shows the empty store) and after reseeding (the demo products return). Evidence in `artifacts/acceptance/P07/commands.txt`.
 
 **Package:** P07 (found 2026-09-27, round 3); affects every page built from Supabase (D32). The build loaders use plain `fetch`, and Next keeps responses in `.next/cache/fetch-cache` across builds. Proof: after archiving every product, `pnpm build` wrote `out/store.html` still listing the three demo products while `generateStaticParams` in the same build saw none. Cloudflare Pages keeps `.next/cache` between builds, so a rebuild after a publish could serve stale content or prices (checkout re-prices live, so no wrong charge). Candidate fixes, for the owner to choose: clear `.next/cache/fetch-cache` before `next build` (the orchestrator's attempt was denied by the auto-mode classifier as a mass delete), or a per-fetch cache option that keeps the static export valid.
+
+## I40: launch check, no demo rows and Anas's own policy text
+
+**Package:** P11 (launch), from the DESIGN-B tasmeem audit (2026-09-28, FINDINGS row 4, CP-08). The audited build showed «نص تجريبي يكتبه أنس ويعتمده قبل فتح المتجر.» on `/policies/store`, `/policies/delivery` and `/policies/refund`, and demo products labelled «(تجريبي)». Both come from the loopback-only demo seed (`scripts/seed-demo-catalog.mjs`, D37), not from the source. Before launch: confirm the production database has no `demo` rows, and that every published policy is Anas's approved text. A build check that fails on demo rows outside loopback would enforce it.
 
 ## Small UI items for when design reopens
 

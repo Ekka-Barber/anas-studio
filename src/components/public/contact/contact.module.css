@@ -1,0 +1,144 @@
+/* تواصل */
+
+.titleLine {
+  display: inline-block;
+}
+
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(40px, 6vw, 104px);
+  align-items: flex-start;
+}
+
+.form {
+  flex: 1.4 1 420px;
+  max-inline-size: var(--measure);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  scroll-margin-block-start: calc(var(--header-h) + 24px);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.label {
+  font-size: var(--size-control);
+  font-weight: 700;
+}
+.input {
+  min-block-size: var(--control-h);
+  padding-inline: 16px;
+  border: var(--border-control) solid var(--line);
+  border-radius: 0;
+  background: var(--field-bg);
+  color: var(--field-fg);
+  font-size: var(--size-control);
+}
+.input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+.ltr {
+  text-align: start;
+}
+.textarea {
+  padding-block: 14px;
+  line-height: 1.9;
+  resize: vertical;
+}
+.error {
+  min-block-size: 1.4em;
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--error);
+}
+.turnstile {
+  min-block-size: 70px;
+}
+.notice {
+  padding: 14px 18px;
+  background: var(--sand-300);
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.7;
+}
+.submitRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+}
+.status {
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+
+.channels {
+  flex: 1 1 300px;
+  max-inline-size: 440px;
+  list-style: none;
+  margin: 0;
+  padding: 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--aub);
+}
+.channel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: 64px;
+  padding-inline: 24px;
+  font-size: var(--size-body);
+  font-weight: 700;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .channel:hover > :first-child {
+    text-decoration: underline;
+  }
+}
+.channelMain {
+  min-block-size: 88px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-h3);
+}
+
+.servicesIntro {
+  margin-block-start: clamp(16px, 2vw, 28px);
+  max-inline-size: 34em;
+}
+.services {
+  /* Three across at most, so six services always fill two rows. */
+  --tile: max(320px, calc(33.333% - 1px));
+}
+.service {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-block-size: 280px;
+  padding: clamp(24px, 3vw, 44px);
+}
+.request {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: 50px;
+  margin-block-start: auto;
+  padding-inline: 20px;
+  border: var(--border-control) solid currentColor;
+  font-size: var(--size-small);
+  font-weight: 700;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .request:hover {
+    text-decoration: underline;
+  }
+}

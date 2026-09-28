@@ -3,12 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
+import { Mark } from '@/components/weave/Action'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
 
 const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 6 أرقام.'
-const RATE_LIMITED_MESSAGE = 'حاول بعد قليل.'
+const RATE_LIMITED_MESSAGE = 'أُرسلت رموز كثيرة في وقت قصير. انتظر قليلًا ثم اطلب رمزًا جديدًا.'
 const BAD_CODE_MESSAGE = 'الرمز غير صحيح أو انتهت صلاحيته.'
 
 /**
@@ -66,8 +67,16 @@ export function SignIn() {
   }
 
   return (
-    <div className={styles.page}>
-      <h1>لوحة أنس</h1>
+    <main id="main" data-tone="sand" className={`${styles.page} ${styles.signIn}`}>
+      <h1 className={`t-h3 ${styles.signInTitle}`}>
+        <Mark />
+        لوحة أنس
+      </h1>
+      {/* One status line for both steps, present from the start so a screen
+          reader announces the code being sent and the rate limit. */}
+      <p role="status" className={styles.message}>
+        {message}
+      </p>
       {step === 'email' ? (
         <form className={styles.form} onSubmit={submitEmail}>
           <div className={styles.field}>
@@ -78,6 +87,8 @@ export function SignIn() {
               id="email"
               className={styles.input}
               type="email"
+              dir="ltr"
+              spellCheck={false}
               autoComplete="email"
               required
               value={email}
@@ -87,7 +98,6 @@ export function SignIn() {
           <button type="submit" className={styles.button} disabled={busy}>
             أرسل الرمز
           </button>
-          {message && <p className={styles.message}>{message}</p>}
           {process.env.NEXT_PUBLIC_AUTH_GOOGLE === 'on' && (
             <button type="button" className={styles.buttonSecondary} onClick={signInWithGoogle}>
               الدخول عبر Google
@@ -96,7 +106,6 @@ export function SignIn() {
         </form>
       ) : (
         <form className={styles.form} onSubmit={submitCode}>
-          {message && <p className={styles.message}>{message}</p>}
           <div className={styles.field}>
             <label className={styles.label} htmlFor="code">
               رمز الدخول
@@ -105,6 +114,7 @@ export function SignIn() {
               id="code"
               className={styles.input}
               inputMode="numeric"
+              dir="ltr"
               autoComplete="one-time-code"
               maxLength={6}
               required
@@ -115,9 +125,13 @@ export function SignIn() {
           <button type="submit" className={styles.button} disabled={busy}>
             تحقق
           </button>
-          {error && <p className={styles.error}>{error}</p>}
+          {error && (
+            <p role="alert" className={styles.error}>
+              {error}
+            </p>
+          )}
         </form>
       )}
-    </div>
+    </main>
   )
 }

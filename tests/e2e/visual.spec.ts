@@ -1,27 +1,37 @@
 import { expect, test } from '@playwright/test'
 
 /**
- * Screenshot evidence for DESIGN-AUDIT.md's responsive/no-overflow checks:
- * every P01 room at 360/768/1024/1440, with JS on and JS off, saved under
- * `artifacts/acceptance/P01/screenshots/`.
+ * Screenshot evidence for DESIGN-AUDIT.md's responsive and no-overflow checks
+ * (D39, direction B): every public page at 360/768/1024/1440 with JS on, and
+ * at 768 with JS off, saved under `artifacts/acceptance/DESIGN-B/screenshots/`.
+ * Reduced motion, so the captures show the finished page, not a reveal.
  */
 
-const ROOMS: { route: string; slug: string }[] = [
+const PAGES: { route: string; slug: string }[] = [
+  { route: '/', slug: 'home' },
   { route: '/started', slug: 'started' },
   { route: '/built', slug: 'built' },
   { route: '/passed', slug: 'passed' },
   { route: '/shelf', slug: 'shelf' },
+  { route: '/book', slug: 'book' },
+  { route: '/journal', slug: 'journal' },
+  { route: '/scenes', slug: 'scenes' },
+  { route: '/contact', slug: 'contact' },
+  { route: '/store', slug: 'store' },
 ]
 
 const WIDTHS = [360, 768, 1024, 1440]
-const OUT_DIR = 'artifacts/acceptance/P01/screenshots'
+const OUT_DIR = 'artifacts/acceptance/DESIGN-B/screenshots'
 
-for (const { route, slug } of ROOMS) {
+test.use({ reducedMotion: 'reduce' })
+
+for (const { route, slug } of PAGES) {
   for (const width of WIDTHS) {
-    test(`${slug} @ ${width}px — JS on, no horizontal overflow`, async ({ page }) => {
+    test(`${slug} @ ${width}px, JS on, no horizontal overflow`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 })
-      await page.goto(route)
-      await page.waitForLoadState('networkidle')
+      // Not 'networkidle': the contact page's Turnstile widget keeps its own
+      // connection open, so the network never goes quiet there.
+      await page.goto(route, { waitUntil: 'load' })
       // `loading="lazy"` images below the fold need a real scroll pass to
       // start fetching before a full-page screenshot captures them.
       await page.evaluate(async () => {
@@ -31,7 +41,7 @@ for (const { route, slug } of ROOMS) {
         }
         window.scrollTo(0, 0)
       })
-      await page.waitForLoadState('networkidle')
+      await page.waitForTimeout(800)
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -42,7 +52,7 @@ for (const { route, slug } of ROOMS) {
     })
   }
 
-  test(`${slug} — JS off, readable`, async ({ browser }) => {
+  test(`${slug}, JS off, readable`, async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 768, height: 1000 } })
     const page = await context.newPage()
     await page.goto(route)

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
 
 // The site's base layer: brand fonts, tokens, box-sizing reset and visible
@@ -8,6 +8,12 @@ import '@/styles/globals.css'
 export const metadata: Metadata = {
   title: 'لوحة أنس',
   robots: { index: false, follow: false },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#e0c6ad',
 }
 
 /**

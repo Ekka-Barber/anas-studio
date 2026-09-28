@@ -1,14 +1,17 @@
-/**
- * Placeholder home route for the P00 runtime spike.
- *
- * It is not the home page: the eight room compositions, the licensed
- * typography and the real copy arrive in P01.
- */
-export default function SpikeHomePage() {
-  return (
-    <main>
-      <h1>أنس</h1>
-      <p>هذه صفحة فحص تشغيلية مؤقتة. المحتوى العام لم يُنشر بعد.</p>
-    </main>
-  )
+import { type HomeDoor, HomeView } from '@/components/public/home/HomeView'
+import { ROOM_DOORS } from '@/content/home'
+import { getBuiltRoom, getHome, getPassedRoom, getShelfRoom, getStartedRoom } from '@/lib/content'
+
+/** The home page, built from the published CMS documents at build time (D32). */
+export default async function HomePage() {
+  const [home, started, built, passed, shelf] = await Promise.all([
+    getHome(),
+    getStartedRoom(),
+    getBuiltRoom(),
+    getPassedRoom(),
+    getShelfRoom(),
+  ])
+  const lines = { started: started.tagline, built: built.tagline, passed: passed.tagline, shelf: shelf.tagline }
+  const doors: HomeDoor[] = ROOM_DOORS.map((door) => ({ ...door, roomLine: door.room ? lines[door.room] : undefined }))
+  return <HomeView home={home} doors={doors} />
 }

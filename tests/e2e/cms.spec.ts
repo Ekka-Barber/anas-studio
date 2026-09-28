@@ -8,6 +8,8 @@ import { expect, test } from '@playwright/test'
 
 import { Client } from 'pg'
 
+import { typeset } from '../../src/lib/format'
+
 import { anonClient, createOwner, signInByCode, status, tomorrowRiyadhLocal } from './helpers'
 
 const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. نصّك محفوظ هنا؛ حمّل آخر نسخة ثم أعد التعديل.'
@@ -152,9 +154,21 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   const email = await createOwner('محرر الغرف')
   await signInByCode(page, email)
 
+  // The version live before this test edits anything: the one it restores at
+  // the end (the oldest row can predate the current room fields, D39).
+  const liveAtStart = new Client({ connectionString: status.DB_URL })
+  await liveAtStart.connect()
+  const live = await liveAtStart.query<{ seq: number }>(
+    "select seq from public.published_documents where collection = 'rooms' and doc_id = 'started'",
+  )
+  await liveAtStart.end()
+  const originalSeq = String(live.rows[0]!.seq)
+
   await page.goto('/admin/content/rooms/edit?id=started')
   const heroLine = page.getByLabel('سطر البداية')
   const original = await heroLine.inputValue()
+  // The site typesets Anas's punctuation (D39), so the page shows this form.
+  const originalOnPage = typeset(original)
   expect(original.length).toBeGreaterThan(0)
   const updated = `سطر معدّل ${Date.now()}`
   await heroLine.fill(updated)
@@ -170,10 +184,10 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   await secondItem.getByRole('button', { name: 'أعلى' }).last().click()
   await expect(movementItems.first().locator('input[id$="-year"]')).toHaveValue(secondYear)
 
-  // Hide the third reel (46-kid-picnic-jam), one the page actually shows in
-  // the 2020 film trio.
+  // Hide the second reel (45-animated-pottery-signature), one of the two the
+  // page shows (the five with children stay hidden until consent, D39).
   const reelsGroup = page.getByRole('group', { name: 'المقاطع' })
-  await reelsGroup.getByRole('checkbox', { name: 'إخفاء' }).nth(2).check()
+  await reelsGroup.getByRole('checkbox', { name: 'إخفاء' }).nth(1).check()
 
   await page.getByRole('button', { name: 'حفظ' }).click()
   await expect(page.getByText('تم الحفظ.')).toBeVisible()
@@ -193,7 +207,7 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   const visitorContext = await browser.newContext()
   const visitorPage = await visitorContext.newPage()
   await visitorPage.goto('/started')
-  await expect(visitorPage.getByText(original)).toBeVisible()
+  await expect(visitorPage.getByText(originalOnPage)).toBeVisible()
   await visitorContext.close()
 
   // Publishing asks for a site rebuild (finance.site_builds, read as the
@@ -212,16 +226,21 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   await publishedPage.goto('/started')
   await expect(publishedPage.getByText(updated)).toBeVisible()
   await expect(publishedPage.locator('#year-0-title')).toHaveText(secondYear)
-  // The art moves with its year, and the hidden film is gone while its
-  // two siblings stay.
-  await expect(publishedPage.locator('#year-0 img[src*="started-child-door"]')).toHaveCount(1)
-  await expect(publishedPage.locator('source[src*="46-kid-picnic-jam"]')).toHaveCount(0)
-  await expect(publishedPage.locator('source[src*="47-kid-bisht-honey-jar"]')).toHaveCount(1)
+  // The picture moves with its year (it is the movement's own field), and
+  // the hidden film is gone while its sibling stays.
+  await expect(publishedPage.locator('#year-0 img[src*="31-murady-french-toast-banana"]')).toHaveCount(1)
+  await expect(publishedPage.locator('source[src*="45-animated-pottery-signature"]')).toHaveCount(0)
+  await expect(publishedPage.locator('source[src*="44-animated-kitchen"]')).toHaveCount(1)
   await publishedContext.close()
 
-  // Restore version 1 and publish it: the database is left as found.
+  // Restore the version that was live at the start and publish it: the
+  // database is left as found.
   const historyTable = page.locator('table')
-  await historyTable.locator('tbody tr').last().getByRole('button', { name: 'استعادة' }).click()
+  await historyTable
+    .locator('tbody tr')
+    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
+    .getByRole('button', { name: 'استعادة' })
+    .click()
   await expect(heroLine).toHaveValue(original)
   // The edit was saved, so nothing is offered as unsaved work after the
   // restore (the copy a save removed once came back and was offered here).
@@ -233,7 +252,7 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   const restoredContext = await browser.newContext()
   const restoredPage = await restoredContext.newPage()
   await restoredPage.goto('/started')
-  await expect(restoredPage.getByText(original)).toBeVisible()
+  await expect(restoredPage.getByText(originalOnPage)).toBeVisible()
   await restoredContext.close()
 })
 

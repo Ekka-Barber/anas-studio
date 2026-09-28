@@ -1,3 +1,5 @@
+> **Superseded by D39 (2026-09-28).** The public design is now direction B «أنساق» on Anas's own palette; its reference is `DESIGN.md` at the repository root. This file is kept as the record of the v1 direction.
+
 # P01 design direction: the rooms with Anas's new long texts
 
 Owner decision, 2026-09-23: keep the frozen world, and enhance the layouts so

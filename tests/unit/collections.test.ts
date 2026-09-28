@@ -119,11 +119,25 @@ describe('hideable lists', () => {
     expect(visible).toHaveLength(content.rooms.started.movements.length - 1)
   })
 
-  it('the real fixture has no hidden items to begin with', () => {
+  it('the real fixture hides only films: the five with children and those D39 leaves out', () => {
+    const hidden: string[] = []
     for (const slug of ROOM_SLUGS) {
-      const room = (content.rooms as Record<string, unknown>)[slug]
-      expect(JSON.stringify(room)).not.toContain('"hidden":true')
+      JSON.stringify((content.rooms as Record<string, unknown>)[slug], (_key, value: unknown) => {
+        if (value && typeof value === 'object' && (value as { hidden?: unknown }).hidden === true) {
+          hidden.push((value as { id: string }).id)
+        }
+        return value
+      })
     }
+    const kids = hidden.filter((id) => id.includes('-kid-'))
+    // Guardian consent for the films that show children is pending (PACK-INDEX).
+    expect(kids).toHaveLength(5)
+    expect(hidden.filter((id) => !id.includes('-kid-')).sort()).toEqual([
+      'arm-modern-black-gold-dessert_HD',
+      'arm-modern-layered-drink_HD',
+      'arm-modern-red-drink_HD',
+      'raha-branch-walkthrough',
+    ])
   })
 })
 

@@ -1,0 +1,242 @@
+/* المجلس */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-block-end: clamp(32px, 4vw, 56px);
+  border: var(--border-control) solid var(--line);
+}
+.filter {
+  min-block-size: 48px;
+  padding-inline: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+.filter[aria-pressed='true'] {
+  background: var(--aub);
+  color: var(--sand-50);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 1px;
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  /* Two across at most under the lead post; an odd row ends in a weave cell. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(340px, calc(50% - 1px))), 1fr));
+}
+.weaveCell {
+  min-block-size: 120px;
+  background: url('/brand/weave.svg') 0 0 / var(--edge-weave) var(--edge-weave);
+}
+.lead {
+  grid-column: 1 / -1;
+  display: flex;
+}
+.card {
+  display: flex;
+}
+.cardLink {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .cardLink:hover h2 {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+.cardCover {
+  position: relative;
+  flex: 1 1 280px;
+  min-block-size: 240px;
+  overflow: hidden;
+  background: var(--aub-900);
+}
+.cardCover img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.cardBody {
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: clamp(22px, 2.6vw, 40px);
+}
+.cardTag {
+  align-self: flex-start;
+  padding-block: 4px;
+  padding-inline: 10px;
+  background: var(--action-bg);
+  color: var(--action-fg);
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+
+/* Before the first post. */
+.empty {
+  display: flex;
+  flex-wrap: wrap;
+}
+.emptyPhoto {
+  position: relative;
+  flex: 1 1 380px;
+  min-block-size: clamp(320px, 40vw, 560px);
+  overflow: hidden;
+  background: var(--aub-900);
+}
+.emptyPhoto picture,
+.emptyPhoto img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.emptyText {
+  flex: 1 1 360px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 20px;
+  padding: clamp(32px, 5vw, 80px) var(--gutter);
+}
+.emptyText a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+}
+
+/* ---- One post ------------------------------------------------------------ */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+.crumbs a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .crumbs a:hover {
+    text-decoration: underline;
+  }
+}
+.postTitle {
+  margin-block-start: clamp(12px, 2vw, 24px);
+  font-size: var(--size-post-title);
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-block-start: clamp(16px, 2vw, 28px);
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+.postCover {
+  margin: 0;
+}
+.postCover img {
+  inline-size: auto;
+  max-inline-size: min(100%, 1000px);
+  max-block-size: 75vh;
+  margin-inline: auto;
+}
+
+/* The article's rich text (D14 allowlist: p, h2, h3, quote, lists, links). */
+.prose {
+  max-inline-size: var(--measure-article);
+  font-size: var(--size-read);
+  line-height: 2.1;
+  text-wrap: pretty;
+}
+.prose > * + * {
+  margin-block-start: 1.25em;
+}
+.prose h2,
+.prose h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.4;
+}
+.prose h2 {
+  margin-block-start: 1.6em;
+  font-size: var(--size-display);
+}
+.prose h3 {
+  margin-block-start: 1.4em;
+  font-size: var(--size-h3);
+}
+.prose blockquote {
+  margin-inline: 0;
+  padding-inline-start: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-display);
+  line-height: 1.55;
+}
+.prose ul,
+.prose ol {
+  padding-inline-start: 1.4em;
+}
+.prose a {
+  text-decoration-thickness: 1px;
+}
+.prose strong {
+  font-weight: 700;
+}
+.postSign {
+  margin-block-start: 2em;
+}
+
+/* A thin coral bar at the top that fills as you read, where the browser
+   has scroll timelines; nothing otherwise. */
+.progress {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .progress {
+      display: block;
+      position: fixed;
+      inset-block-start: 0;
+      inset-inline: 0;
+      z-index: var(--z-progress);
+      block-size: 6px;
+      background: var(--coral);
+      transform-origin: 100% 50%;
+      animation: read-progress linear both;
+      animation-timeline: scroll(root);
+    }
+  }
+}
+@keyframes read-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}

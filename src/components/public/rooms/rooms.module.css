@@ -1,0 +1,76 @@
+/* Shared by the four rooms (D39, direction B). */
+
+/* The opening line under a room's title band. */
+.opening {
+  max-inline-size: 16em;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-opening);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.yearBand {
+  padding-inline: var(--gutter);
+  padding-block: clamp(8px, 1.4vw, 20px) clamp(16px, 2vw, 28px);
+}
+.labelBand {
+  padding-inline: var(--gutter);
+  padding-block: clamp(20px, 3vw, 48px);
+}
+
+.films {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-tight);
+}
+.films > li {
+  flex: 1 1 280px;
+  max-inline-size: 560px;
+}
+
+.signature {
+  margin-block-start: 1.6em;
+}
+.closingLine {
+  margin-block-start: 1em;
+}
+
+/* The store teaser at the end of بدأتُ من هنا. */
+.shopHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+}
+.boutiqueDoor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 40px;
+  padding: clamp(28px, 4vw, 56px);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .boutiqueDoor:hover .boutiqueName > :first-child {
+    text-decoration: underline;
+  }
+}
+.boutiqueLine {
+  line-height: 1.15;
+}
+.boutiqueName {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* A line on its own band, kept to a readable width. */
+.bandLine {
+  max-inline-size: 13em;
+}

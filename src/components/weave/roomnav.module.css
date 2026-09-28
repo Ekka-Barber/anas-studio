@@ -1,0 +1,35 @@
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.door {
+  flex: 1 1 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: clamp(28px, 3.4vw, 52px);
+  padding-inline: var(--gutter);
+  text-decoration: none;
+}
+.next {
+  align-items: flex-end;
+}
+
+.kicker {
+  display: block;
+}
+
+.name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-card);
+  line-height: 1.3;
+}
+@media (hover: hover) {
+  .door:hover .name {
+    text-decoration: underline;
+    text-underline-offset: 0.25em;
+    text-decoration-thickness: 2px;
+  }
+}

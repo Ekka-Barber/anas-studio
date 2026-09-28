@@ -1,0 +1,249 @@
+/* المَشاهد */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-block-start: clamp(24px, 3vw, 40px);
+  border: var(--border-control) solid var(--line);
+}
+.filter {
+  min-block-size: 48px;
+  padding-inline: 18px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+.filter[aria-pressed='true'] {
+  background: var(--aub);
+  color: var(--sand-50);
+}
+@media (hover: hover) {
+  .filter:hover {
+    text-decoration: underline;
+  }
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(50%, 260px), 1fr));
+  grid-auto-flow: dense;
+  min-block-size: 50vh;
+  /* A row that does not fill shows the weave, as B's lattices end. */
+  background: url('/brand/weave.svg') 0 0 / var(--edge-weave) var(--edge-weave);
+}
+.tile {
+  position: relative;
+}
+.wide {
+  grid-column: span 2;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tile {
+    animation: tile-in 700ms var(--ease-weave) calc(var(--i, 0) * 45ms) backwards;
+  }
+}
+:root[data-seen] .tile {
+  animation: none;
+}
+@keyframes tile-in {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+
+.open {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--aub-900);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+/* The ring sits over the photograph, so it is two-tone: saffron framed in
+   aub-900, drawn on a layer above the image (a box-shadow on the button
+   would paint under its <img>). */
+.open:focus-visible {
+  outline: none;
+}
+.open:focus-visible::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 9px solid var(--aub-900);
+  outline: 3px solid var(--saffron);
+  outline-offset: -6px;
+  pointer-events: none;
+}
+.open img {
+  inline-size: 100%;
+  block-size: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+.wide .open img {
+  aspect-ratio: 2 / 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .open img {
+    transition: transform var(--dur-ui) var(--ease-out);
+  }
+  @media (hover: hover) {
+    .open:hover img {
+      transform: scale(1.04);
+    }
+  }
+}
+.tileTag {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  padding-block: 6px;
+  padding-inline: 10px;
+  background: var(--aub);
+  color: var(--sand-50);
+  font-size: var(--size-label);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+/* ---- The lightbox -------------------------------------------------------- */
+.viewer {
+  position: fixed;
+  inset: 0;
+  inline-size: 100%;
+  max-inline-size: none;
+  block-size: 100%;
+  max-block-size: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  z-index: var(--z-lightbox);
+}
+.viewer[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.viewer::backdrop {
+  background: var(--aub-900);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .viewer[open] {
+    animation: viewer-in var(--dur-ui) var(--ease-weave);
+  }
+}
+@keyframes viewer-in {
+  from {
+    clip-path: inset(100% 0 0 0);
+  }
+}
+
+.viewerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: var(--header-h);
+  padding-inline: var(--gutter);
+}
+.close {
+  min-block-size: 48px;
+  padding-inline: 20px;
+  border: 0;
+  font-size: var(--size-small);
+  font-weight: 700;
+}
+@media (hover: hover) {
+  .close:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.35em;
+  }
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-block-size: 0;
+  padding-inline: clamp(12px, 6vw, 96px);
+}
+.photo {
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  inline-size: auto;
+  block-size: auto;
+  object-fit: contain;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .photo[data-direction='1'] {
+    animation: photo-next var(--dur-ui) var(--ease-out);
+  }
+  .photo[data-direction='-1'] {
+    animation: photo-prev var(--dur-ui) var(--ease-out);
+  }
+}
+@keyframes photo-next {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+@keyframes photo-prev {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+}
+
+.stepButton {
+  position: absolute;
+  inset-block: 0;
+  inline-size: clamp(48px, 6vw, 96px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--sand-50);
+  font-size: var(--size-h3);
+}
+@media (hover: hover) {
+  .stepButton:hover {
+    background: color-mix(in srgb, var(--aub-900) 60%, transparent);
+  }
+}
+.prev {
+  inset-inline-start: 0;
+}
+.next {
+  inset-inline-end: 0;
+}
+
+.viewerFoot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 20px;
+  padding-inline: var(--gutter);
+  padding-block: 16px 22px;
+}
+.caption {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-line);
+  line-height: 1.5;
+}
+.category {
+  padding-block: 4px;
+  padding-inline: 10px;
+  font-size: var(--size-label);
+  font-weight: 700;
+}

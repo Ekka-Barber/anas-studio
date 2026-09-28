@@ -1,11 +1,10 @@
-import { ComingSoon } from '@/components/public/ComingSoon'
+import type { Metadata } from 'next'
 
-/** كُتبت هنا — the physical book reader. Built in a later package (P02); this route exists so the nav link is real, not a 404. */
+import { BookView } from '@/components/public/book/BookView'
+
+export const metadata: Metadata = { title: 'كتبتُ هنا: خوص | حكايات شارع 4' }
+
+/** كتبتُ هنا (D39). The page-turning reader arrives with P02. */
 export default function BookPage() {
-  return (
-    <ComingSoon
-      title="كُتبت هنا"
-      note="هذه الغرفة قيد الإعداد ولم تُنشر بعد. تجربة الكتاب وقراءته ستصل في مرحلة لاحقة من الموقع."
-    />
-  )
+  return <BookView />
 }

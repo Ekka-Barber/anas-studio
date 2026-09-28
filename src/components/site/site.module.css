@@ -1,167 +1,220 @@
+/* ---- Header -------------------------------------------------------------- */
 .header {
   position: sticky;
   inset-block-start: 0;
-  z-index: 50;
+  z-index: var(--z-header);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .header {
+    transition: transform var(--dur-ui) var(--ease-weave);
+  }
+}
+.header[data-hidden='true'] {
+  transform: translateY(-100%);
+}
+
+.bar,
+.menuBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-block: 18px;
-  padding-inline: 24px;
-  background: color-mix(in srgb, var(--color-paper) 92%, transparent);
-  border-block-end: 1px solid var(--color-hairline);
-  backdrop-filter: blur(12px);
-}
-@media (min-width: 768px) {
-  .header {
-    padding-inline: 56px;
-  }
+  gap: 20px;
+  min-block-size: var(--header-h);
+  padding-inline: var(--gutter);
 }
 
-.wordmark {
+.brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
+  min-block-size: var(--tap);
   text-decoration: none;
-  color: var(--color-ink);
 }
-.wordmarkName {
+.brandName {
   font-family: var(--font-display);
-  font-size: 21px;
+  font-weight: 500;
+  font-size: var(--size-brand);
   line-height: 1;
 }
-.wordmarkDomain {
-  font-size: 11px;
-  color: var(--color-muted);
-  letter-spacing: 1px;
+.brandDomain {
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--muted);
 }
 
-/* Desktop inline nav row: full horizontal nav at >=1024 (frozen design, audit
-   fix 3); the dialog-based menu below is «القائمة» only, below 1024. */
-.navDesktop {
+.inline {
   display: none;
   align-items: center;
-  gap: 22px;
-  font-size: 14px;
+  gap: 2px;
 }
-@media (min-width: 1024px) {
-  .navDesktop {
-    display: flex;
+.link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: var(--tap);
+  padding-inline: 10px;
+  font-size: var(--size-label);
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .link:hover {
+    text-decoration: underline;
   }
 }
-
-.navLink,
-.navLinkActive {
-  text-decoration: none;
-  color: var(--color-muted-strong);
-  padding-block-end: 3px;
-  border-block-end: 1px solid transparent;
-  white-space: nowrap;
-}
-.navLinkActive {
-  color: var(--room-jewel, var(--color-forest));
-  font-weight: 500;
-  border-block-end-color: var(--color-brass);
+/* The room you are in: B's "you are here" triangle, in the link's own ink
+   (coral on sand is 2.1:1, below the 3:1 a state cue needs). */
+.here {
+  inline-size: 12px;
+  block-size: 10px;
+  background: currentColor;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
 
 .menuButton {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: none;
-  border: 1px solid var(--color-hairline);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 14px;
-  padding: 9px 16px;
-  cursor: pointer;
+  gap: 12px;
+  min-block-size: 48px;
+  padding-inline: 18px;
+  margin-inline-end: calc(var(--gutter) * -1 + 8px);
+  border: 0;
+  font: 700 var(--size-small) var(--font-body);
 }
+.menuButton > span {
+  inline-size: 18px;
+  background-size: 9px 12px;
+}
+
 @media (min-width: 1024px) {
+  .inline {
+    display: flex;
+  }
   .menuButton {
     display: none;
   }
 }
 
-.menuDialog {
-  border: none;
-  padding: 0;
+/* ---- Menu: a full-screen stack of woven bands ------------------------------ */
+.menu {
+  position: fixed;
   inset: 0;
+  inline-size: 100%;
+  max-inline-size: none;
+  block-size: 100%;
+  max-block-size: none;
   margin: 0;
-  max-width: 100%;
-  max-height: 100%;
-  width: 100%;
-  height: 100%;
-  background: var(--color-paper);
+  padding: 0;
+  border: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: var(--z-menu);
 }
-.menuDialog::backdrop {
-  background: rgba(28, 26, 23, 0.4);
-}
-.menuInner {
+.menu[open] {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
-  padding: 20px 24px 40px;
 }
-.menuTop {
-  display: flex;
-  justify-content: flex-end;
-}
-.closeButton {
-  background: none;
-  border: 1px solid var(--color-hairline);
-  color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 20px;
-  line-height: 1;
-  width: 40px;
-  height: 40px;
-  cursor: pointer;
-}
-.navMobile {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-block-start: 40px;
-}
-.navMobile a {
-  text-decoration: none;
-  color: var(--color-ink);
-  font-family: var(--font-display);
-  font-size: 28px;
-  padding-block: 14px;
-  border-block-end: 1px solid var(--color-hairline);
-}
-.navMobile a[aria-current='page'] {
-  color: var(--room-jewel, var(--color-forest));
+.menu::backdrop {
+  background: var(--aub);
 }
 
+.closeButton {
+  min-block-size: 48px;
+  padding-inline: 18px;
+  border: 0;
+  font: 700 var(--size-small) var(--font-body);
+}
+
+.menuNav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.menuLink {
+  flex: 1 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: 60px;
+  padding-inline: var(--gutter);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--size-menu);
+  line-height: 1.2;
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .menuButton:hover,
+  .closeButton:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.35em;
+  }
+  .menuLink:hover > span:first-child {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+}
+.menuHere {
+  inline-size: 20px;
+  block-size: 16px;
+  background: currentColor;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .menu[open] .menuLink {
+    animation: menu-weave var(--dur-base) var(--ease-weave) calc(var(--i, 0) * 45ms) backwards;
+  }
+}
+@keyframes menu-weave {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+/* ---- Footer --------------------------------------------------------------- */
 .footer {
-  border-block-start: 1px solid var(--color-brass);
-  padding: 72px 24px 48px;
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding-inline: var(--gutter);
+  padding-block: clamp(64px, 8vw, 120px) 24px;
 }
-.footerPoem {
-  margin: 0 auto;
-  max-width: 800px;
+.poem {
+  max-inline-size: 20em;
   font-family: var(--font-display);
-  font-size: 20px;
-  line-height: 2;
-  color: var(--color-ink);
+  font-weight: 500;
+  font-size: var(--size-lead);
+  /* Arabic lines below 28px need 1.6 (44.8px at 28px). */
+  line-height: max(1.55em, 44.8px);
+  text-wrap: pretty;
 }
-.footerPoem span {
-  display: block;
-  color: var(--color-forest);
+.footerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font-size: var(--size-label);
+  font-weight: 700;
+  color: var(--muted);
 }
-.footerSignature {
-  margin-block-start: 32px;
-  font-family: var(--font-display);
-  font-size: 26px;
-  color: var(--color-oud);
-  opacity: 0.6;
-  transform: rotate(-4deg);
+.footerLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
 }
-.footerDomain {
-  margin-block-start: 20px;
-  font-size: 11px;
-  color: var(--color-muted);
-  letter-spacing: 2px;
+.footerLinks a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--tap);
+  min-inline-size: var(--tap);
+  text-decoration: none;
+}
+@media (hover: hover) {
+  .footerLinks a:hover {
+    text-decoration: underline;
+  }
 }

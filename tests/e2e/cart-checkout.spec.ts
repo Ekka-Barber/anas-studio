@@ -289,7 +289,7 @@ test('with checkout on: order, hold message, kept cart and cancel', async ({ pag
   await expect(totalRow(page, 'الإجمالي')).toContainText('70.90 ر.س')
   const email = `buyer-${marker}-full@example.com`
   await fillCheckout(page, email)
-  // The always-pass test widget solves itself; submission opens with the token.
+  // The always-pass test widget solves itself; a press before it has waits for its token.
   const submit = page.getByRole('button', { name: 'تأكيد الطلب' })
   await expect(submit).toBeEnabled()
   await submit.click()

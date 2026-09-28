@@ -4,7 +4,9 @@ This walks the entire supplied design law, including repeated tells, premium tec
 
 Codes: **F** = explicit frozen identity overrides the generic stylistic ban; reproduce carefully, not permission to copy into unrelated new screens. **N** = new journal/admin/store/services/board rule. **B** = defect prevention required everywhere, including production port of frozen design. **O** = optional technique, use only when it fits; never a required decoration. The orchestrator must append actual screenshot/interaction evidence for each applicable item during P10/P12. An N/O item absent from output is recorded not applicable, not embellished to satisfy a checklist.
 
-Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and distinct room jewel tones; the Thmanyah family only (D33); literary room hierarchy, signature, approved book world. The book's layout/type/art outside reader is final. Behavior, real prices and accessible visibility are wired without redesign. Original Motion Spec opacity-zero reveals are NOT reproduced as a reliability failure: readable default content wins. Responsive Frames are reference canvases, not production pages to make mobile. New admin screens use the main theme tokens and prioritize clear Arabic editing, functional forms and real data, not a marketing signature pasted into admin.
+**D39 (2026-09-28):** the frozen v1 world below is history. The public design is direction B «أنساق» on Anas's palette (sand #E0C6AD, aubergine #54353B, coral #E1654D, saffron #EFA032 and their shades), specified in `DESIGN.md`; "F" items now mean "B's approved composition". The rest of this checklist applies unchanged; the D39 recheck is at the end.
+
+Former frozen boundaries (v1, superseded by D39): paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and distinct room jewel tones; the Thmanyah family only (D33); literary room hierarchy, signature, approved book world. The book's layout/type/art outside reader is final. Behavior, real prices and accessible visibility are wired without redesign. Original Motion Spec opacity-zero reveals are NOT reproduced as a reliability failure: readable default content wins. Responsive Frames are reference canvases, not production pages to make mobile. New admin screens use the main theme tokens and prioritize clear Arabic editing, functional forms and real data, not a marketing signature pasted into admin.
 
 ## Every anti-slop tell
 
@@ -171,3 +173,33 @@ Frozen boundaries: paper #F4ECE0, sand #E7D8C3, ink #1C1A17, forest #234A30 and 
 149. [B] Dead-looking failure: navigation and actions respond; calm is allowed, broken/static controls are not.
 
 Planning conclusion: explicit frozen exceptions are documented rather than silently redesigned; every behavioral defect category has a real P10/P12 inspection/test gate. No claim that unbuilt UI passed visual QA.
+
+## D39 recheck: direction B in the product (2026-09-28)
+
+Evidence: `artifacts/acceptance/DESIGN-B/` (commands and results in `commands.txt`, every public page at 360/768/1024/1440 and at 768 without JavaScript in `screenshots/`). Items not listed stay as planned for P10.
+
+| Items | Result |
+|---|---|
+| 1, 6, 51, 99, 104 | No icon pack. Arrows are the text glyphs «←»/«→»; the triangles and the weave are Anas's own marks, used as brand, never as filler. |
+| 2 | No em dash in product copy (the 404 title changed); Anas's own texts keep his punctuation. |
+| 3, 90, 94 | No eyebrow pills. Tags carry a real status («قريباً 2027», «قيد التصنيع») or a category. |
+| 8, 25, 39, 57, 64, 65, 101 | No glow, halo, glass or blob anywhere. |
+| 12, 13, 30 | No gradients: conic gradients draw only hard-edged triangles. |
+| 22, 40, 119 | No page grid. |
+| 33, 71 | No countdowns or live pulses. |
+| 34, 70, 107 | No hover lift or boop: underline on hover, a 1px press on buttons. |
+| 41, 42, 118, 121 | Everything is visible by default. Entrances are CSS animations that always finish; reveals hold only what is below the fold. The motion-on scroll check found 0 held elements on 10 pages at 1440 and 390 (`stuck.mjs`). Reduced motion turns every animation off. |
+| 43, 45, 59, 60 | No clipped glyph or overflow at 360, 768, 1024 or 1440 (visual e2e, 0px overflow on every page). The gutters are consistent. |
+| 46, 50, 55 | One depth only: the book stands on a solid, directional offset block. No halos. |
+| 54, 75 | Photos and films sit on aubergine-900 frames; bands meet at a triangle or weave edge, never a raw seam. |
+| 56 | Contrast measured per tone (DESIGN.md §1). Coral text only at display size on aubergine (3.2:1); errors coral-deep (4.9:1); admin field borders 4.8:1. |
+| 58, 129 | The current room is marked with `aria-current` plus B's coral triangle (the design's own "you are here"). The menu is a native modal dialog: focus is trapped, Escape closes it and focus returns (e2e). |
+| 66 | The home's first screen is the name bands and the portrait. |
+| 67 | The sand page is Anas's palette (identity), not a default cream. |
+| 95, 149 | No dead controls. The menu, the scenes filter and lightbox (keyboard and swipe), films, the book's contents and the contact form are exercised in e2e. Forms without a backend (availability, booking) and the reader are not shown. |
+| 98 | The footer is Anas's closing line and signature. |
+| 105 | The labels are short («ادخل ←», «اطلب جلسة», «أرسل»); errors say what is missing. |
+| 111, 127 | Thmanyah only, the medium serif and bold sans preloaded. |
+| 123, 144 | The signature artifact is the Khous book in cover B and standing B. The photographs are Anas's own; there is no stock. |
+| 126, 130 | Truthful states: a section waiting for material is omitted, prices are «يُعلن قريباً», and there are no placeholders (e2e checks the placeholder wording). |
+| 137 | «←» is forward in RTL throughout; «→» is back. |

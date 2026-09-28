@@ -1,0 +1,72 @@
+/* A row of triangles: each tile (twice as wide as it is tall) holds one
+   triangle whose apex touches the top edge and whose base sits on the band
+   below. The conic gradient draws it without an image. Tiles start from the
+   right, the reading start, so any partial tile falls on the left. */
+.crenel {
+  --edge-h: var(--edge-crenel);
+  flex: none;
+  block-size: var(--edge-h);
+  background: conic-gradient(from 135deg at 50% 0, var(--edge-fg) 90deg, var(--edge-on, transparent) 0) 100% 0 /
+    calc(var(--edge-h) * 2) var(--edge-h) repeat-x;
+}
+.sm {
+  --edge-h: var(--edge-crenel-sm);
+}
+.md {
+  --edge-h: var(--edge-crenel);
+}
+/* Square tiles, as under the ذرى title. */
+.lg {
+  --edge-h: 26px;
+  background-size: var(--edge-h) var(--edge-h);
+}
+
+.crenel[data-color='sand'] {
+  --edge-fg: var(--sand);
+}
+.crenel[data-color='paper'] {
+  --edge-fg: var(--sand-50);
+}
+.crenel[data-color='aub'] {
+  --edge-fg: var(--aub);
+}
+.crenel[data-color='night'] {
+  --edge-fg: var(--aub-800);
+}
+.crenel[data-color='deep'] {
+  --edge-fg: var(--aub-900);
+}
+.crenel[data-color='coral'] {
+  --edge-fg: var(--coral);
+}
+.crenel[data-color='saffron'] {
+  --edge-fg: var(--saffron);
+}
+.crenel[data-on='sand'] {
+  --edge-on: var(--sand);
+}
+.crenel[data-on='paper'] {
+  --edge-on: var(--sand-50);
+}
+.crenel[data-on='aub'] {
+  --edge-on: var(--aub);
+}
+.crenel[data-on='coral'] {
+  --edge-on: var(--coral);
+}
+.crenel[data-on='saffron'] {
+  --edge-on: var(--saffron);
+}
+
+.weave {
+  flex: none;
+  block-size: var(--edge-weave);
+  background: url('/brand/weave.svg') 100% 0 / var(--edge-weave) var(--edge-weave) repeat-x;
+}
+
+@media print {
+  .crenel,
+  .weave {
+    display: none;
+  }
+}
