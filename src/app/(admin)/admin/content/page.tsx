@@ -4,7 +4,7 @@ import { COLLECTION_LABELS } from '@/admin/collections'
 import { AdminShell } from '@/components/admin/AdminShell'
 import styles from '@/components/admin/admin.module.css'
 
-/** `/admin/content`: the four collections (P04 part 2). */
+/** `/admin/content`: the content collections (`COLLECTION_LABELS`). */
 export default function ContentHomePage() {
   return (
     <AdminShell>

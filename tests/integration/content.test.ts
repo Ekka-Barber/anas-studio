@@ -28,6 +28,11 @@ describe('published-content loaders match the imported fixture', () => {
     expect(await getHome()).toEqual(content.home)
   })
 
+  it('getSocial', async () => {
+    const { getSocial } = await import('../../src/lib/content')
+    expect(await getSocial()).toEqual(content.social)
+  })
+
   it('getStartedRoom', async () => {
     // The loader drops items hidden in the admin (D39 hides the films still
     // waiting for consent or not in the design), exactly like shapeStartedRoom.
@@ -52,6 +57,11 @@ describe('published-content loaders match the imported fixture', () => {
   it('getShelfRoom', async () => {
     const { getShelfRoom } = await import('../../src/lib/content')
     expect(await getShelfRoom()).toEqual(content.rooms.shelf)
+  })
+
+  it('getScenes', async () => {
+    const { getScenes } = await import('../../src/lib/content')
+    expect(await getScenes()).toEqual(content.scenes)
   })
 })
 

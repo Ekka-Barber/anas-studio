@@ -53,6 +53,28 @@
     "introAddition": "انشاء المشاريع من الصفر في قطاع الأغذية وتطويرها",
     "statement": "بعض الناس يبنون مشاريع…وبعضهم يبنون أثراً يعيش داخلها"
   },
+  "social": [
+    {
+      "network": "إنستغرام",
+      "handle": "@anasa.aq",
+      "href": "https://www.instagram.com/anasa.aq"
+    },
+    {
+      "network": "تيك توك",
+      "handle": "@anasa.aq",
+      "href": "https://www.tiktok.com/@anasa.aq"
+    },
+    {
+      "network": "إكس",
+      "handle": "@anasa.aq",
+      "href": "https://x.com/anasa.aq"
+    },
+    {
+      "network": "سناب شات",
+      "handle": "anasa.aq",
+      "href": "https://www.snapchat.com/add/anasa.aq"
+    }
+  ],
   "rooms": {
     "started": {
       "slug": "started",
@@ -585,5 +607,102 @@
         }
       }
     }
-  }
+  },
+  "scenes": [
+    {
+      "image": "street4-street-sign",
+      "category": "أماكن",
+      "caption": "لوحة شارع رقم 4، تبوك"
+    },
+    {
+      "image": "raha-drone-opening_landscape-poster",
+      "category": "أماكن",
+      "caption": "افتتاح رحى المكان"
+    },
+    {
+      "image": "thura-70",
+      "category": "منتجات",
+      "caption": "ذرى"
+    },
+    {
+      "image": "raha-coffee-roasting_HD-poster",
+      "category": "خلف الكواليس",
+      "caption": "تحميص القهوة في رحى"
+    },
+    {
+      "image": "street4-majlis",
+      "category": "أماكن",
+      "caption": "مجلس البيت"
+    },
+    {
+      "image": "factory-yellow-mug_upscaled",
+      "category": "خلف الكواليس",
+      "caption": "كوب ضوء القمر في المصنع"
+    },
+    {
+      "image": "raha-poster-orange",
+      "category": "مشاريع",
+      "caption": "دعوة من رحى المكان"
+    },
+    {
+      "image": "khous-standing-b",
+      "category": "منتجات",
+      "caption": "خوص | حكايات شارع 4"
+    },
+    {
+      "image": "street4-school-gate",
+      "category": "أماكن",
+      "caption": "بوابة المدرسة"
+    },
+    {
+      "image": "26-murady-cake-and-coffee",
+      "category": "مشاريع",
+      "caption": "مرادي"
+    },
+    {
+      "image": "thura-81",
+      "category": "منتجات",
+      "caption": "ذرى"
+    },
+    {
+      "image": "factory-mug-inside_original-ONLY",
+      "category": "خلف الكواليس",
+      "caption": "توقيع أنس في قاع الكوب"
+    },
+    {
+      "image": "raha-drone-branch_vertical-poster",
+      "category": "أماكن",
+      "caption": "فرع من فروع رحى"
+    },
+    {
+      "image": "32-arm-brownie-bites",
+      "category": "مشاريع",
+      "caption": "ارم"
+    },
+    {
+      "image": "render-83",
+      "category": "منتجات",
+      "caption": "رسم كوب ضوء القمر"
+    },
+    {
+      "image": "street4-closed-door",
+      "category": "أماكن",
+      "caption": "باب من الحي"
+    },
+    {
+      "image": "31-murady-french-toast-banana",
+      "category": "مشاريع",
+      "caption": "مرادي"
+    },
+    {
+      "image": "thura-77",
+      "category": "منتجات",
+      "caption": "ذرى بورق الذهب"
+    },
+    {
+      "image": "raha-reel-community-poster",
+      "category": "أماكن",
+      "caption": "الحي حول رحى"
+    }
+  ]
 }

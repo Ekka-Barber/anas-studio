@@ -13,8 +13,8 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 // an accepted package's report; an acceptance run names its package
 // (ACCEPTANCE_PACKAGE=P06) to keep the report under artifacts/acceptance/P06/.
 const acceptancePackage = process.env.ACCEPTANCE_PACKAGE
-if (acceptancePackage && !/^P\d{2}$/.test(acceptancePackage)) {
-  throw new Error(`ACCEPTANCE_PACKAGE must look like P06, got "${acceptancePackage}"`)
+if (acceptancePackage && !/^(P\d{2}|[A-Z]+-\d+)$/.test(acceptancePackage)) {
+  throw new Error(`ACCEPTANCE_PACKAGE must look like P06 or CLEANUP-1, got "${acceptancePackage}"`)
 }
 const runDir = acceptancePackage ? `./artifacts/acceptance/${acceptancePackage}` : './test-results'
 

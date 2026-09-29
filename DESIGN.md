@@ -181,19 +181,22 @@ Anas edits his words in the admin. The composition (which picture goes where, th
   - `pullLines` («أسطر كبيرة») names the paragraphs set large, and `bandLines` («أسطر على شريط ملوّن») the paragraphs that break out as a full-width band. Each must repeat a paragraph exactly; a unit test checks the content does;
   - in بدأتُ من هنا, a movement's `films` («تظهر المقاطع هنا») places the family films after its first large line, and each movement's `vignette` is the picture beside its text;
   - a hidden film or picture disappears from the page. The five films that show children stay hidden until their guardians agree.
-- Site settings: the navigation, the footer's closing line, and the home page (his name, portrait, tagline, intro, the addition and the big statement).
+  - Anas's projects are items of these documents, not pages of their own (D40): Raha's stages in بنيتُ هنا, the brand wall and product gallery in مررتُ من هنا, the ideas in على الرف. What each room lets the admin add, order and hide, and what stays fixed in its composition, is listed in D40 (`PLANS/DECISIONS.md`).
+- Scenes (`/admin/content`, «المَشاهد», one document `gallery`): each photo is an image, one of Anas's five categories, and a caption that is also the tile's accessible name («تكبير: …»). The list is ordered, and a photo can be hidden. Hiding only takes a photo off the page: the published document still carries it, so a photo without rights is deleted from the list, not hidden. A category with no visible photo is not offered as a filter.
+- Site settings: the navigation, the footer's closing line, the social links («روابط التواصل»: the footer shows the first, the contact page all of them), and the home page (his name, portrait, tagline, intro, the addition and the big statement).
 - Journal posts and their categories: the posts collection.
 - Not in the CMS yet, in `src/content/`:
   - `book.ts`: the book page, from his manuscript;
   - `contact.ts`: the services;
-  - `scenes.ts`: the gallery and its categories;
+  - `scenes.ts`: the five scene categories, Anas's own list, fixed in code (the photos are in the CMS);
   - `home.ts`: the doors' order and short facts;
-  - `site.ts`: his social handles;
+  - `site.ts`: the room order for the room doors on the 404 page;
   - `media-notes.ts`: alt text and captions for pictures stored as a bare id.
 
 ## 8. Truthful states
 
 - A section waiting for Anas's material is left out, never shown as a placeholder: the book's characters, the sketches, the 2013 photo.
+- Content not yet published shows nothing, not an old copy: with no social links the footer has no handle, and /contact lists only the WhatsApp tile, or no channels at all when WhatsApp is not set either; with no published gallery, /scenes says «لا توجد مَشاهد بعد.».
 - A form whose backend does not exist yet is not shown:
   - the availability sign-ups arrive with P08;
   - session booking arrives with P09 (a service's «اطلب جلسة» fills the contact form instead).

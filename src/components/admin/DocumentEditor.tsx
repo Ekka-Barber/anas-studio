@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 
-import { POLICY_DOC_IDS, roomSchemas, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
+import { POLICY_DOC_IDS, roomSchemas, SCENES_DOC_ID, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
 
 import { CollectionForm } from './CollectionForm'
 import styles from './admin.module.css'
@@ -14,6 +14,7 @@ function isValidDocId(collection: Collection, docId: string): boolean {
   if (collection === 'rooms') return docId in roomSchemas
   if (collection === 'site_settings') return docId === SITE_SETTINGS_DOC_ID
   if (collection === 'policies') return (POLICY_DOC_IDS as readonly string[]).includes(docId)
+  if (collection === 'scenes') return docId === SCENES_DOC_ID
   if (collection === 'posts') return UUID_PATTERN.test(docId)
   return SLUG_PATTERN.test(docId)
 }

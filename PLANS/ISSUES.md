@@ -72,11 +72,16 @@ Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whos
 
 ## I40: launch check, no demo rows and Anas's own policy text
 
+**Status (2026-09-29, CLEANUP-1):** the build check exists. `pnpm check:export` (`scripts/lib/demo-guard.mjs`) finds the Supabase origin baked into the export and fails when any page's visible text shows «تجريبي» in a build against a non-loopback Supabase, naming the pages and never a key; a loopback build passes with a one-line note. Still open for P11: the Pages build command must be `pnpm build && pnpm check:export` (or the deploy must gate on it) for the check to block a real deploy; confirm the production database has no `demo` rows (a demo row edited until its text no longer says «تجريبي» is invisible to the check); every published policy is Anas's approved text. Known false positive: the check matches the plain word «تجريبي», so real content that shows it on a page (for example «مشروع تجريبي») fails a hosted build; narrowing it to the seed's exact markers is the owner's choice. Evidence: `artifacts/acceptance/CLEANUP-1/w1.md`, `audit-w1.json`.
+
 **Package:** P11 (launch), from the DESIGN-B tasmeem audit (2026-09-28, FINDINGS row 4, CP-08). The audited build showed «نص تجريبي يكتبه أنس ويعتمده قبل فتح المتجر.» on `/policies/store`, `/policies/delivery` and `/policies/refund`, and demo products labelled «(تجريبي)». Both come from the loopback-only demo seed (`scripts/seed-demo-catalog.mjs`, D37), not from the source. Before launch: confirm the production database has no `demo` rows, and that every published policy is Anas's approved text. A build check that fails on demo rows outside loopback would enforce it.
+
+## I41: the hosted content bootstrap must carry the social links and the scenes
+
+**Package:** P11 (hosted setup), from CLEANUP-1 (2026-09-29). `pnpm db:import` runs only against a loopback database, and the hosted project has neither `site_settings.social` (C09) nor a published `scenes/gallery` (C05). The pages stay truthful without them: the footer shows no handle, /contact no social tiles, and /scenes says «لا توجد مَشاهد بعد.». Before the first hosted build, the hosted `site_settings/site` needs the four `social` entries and the hosted `scenes/gallery` the 19 photos from `content/initial-content.json`, through the P11 content bootstrap or the owner in the admin; the migration `20260929120000_scenes_collection.sql` must be applied first. Check after the first hosted build that `/contact` shows the four tiles and `/scenes` its photos.
 
 ## Small UI items for when design reopens
 
-- No favicon, so every page logs one 404 for `/favicon.ico`.
 - `src/app/(public)/error.tsx` styles its button inline instead of through the CSS Module.
 
 ## Closed
@@ -95,3 +100,4 @@ Found while tracing (2026-09-27): `outbox_kick()` counts an `uncertain` row whos
 - I03 — unit tests for the environment and secret guards: `tests/unit/env.test.ts` (P00 D29 swap).
 - I27 — unmatched URLs showed Next's English 404: `src/app/global-not-found.tsx` renders the Arabic page with status 404 (P00 D29 swap).
 - R01 — the migration connection now uses the session endpoint on 5432.
+- Favicon (small UI item from I27) — `src/app/icon.svg`, `src/app/apple-icon.png` and `public/favicon.ico` (CLEANUP-1, 2026-09-29); the pages no longer log a 404 for `/favicon.ico` (`artifacts/acceptance/CLEANUP-1/commands.txt`).

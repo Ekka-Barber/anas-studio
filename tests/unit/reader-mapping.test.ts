@@ -156,6 +156,7 @@ describe('fixLigatures', () => {
 })
 
 describe('the real preview, read by pdf.js', () => {
+  // Parsing the real PDF takes close to 5 s when the whole suite runs in parallel.
   it('comes out in reading order once the ligatures are put back', async () => {
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
     const data = new Uint8Array(readFileSync('public/book/khous-preview.pdf'))
@@ -172,5 +173,5 @@ describe('the real preview, read by pdf.js', () => {
     }
     expect((await (await doc.getPage(1)).getTextContent()).items.length).toBeGreaterThan(0)
     await doc.loadingTask.destroy()
-  })
+  }, 15_000)
 })

@@ -7,13 +7,17 @@
  * - no file contains a server-side secret. The patterns match secret values,
  *   not names (supabase-js itself mentions the `sb_secret_` prefix), and
  *   any JWT found is decoded so a `service_role` token is caught whatever
- *   its signature. Matches are reported by file and kind, never by value.
+ *   its signature. Matches are reported by file and kind, never by value;
+ * - no page shows the local demo catalog in a build against a non-loopback
+ *   Supabase (I40, `scripts/lib/demo-guard.mjs`).
  *
  * Missing build output is a failure, never a pass.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { checkDemoContent } from './lib/demo-guard.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = path.join(repoRoot, 'out')
@@ -46,6 +50,8 @@ const REQUIRED = [
   'admin/content/posts/edit.html',
   'admin/content/site_settings/edit.html',
   'admin/content/taxonomies/edit.html',
+  'admin/content/policies/edit.html',
+  'admin/content/scenes/edit.html',
 ]
 
 // Every public page is Arabic RTL; losing the html attributes would scramble
@@ -84,13 +90,15 @@ function* files(dir) {
   }
 }
 
-const TEXT = /\.(html|txt|js|css|json|map|xml|webmanifest)$|\/_headers$/
+const TEXT = /\.(html|txt|js|css|json|map|xml|webmanifest)$|[\\/]_headers$/
 let scanned = 0
+const built = []
 for (const file of files(outDir)) {
   if (!TEXT.test(file)) continue
   scanned += 1
   const text = readFileSync(file, 'utf8')
   const relative = path.relative(outDir, file)
+  if (/\.(html|js)$/.test(file)) built.push({ path: relative.split(path.sep).join('/'), text })
   for (const [kind, pattern] of SECRET_PATTERNS) {
     if (pattern.test(text)) failures.push(`${relative}: ${kind}`)
   }
@@ -103,6 +111,8 @@ for (const file of files(outDir)) {
     }
   }
 }
+const demo = checkDemoContent(built)
+if (!demo.ok) failures.push(demo.message)
 
 console.log('check:export')
 if (failures.length > 0) {
@@ -110,3 +120,4 @@ if (failures.length > 0) {
   process.exit(1)
 }
 console.log(`  OK ${REQUIRED.length} required files present; ${scanned} text files scanned, no secrets`)
+console.log(`  OK ${demo.message}`)

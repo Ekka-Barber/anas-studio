@@ -108,6 +108,7 @@ export function MfaEnroll() {
     <div>
       <h1>الأمان</h1>
       <p>امسح رمز الاستجابة السريعة بتطبيق المصادقة، أو أدخل الرمز السري يدويًا.</p>
+      {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32); the QR code is a data URL */}
       <img className={styles.qr} src={state.enrollment.qrCode} alt="رمز الاستجابة السريعة لتطبيق المصادقة" />
       <p>
         <span className={styles.secret}>{state.enrollment.secret}</span>

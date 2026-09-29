@@ -10,8 +10,7 @@ import { Lines } from '@/components/weave/Lines'
 import { enter } from '@/components/weave/motion'
 import type { Tone } from '@/components/weave/tones'
 import { CONTACT } from '@/content/contact'
-import { SOCIAL } from '@/content/site'
-import { getContact } from '@/lib/content'
+import { getContact, getSocial } from '@/lib/content'
 import { whatsappLink } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'تواصل' }
@@ -21,11 +20,13 @@ const SERVICE_TONES: Tone[] = ['paper', 'coral', 'paper', 'saffron', 'paper', 'n
 
 /**
  * تواصل (D39): Anas's line on coral, the contact form beside his channels
- * (WhatsApp only when its number is set in the admin), and his consulting
- * services, each of which opens the form with its name.
+ * (WhatsApp only when its number is set in the admin, then his social links
+ * from the admin; no channels, no list), and his consulting services, each
+ * of which opens the form with its name.
  */
 export default async function ContactPage() {
   const contact = await getContact()
+  const social = await getSocial()
   const whatsapp = contact?.whatsapp ? whatsappLink(contact.whatsapp) : null
   return (
     <main id="main">
@@ -42,24 +43,27 @@ export default async function ContactPage() {
 
       <Band tone="sand" pad="l" className={styles.body}>
         <ContactForm />
-        <ul className={styles.channels} aria-label="قنوات التواصل">
-          {whatsapp && (
-            <li>
-              <a href={whatsapp} data-tone="aub" className={`${styles.channel} ${styles.channelMain}`}>
-                <span>واتساب</span>
-                <span aria-hidden="true">←</span>
-              </a>
-            </li>
-          )}
-          {SOCIAL.map((entry, i) => (
-            <li key={entry.network}>
-              <a href={entry.href} data-tone={SOCIAL_TONES[i % SOCIAL_TONES.length]} className={styles.channel}>
-                <span>{entry.network}</span>
-                <span dir="ltr">{entry.handle}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        {(whatsapp || social.length > 0) && (
+          <ul className={styles.channels} aria-label="قنوات التواصل">
+            {whatsapp && (
+              <li>
+                <a href={whatsapp} data-tone="aub" className={`${styles.channel} ${styles.channelMain}`}>
+                  <span>واتساب</span>
+                  <span aria-hidden="true">←</span>
+                </a>
+              </li>
+            )}
+            {/* Index keys: two links may share a network name, and the list never reorders on the page. */}
+            {social.map((entry, i) => (
+              <li key={i}>
+                <a href={entry.href} data-tone={SOCIAL_TONES[i % SOCIAL_TONES.length]} className={styles.channel}>
+                  <span>{entry.network}</span>
+                  <span dir="ltr">{entry.handle}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
       </Band>
 
       <section id="services" aria-labelledby="services-title">

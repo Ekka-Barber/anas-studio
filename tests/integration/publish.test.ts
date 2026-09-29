@@ -174,6 +174,41 @@ describe('archiveDocument', () => {
   })
 })
 
+describe('the scenes collection (C05)', () => {
+  // A throwaway document of the collection, so the live gallery the public
+  // loader reads is never touched; removed afterwards as the superuser.
+  it('is a collection the store knows; the admin publish refuses a category outside Anas’s five and publishes a valid gallery', async () => {
+    const editor = await as('editor')
+    const docId = uniqueSlug('scenes')
+    const photo = { image: 'street4-street-sign', category: 'رحلات', caption: 'اختبار' }
+    try {
+      const bad = await editor
+        .from('content_versions')
+        .insert({ collection: 'scenes', doc_id: docId, seq: 1, data: { items: [{ ...photo, category: 'سفر' }] } })
+      expect(bad.error).toBeNull()
+      const refused = await publishDocument('scenes', docId, 1)
+      expect(refused.ok).toBe(false)
+      if (!refused.ok) expect(refused.error.code).toBe('INVALID')
+      expect(await liveData('scenes', docId)).toEqual([])
+
+      const good = await editor
+        .from('content_versions')
+        .insert({ collection: 'scenes', doc_id: docId, seq: 2, data: { items: [photo] } })
+      expect(good.error).toBeNull()
+      expect(await publishDocument('scenes', docId, 2)).toEqual({ ok: true })
+      expect(await liveData('scenes', docId)).toEqual([{ items: [photo] }])
+
+      // Like the rooms, the gallery stays live: it cannot be archived.
+      const archived = await archiveDocument('scenes', docId)
+      expect(archived.ok).toBe(false)
+      if (!archived.ok) expect(archived.error.code).toBe('INVALID')
+    } finally {
+      await postgres.query('delete from public.published_documents where collection = $1 and doc_id = $2', ['scenes', docId])
+      await postgres.query('delete from public.content_versions where collection = $1 and doc_id = $2', ['scenes', docId])
+    }
+  })
+})
+
 describe('content_versions optimistic concurrency', () => {
   it('a stale seq is refused as a 409-mapped conflict', async () => {
     const editor = await as('editor')

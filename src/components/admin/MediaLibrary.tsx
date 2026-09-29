@@ -72,7 +72,7 @@ function whereUsedLabel(row: WhereUsedRow): string {
     const label = ROOM_DOC_LABELS[row.doc_id as keyof typeof ROOM_DOC_LABELS]
     if (label) return label
   }
-  if (row.collection === 'site_settings') return COLLECTION_LABELS.site_settings
+  if (row.collection === 'site_settings' || row.collection === 'scenes') return COLLECTION_LABELS[row.collection]
   return row.doc_id
 }
 
@@ -189,6 +189,7 @@ export function MediaBrowser({
               aria-pressed={selectedId === row.id}
               onClick={() => onSelect(row)}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32) */}
               <img
                 src={mediaUrl(derivative.key)}
                 alt={row.alt_ar}

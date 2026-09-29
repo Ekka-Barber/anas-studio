@@ -157,10 +157,11 @@ coalescing.
 ### Editing content (P04 part 2)
 
 Signed-in owners and editors see a "المحتوى" link in `/admin`'s nav, leading
-to `/admin/content`: the four collections (`rooms`, `site_settings`, `posts`,
-`taxonomies`). `/admin/content/[collection]` lists its documents — the four
-fixed rooms and the one `site_settings` document always appear even before
-they have been edited; `posts` and `taxonomies` add a "جديد" control that
+to `/admin/content`: the six collections (`rooms`, `site_settings`, `posts`,
+`taxonomies`, `policies`, and `scenes`, whose one document `gallery` holds the
+scenes, C05). `/admin/content/[collection]` lists its documents — the four
+fixed rooms, the one `site_settings` document, the four policies and the `gallery` always appear
+even before they have been edited; `posts` and `taxonomies` add a "جديد" control that
 creates a new document id (a generated uuid for posts, a typed slug for
 taxonomies).
 

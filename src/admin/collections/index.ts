@@ -4,10 +4,11 @@ import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policyFields, policySchema, type Pol
 import { postFields, postSchema } from './posts'
 import { roomSchemas, type RoomSlug } from './rooms'
 import * as rooms from './rooms'
+import { scenesFields, scenesSchema } from './scenes'
 import { siteSettingsFields, siteSettingsSchema } from './site-settings'
 import { taxonomyFields, taxonomySchema } from './taxonomies'
 
-export type Collection = 'site_settings' | 'rooms' | 'posts' | 'taxonomies' | 'policies'
+export type Collection = 'site_settings' | 'rooms' | 'posts' | 'taxonomies' | 'policies' | 'scenes'
 
 /** Field configs per collection, for the admin form (part 2). */
 export const collections = {
@@ -23,6 +24,7 @@ export const collections = {
   posts: { fields: postFields },
   taxonomies: { fields: taxonomyFields },
   policies: { fields: policyFields },
+  scenes: { fields: scenesFields },
 } as const
 
 /** Arabic section labels for `/admin/content` (part 2). */
@@ -32,10 +34,14 @@ export const COLLECTION_LABELS: Record<Collection, string> = {
   posts: 'المقالات',
   taxonomies: 'التصنيفات',
   policies: 'السياسات',
+  scenes: 'المَشاهد',
 }
 
 /** `site_settings` has exactly one document. */
 export const SITE_SETTINGS_DOC_ID = 'site'
+
+/** `scenes` has exactly one document: the gallery (C05). */
+export const SCENES_DOC_ID = 'gallery'
 
 /** Arabic labels for the four fixed room documents. */
 export const ROOM_DOC_LABELS: Record<RoomSlug, string> = {
@@ -61,7 +67,7 @@ export function documentTitle(collection: Collection, docId: string, data: Recor
     const title = typeof data?.title === 'string' ? data.title : null
     return label && title ? `${label}: ${title}` : (title ?? fallback)
   }
-  if (collection === 'site_settings') return COLLECTION_LABELS.site_settings
+  if (collection === 'site_settings' || collection === 'scenes') return COLLECTION_LABELS[collection]
   if (collection === 'posts') {
     const title = data?.title
     return typeof title === 'string' && title ? title : 'بلا عنوان'
@@ -88,6 +94,8 @@ export function schemaFor(collection: Collection, docId: string): z.ZodTypeAny {
       return taxonomySchema
     case 'policies':
       return policySchema
+    case 'scenes':
+      return scenesSchema
   }
 }
 
@@ -96,3 +104,4 @@ export * from './rooms'
 export * from './site-settings'
 export * from './taxonomies'
 export * from './policies'
+export * from './scenes'

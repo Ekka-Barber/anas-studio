@@ -1,5 +1,21 @@
 # Handoff
 
+## CLEANUP-1 + PLAN-GAPS, 2026-09-29
+
+**State.** Committed on `agent/design-b` on the owner's word (2026-09-29: "I authorize the commits"), in two commits (code and docs, then evidence), not pushed; the lock is released. What changed, the gates and what is open: `PLANS/EXECUTION-STATUS.md` "CLEANUP-1 + PLAN-GAPS"; the proof map: `artifacts/acceptance/CLEANUP-1/commands.txt`.
+
+**Local stack.** Every migration applied through `20260929120000_scenes_collection.sql`; the content imported (the live settings, gallery and rooms equal `content/initial-content.json`); the demo catalog seeded. If the functions answer 503, the edge runtime container has exited: `docker start supabase_edge_runtime_ANASAQ.ME` (it had, this session). Never `supabase db reset` or `supabase stop --no-backup` without re-running `pnpm db:import` and `pnpm db:demo-catalog`.
+
+**How this session ran, and why.** The first orchestrator session died twice when `/compact` was sent while a background Workflow ran; Claude Code never answered it. This one used foreground Agent dispatches only (one `opus-worker` or `auditor` at a time, a fresh one per round) and background shell commands with one completion notification. Keep it that way, and write the state into the lock notes before a session gets long instead of compacting.
+
+**Next.**
+1. The owner reviews the package and decides on the push.
+2. P08 under D38 (the list in the 2026-09-27 section below, step 4).
+3. When Anas answers: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40, C19), the services in the CMS.
+4. P11: I40's launch steps and I41 (the hosted content bootstrap needs the social links and the gallery).
+
+---
+
 ## Design session of 2026-09-28: direction B (D39)
 
 Anas picked direction B «أنساق» (cover B, standing mockup B). The orchestrator ported it into the product alone, as the owner asked (no sub-agents, no GLM).

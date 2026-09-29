@@ -2,11 +2,18 @@ import { randomUUID } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { documentTitle, schemaFor } from '../../src/admin/collections'
+import { documentTitle, schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
 import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policySchema } from '../../src/admin/collections/policies'
-import { siteSettingsStoredSchema } from '../../src/admin/collections/site-settings'
+import { SCENE_CAPTION_ERROR, sceneFields, scenesSchema } from '../../src/admin/collections/scenes'
+import {
+  SOCIAL_HANDLE_ERROR,
+  SOCIAL_HREF_ERROR,
+  SOCIAL_NETWORK_ERROR,
+  siteSettingsStoredSchema,
+} from '../../src/admin/collections/site-settings'
 import { tables, type TableKey } from '../../src/admin/tables'
 import { type Field, schemaFromFields } from '../../src/admin/fields'
+import { SCENE_CATEGORIES } from '../../src/content/scenes'
 import content from '../../content/initial-content.json'
 
 const ROOM_SLUGS = ['started', 'built', 'passed', 'shelf'] as const
@@ -105,6 +112,95 @@ describe('schemaFor: rejects malformed data', () => {
     const bad = structuredClone(content.rooms.started) as Record<string, unknown>
     delete bad.roomLabel
     expect(schemaFor('rooms', 'started').safeParse(bad).success).toBe(false)
+  })
+})
+
+describe('site_settings social links (C09)', () => {
+  const link = (href: string, network = 'إكس', handle = '@anasa.aq') => ({ network, handle, href })
+  const withSocial = (social: unknown[]) => ({ ...siteSettingsData, social })
+  const publishMessages = (data: unknown) => {
+    const result = schemaFor('site_settings', 'site').safeParse(data)
+    return result.success ? [] : result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+  }
+
+  it('the published document from before the list (no `social`) still validates', () => {
+    expect('social' in siteSettingsData).toBe(false)
+    expect(publishMessages(siteSettingsData)).toEqual([])
+  })
+
+  it('the four real links pass, in the document the import writes', () => {
+    expect(content.social).toHaveLength(4)
+    expect(publishMessages(withSocial(content.social))).toEqual([])
+  })
+
+  it.each(['http://x.com/anasa.aq', 'javascript:alert(1)', 'data:text/html,hi', '/contact', 'x.com/anasa.aq', ''])(
+    'refuses the link %j at publish',
+    (href) => {
+      expect(publishMessages(withSocial([link('https://x.com/anasa.aq'), link(href)]))).toEqual([
+        `social.1.href: ${SOCIAL_HREF_ERROR}`,
+      ])
+    },
+  )
+
+  it('refuses an empty network or handle at publish', () => {
+    expect(publishMessages(withSocial([link('https://x.com/anasa.aq', ' ', '')]))).toEqual([
+      `social.0.network: ${SOCIAL_NETWORK_ERROR}`,
+      `social.0.handle: ${SOCIAL_HANDLE_ERROR}`,
+    ])
+  })
+
+  it('an empty list is valid, and the stored schema keeps a bad link so no page fails on it', () => {
+    expect(publishMessages(withSocial([]))).toEqual([])
+    expect(siteSettingsStoredSchema.safeParse(withSocial([link('javascript:alert(1)', '', '')])).success).toBe(true)
+  })
+})
+
+describe('the scenes collection (C05)', () => {
+  const photo = (overrides: Record<string, unknown> = {}) => ({ ...content.scenes[0]!, ...overrides })
+  const publishMessages = (data: unknown) => {
+    const result = schemaFor('scenes', SCENES_DOC_ID).safeParse(data)
+    return result.success ? [] : result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+  }
+
+  it('is one fixed document, titled المَشاهد', () => {
+    expect(SCENES_DOC_ID).toBe('gallery')
+    expect(documentTitle('scenes', SCENES_DOC_ID, { items: [] })).toBe('المَشاهد')
+  })
+
+  it('the 19 photos the import writes pass at publish', () => {
+    expect(content.scenes).toHaveLength(19)
+    expect(publishMessages({ items: content.scenes })).toEqual([])
+  })
+
+  it('offers exactly Anas’s five categories, and publish refuses any other', () => {
+    expect(sceneFields.find((field) => field.name === 'category')).toMatchObject({
+      type: 'select',
+      options: ['أماكن', 'مشاريع', 'منتجات', 'رحلات', 'خلف الكواليس'],
+    })
+    for (const category of SCENE_CATEGORIES) expect(publishMessages({ items: [photo({ category })] })).toEqual([])
+    for (const category of ['سفر', 'places', '', 'أماكن ']) {
+      const messages = publishMessages({ items: [photo(), photo({ category })] })
+      expect(messages, category).toHaveLength(1)
+      expect(messages[0]).toMatch(/^items\.1\.category: /)
+    }
+  })
+
+  it('refuses an empty caption (the tile’s name) and an unknown image, and takes a library image', () => {
+    expect(publishMessages({ items: [photo({ caption: '  ' })] })).toEqual([`items.0.caption: ${SCENE_CAPTION_ERROR}`])
+    expect(publishMessages({ items: [photo({ image: '' })] })).toEqual(['items.0.image: معرّف صورة غير معروف.'])
+    expect(publishMessages({ items: [photo({ image: randomUUID() })] })).toEqual([])
+  })
+
+  it('a malformed photo is refused, never thrown on', () => {
+    expect(scenesSchema.safeParse({ items: [{ image: 'street4-street-sign', category: 'أماكن', caption: 5 }] }).success).toBe(false)
+    expect(scenesSchema.safeParse({}).success).toBe(false)
+  })
+
+  it('keeps a hidden photo in the data (the loader drops it from the page)', () => {
+    const parsed = scenesSchema.parse({ items: [photo({ hidden: true }), photo()] })
+    expect(parsed.items).toHaveLength(2)
+    expect(parsed.items[0]!.hidden).toBe(true)
+    expect(parsed.items[1]!.hidden).toBeUndefined()
   })
 })
 

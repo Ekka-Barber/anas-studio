@@ -63,7 +63,7 @@ Round 2 re-proved check, build, export, budgets, e2e (public, cart-checkout, aut
 - The book's characters.
 - The 2013 photo.
 - Session booking (P09) and the reader (P02).
-- The social handles and services moving into the CMS if Anas wants to edit them.
+- The services moving into the CMS if Anas wants to edit them. (The social links moved into `site_settings.social` in CLEANUP-1, C09.)
 - Room versions saved before D39 lack the new fields: restoring one needs its colour and line filled before it can be published.
 
 ## Process note, 2026-09-26 (owner-authorized)
@@ -237,6 +237,29 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 
 **Open.** E04's final manuscript, and with it the digital sale (the typeset interior, when it exists, replaces the Word pages through the same script). When Anas approves other pages, `docs/book-preview.md` "Updating it" is the recipe.
 
+## CLEANUP-1 + PLAN-GAPS (orchestrator, 2026-09-29)
+
+**Scope.** The owner (2026-09-29): a quick cleanup, the social links editable (C09), the scenes as an admin collection (C05), and the project-pages decision (C04, C19). Built on `agent/design-b` from `0f2d87a` under one lock by `opus-worker` rounds (Opus 5.5, effort max), each audited by a fresh `auditor`; the first orchestrator session died twice (a `/compact` sent while a background workflow ran) and a second session finished the package with foreground agents only.
+
+**What changed.**
+- **Cleanup (W1).** Every Edge Function passes `deno check`; the three admin lint warnings are gone (lint 0 problems); `pnpm check:export` now carries the I40 demo guard (`scripts/lib/demo-guard.mjs`).
+- **Cleanup (orchestrator).** The site icon (`src/app/icon.svg`, `src/app/apple-icon.png`, `public/favicon.ico`) ends the `/favicon.ico` 404. On Windows the export scan now reads `out/_headers` too (a gap W1 reported), and it requires the scenes and policies edit shells.
+- **Social links (W2, C09).** `site_settings.social` («روابط التواصل»): network, handle and an https-only link, added, ordered and removed in the admin; the footer shows the first, /contact all of them; `SOCIAL` left `src/content/site.ts`.
+- **Scenes (W3, C05).** The collection `scenes` with one document `gallery` (migration `20260929120000_scenes_collection.sql`): each photo is an image, one of Anas's five categories (a select, checked at publish and again at build) and a caption; ordered, hideable. The 19 photos moved byte for byte into `content/initial-content.json`; /scenes reads the published gallery, skips hidden photos, unresolved images and empty categories, and says «لا توجد مَشاهد بعد.» before the first publish. `SceneGallery` and the D39 design are unchanged.
+- **D40.** No separate project pages: Anas's projects are items of the room documents. C19 is met only in part: D40 lists what each room lets the admin add, order and hide. ARCHITECTURE, DATA-AND-SECURITY, WORK-PACKAGES and COVERAGE (C04, C19) follow it.
+- **Test isolation.** `owner-operations.spec.ts` restores the settings version that was live at its start, not the oldest one (which predates the social links).
+
+**Evidence.** `artifacts/acceptance/CLEANUP-1/commands.txt` (the proof map), the round reports `w1.md`–`w3.md`, the audit records `audit-w1.json`, `audit-w2.json`, `recheck-w2.json`, `audit-w3.json`, `final-audit.json` and its three rechecks `recheck-final*.json`, and `screenshots/`:
+- check: lint 0 problems, typecheck, frozen, copy, unit 432/432;
+- test:db 181/181;
+- e2e with `ACCEPTANCE_PACKAGE=CLEANUP-1`: 168/168, visual 50/50 among them;
+- build, export (the demo guard's line) and budgets (largest 146.1 KiB);
+- the footer, /contact and /scenes from the export and the two admin screens at 360 and 1440, every changed control exercised, 0 overflow, 0 console errors, no favicon 404.
+
+**Open.**
+- The owner and Anas: a per-photo rights or credit field for the scenes (C05 names "rights"; the brief defined image, category and caption only); a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40, C19).
+- P11: I41 (the hosted content bootstrap needs the social links and the gallery) and I40's launch steps.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -245,6 +268,7 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 | P01 | part 1 committed (`c98b091`); D39 direction B ported for every public page (DESIGN-B, committed `1ffb8a1`, `7ac94e8`) | `artifacts/acceptance/P01/`, `artifacts/acceptance/DESIGN-B/` |
 | DESIGN-B | committed on the owner's word (2026-09-28: "commit"): `1ffb8a1` (code and docs), `7ac94e8` (evidence); lock released | `artifacts/acceptance/DESIGN-B/` |
 | P02 | committed on the owner's word (2026-09-28: "once all fixes done commit") on `agent/design-b`, after audit-2: the book preview reader on /book with Anas's three approved fragments, plus the audit-2 site fixes (motion on dev, calm money pages); E04's preview range approved by the owner, the final manuscript still open; lock released | `artifacts/acceptance/P02/`, `docs/book-preview.md` |
+| CLEANUP-1 | built and audited on `agent/design-b` (2026-09-29): cleanup (deno check, lint, I40 demo guard, favicon), social links in the admin (C09), the scenes collection (C05), D40 (projects stay in the room documents, C04/C19); acceptance battery green (unit 432, test:db 181, e2e 168/168, build, export, budgets); committed on the owner's word (2026-09-29: "I authorize the commits"), not pushed; lock released | `artifacts/acceptance/CLEANUP-1/` |
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
 | P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |
@@ -253,6 +277,14 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 | P08–P12 | not_started | — |
 
 ## Next work, in order
+
+**Now (2026-09-29, after CLEANUP-1).**
+1. The owner reviews CLEANUP-1 and decides on the push of `agent/design-b` (nothing is pushed).
+2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox.
+3. Owner and Anas inputs that reopen small admin work when they arrive: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40), the services in the CMS.
+4. P11 when the owner authorizes hosting: I40's launch steps and I41's content bootstrap join the list below.
+
+The history below is kept as it was.
 
 Round 3 steps 1 to 6 are done (2026-09-27, local session). The next session starts from `PLANS/HANDOFF.md`: I37 (DONE 2026-09-27: the e2e dev server's own `.next/e2e`, evidence in `artifacts/acceptance/P06/commands.txt`), I35 (DONE 2026-09-27: one due predicate, `finance.outbox_due_since()`, for the home and `outbox_kick()`; built by glm-worker, audited), the phase 2 gate walk-through (DONE 2026-09-27: every admin screen at 360 and 1440, 14 findings fixed, evidence in `artifacts/acceptance/P06/walkthrough/` and `commands.txt`), the full acceptance battery (DONE 2026-09-27 at `556e910`, all green, proof map in `commands.txt`), and the owner's P06 acceptance (DONE 2026-09-27). Next: P07 under D37 and D38. Round 1 is the data and checkout core: the orchestrator writes the migration, then glm-worker builds the `checkout` function, the demo catalog seed (`pnpm db:demo-catalog`, local only) and the tests. Round 2 is the admin catalog screens and the plain public store pages.
 

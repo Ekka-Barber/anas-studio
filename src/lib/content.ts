@@ -5,7 +5,9 @@
  * only: the site is a static export rebuilt after each publish (D32). A
  * missing env var, a missing document or invalid data throws, so the build
  * fails and the last good deployment stays live — that build-time Zod check
- * is what guards the public site. There is no fallback to
+ * is what guards the public site. The one missing document that does not
+ * throw is the scenes gallery, whose page says it has no scenes yet (C05).
+ * There is no fallback to
  * `content/initial-content.json`; that file is only the import source for
  * `scripts/import-content.mjs` and a test fixture.
  *
@@ -24,12 +26,15 @@ import {
   builtRoomSchema,
   footerSchema,
   galleryPhotoSchema,
+  isHttpsUrl,
   jewelSchema,
   moonlightCupItemSchema,
   navItemSchema,
   passedRoomSchema,
   reelMediaSchema,
   roomVignetteSchema,
+  SCENES_DOC_ID,
+  scenesSchema,
   shelfRoomSchema,
   siteSettingsStoredSchema,
   startedMovementSchema,
@@ -59,6 +64,8 @@ export type MoonlightCupItem = z.infer<typeof moonlightCupItemSchema>
 export type BoutiqueItem = z.infer<typeof boutiqueItemSchema>
 export type ShelfRoom = z.infer<typeof shelfRoomSchema>
 export type SiteContent = z.infer<typeof siteSettingsStoredSchema>
+export type SocialLink = NonNullable<SiteContent['social']>[number]
+export type Scene = z.infer<typeof scenesSchema>['items'][number]
 
 /** A media row's derivatives, as `media_complete` recorded them. */
 export interface MediaDerivative {
@@ -113,7 +120,8 @@ export function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]
   return walk(value) as T
 }
 
-async function fetchPublished<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T> {
+/** The published document, or null when it has never been published. */
+async function fetchPublishedOrNull<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T | null> {
   const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL')
   const key = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
   const params = new URLSearchParams({ collection: `eq.${collection}`, doc_id: `eq.${docId}`, select: 'data' })
@@ -123,10 +131,15 @@ async function fetchPublished<T>(collection: string, docId: string, schema: z.Zo
   }
   const rows = (await response.json()) as Array<{ data: unknown }>
   const row = rows[0]
-  if (!row) {
+  return row ? resolveMedia(schema.parse(row.data)) : null
+}
+
+async function fetchPublished<T>(collection: string, docId: string, schema: z.ZodType<T>): Promise<T> {
+  const data = await fetchPublishedOrNull(collection, docId, schema)
+  if (data === null) {
     throw new Error(`Missing published document: ${collection}/${docId}`)
   }
-  return resolveMedia(schema.parse(row.data))
+  return data
 }
 
 /** Drops items a hideable list's admin control marked `hidden: true`. */
@@ -159,6 +172,16 @@ export async function getHome(): Promise<HomeContent> {
 /** The site's contact details, when set (site_settings.contact). */
 export async function getContact(): Promise<SiteContent['contact']> {
   return (await fetchSiteSettings()).contact
+}
+
+/**
+ * The social links in the admin's order (site_settings.social, C09); none
+ * when the list is unset or empty. The publish gate refuses a link that is
+ * not https, and this drops one too, so a stored `javascript:` or `http:`
+ * link can never reach a page.
+ */
+export async function getSocial(): Promise<SocialLink[]> {
+  return ((await fetchSiteSettings()).social ?? []).filter((link) => isHttpsUrl(link.href))
 }
 
 // What each room's page shows of its stored document: hidden list items are
@@ -205,6 +228,16 @@ export async function getPassedRoom(): Promise<PassedRoom> {
 
 export async function getShelfRoom(): Promise<ShelfRoom> {
   return fetchPublished('rooms', 'shelf', shelfRoomSchema)
+}
+
+/**
+ * The scenes in the admin's order, without the hidden ones (C05). Before the
+ * gallery is first published there are none, and the page says so instead
+ * of failing the build.
+ */
+export async function getScenes(): Promise<Scene[]> {
+  const scenes = await fetchPublishedOrNull('scenes', SCENES_DOC_ID, scenesSchema)
+  return scenes ? dropHidden(scenes.items) : []
 }
 
 // Media-manifest reads (getImage/getVideo) intentionally do NOT live here:

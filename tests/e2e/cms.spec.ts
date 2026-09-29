@@ -1,5 +1,6 @@
 // P04 part 2 end-to-end: post lifecycle, taxonomy publishing, room
-// edit/preview/publish/restore, and version-conflict handling, against
+// edit/preview/publish/restore, the social links in the site settings (C09),
+// the scenes gallery (C05), and version-conflict handling, against
 // `next dev` and the local Supabase stack. Uses the same local-only owner
 // pattern as `auth.spec.ts`. D32: documents open at `edit?id=`, the draft
 // preview is an admin page, and publishing requests a site rebuild (the
@@ -17,6 +18,8 @@ const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. ن
 const TEXT_FORMAT_BOLD = 1
 const BOLD_WORD = 'مهم'
 const COVER_IMAGE_ID = '01-started-mothers-kitchen'
+/** A committed image that is not among the scenes. */
+const SCENE_IMAGE_ID = 'started-street-4'
 
 async function isPublished(collection: string, docId: string): Promise<boolean> {
   const { data, error } = await anonClient()
@@ -253,6 +256,186 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   const restoredPage = await restoredContext.newPage()
   await restoredPage.goto('/started')
   await expect(restoredPage.getByText(originalOnPage)).toBeVisible()
+  await restoredContext.close()
+})
+
+test('social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import)', async ({
+  page,
+  browser,
+}) => {
+  const email = await createOwner('محرر الروابط')
+  await signInByCode(page, email)
+
+  // The version live before this test edits anything: the one it restores at the end.
+  const liveAtStart = new Client({ connectionString: status.DB_URL })
+  await liveAtStart.connect()
+  const live = await liveAtStart.query<{ seq: number }>(
+    "select seq from public.published_documents where collection = 'site_settings' and doc_id = 'site'",
+  )
+  await liveAtStart.end()
+  const originalSeq = String(live.rows[0]!.seq)
+
+  await page.goto('/admin/content/site_settings/edit?id=site')
+  const socialGroup = page.getByRole('group', { name: 'روابط التواصل' })
+  const items = socialGroup.locator('> div')
+  await expect(items).toHaveCount(4)
+  const readItem = async (index: number) => ({
+    network: await items.nth(index).getByLabel('الشبكة').inputValue(),
+    handle: await items.nth(index).getByLabel('المعرّف').inputValue(),
+    href: await items.nth(index).getByLabel('الرابط').inputValue(),
+  })
+  const original = [await readItem(0), await readItem(1), await readItem(2), await readItem(3)]
+
+  // Change the first channel's handle and link.
+  const stamp = Date.now()
+  const edited = { ...original[0]!, handle: `@e2e.${stamp}`, href: `https://www.instagram.com/e2e.${stamp}` }
+  await items.nth(0).getByLabel('المعرّف').fill(edited.handle)
+  await items.nth(0).getByLabel('الرابط').fill(edited.href)
+
+  // Add a fifth channel. A link that is not https is refused before publishing.
+  const added = { network: 'يوتيوب', handle: `@yt.${stamp}`, href: `https://www.youtube.com/@yt.${stamp}` }
+  await socialGroup.getByRole('button', { name: 'أضف عنصرًا' }).click()
+  await expect(items).toHaveCount(5)
+  await items.nth(4).getByLabel('الشبكة').fill(added.network)
+  await items.nth(4).getByLabel('المعرّف').fill(added.handle)
+  await items.nth(4).getByLabel('الرابط').fill(added.href.replace('https:', 'http:'))
+  await expect(page.getByText('social.4.href: الرابط غير صالح.')).toBeVisible()
+  await items.nth(4).getByLabel('الرابط').fill(added.href)
+  await expect(page.getByText('هناك مشاكل في البيانات:')).toHaveCount(0)
+
+  // Move it up one place, ahead of the fourth.
+  await items.nth(4).getByRole('button', { name: 'أعلى' }).click()
+  await expect(items.nth(3).getByLabel('الشبكة')).toHaveValue(added.network)
+  const expected = [edited, original[1]!, original[2]!, added, original[3]!]
+
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+
+  // Under next dev the public pages render the published data at once: the
+  // change shows with no code change.
+  const visitorContext = await browser.newContext()
+  const visitor = await visitorContext.newPage()
+  await visitor.goto('/contact')
+  const tiles = visitor.getByRole('list', { name: 'قنوات التواصل' }).locator('a:has(span[dir="ltr"])')
+  await expect(tiles).toHaveCount(expected.length)
+  for (const [index, link] of expected.entries()) {
+    await expect(tiles.nth(index)).toHaveAttribute('href', link.href)
+    await expect(tiles.nth(index).locator('span').first()).toHaveText(link.network)
+    await expect(tiles.nth(index).locator('span[dir="ltr"]')).toHaveText(link.handle)
+  }
+  const footerLink = visitor.locator('footer').getByRole('link', { name: `${edited.network}: ${edited.handle}`, exact: true })
+  await expect(footerLink).toHaveAttribute('href', edited.href)
+  await expect(footerLink).toHaveText(edited.handle)
+  await visitorContext.close()
+
+  // Restore the version that was live at the start and publish it: the
+  // database is left as found.
+  await page
+    .locator('table tbody tr')
+    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
+    .getByRole('button', { name: 'استعادة' })
+    .click()
+  await expect(items).toHaveCount(4)
+  await expect(items.nth(0).getByLabel('المعرّف')).toHaveValue(original[0]!.handle)
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+
+  const restoredContext = await browser.newContext()
+  const restoredPage = await restoredContext.newPage()
+  await restoredPage.goto('/contact')
+  await expect(restoredPage.getByRole('list', { name: 'قنوات التواصل' }).locator('a:has(span[dir="ltr"])')).toHaveCount(4)
+  await expect(
+    restoredPage.locator('footer').getByRole('link', { name: `${original[0]!.network}: ${original[0]!.handle}`, exact: true }),
+  ).toHaveAttribute('href', original[0]!.href)
+  await restoredContext.close()
+})
+
+test('scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import)', async ({
+  page,
+  browser,
+}) => {
+  const email = await createOwner('محرر المشاهد')
+  await signInByCode(page, email)
+
+  // The version live before this test edits anything: the one it restores at the end.
+  const liveAtStart = new Client({ connectionString: status.DB_URL })
+  await liveAtStart.connect()
+  const live = await liveAtStart.query<{ seq: number }>(
+    "select seq from public.published_documents where collection = 'scenes' and doc_id = 'gallery'",
+  )
+  await liveAtStart.end()
+  const originalSeq = String(live.rows[0]!.seq)
+
+  // The gallery is one fixed document under المحتوى.
+  await page.goto('/admin/content')
+  await page.getByRole('link', { name: 'المَشاهد' }).click()
+  await page.getByRole('row', { name: /المَشاهد/ }).getByRole('link').click()
+  await expect(page).toHaveURL(/\/admin\/content\/scenes\/edit\?id=gallery$/)
+
+  const photos = page.getByRole('group', { name: 'الصور' })
+  const items = photos.locator('> div')
+  await expect(items).toHaveCount(19)
+  const firstCaption = await items.nth(0).getByLabel('التعليق').inputValue()
+  expect(firstCaption.length).toBeGreaterThan(0)
+
+  // Add a photo from the committed images, filed under رحلات: the one
+  // category with no photo yet, so the page has no filter for it until now.
+  const caption = `مشهد الاختبار ${Date.now()}`
+  await photos.getByRole('button', { name: 'أضف عنصرًا' }).click()
+  await expect(items).toHaveCount(20)
+  const added = items.nth(19)
+  await added.getByLabel('الصورة').fill(SCENE_IMAGE_ID)
+  await added.getByLabel('التصنيف').selectOption('رحلات')
+  await added.getByLabel('التعليق').fill(caption)
+  await expect(page.getByText('هناك مشاكل في البيانات:')).toHaveCount(0)
+
+  // Move it first, one place at a time, then hide the photo that was first.
+  for (let index = 19; index > 0; index -= 1) {
+    await items.nth(index).getByRole('button', { name: 'أعلى' }).click()
+  }
+  await expect(items.nth(0).getByLabel('التعليق')).toHaveValue(caption)
+  await expect(items.nth(1).getByLabel('التعليق')).toHaveValue(firstCaption)
+  await items.nth(1).getByRole('checkbox', { name: 'إخفاء' }).check()
+
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+
+  // Under next dev the public page renders the published gallery at once.
+  const tiles = (visitor: import('@playwright/test').Page) => visitor.getByRole('button', { name: /^تكبير:/ })
+  const filters = (visitor: import('@playwright/test').Page) => visitor.getByRole('group', { name: 'تصفية المشاهد' })
+  const visitorContext = await browser.newContext()
+  const visitor = await visitorContext.newPage()
+  await visitor.goto('/scenes')
+  await expect(tiles(visitor)).toHaveCount(19)
+  await expect(tiles(visitor).first()).toHaveAccessibleName(`تكبير: ${caption}`)
+  await expect(tiles(visitor).first().locator(`img[src*="${SCENE_IMAGE_ID}"]`)).toHaveCount(1)
+  await expect(visitor.getByRole('button', { name: `تكبير: ${firstCaption}`, exact: true })).toHaveCount(0)
+  await expect(filters(visitor).getByRole('button', { name: 'رحلات' })).toBeVisible()
+  await visitorContext.close()
+
+  // Restore the version that was live at the start and publish it: the
+  // database is left as found.
+  await page
+    .locator('table tbody tr')
+    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
+    .getByRole('button', { name: 'استعادة' })
+    .click()
+  await expect(items).toHaveCount(19)
+  await expect(items.nth(0).getByLabel('التعليق')).toHaveValue(firstCaption)
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+
+  const restoredContext = await browser.newContext()
+  const restored = await restoredContext.newPage()
+  await restored.goto('/scenes')
+  await expect(tiles(restored)).toHaveCount(19)
+  await expect(tiles(restored).first()).toHaveAccessibleName(`تكبير: ${firstCaption}`)
+  await expect(restored.getByText(caption)).toHaveCount(0)
+  await expect(filters(restored).getByRole('button', { name: 'رحلات' })).toHaveCount(0)
   await restoredContext.close()
 })
 

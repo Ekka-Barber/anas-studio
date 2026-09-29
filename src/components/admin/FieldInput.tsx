@@ -112,6 +112,7 @@ function ImageFieldInput({
       <div className={styles.field}>
         <span className={styles.label}>{field.label}</span>
         <div className={styles.previewRow}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32) */}
           <img
             className={styles.previewImg}
             src={current.preview.src}

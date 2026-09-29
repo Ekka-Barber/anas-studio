@@ -2,8 +2,8 @@
 
 /**
  * One collection's documents (P04 part 2): rows from `content_documents`,
- * plus the fixed rows for `rooms`/`site_settings` that may not have been
- * edited yet. "جديد" creates a post (a generated uuid doc id) or a
+ * plus the fixed rows (the rooms, `site_settings`, the four policies and the
+ * scenes gallery) that may not have been edited yet. "جديد" creates a post (a generated uuid doc id) or a
  * taxonomy (a user-entered slug doc id).
  */
 import Link from 'next/link'
@@ -15,6 +15,7 @@ import {
   documentTitle,
   POLICY_DOC_IDS,
   roomSchemas,
+  SCENES_DOC_ID,
   SITE_SETTINGS_DOC_ID,
   type Collection,
 } from '@/admin/collections'
@@ -64,8 +65,9 @@ export function CollectionList({ collection }: { collection: Collection }) {
     })()
   }, [collection])
 
-  // Fixed documents (rooms, site settings, policies) are always listed, even
-  // before a first save; posts and taxonomies list what exists.
+  // Fixed documents (rooms, site settings, policies, the scenes gallery) are
+  // always listed, even before a first save; posts and taxonomies list what
+  // exists.
   const docIds: string[] =
     collection === 'rooms'
       ? Object.keys(roomSchemas)
@@ -73,9 +75,11 @@ export function CollectionList({ collection }: { collection: Collection }) {
         ? [SITE_SETTINGS_DOC_ID]
         : collection === 'policies'
           ? [...POLICY_DOC_IDS]
-          : rows
-            ? Array.from(rows.keys())
-            : []
+          : collection === 'scenes'
+            ? [SCENES_DOC_ID]
+            : rows
+              ? Array.from(rows.keys())
+              : []
 
   function createPost() {
     router.push(documentHref('posts', crypto.randomUUID().toLowerCase()))
