@@ -1,0 +1,34 @@
+{
+  "verdict": "pass",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME/artifacts/acceptance/CLEANUP-1/w1.md",
+      "line": "55",
+      "issue": "The evidence miscounts the shared modules. It says \"All 23 files in supabase/functions/_shared/ are reached\", but `find supabase/functions/_shared -type f` and `git ls-files` both return 21 files. The coverage conclusion still holds: an independent `deno info` over the six entries reaches exactly those 21 files. Only the number in the acceptance record is wrong.",
+      "fix": "Change 23 to 21 in w1.md:55 and in the chat report's \"Coverage\" line."
+    },
+    {
+      "severity": "low",
+      "file": "C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME/tests/unit/demo-guard.test.ts",
+      "line": "36-73",
+      "issue": "Two protections in demo-guard.mjs have no test. (1) No lookalike-host negative case: if `isLoopback` (demo-guard.mjs:23) were loosened to a substring match like `hostname.includes('localhost')`, all 8 tests still pass, yet `https://localhost.example.com` would count as loopback and a hosted demo build would pass. (2) No page carries «تجريبي» only inside an inline <script> or attribute, so deleting the script/style stripping in visibleText (demo-guard.mjs:29) also leaves every test green. The four cases the brief requires are present and real.",
+      "fix": "Add one hosted-with-demo case at a lookalike origin (e.g. `https://localhost.example.com` and `https://127.0.0.1.nip.io`) that must fail. Add one hosted case where «تجريبي» appears only inside a page's <script> and must pass."
+    },
+    {
+      "severity": "low",
+      "file": "C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME/scripts/lib/demo-guard.mjs",
+      "line": "20",
+      "issue": "The SUPABASE_URL regex needs exactly one slash between the origin and the API path. I simulated in memory over the real out/: a hosted NEXT_PUBLIC_SUPABASE_URL with a trailing slash (`https://x.supabase.co/` gives `//functions/v1/...` literals) returns ok:false with \"cannot find the Supabase origin\". The check fails closed, so it is not unsafe, but the message is misleading.",
+      "fix": "Allow `\\/+` before `(?:rest|functions|storage|auth)\\/v1`, or record this edge case in the w1.md risks."
+    },
+    {
+      "severity": "low",
+      "file": "C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME/scripts/lib/demo-guard.mjs",
+      "line": "19,64",
+      "issue": "The guard matches the plain word «تجريبي» (it also matches «تجريبية»), which is ordinary Arabic for 'experimental'. If Anas's real content ever uses it (e.g. «مشروع تجريبي» in a journal post), every hosted production build fails, and the message tells the operator to \"remove the demo rows\". This follows the brief's rule and fails closed, but the false-positive direction is missing from the w1.md risks (lines 147-162).",
+      "fix": "Add this false-positive risk to w1.md risks and to the I40 note, or narrow the match to the seed's exact markers: «(تجريبي)», «نص تجريبي يكتبه أنس ويعتمده قبل فتح المتجر.» and «بيانات تجريبية». Changing the matcher is a product choice for the orchestrator."
+    }
+  ],
+  "checksRun": "Verdict: pass. Only low findings; every requirement in the w1 brief is met.\n\nScope:\n- Read brief-common.md, brief-w1-cleanup.md, w1.md and the allowedPaths in .anasaq-execution.lock.\n- Ran `git diff` on the 4 changed tracked files. Read the new files in full: scripts/lib/demo-guard.mjs and tests/unit/demo-guard.test.ts. Read scripts/check-export.mjs in full.\n- Every file this round touched is inside allowedPaths.\n- File times: public/favicon.ico, src/app/icon.svg, src/app/apple-icon.png and .claude/agents/opus-worker.md were written 01:16-01:17. That is before the briefs (01:18), so they are the orchestrator's, not w1's.\n\nDeno type-check, rerun independently:\n- Deno 2.9.6 with a fresh DENO_DIR in the scratchpad and `--no-lock`.\n- admin, checkout, contact, outbox and resend-webhook, each with `--config <fn>/deno.json`: exit 0 each.\n- staff-admin with `--no-config`: exit 0. It resolved supabase-js 2.117.2, which matches the report.\n- `deno info` over the six entries reaches all 21 _shared files.\n- No deno.lock or node_modules left under supabase/. `git status` shows nothing under supabase/.\n\nLint:\n- `npx eslint .`: exit 0, 0 problems.\n- `npx eslint --max-warnings 0 --report-unused-disable-directives` on the 6 changed code files: exit 0.\n- The reason text matches the public components' form plus D32, as the brief asks.\n- The QR code really is a data URL: the auth-js 2.117.1 prefix is at dist/module/GoTrueClient.js:4891 and dist/main :4894. The report cites :4890.\n\nTypecheck: `pnpm -s typecheck`, exit 0.\n\nUnit tests:\n- `pnpm -s test` ran 3 times; each run gave 404/405 with one 5000 ms timeout.\n- The timeout hit a different test each time, both in files this round did not touch: reader-mapping.test.ts (the pdf.js reading-order test) and content.test.ts (the media-references test).\n- Both pass in isolation: reader-mapping plus demo-guard 23/23, content 5/5. So this is a flake under load, not a w1 regression. The orchestrator's full-battery run may hit it.\n- demo-guard tests: 8/8 pass.\n\nGuard behaviour:\n- `node scripts/check-export.mjs` on the current out/: exit 0, and the output is byte-identical to the report.\n- Simulated in memory over the real out/, without modifying out/:\n  - hosted supabase.co origin: fails, names the 7 pages and I40;\n  - custom domain: fails;\n  - LAN IP: fails;\n  - trailing-slash origin: fails closed with \"cannot find the Supabase origin\".\n- The regex finds only http://127.0.0.1:54321, 6 times, in the real out/.\n- The inlined URL appears 7 times in 5 chunks, which matches the report.\n- 7 HTML pages carry «تجريبي», exactly the guard's list. No admin HTML carries it. The word appears in only 3 JS chunks.\n- No \"demo\" key appears in any HTML or TXT RSC payload, which confirms the report's claim that the demo flag is not in the build output.\n\nSource grep for «تجريبي»:\n- It appears only in admin code: products.ts:47-48, index.ts:57 and StoreHome.tsx:66, plus docs/operations.md.\n- It is in none of content/, DESIGN.md or public/, and nothing public renders it.\n\nSecurity and truthfulness:\n- The guard's messages carry only the origin (via `URL.origin`, which drops userinfo). A key is never printed; the test asserts this.\n- No migration, no UI or copy change (the admin edits are JSX comments only), no gate closure claimed.\n- .env was not read and _archive/ was not inspected."
+}

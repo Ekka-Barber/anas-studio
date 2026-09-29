@@ -1,0 +1,76 @@
+{
+  "verdict": "audit_failed",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "PLANS/DECISIONS.md",
+      "line": "47 (D40); also DESIGN.md:184 and PLANS/COVERAGE.md:25 (C19)",
+      "issue": "D40 says the projects include 'the ideas in «على الرف»' and that 'C19's project editing, ordering and publishing to the right room are met by the rooms' hideable, reorderable lists'. DESIGN.md:184 says of the same three places: 'The admin adds, orders and hides them there.' The code says otherwise for the shelf. In src/admin/collections/rooms.ts:227-236, shelf `items` is a fixed group of three groups (thura, moonlightCup, boutique). There is no list, no `hideable`, no add and no reorder, so the owner cannot create, order or hide a shelf idea. That is C19's own proof ('owner creates new project with all fields, orders it'). D40 also says per-project status fields are open and 'until then none is shown'. Yet thuraItemFields:192, moonlightCupItemFields:204 and boutiqueItemFields:214 each have a `status` field, and ShelfRoomView.tsx:80,89,95 renders it («قريباً 2027», «قيد التصنيع», «إلى أن يحين وقتها»). The old session's transcript (2026-09-28T22:19:52Z) shows the owner was told the same thing. So a decision recorded as settled claims C04/C19 coverage that does not exist for one of its three rooms.",
+      "fix": "Reword D40's consequences and DESIGN.md:184. The add/order/hide claim holds only for بنيتُ هنا `movements` and مررتُ من هنا `brandWall` and `gallery`. The three shelf ideas are fixed groups: editable in place, each with its status line, but not addable, orderable or hideable. Record 'a new shelf idea (C19 on على الرف)' as open next to per-project figures. Drop 'none is shown' for status (only figures are missing). Mirror this in COVERAGE C19's note and in the EXECUTION-STATUS/HANDOFF open lists. Or, if the owner wants, make shelf items a hideable list in code."
+    },
+    {
+      "severity": "medium",
+      "file": "PLANS/DATA-AND-SECURITY.md",
+      "line": "13",
+      "issue": "This line was left stale, and it contradicts D40. The 'Collection shapes' row still reads 'Projects, scenes, shelf entries and policies are added as collections when their pages exist'. It lists only site settings (navigation, footer, home), rooms, posts and taxonomies. It omits `scenes`, `policies` and `site_settings.social`. This is the same sentence the package corrected in WORK-PACKAGES.md:53. D40 says the plan docs 'read accordingly', but the lock never added DATA-AND-SECURITY.md to allowedPaths. A later session would read that projects and shelf entries become collections.",
+      "fix": "Add PLANS/DATA-AND-SECURITY.md to the lock's allowedPaths. Rewrite the row: site settings (navigation, footer, home, optional seo/contact/social: network, handle, https-only href), rooms, posts, taxonomies, policies (P07), scenes (one document `gallery`: image, one of five categories, caption, hideable, C05). Replace the last sentence with 'Projects and shelf entries stay items of the room documents (D40).'"
+    },
+    {
+      "severity": "low",
+      "file": "src/app/(admin)/admin/content/page.tsx",
+      "line": "7; also docs/development.md:161-163",
+      "issue": "The comment still says '/admin/content: the four collections (P04 part 2)'. The page renders all six from COLLECTION_LABELS. The docs/development.md sentence the package rewrote says the rooms, site_settings and gallery 'always appear even before they have been edited'. It leaves out the four policy documents, which CollectionList.tsx also always lists (POLICY_DOC_IDS).",
+      "fix": "Change the comment to 'the content collections (COLLECTION_LABELS)'. In development.md write 'the four fixed rooms, the one site_settings document, the four policies and the gallery always appear'."
+    },
+    {
+      "severity": "low",
+      "file": "DESIGN.md",
+      "line": "187-192",
+      "issue": "The 'Not in the CMS yet, in src/content/' list dropped `site.ts` entirely. src/content/site.ts still exists and holds ROOM_ORDER, which Lost.tsx:6 uses and which is not in the CMS. So the list no longer matches the folder.",
+      "fix": "Keep the line as '`site.ts`: the room order for the room doors (the 404 page)'."
+    },
+    {
+      "severity": "low",
+      "file": "PLANS/DECISIONS.md",
+      "line": "47",
+      "issue": "D40 says 'Decided on 2026-09-28'. The lock's package line and EXECUTION-STATUS:242 date the owner's request 2026-09-29. The old session's decision message is 2026-09-28T22:19:52Z, which is 2026-09-29 01:19 +03, and the package notes use local time. The dates disagree.",
+      "fix": "Write 'Decided on 2026-09-29 (+03) by the orchestrator, as the owner asked'."
+    },
+    {
+      "severity": "low",
+      "file": "PLANS/EXECUTION-STATUS.md",
+      "line": "245",
+      "issue": "'Cleanup (W1)' credits W1 with the site icon and the Windows `_headers` scan fix. commands.txt:15 and its 'Pre-existing, found by W1' paragraph credit both to the orchestrator; W1 only reported the `_headers` bug.",
+      "fix": "Split the bullet: 'W1: deno check, lint, demo guard. Orchestrator: site icon, `_headers` pattern.'"
+    },
+    {
+      "severity": "low",
+      "file": "artifacts/acceptance/CLEANUP-1/commands.txt",
+      "line": "99-110",
+      "issue": "The acceptance admin captures are unverifiable. screenshots/admin-social-360.png and admin-social-1440.png are byte-identical (md5 500e34bc…, c7fba897…) to W2's w2-admin-social-*.png from 02:03. The '1440' capture is a 664-px element shot, so it cannot show page overflow. The scratch scripts accept-admin.mjs and accept-public.mjs that back '0 px overflow, 0 console errors, 0 failed requests' were not kept. Those claims rest on narrative alone; the cms e2e does cover the controls.",
+      "fix": "Save accept-admin.mjs, accept-public.mjs and their console output under artifacts/acceptance/CLEANUP-1/. Or note that the admin-social captures are element shots equal to W2's and cite the cms e2e as the proof of the exercise."
+    },
+    {
+      "severity": "low",
+      "file": "tests/unit/content.test.ts",
+      "line": "196, 198",
+      "issue": "The scenes build-guard asserts a bare `rejects.toThrow()`. Any throw passes it: a missing env var, an unexpected fetch, a media call. Today it depends on scenesSchema, but it does not pin the reason.",
+      "fix": "Assert the Zod failure, for example `rejects.toThrow(/items|category|اكتب تعليق الصورة/)` or `rejects.toBeInstanceOf(ZodError)`."
+    },
+    {
+      "severity": "low",
+      "file": "scripts/check-export.mjs",
+      "line": "48-53",
+      "issue": "REQUIRED lists the edit shells for rooms, posts, site_settings and taxonomies, but not the new `admin/content/scenes/edit.html`. The same gap exists for policies. A lost static param would not be caught.",
+      "fix": "Add 'admin/content/scenes/edit.html' (and 'admin/content/policies/edit.html') to REQUIRED."
+    },
+    {
+      "severity": "low",
+      "file": "PLANS/WORK-PACKAGES.md",
+      "line": "151",
+      "issue": "P12 still offers an 'Optional per-card link to a post/project/shelf record'. After D40 no project or shelf record exists to link to.",
+      "fix": "Write 'a post or room document (D40)'."
+    }
+  ],
+  "checksRun": "Read the lock (allowedPaths, notes), commands.txt, w1.md and w3.md, brief-common.md, the summary of the findings in audit-w1/w2/recheck-w2/audit-w3, the whole diff since 0f2d87a with the untracked files (excluding .claude/launch.json and BOOK_ASSETS), rooms.ts, the admin content routes, PublishBar/CollectionForm, images.ts, the migration against the earlier archive_document and media_usage, and verify-plan.ps1. Ran: pnpm -s lint 0 (0 problems); pnpm -s typecheck 0; pnpm -s test 0 (23 files, 432/432); pnpm -s check:copy 0 (166); pnpm -s check:frozen 0 (50); node scripts/check-export.mjs 0 ('26 required files present; 320 text files scanned, no secrets', demo line on 7 pages at http://127.0.0.1:54321; 319 extension matches + out/_headers = 320, so _headers is now scanned); pnpm -s check:budgets 0 (largest 146.1 KiB); git diff --check 0f2d87a 0 and git diff --check 0; npx vitest run demo-guard + content 0 (24 passed, matches commands.txt). The PLANS source-manifest check was redone by hand: 272 frozen hashes intact, no overlap with the diff. The verify-plan criteria were checked by hand (40 C rows, C04 **P01** and C19 **P04** unchanged, no new md links). I did not run verify-plan.ps1, so planning-checks.json is untouched. Extracted the Playwright HTML report: 168/168 (auth 2, cart-checkout 11, checkout-api 4, cms 5, media 8, motion 15, owner-operations 20, public 26, reader 18, store-admin 9, visual 50), duration 666 s, ending 05:55 after the last code edit (05:41). .last-run.json says passed. No secret values in the report (only source snippets and example.com/anas.studio emails). No secrets or non-example emails in the evidence md/json/txt/patch files. The PNGs carry no text or metadata chunks. owner-operations.spec.ts equals w2-fix-owner-operations.patch. The scenes and social data moved verbatim from 0f2d87a (19/19 and 4/4, same JSON). Read-only psql: newest migration 20260929120000; content_collection enum has 6 values; site_settings/site seq 27 with 4 social links and scenes/gallery seq 15 with 19 items, both deep-equal to the fixture; 0 stray scenes versions; 3 demo products. out/: contact.html has the 4 https channels and the footer's Instagram link, scenes.html has 19 «تكبير:» tiles, both lang=ar dir=rtl; icon links are in <head>; favicon.ico matches public/. No em dash and no Arabic-Indic digits in the added src/content/scripts lines. Every changed path is inside allowedPaths."
+}

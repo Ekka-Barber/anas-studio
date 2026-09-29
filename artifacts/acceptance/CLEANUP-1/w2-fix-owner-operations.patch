@@ -1,0 +1,39 @@
+diff --git a/tests/e2e/owner-operations.spec.ts b/tests/e2e/owner-operations.spec.ts
+index b47e3d3..bab64a5 100644
+--- a/tests/e2e/owner-operations.spec.ts
++++ b/tests/e2e/owner-operations.spec.ts
+@@ -558,6 +558,13 @@ test('an operations member can replay a failed outbox row through the risk-accep
+ })
+ 
+ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets', async ({ page }) => {
++  // The version live before this test edits anything: the one it restores at
++  // the end (the oldest row can predate the social links, C09).
++  const live = await db.query<{ seq: number }>(
++    "select seq from public.published_documents where collection = 'site_settings' and doc_id = 'site'",
++  )
++  const originalSeq = String(live.rows[0]!.seq)
++
+   const owner = await createStaff('owner')
+   await signInByCode(page, owner.email)
+   await page.goto('/admin/content/site_settings/edit?id=site')
+@@ -587,10 +594,17 @@ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows n
+   expect(html).not.toContain(env.JOBS_SECRET)
+   expect(html).not.toContain(env.RESEND_WEBHOOK_SECRET)
+ 
+-  // Restore the settings document as cms.spec.ts does, and publish.
++  // Restore the version that was live at the start, as cms.spec.ts does, and
++  // publish it: the database is left as found.
+   await page.goto('/admin/content/site_settings/edit?id=site')
+-  const historyTable = page.locator('table')
+-  await historyTable.locator('tbody tr').last().getByRole('button', { name: 'استعادة' }).click()
++  await page
++    .locator('table tbody tr')
++    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
++    .getByRole('button', { name: 'استعادة' })
++    .click()
++  // The form reloads with the restored version; publishing before that would
++  // publish this test's edit again.
++  await expect(page.getByLabel('رقم واتساب')).toHaveValue('')
+   await page.getByRole('button', { name: 'نشر' }).click()
+   await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+   await page.goto('/admin/settings')

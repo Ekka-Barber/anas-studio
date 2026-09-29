@@ -1,0 +1,48 @@
+{
+  "verdict": "pass",
+  "findings": [
+    {
+      "severity": "low",
+      "file": "src/lib/admin-publish.ts",
+      "line": "46-93",
+      "issue": "Trust boundary: the category rule and the caption rule are checked only in the browser, in validateVersion via schemaFor('scenes') -> scenesSchema. The publish path is CollectionForm -> PublishBar -> publishDocument (admin-publish.ts:89-93) -> validateVersion (46-82) -> rpc('publish_version'). The SQL side, public.publish_version (supabase/migrations/20260927090000_static_site_and_functions.sql:51-65) -> content_assert_publisher -> content_go_live (20260925120000_content_versions_and_publishing.sql:133), never looks at the data. No edge function is involved, and there is no trigger on published_documents (pg_trigger: none; content_versions has only content_versions_next_seq). An active owner or editor can therefore POST /rest/v1/content_versions with {collection:'scenes', doc_id:'gallery', data:{items:[{...,category:'سفر'}]}} and then POST /rest/v1/rpc/publish_version, and the document goes live. The build-time guard catches it: getScenes -> fetchPublishedOrNull (src/lib/content.ts:124-134) -> scenesSchema.parse throws ZodError, so the static build fails and the last good deployment stays live. A bad or malformed document fails the build. It is never skipped and never reaches a page, and an unresolved library id is skipped by sceneGallery. This is the settled D32 design, which admin-publish.ts:8-13 documents, and it matches every other collection. Separately, the name of the integration test at tests/integration/publish.test.ts:180, «...never goes live», overclaims: only the admin client path refuses.",
+      "fix": "No code change under D32. Rename the test at publish.test.ts:180 to say the admin publish refuses it. If the owner wants a database-side guard, that is a new migration adding a check in content_go_live for collection='scenes' (each items[*].category among the five, caption not blank)."
+    },
+    {
+      "severity": "low",
+      "file": "tests/unit/content.test.ts",
+      "line": "156-217",
+      "issue": "One rule has no test: a published gallery that fails scenesSchema must make getScenes reject, which fails the build. Given the finding above, this build-time parse is the only server-side enforcement of the category and caption rules. W3 also rewrote the guard's code path (fetchPublished split into fetchPublishedOrNull, content.ts:124-142). A regression that returned null on a parse failure would render /scenes silently empty, and no test would fail.",
+      "fix": "In the 'the scenes at render time (C05)' block, add: servePublished([{ data: { items: [{ ...scenes[0], category: 'سفر' }] } }]); await expect(getScenes()).rejects.toThrow(); and the same with caption: '  '."
+    },
+    {
+      "severity": "low",
+      "file": "src/app/(public)/scenes/page.tsx",
+      "line": "19-23",
+      "issue": "The empty-state line sits in a band after SceneGallery. The unchanged grid keeps min-block-size: 50vh with a weave background (src/components/public/scenes/scenes.module.css:37-39), and an empty <ul aria-label=\"الصور\"> stays in the page. In w3-scenes-empty-360.png the line «لا توجد مَشاهد بعد.» is at about y=850, below an 800 px first screen, under a large pattern block. The <p> is unstyled, where the store's equivalent uses styles.note. This is cosmetic, it only shows before the first publish, and the brief freezes SceneGallery.",
+      "fix": "Leave it, or note it for the design pass. If fixed, it needs a SceneGallery change, which is outside W3's brief."
+    },
+    {
+      "severity": "low",
+      "file": "tests/e2e/cms.spec.ts",
+      "line": "355-436",
+      "issue": "The scenes e2e adds a committed manifest image ('started-street-4', line 389). It does not pick a media-library image, and it restores the gallery only on success (no try/finally), like the room and social tests. w3.md discloses both. The generic library picker is covered by tests/e2e/media.spec.ts:370-395 for room fields. The published media id -> storage URL tile path is covered only by the unit sceneGallery test and the worker's scratch pass, which the w3-admin-scenes screenshots support.",
+      "fix": "Optional: pick the image through «اختر من المكتبة» from a library row, as media.spec.ts does, and wrap the edit and publish in try/finally that restores originalSeq."
+    },
+    {
+      "severity": "low",
+      "file": "src/lib/content.ts",
+      "line": "238-241",
+      "issue": "Hidden is not private. A hidden scene stays in the published document, which anon can read through /rest/v1/published_documents (policy published_documents_read using true). media_is_published also makes a hidden library image's id and derivatives anon-readable. This mirrors the rooms' hideable lists, as the brief asked. But C05 names 'rights', and an owner may use «إخفاء» for a photo whose rights are pending.",
+      "fix": "No W3 change. The orchestrator records in DESIGN.md or ISSUES that «إخفاء» only removes a photo from the page; a photo without rights must be deleted from the list, not hidden."
+    },
+    {
+      "severity": "low",
+      "file": "DESIGN.md",
+      "line": "186-189",
+      "issue": "Stale docs, which W3 was not allowed to edit and lists in w3.md. DESIGN.md §7 still lists `scenes.ts: the gallery and its categories` under «Not in the CMS yet». docs/development.md:160-163 says 'the four collections' and omits policies and scenes. PLANS/WORK-PACKAGES.md:53 lists scenes as a future collection. Also: C05 'rights' has no per-photo field (a product decision w3.md flags). The hosted bootstrap (import-content.mjs is local-only) must publish scenes/gallery, or production /scenes silently shows the empty line.",
+      "fix": "The orchestrator updates these lines in the status and doc pass, and records the rights decision and the P11 bootstrap item in ISSUES/HANDOFF."
+    }
+  ],
+  "checksRun": "Read: brief-common.md, brief-w3-scenes.md, brief-w3-finish.md, w3.md (77 lines), .anasaq-execution.lock (base 0f2d87a, allowedPaths), PLANS/COVERAGE.md C05. Read `git diff 0f2d87a` for every W3 file: index.ts, content/scenes.ts, scenes/page.tsx, lib/content.ts, import-content.mjs, initial-content.json, CollectionList, DocumentEditor, MediaLibrary, the unit, integration and e2e tests, plus the 3 new files. Read admin-publish.ts, fields.ts, images.ts, SceneGallery.tsx, scenes.module.css, FieldInput select defaults, and migrations 20260925120000, 20260926090000, 20260927090000, 20260927120000, 20260927170000 and 20260927180000 (doc id regex, content_versions and published_documents RLS, publish, schedule, archive functions, media_usage and media_is_published: all collection-generic; archive refuses anything but posts and taxonomies). W1 and W2 hunks separated; nothing in W3 breaks them (getSocial, social import and demo guard intact). Data script (node, scratchpad): SCENES at 0f2d87a has 19 items, the JSON has 19, 0 byte differences in image, category and caption, same order, key order image/category/caption, the rest of the JSON deep-equals the base, 2-space round-trip true. `git diff 0f2d87a -- src/components/public/scenes/` is empty. DB, read-only through docker exec psql: 20260929120000 is in schema_migrations; the enum is {site_settings,rooms,posts,taxonomies,policies,scenes}; scenes/gallery live seq 13 deep-equals {items: fixture.scenes} (19 items, 0 hidden); site_settings/site seq 21 deep-equals the fixture with 4 social; the 4 rooms deep-equal the fixture; no stray scenes docs (checked after my integration run); anon: content_versions and content_documents 'permission denied', published_documents scenes 1 row; authenticated non-staff sees 0 scenes versions; version history seq 1-13 and first_published_at 00:19:38Z match the w3.md timeline. out/scenes.html <main> is 12,236 chars (built 2026-09-28 23:13 +03). Commands: `pnpm -s typecheck` exit 0; `npx eslint --max-warnings 0` on 15 W3 files exit 0; `pnpm -s test` exit 0 (23 files, 427 passed); `TEST_ENV=local DATABASE_URL=... npx vitest run --mode db tests/integration/content.test.ts tests/integration/publish.test.ts` exit 0 (2 files, 20 passed); `pnpm -s check:copy` exit 0 (166 files); `pnpm -s check:frozen` exit 0 (50 files). `git diff --shortstat 0f2d87a`: 26 files, +748/-110. `git status --porcelain`: 35 entries, no stray files. `--ignored` shows only the standard ignores, and next-env.d.ts is clean. Every W3 path is inside allowedPaths. No secrets, prices or approvals. Copy is Arabic with Latin digits. Screenshots opened: w3-admin-scenes-1440 and -360 show the form title through the third photo, with the new first photo (library preview «p05-shot-…», «تغيير», رحلات, «مشهد الفحص …»), «لوحة شارع رقم 4، تبوك» with «إخفاء» checked, and «افتتاح رحى المكان» set to مشاريع, as w3.md says. w3-scenes-empty-1440 and -360 show the title, «الكل» alone, the weave grid and «لا توجد مَشاهد بعد.», as w3.md says. Mutation tests were not rerun, because this audit is read-only; reading the assertions confirms that the category, hidden, unresolved-image and empty-category tests would fail if their rule broke. Not run, per instructions: e2e, pnpm build, db reset. No claim in w3.md was found untrue."
+}

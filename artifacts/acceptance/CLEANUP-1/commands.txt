@@ -1,0 +1,215 @@
+CLEANUP-1 + PLAN-GAPS (owner, 2026-09-29): quick cleanup; social links editable (C09); the scenes
+as an admin collection (C05); the project-pages decision (D40, C04/C19); status docs
+
+Base commit 0f2d87a, branch agent/design-b. Orchestrator: Claude Opus 5.5. Workers: opus-worker
+(Opus 5.5, effort max) and auditor (Opus 5.5), one at a time under .anasaq-execution.lock.
+
+Rounds (reports in this folder)
+- W1 (opus-worker): deno check of the six functions, the 3 admin lint warnings, the I40 demo
+  guard in check:export. Report w1.md; audit pass with four low findings (audit-w1.json), fixed
+  by the orchestrator (w1.md "Orchestrator follow-up").
+- W2 (opus-worker): social links in site_settings.social (C09), footer and /contact read them.
+  Report w2.md; audit fail on one medium finding outside W2's paths (audit-w2.json), fix round,
+  recheck pass (recheck-w2.json). The medium finding's patch was applied by the orchestrator
+  (below).
+- Site icon (orchestrator): src/app/icon.svg, src/app/apple-icon.png, public/favicon.ico.
+- W3 (opus-worker, then a fresh opus-worker to finish it after the first session died twice):
+  the scenes as the collection `scenes` with one document `gallery` (C05). Briefs
+  brief-w3-scenes.md and brief-w3-finish.md; report w3.md (every claim of the interrupted
+  worker verified; only the two admin screenshots retaken). Audit pass with six low findings
+  (audit-w3.json).
+The W1, W2 and recheck audit records were recovered from the dead session's workflow journal
+(wf_14fe9e09-81a, entries audit:w1, audit:w2, recheck:w2), verbatim.
+
+2026-09-29 takeover (orchestrator session 118228d7)
+Preflight:
+- no process whose command line holds --resume=8b41f5ec; PIDs 18240, 15560, 17144 gone
+- git status matched the lock's recovery notes (25 modified, 9 untracked, plus
+  .claude/launch.json, which is not part of this package)
+- supabase status: API up; the edge runtime container had exited (255) about 4 h earlier and
+  every function answered 503. docker start supabase_edge_runtime_ANASAQ.ME -> contact OPTIONS
+  204, admin POST without auth 401.
+- free RAM 14.8 of 31.8 GB
+- playwright.config.ts accepted only ACCEPTANCE_PACKAGE=Pxx; it now also accepts names like
+  CLEANUP-1 (added to the lock first).
+
+Orchestrator fixes of the low audit findings
+- W1: demo-guard.mjs finds the Supabase origin when NEXT_PUBLIC_SUPABASE_URL ends in a slash;
+  demo-guard.test.ts adds lookalike hosts (localhost.example.com, 127.0.0.1.nip.io) that must
+  fail, demo text only in a script or attribute that must pass, and the trailing slash; w1.md
+  corrected (21 _shared files, not 23) and the «تجريبي» false-positive risk recorded (I40).
+- W3: tests/unit/content.test.ts adds "a published gallery with a category outside the five, or
+  a blank caption, fails the build" (the database does not check data, D32, so this build-time
+  parse is the server-side guard); tests/integration/publish.test.ts's scenes test is renamed to
+  say the admin publish refuses a bad category.
+- Pre-existing, found by W1: scripts/check-export.mjs matched `_headers` with a forward slash
+  only, so on Windows out/_headers was never secret-scanned; the pattern takes either separator.
+- npx vitest run tests/unit/demo-guard.test.ts tests/unit/content.test.ts -> 0, 24 passed
+
+W2 patch (owner-operations restores the settings version live at its start, not the oldest)
+- git apply --verbose artifacts/acceptance/CLEANUP-1/w2-fix-owner-operations.patch -> applied
+  cleanly (17 insertions, 3 deletions)
+- free RAM 13.4 GB; port 3000 free
+- npx playwright test tests/e2e/owner-operations.spec.ts -> 0, 20 passed (1.1 min)
+- afterwards: live site_settings/site at seq 23 deep-equals the fixture (nav, footer, home and
+  the 4 social links); live scenes/gallery deep-equals {items: fixture.scenes}
+- the P06 screenshots and next-env.d.ts the run rewrote were restored
+
+Docs
+- D40 recorded in PLANS/DECISIONS.md; its consequences in PLANS/ARCHITECTURE.md (no
+  projects/[slug]), PLANS/WORK-PACKAGES.md (P01 files, the collections line) and
+  PLANS/COVERAGE.md (C04, C19).
+- DESIGN.md §7: W2's social-links line checked against Footer.tsx and contact/page.tsx (the
+  footer shows the first link, /contact all); the scenes collection and D40 added; scenes.ts now
+  holds only the five categories. §8: the empty states of the social links and the gallery.
+- docs/development.md: six collections.
+- PLANS/ISSUES.md: I40 status (the guard exists; the P11 steps remain; the false positive);
+  I41 opened (the hosted content bootstrap must carry the social links and the scenes); the
+  favicon item closed.
+- PLANS/EXECUTION-STATUS.md and PLANS/HANDOFF.md: the CLEANUP-1 record, ledger row and next work.
+
+Acceptance battery (orchestrator, Windows, at 0f2d87a plus the package's working tree)
+- pnpm check -> 0: lint 0 problems (the 3 old warnings are gone), typecheck, check:frozen (50
+  files unchanged), check:copy (166 files), unit 23 files 432/432
+- TEST_ENV=local DATABASE_URL=<local DB_URL> pnpm test:db -> 0, 14 files 181/181
+- free RAM 13.2 GB; port 3000 free; live content equal to the fixture before the run
+- ACCEPTANCE_PACKAGE=CLEANUP-1 pnpm test:e2e -> 0, 168/168 in 11.1 min on a cold .next/e2e
+  server: auth 2, cart-checkout 11, checkout-api 4, cms 5 (the room, social-links and scenes
+  tests among them), media 8, motion 15, owner-operations 20 (with the W2 patch), public 26,
+  reader 18, store-admin 9, visual 50. Report playwright-report/index.html; .last-run.json
+  "passed", no failed test.
+  After the run: live site_settings/site (seq 27; nav, footer, home, 4 social links),
+  scenes/gallery (seq 15) and the four rooms deep-equal content/initial-content.json.
+  Restored to their committed versions: the P05, P06 and P07 screenshots and next-env.d.ts the
+  run rewrote, and 10 DESIGN-B captures. Of those, the home, rooms, contact and scenes captures
+  with JavaScript were byte-identical (so the footer and /contact render as before); the
+  differences were the four book-*-js captures and book-768-nojs, 1,100 to 1,500 px taller since
+  P02 (976176f) added the reader after the DESIGN-B baseline (7ac94e8), and mid-page lazy
+  photos in five 768-nojs captures (built, passed, scenes, shelf, started), none near the footer
+  and none in a page this package changed.
+- The visual suite is part of that run: visual 50/50 (every public page at 360, 768, 1024 and
+  1440, and at 768 without JavaScript, 0 px horizontal overflow).
+- pnpm build -> 0 (the static export, out/)
+- pnpm check:export -> 0: "26 required files present; 320 text files scanned, no secrets" and
+  the demo guard's line: "demo content («تجريبي») on 7 page(s), allowed only in a build against
+  a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)"
+- pnpm check:budgets -> 0: largest 146.1 KiB of 150 (store/demo-* 140.5, store 140.1)
+
+Screenshots (screenshots/), with the exercise that produced them
+- Admin, as a fresh local owner on next dev (:3000, started with the preview tool and stopped
+  afterwards), at 360 and 1440, nothing saved (scratch script accept-admin.mjs):
+  - admin-social-360.png, admin-social-1440.png: «روابط التواصل» loads the 4 links; «أضف عنصرًا»
+    makes 5; an http: URL shows "social.4.href" in the problems list; https clears it; «أعلى»
+    moves the new link to fourth, «أسفل» back to fifth; «حذف» leaves the 4 in their order.
+  - admin-scenes-360.png, admin-scenes-1440.png: /admin/content → «المَشاهد» → the gallery with
+    19 photos; the category select offers exactly أماكن، مشاريع، منتجات، رحلات، خلف الكواليس; add
+    (20), up and down, a category change, «إخفاء» checked and unchecked, a blank caption shows
+    the problems list, «حذف» (19). The captures show the form mid-exercise and unsaved (the first
+    photo's category was left switched to مشاريع); the live gallery was checked afterwards
+    (first photo أماكن, the whole document equal to the fixture).
+  - both widths: 0 px horizontal overflow, 0 console errors, 0 failed requests.
+- Public, from the static export served on :4031 (npx serve out; stopped afterwards), reduced
+  motion, at 360 and 1440 (scratch script accept-public.mjs):
+  - footer-360.png, footer-1440.png: the closing line, the signature, «المَشاهد», «تواصل» and
+    «إنستغرام: @anasa.aq» → https://www.instagram.com/anasa.aq.
+  - contact-360.png, contact-1440.png: «قنوات التواصل» holds the 4 links (Instagram, TikTok, X,
+    Snapchat), each https, in the admin's order.
+  - scenes-360.png, scenes-1440.png: 19 tiles, 0 broken images; filters الكل، أماكن، مشاريع،
+    منتجات، خلف الكواليس (no رحلات: no visible photo uses it); «مشاريع» → "مشاريع: 4 صور" and 4
+    visible tiles; the first tile opens the lightbox (1 / 19, «لوحة شارع رقم 4، تبوك», أماكن) and
+    Escape closes it.
+  - /, /contact, /scenes: 0 px horizontal overflow, 0 console errors, 0 failed requests.
+- Favicon: on the export and on next dev, <head> links /icon.svg (image/svg+xml) and
+  /apple-icon.png (180x180); /favicon.ico, /icon.svg and /apple-icon.png answer 200; the pane's
+  console on /scenes (next dev) logged nothing and no page logged a 404. The icon is the
+  aubergine ground with B's three coral triangles, solid fills.
+
+DESIGN-AUDIT recheck (the items this package touches; the rest stand as in the D39 recheck)
+- 2: no em dash in any added line under src/, content/ or scripts/ (git diff 0f2d87a).
+- 19, 35, 48, 51: the icon is Anas's own mark (B's triangles) on a solid ground, no gradient
+  tile; the social links are text, no borrowed logos.
+- 43, 45, 59, 60: 0 px overflow at 360 and 1440 on /, /contact, /scenes and both admin screens;
+  visual 50/50.
+- 56: no new colours or text styles; the gallery's empty line inherits the page's text colour.
+- 95, 149: every changed control exercised above (the social list, the gallery form, the scenes
+  filter and lightbox, the footer and contact links); cms e2e publishes both and reverts.
+- 98: the footer keeps Anas's closing line and signature; only its link now comes from the CMS.
+- 105: the admin errors say what is wrong («الرابط غير صالح. …», «اكتب …»).
+- 126, 130: truthful states: no social links → no handle and no social tiles; no published
+  gallery → «لا توجد مَشاهد بعد.»; hidden photos and empty categories are left out.
+- 137: the list controls are the words «أعلى» and «أسفل», no arrows.
+- 138: the admin screens are the generic form's existing controls; no new component or style.
+
+Evidence scripts: screenshots/accept-admin.mjs and screenshots/accept-public.mjs are the scratch
+scripts that produced the captures and the numbers above (run from the repo root; their JSON
+output was read in the session and is summarized here). admin-social-*.png are element shots of
+the «روابط التواصل» fieldset, byte-identical to W2's w2-admin-social-*.png (the same fieldset
+with the same data renders the same pixels); the page overflow at each width is measured by the
+script, not visible in the element shot. The controls are also proven by cms e2e (social links:
+edit, add, refuse http, reorder, publish, check /contact and the footer, restore; scenes: add,
+move first, hide, publish, check /scenes, restore).
+
+Final audit (fresh auditor, the whole diff since 0f2d87a): audit_failed, 1 high, 1 medium,
+8 low (final-audit.json). All fixed by the orchestrator:
+- high: D40 claimed the admin adds, orders and hides projects in all three rooms; in على الرف the
+  three ideas are fixed groups with a status line each. D40, DESIGN.md §7, COVERAGE C19 and the
+  open lists in EXECUTION-STATUS and HANDOFF now say so; a new shelf idea is recorded as open.
+- medium: PLANS/DATA-AND-SECURITY.md's collection row (added to the lock first) now lists the
+  social links, policies and scenes and says projects and shelf entries stay in the rooms (D40).
+- low: D40's date (2026-09-29, +03); EXECUTION-STATUS credits the icon and the _headers fix to
+  the orchestrator; DESIGN.md keeps site.ts (ROOM_ORDER for the 404 page's doors);
+  docs/development.md names the four policies; the /admin/content comment no longer says "four
+  collections"; WORK-PACKAGES P12's card link names a post or room document; the scenes
+  build-guard test asserts the Zod path ("category", "caption"); check-export requires the
+  policies and scenes edit shells; the evidence scripts are kept (above).
+After the fixes: npx vitest run tests/unit/content.test.ts tests/unit/demo-guard.test.ts -> 0
+(24 passed); node scripts/check-export.mjs -> 0 ("28 required files present; 320 text files
+scanned, no secrets" and the demo line); eslint --max-warnings 0 on the three changed code files
+-> 0; pnpm -s typecheck -> 0.
+
+Recheck of those fixes (fresh auditor): audit_failed, 1 high, 4 low (recheck-final.json).
+- high: the same add/order/hide overclaim held for بنيتُ هنا. BuiltRoomView draws only the first
+  two visible stages, in fixed roles (the team, then the seven branches), and not the stages'
+  pictures; a third stage is saved but not shown, and a reorder or a hide swaps the roles (the hide part was wrong; see the second recheck below). D40,
+  DESIGN.md §7, COVERAGE C19, EXECUTION-STATUS and HANDOFF now say so: only مررتُ من هنا (the
+  brand wall and the product gallery) is an add, order and hide project list; a new stage in
+  بنيتُ هنا (a design for stages beyond the two, D39) is recorded as open. No code changed.
+- low, fixed: ARCHITECTURE and DATA-AND-SECURITY's P12 card link names a post or a room document;
+  CollectionList's header lists the policies and the gallery among the fixed rows; the evidence
+  scripts' headers say they are kept as evidence.
+- low, not reproduced: "the new files are CRLF". A byte count over all 25 untracked text files
+  of that moment (26 with recheck-final.json, counted again by the next audit) finds no CR byte; they are LF like the tracked tree.
+After: eslint on the two changed code files 0; typecheck 0; PLANS/verify-plan.ps1 (pwsh) PASS,
+13 documents, 13 packages, 40 unique scope owners, 272 frozen hashes (planning-checks.json: the
+timestamp only); git diff --check clean.
+
+Second recheck (fresh auditor, the D40 claims against all three room views):
+audit_failed, 1 high, 1 medium, 2 low (recheck-final-2.json). Its code reading per room is the
+one D40 now records.
+- high: hiding or deleting a stage of بنيتُ هنا does not swap the roles; it drops the branches
+  band with the closing's first paragraph. medium: C19's note overclaimed "met in مررتُ من هنا",
+  where an added brand or photo has no text or status of its own. low: two product photos keep
+  their places beside the story whatever their list position; the CR count was 25 at the time.
+- Fix: the exact per-room truth now lives once, in D40 (what each room lets the admin add, order,
+  hide and publish, what the page draws, and that C19 is met only in part). DESIGN.md §7,
+  COVERAGE C19 and EXECUTION-STATUS point to D40 instead of restating it; the open list
+  everywhere is: a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf
+  idea, text and a status for an added project, and per-project figures. No code changed.
+
+Third recheck (fresh auditor, the consolidated D40 sentence by sentence against the code):
+audit_failed on one clause, 1 medium and 1 low (recheck-final-3.json); the other 15 sentences of
+D40 verified true with their code lines, the open list byte-identical in all four docs, the
+Arabic labels byte-identical to the code, planning-checks.json changed in its timestamp only.
+- medium: "no figure is shown" was false: the branches stage's own words say «سبعة فروع» and the
+  saffron band draws seven triangles fixed in code (BuiltRoomView.tsx:158-162, confirmed by the
+  orchestrator). D40 now says no figure is invented, the only figures are Anas's own words, and
+  the seven triangles do not follow an edited number.
+- low: the first-recheck line above that said "a reorder or a hide swaps the roles" is marked
+  as corrected by the second recheck.
+Both fixes are the auditor's exact wording; no code changed.
+
+After the battery, code changed only in comments (CollectionList's header, the /admin/content
+page), one test assertion (content.test.ts pins the Zod path) and check-export's REQUIRED list
+(two edit shells); no product behaviour changed. Final: pnpm check -> 0 (lint 0 problems,
+typecheck, frozen 50, copy 166, unit 23 files 432/432); node scripts/check-export.mjs -> 0 (28
+required files); PLANS/verify-plan.ps1 PASS; git diff --check clean.
