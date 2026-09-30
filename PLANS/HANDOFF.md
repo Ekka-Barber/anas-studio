@@ -2,15 +2,17 @@
 
 ## AUDIT-1, 2026-09-30
 
-**State.** The deep audit and its fixes are built and audited on `agent/design-b`, **uncommitted**, together with the owner's D41 change. `.anasaq-execution.lock` is held for AUDIT-1 until the owner decides on the commit. What was found, fixed and left open: `artifacts/acceptance/AUDIT-1/REPORT.md` (and `APPENDIX-findings.md`); the state: `PLANS/EXECUTION-STATUS.md` "AUDIT-1"; open items: `PLANS/ISSUES.md` I42 to I47.
+**State.** AUDIT-1, D41 and the owner's D42 decisions are committed and pushed on `agent/design-b`; the lock is released. What was found, fixed and left open: `artifacts/acceptance/AUDIT-1/REPORT.md` (and `APPENDIX-findings.md`); the state: `PLANS/EXECUTION-STATUS.md` "AUDIT-1"; open items: `PLANS/ISSUES.md` I43 to I47.
 
-**Local stack.** Reset from zero on 2026-09-30 (every migration through `20260930120000_audit_fixes.sql`), then `pnpm db:import` and `pnpm db:demo-catalog`. The Auth config now has the password-refusing hook: after any change to `supabase/config.toml`, restart with plain `supabase stop` and `supabase start` (never `--no-backup`), then `docker start supabase_edge_runtime_ANASAQ.ME`. The integration and e2e suites add test staff on every run; past about 1,000 staff rows, the team screen (PostgREST `max_rows`) no longer shows a new invite, and `auth.spec` fails. A reset plus the two imports clears that.
+**The history was rewritten (D42).** The WhatsApp export was removed from every commit, and every branch was force-pushed. Every commit id changed; the ids in the documents are the new ones. Any other checkout (another machine, a cloud session) must re-clone: a pull would merge the old history back. The old history's bundle and the folder copy sit in `../anas-studio-backup-2026-09-30/` until the owner deletes them. GitHub can keep serving an old commit by its id until its own cleanup; GitHub Support can purge it on request.
+
+**Local stack.** Reset from zero on 2026-09-30 (every migration through `20260930120000_audit_fixes.sql`), then `pnpm db:import` and `pnpm db:demo-catalog`; `20260930130000_buyer_retention.sql` applied after it. The Auth config now has the password-refusing hook: after any change to `supabase/config.toml`, restart with plain `supabase stop` and `supabase start` (never `--no-backup`), then `docker start supabase_edge_runtime_ANASAQ.ME`. The integration and e2e suites add test staff on every run; past about 1,000 staff rows, the team screen (PostgREST `max_rows`) no longer shows a new invite, and `auth.spec` fails. A reset plus the two imports clears that.
 
 **How this session ran.** Two background Workflows, and no `/compact` while either ran: a read-only audit (224 agents), then a sequential fix workflow (11 rounds, one writer at a time, each round audited). Workflow agents do not get the Sonnet model that `.claude/settings.json` forces, so set `model` on every `agent()` call to keep D41.
 
 **Next.**
-1. The owner reviews AUDIT-1, decides the commit (D41 plus AUDIT-1) and the push, and decides I42 (the WhatsApp export in Git history) and I43 to I45.
-2. P08 under D38 (below).
+1. P08 under D38 (below), now with preorder (D42).
+2. The owner and Anas: I43 (privacy policy on the contact form, E08), I45.
 
 ---
 
@@ -35,7 +37,7 @@
 Anas picked direction B «أنساق» (cover B, standing mockup B). The orchestrator ported it into the product alone, as the owner asked (no sub-agents, no GLM).
 
 **State.**
-- DESIGN-B is committed on branch `agent/design-b` (owner, 2026-09-28): `1ffb8a1` and `7ac94e8`, not pushed. Its lock was released.
+- DESIGN-B is committed on branch `agent/design-b` (owner, 2026-09-28): `2f54f85` and `379790e`, not pushed. Its lock was released.
 - P02 (the book preview reader), with the audit-2 fixes, is committed on top on the owner's word (2026-09-28: "once all fixes done commit"), not pushed; its lock was released. Evidence: `artifacts/acceptance/P02/commands.txt` and `audit-2/FINDINGS.md`; how it works: `docs/book-preview.md`.
 - From audit-2 on, the owner allows Opus 5.5 sub-agents (`opus-worker`, effort xhigh) for easier bounded work, one writer at a time, audited by the orchestrator. There is still no GLM for design. (Superseded by D41, 2026-09-30: every sub-agent is `sonnet-worker` or `auditor` on Sonnet 5.5; `opus-worker` is removed.)
 - Serious pages (the cart, the checkout, the policies, and P08's payment and order screens) stay calm and official: no reveals, only the title's short fade (DESIGN.md §4 and §6).
@@ -47,7 +49,7 @@ Anas picked direction B «أنساق» (cover B, standing mockup B). The orchest
 
 **Next.**
 0. DONE 2026-09-28: the design audit (tasmeem, the sweep brief's primary skill) and every fix, in two rounds: `artifacts/acceptance/DESIGN-B/tasmeem-audit/after/FIXES.md`. Only row 4 (I40, a launch check), row 5 (an owner note) and row 19 (a documented exception) remain. The sweep brief's per-skill cross-checks were not run separately.
-1. DONE 2026-09-28: the owner asked for the commit (`1ffb8a1`, `7ac94e8`).
+1. DONE 2026-09-28: the owner asked for the commit (`2f54f85`, `379790e`).
 2. Anas's inputs:
    - the paper edition's details and prices;
    - the book's characters;
@@ -85,19 +87,19 @@ Follow `CLAUDE.md`, `AGENTS.md` and `PLANS/README.md`. No lock is held: take `.a
 
 | Commit | What |
 |---|---|
-| `d12209e` | I37: the e2e dev server builds into `.next/e2e` |
-| `bd8e93f` | I35: one due predicate for the email job and `outbox_kick` |
-| `556e910` | Phase 2 walk-through, 14 admin fixes |
-| `cae43d9` | P06 acceptance battery (all green), proof map |
-| `87015fc` | P07 catalog and checkout migration (orchestrator) |
-| `e1c5458` | P07 round 1: `checkout` function, demo seed, tests (unit 327, db 172) |
-| `3bb68a2` | P07 round 2: store admin and owner-approved policies (db 177, e2e 16/16) |
-| `9fd3925` | P07 store media migration and the round 3 brief |
+| `f1a22dc` | I37: the e2e dev server builds into `.next/e2e` |
+| `beb9778` | I35: one due predicate for the email job and `outbox_kick` |
+| `a192e3f` | Phase 2 walk-through, 14 admin fixes |
+| `fd4fbab` | P06 acceptance battery (all green), proof map |
+| `4c80459` | P07 catalog and checkout migration (orchestrator) |
+| `a263d13` | P07 round 1: `checkout` function, demo seed, tests (unit 327, db 172) |
+| `79ef851` | P07 round 2: store admin and owner-approved policies (db 177, e2e 16/16) |
+| `38fcccf` | P07 store media migration and the round 3 brief |
 | the commit adding this file | P07 round 3 as built by glm-worker, with the orchestrator's fixes so far |
 
 ## Status after the third session (2026-09-27)
 
-Steps 1 to 3 are DONE. The round 3 audit is `d10dd1d`; the battery is green (every step at `d10dd1d`, and the e2e, cut short there by a memory crash, rerun on 2026-09-28 at `45dbfa6` to 95/95); the proof map is in `artifacts/acceptance/P07/commands.txt`. **P07 is accepted** (owner, 2026-09-28: "I accept p07 for now"). No lock is held: the orchestrator released `.anasaq-execution.lock` after pushing the acceptance record.
+Steps 1 to 3 are DONE. The round 3 audit is `7607a17`; the battery is green (every step at `7607a17`, and the e2e, cut short there by a memory crash, rerun on 2026-09-28 at `7d6c766` to 95/95); the proof map is in `artifacts/acceptance/P07/commands.txt`. **P07 is accepted** (owner, 2026-09-28: "I accept p07 for now"). No lock is held: the orchestrator released `.anasaq-execution.lock` after pushing the acceptance record.
 
 **Design in another session.** The owner then paused this line to rebuild the full UI/UX design system in Claude Desktop (Opus). Before resuming here: read `git log` after the commit that records this acceptance, and check whether a design direction was accepted. An accepted direction needs a `PLANS/DECISIONS.md` entry (D17 and DESIGN-AUDIT still say the design is frozen, I25), and under D38 the plain store pages are then restyled to it. The owner will say when to resume; the next package here is P08 (step 4).
 

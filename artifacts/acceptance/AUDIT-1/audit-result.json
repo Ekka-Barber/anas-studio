@@ -139,15 +139,15 @@
    {
     "pkg": "P00",
     "complexity": "high",
-    "status": "accepted: runtime spike, D29 swap (6f09321) and D32 replatform (fcad3fd) verified locally on the full stack 2026-09-27",
+    "status": "accepted: runtime spike, D29 swap (3c88331) and D32 replatform (eb41c2e) verified locally on the full stack 2026-09-27",
     "completionPct": 100,
-    "rationale": "Every proof in the D29 swap and the D32 replatform is in the evidence: no Payload in the lockfile, pnpm check, db reset, static export with rooms, admin shells and 404, check:export free of secrets, budget, Thmanyah static smoke at 360 and 1440, deno check (all functions since CLEANUP-1 W1), migrations on a throwaway Postgres, and the ported unit, integration and e2e tests (115 db and 67 e2e at 00586ea). Hosted re-measurement belongs to P10 by the package text.",
+    "rationale": "Every proof in the D29 swap and the D32 replatform is in the evidence: no Payload in the lockfile, pnpm check, db reset, static export with rooms, admin shells and 404, check:export free of secrets, budget, Thmanyah static smoke at 360 and 1440, deno check (all functions since CLEANUP-1 W1), migrations on a throwaway Postgres, and the ported unit, integration and e2e tests (115 db and 67 e2e at 079e676). Hosted re-measurement belongs to P10 by the package text.",
     "missingProofItems": []
    },
    {
     "pkg": "P01",
     "complexity": "high",
-    "status": "built on direction B (DESIGN-B 1ffb8a1/7ac94e8, CLEANUP-1); no formal acceptance line; E05 and E06 open",
+    "status": "built on direction B (DESIGN-B 2f54f85/379790e, CLEANUP-1); no formal acceptance line; E05 and E06 open",
     "completionPct": 88,
     "rationale": "Every room, the book, المجلس, scenes (now a CMS collection), contact, 404 and error are ported to D39. Covered: menu dialog and focus return, scenes filter and keyboard lightbox, JS-off pages, 0 px overflow at 360/768/1024/1440 (visual 50/50) and the motion checks. Missing: the journal's dated list, the journal name as the only hardcoded CMS-labelled room, no journal clicks in any test, and home order/visibility fixed in code. The 'built tabs' proof was superseded by D39 but the package text was never amended.",
     "missingProofItems": [
@@ -175,7 +175,7 @@
    {
     "pkg": "P03",
     "complexity": "high",
-    "status": "accepted, committed 4322ccc",
+    "status": "accepted, committed 0da3910",
     "completionPct": 97,
     "rationale": "Done: passwordless email-code sign-in through Mailpit, sign-up off, unknown email gets the identical response, TOTP step-up (stale-claim unit tests), staff-admin invite/role/revoke with the last-owner guard, a revoked member losing access and being banned, and D32 service_role-only functions. Test gaps: the operations role and the revoked member are missing from the staff and audit Data API cases. Google sign-in waits for an OAuth client; hosted Auth settings are I28 (P11).",
     "missingProofItems": [
@@ -187,7 +187,7 @@
    {
     "pkg": "P04",
     "complexity": "medium",
-    "status": "accepted, committed ff67889 and 4ffc78f (D32 amendment verified)",
+    "status": "accepted, committed 62a958c and 54f46fc (D32 amendment verified)",
     "completionPct": 86,
     "rationale": "Done: generic collection store, versions and conflicts (the losing session keeps its text), the Lexical allowlist, schedule/cancel/publish/archive/restore through authenticated functions with the owner/editor recheck, rebuild requests, room edit/reorder/hide/preview/publish e2e, and six collections. Missing: journal posts have no draft preview even though the journal now has a public page, the home cannot be reordered, the SEO fields are stored but unused (P10), and C19 is only partly met per D40.",
     "missingProofItems": [
@@ -200,7 +200,7 @@
    {
     "pkg": "P05",
     "complexity": "medium",
-    "status": "accepted, committed 79d8cf6; moved to Supabase Storage under D32 and re-verified",
+    "status": "accepted, committed df0d5a9; moved to Supabase Storage under D32 and re-verified",
     "completionPct": 97,
     "rationale": "Done: browser crop and WebP derivatives without upscaling, EXIF removed, spoof/size/key/expiry/cross-user refusals, private original, folders, reuse, where-used delete guard, and one-time claims with no upsert (TOCTOU closed). Nothing server-side uses Sharp. Hosted nosniff on the Storage origin is an I32 check at P11. The unsupported-encoder and corrupt-file UI path exists but has no e2e.",
     "missingProofItems": [
@@ -211,7 +211,7 @@
    {
     "pkg": "P06",
     "complexity": "high",
-    "status": "accepted by the owner 2026-09-27 (battery at 556e910: db 141, unit 237, e2e 71/71, Linux CI)",
+    "status": "accepted by the owner 2026-09-27 (battery at a192e3f: db 141, unit 237, e2e 71/71, Linux CI)",
     "completionPct": 93,
     "rationale": "Done: settings, team, owner home, stats with explicit 'unavailable', outbox, the signed webhook with dedupe and suppression, quota priority and safe replay, contact with Turnstile/honeypot/throttle and Reply-To (D31), the site-build and media-sweep jobs, privacy erase and the D36 purge, local encrypted backup with a restore drill (49 s), and the phase-2 walkthrough. The prerequisites the package itself defers are recorded explicitly.",
     "missingProofItems": [
@@ -224,7 +224,7 @@
    {
     "pkg": "P07",
     "complexity": "high",
-    "status": "accepted 'for now' by the owner 2026-09-28 (e2e 95/95 at 45dbfa6)",
+    "status": "accepted 'for now' by the owner 2026-09-28 (e2e 95/95 at 7d6c766)",
     "completionPct": 88,
     "rationale": "Done: catalog tables with owner column grants and audit, computed availability under row locks, largest-remainder coupons, idempotent pending orders, hold and throttle abuse limits, Turnstile, the cart with a session fallback, versioned policy consent, a non-book product reaching a pending order without code, and a truthful empty store. The preorder scope is missing and unrecorded. C20 closes only with P08, and E02/E03 stay open.",
     "missingProofItems": [
@@ -578,7 +578,7 @@
    "reasons": [
     "CONFIRM: All five kid posters are tracked in git (`git ls-files public/images/started` lists 46-50-kid-*-poster.webp) and keyed in public/images/manifest.json:1055-1094. The mp4s are git-ignored (.gitignore:38) but present in public/media, and the current out/ contains all five mp4s and posters. VideoTile.tsx:5 and fields.ts:95 import the media manifest, and `46-kid` appears in eight out/_next chunks, while content/initial-content.json:169-193 only sets `hidden: true`, which is a render-time flag. HANDOFF.md:41 and EXECUTION-STATUS.md:44 record only that consent is pending. Nothing records that the assets ship anyway, and I33 as written would publish the mp4s too.",
     "CONFIRM: The five poster frames are tracked in git (`git ls-files` lists public/images/started/46..50-kid-*-poster.webp), and so are public/images/manifest.json and public/media/manifest.json. With `output: 'export'` every Git-connected or local Pages build serves them at predictable URLs (out/images/started/ already has all five), while the `hidden: true` flag in content/initial-content.json:169-193 only suppresses rendering. The mp4s are git-ignored (.gitignore:38), but I33 (PLANS/ISSUES.md:39) proposes committing or publicly uploading all 18, and no doc records that the posters are exposed: DESIGN.md:183, EXECUTION-STATUS.md:44 and HANDOFF.md:41 all promise the films stay hidden until consent.",
-    "CONFIRM: The five kid posters are tracked in git (`git ls-files` lists public/images/started/46..50-kid-*-poster.webp, added in c98b091), and public/media/manifest.json is tracked (.gitignore:38-39) and imported whole by src/components/weave/VideoTile.tsx:5, so any Pages build publishes the posters and the ids. The local out/media already holds 46..50-kid-*.mp4. content/initial-content.json:170-192 `hidden: true` only suppresses rendering. The records (EXECUTION-STATUS.md:44, HANDOFF.md:41, DESIGN.md:183, docs/design-direction.md:261) track the consent itself as open and promise the films stay hidden. None of them records that the files are publicly reachable, and I33 (ISSUES.md:39) would publish the mp4s too, so this is an unrecorded gap in accepted work, not an intended behaviour."
+    "CONFIRM: The five kid posters are tracked in git (`git ls-files` lists public/images/started/46..50-kid-*-poster.webp, added in 70be5c9), and public/media/manifest.json is tracked (.gitignore:38-39) and imported whole by src/components/weave/VideoTile.tsx:5, so any Pages build publishes the posters and the ids. The local out/media already holds 46..50-kid-*.mp4. content/initial-content.json:170-192 `hidden: true` only suppresses rendering. The records (EXECUTION-STATUS.md:44, HANDOFF.md:41, DESIGN.md:183, docs/design-direction.md:261) track the consent itself as open and promise the films stay hidden. None of them records that the files are publicly reachable, and I33 (ISSUES.md:39) would publish the mp4s too, so this is an unrecorded gap in accepted work, not an intended behaviour."
    ]
   },
   {
@@ -823,7 +823,7 @@
     ".gitignore:34",
     "scripts/prepare-media.mjs:4"
    ],
-   "evidence": "source-manifest.json:418 `\"path\": \"BOOK_ASSETS/ANAS_WHATSAPP_CHAT/Artboard 9.pdf\",`. This is the first of 110 frozen entries (lines 418-966). `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` lists 110 files, 27,627,852 bytes: 1 chat transcript `WhatsApp Chat with انس القرني.txt` (32,807 B in HEAD; the local copy is 63,436 B and carries the skip-worktree flag), 4 .vcf contact cards (`رضوان  دهان رحى .vcf` 162 B, `علم  حداد رحى 2 .vcf` 209 B, `علي مطبوعات  رحى.vcf` 164 B, `كميرات محمود.vcf` 173 B), 25 PTT-*.opus voice notes (2,158,454 B), 73 IMG-*.jpg (22,542,664 B), 3 VID-*.mp4 (2,338,540 B) and 4 PDFs (554,679 B). There are 5 more `BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33*.jpeg` at the folder root. The files arrived in ce6cc35 (2026-09-21, 'chore: baseline before Astra production plan'). `git branch -a --contains` lists main, agent/design-b, agent/p00-runtime-spike, sync/local-2026-09-26, their four origin copies, origin/claude/keen-mayer-iuyfz0 and origin/claude/relaxed-hypatia-sml5mq. The only exclusion is the local, unversioned `.git/info/exclude:7 BOOK_ASSETS/ANAS_WHATSAPP_CHAT/*`, which cannot untrack committed files. `.gitignore` has no BOOK_ASSETS rule, although scripts/prepare-media.mjs:4 calls the sources 'git-excluded'. PLANS/SOURCE-NOTES.md:25 says: 'Do not publish ... original commercial font packs or private book chat material.' docs/privacy-data-map.md:7-20 has no row for the repository or GitHub. No build path reaches these files: next.config.ts `output: 'export'` copies only public/, prepare-media reads only SORTED_2026-09-21 and v2-design, nothing in src imports BOOK_ASSETS, and a scan of out/ finds no .vcf, .opus or WA* files.",
+   "evidence": "source-manifest.json:418 `\"path\": \"BOOK_ASSETS/ANAS_WHATSAPP_CHAT/Artboard 9.pdf\",`. This is the first of 110 frozen entries (lines 418-966). `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` lists 110 files, 27,627,852 bytes: 1 chat transcript `WhatsApp Chat with انس القرني.txt` (32,807 B in HEAD; the local copy is 63,436 B and carries the skip-worktree flag), 4 .vcf contact cards (`رضوان  دهان رحى .vcf` 162 B, `علم  حداد رحى 2 .vcf` 209 B, `علي مطبوعات  رحى.vcf` 164 B, `كميرات محمود.vcf` 173 B), 25 PTT-*.opus voice notes (2,158,454 B), 73 IMG-*.jpg (22,542,664 B), 3 VID-*.mp4 (2,338,540 B) and 4 PDFs (554,679 B). There are 5 more `BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33*.jpeg` at the folder root. The files arrived in 8ffdb9c (2026-09-21, 'chore: baseline before Astra production plan'). `git branch -a --contains` lists main, agent/design-b, agent/p00-runtime-spike, sync/local-2026-09-26, their four origin copies, origin/claude/keen-mayer-iuyfz0 and origin/claude/relaxed-hypatia-sml5mq. The only exclusion is the local, unversioned `.git/info/exclude:7 BOOK_ASSETS/ANAS_WHATSAPP_CHAT/*`, which cannot untrack committed files. `.gitignore` has no BOOK_ASSETS rule, although scripts/prepare-media.mjs:4 calls the sources 'git-excluded'. PLANS/SOURCE-NOTES.md:25 says: 'Do not publish ... original commercial font packs or private book chat material.' docs/privacy-data-map.md:7-20 has no row for the repository or GitHub. No build path reaches these files: next.config.ts `output: 'export'` copies only public/, prepare-media reads only SORTED_2026-09-21 and v2-design, nothing in src imports BOOK_ASSETS, and a scan of out/ finds no .vcf, .opus or WA* files.",
    "failureScenario": "Every clone, CI checkout (ci.yml checks out every pushed branch), cloud agent session (the two origin/claude/* branches) and collaborator receives the names and phone numbers of four third-party tradespeople, a private chat and voice recordings. This data has no product purpose and is stored outside KSA on GitHub with no recorded purpose, retention period or data-map entry, which conflicts with PDPL purpose limitation, data minimisation and cross-border transfer rules. Deleting the files in a new commit still leaves them in history on all 10 refs.",
    "suggestedFix": "Run `git update-index --no-skip-worktree` on the chat .txt. Then run `git rm -r --cached BOOK_ASSETS/ANAS_WHATSAPP_CHAT \"BOOK_ASSETS/WhatsApp Image 2026-09-18 at 02.51.33\"*`. Move the local exclude rules into .gitignore (`/BOOK_ASSETS/ANAS_WHATSAPP_CHAT/`, `/BOOK_ASSETS/SORTED_2026-09-21/`, `/BOOK_ASSETS/v2-design/`, `/BOOK_ASSETS/v3-art/`, `/BOOK_ASSETS/v4-art/`). Delete the 110 ANAS_WHATSAPP_CHAT entries from PLANS/evidence/source-manifest.json so that verify-plan.ps1 still passes. The owner decides the history purge: `git filter-repo --path BOOK_ASSETS/ANAS_WHATSAPP_CHAT --invert-paths` across all branches, a force-push, deleting the origin/claude/* branches, and asking GitHub support to drop cached refs. Functional impact: none on the site, the build or the tests.",
    "fixCorrections": [
@@ -835,8 +835,8 @@
    "needsOwnerDecision": true,
    "reasons": [
     "CONFIRM: Confirmed: `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` returns 110 files including the chat .txt (flag S, skip-worktree) and 4 .vcf cards, and the add commit is contained by main, agent/design-b, p00, sync and all 6 origin refs including origin/claude/*. Only .git/info/exclude:7-11 lists BOOK_ASSETS; .gitignore has none, and scripts/prepare-media.mjs:4 wrongly calls the source 'git-excluded'. PLANS/SOURCE-NOTES.md:25 forbids publishing 'private book chat material', and neither ISSUES.md nor DECISIONS.md records this, so it is a real, unrecorded privacy defect. Whether the GitHub repo is private was not verified, and that affects exposure.",
-    "CONFIRM: Confirmed: `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` returns 110 tracked files, including the chat .txt (skip-worktree flag 'S') and 4 .vcf contact cards. ce6cc35 is contained in all 10 local and origin refs listed. The only exclusion is .git/info/exclude:7, which cannot untrack committed files, and nothing in PLANS/ISSUES.md, DECISIONS.md or docs/privacy-data-map.md records the data. Severity lowered from high to medium: `gh repo view` reports origin Ekka-Barber/anas-studio as PRIVATE, so exposure is limited to collaborators, CI and cloud-agent checkouts, not the public, and no build path ships the files.",
-    "CONFIRM: Confirmed: `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` returns 110 files, including the chat .txt (skip-worktree flag 'S') and 4 .vcf cards. Five root-level `WhatsApp Image 2026-09-18*.jpeg` files are also tracked, and commit ce6cc35 is on all 10 refs listed. `.gitignore` has no BOOK_ASSETS rule; the only exclusion is the local `.git/info/exclude`. This contradicts `scripts/prepare-media.mjs:4` ('git-excluded') and `PLANS/SOURCE-NOTES.md:25` ('Do not publish ... private book chat material'), and nothing in PLANS/ISSUES.md, DECISIONS.md or docs/privacy-data-map.md records it. I lowered severity to medium because `gh repo view` reports Ekka-Barber/anas-studio as PRIVATE, so exposure is limited to collaborators, CI and cloud agents, not the public."
+    "CONFIRM: Confirmed: `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` returns 110 tracked files, including the chat .txt (skip-worktree flag 'S') and 4 .vcf contact cards. 8ffdb9c is contained in all 10 local and origin refs listed. The only exclusion is .git/info/exclude:7, which cannot untrack committed files, and nothing in PLANS/ISSUES.md, DECISIONS.md or docs/privacy-data-map.md records the data. Severity lowered from high to medium: `gh repo view` reports origin Ekka-Barber/anas-studio as PRIVATE, so exposure is limited to collaborators, CI and cloud-agent checkouts, not the public, and no build path ships the files.",
+    "CONFIRM: Confirmed: `git ls-files BOOK_ASSETS/ANAS_WHATSAPP_CHAT` returns 110 files, including the chat .txt (skip-worktree flag 'S') and 4 .vcf cards. Five root-level `WhatsApp Image 2026-09-18*.jpeg` files are also tracked, and commit 8ffdb9c is on all 10 refs listed. `.gitignore` has no BOOK_ASSETS rule; the only exclusion is the local `.git/info/exclude`. This contradicts `scripts/prepare-media.mjs:4` ('git-excluded') and `PLANS/SOURCE-NOTES.md:25` ('Do not publish ... private book chat material'), and nothing in PLANS/ISSUES.md, DECISIONS.md or docs/privacy-data-map.md records it. I lowered severity to medium because `gh repo view` reports Ekka-Barber/anas-studio as PRIVATE, so exposure is limited to collaborators, CI and cloud agents, not the public."
    ]
   },
   {
@@ -866,16 +866,16 @@
     "PLANS/EXECUTION-STATUS.md:22",
     "PLANS/EXECUTION-STATUS.md:275"
    ],
-   "evidence": "| Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |\n| Last product commit | `00586ea` (cloud audit of `3c4347c`) ...\n| P01 | Part 1 committed (`c98b091`). D39 ...: direction B accepted; every public page ported in DESIGN-B (below), uncommitted on `agent/design-b` until the owner reviews. |\n| Lock | The CLI orchestrator's `.anasaq-execution.lock` (P06 round 2) is on the owner's machine and unknown from the repo. ...",
-   "failureScenario": "KICKOFF step 1 makes every session read this table first. Reality (git): HEAD is agent/design-b at 181245f; sync/local-2026-09-26 is 788cbbe, 6 commits behind (no DESIGN-B, P02, CLEANUP-1); .anasaq-execution.lock does not exist (released 2026-09-29); P00 row (line 11) says the D32 database/functions/e2e runs are 'pending local verification' although line 15 and the P06 ledger record them verified 2026-09-27; P06 row (line 15) ends 'Round 3 not started' though P06 was accepted with round 3 done; P01 row says DESIGN-B is uncommitted though it is 1ffb8a1/7ac94e8; P02 and P07 have no rows. A new orchestrator following it would switch to the stale branch, treat a nonexistent lock as blocking, or rerun done work. The P00 ledger row (line 267) also omits the D32 replatform fcad3fd.",
-   "suggestedFix": "In PLANS/EXECUTION-STATUS.md replace the heading and rows at lines 5-17 with:\n## Current state (2026-09-30)\n| Branch | `agent/design-b` (from `788cbbe`). `origin/agent/design-b` is at `0f2d87a` (DESIGN-B and P02, pushed 2026-09-29); the CLEANUP-1 commits `5d85654` and `181245f` are local only. `sync/local-2026-09-26` (`788cbbe`) and `agent/p00-runtime-spike` are behind and are not the working line. The D41 change (sonnet-worker, auditor, settings) is uncommitted in the working tree. |\n| Last commit | `181245f` (CLEANUP-1 evidence); last product commit `5d85654`. |\n| Packages | P00 (D29 `6f09321`; D32 `fcad3fd`, locally verified on the full stack 2026-09-27), P01 part 1 `c98b091` with DESIGN-B `1ffb8a1`/`7ac94e8`, P02 `976176f`/`0f2d87a`, P03-P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29): see the package ledger. P08-P12 not started. |\n| Lock | None: `.anasaq-execution.lock` does not exist; CLEANUP-1 released it on 2026-09-29. |\nKeep the Hosted resources row. In the ledger P00 row (line 267) append: `; D32 replatform committed `fcad3fd`, locally verified 2026-09-27 (artifacts/acceptance/P06/commands.txt)`.",
+   "evidence": "| Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `8d3adbe` and is not the working line. |\n| Last product commit | `079e676` (cloud audit of `c4937e5`) ...\n| P01 | Part 1 committed (`70be5c9`). D39 ...: direction B accepted; every public page ported in DESIGN-B (below), uncommitted on `agent/design-b` until the owner reviews. |\n| Lock | The CLI orchestrator's `.anasaq-execution.lock` (P06 round 2) is on the owner's machine and unknown from the repo. ...",
+   "failureScenario": "KICKOFF step 1 makes every session read this table first. Reality (git): HEAD is agent/design-b at a93ccc2; sync/local-2026-09-26 is 41658d3, 6 commits behind (no DESIGN-B, P02, CLEANUP-1); .anasaq-execution.lock does not exist (released 2026-09-29); P00 row (line 11) says the D32 database/functions/e2e runs are 'pending local verification' although line 15 and the P06 ledger record them verified 2026-09-27; P06 row (line 15) ends 'Round 3 not started' though P06 was accepted with round 3 done; P01 row says DESIGN-B is uncommitted though it is 2f54f85/379790e; P02 and P07 have no rows. A new orchestrator following it would switch to the stale branch, treat a nonexistent lock as blocking, or rerun done work. The P00 ledger row (line 267) also omits the D32 replatform eb41c2e.",
+   "suggestedFix": "In PLANS/EXECUTION-STATUS.md replace the heading and rows at lines 5-17 with:\n## Current state (2026-09-30)\n| Branch | `agent/design-b` (from `41658d3`). `origin/agent/design-b` is at `4e04ac1` (DESIGN-B and P02, pushed 2026-09-29); the CLEANUP-1 commits `0de9b4a` and `a93ccc2` are local only. `sync/local-2026-09-26` (`41658d3`) and `agent/p00-runtime-spike` are behind and are not the working line. The D41 change (sonnet-worker, auditor, settings) is uncommitted in the working tree. |\n| Last commit | `a93ccc2` (CLEANUP-1 evidence); last product commit `0de9b4a`. |\n| Packages | P00 (D29 `3c88331`; D32 `eb41c2e`, locally verified on the full stack 2026-09-27), P01 part 1 `70be5c9` with DESIGN-B `2f54f85`/`379790e`, P02 `42708f3`/`4e04ac1`, P03-P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29): see the package ledger. P08-P12 not started. |\n| Lock | None: `.anasaq-execution.lock` does not exist; CLEANUP-1 released it on 2026-09-29. |\nKeep the Hosted resources row. In the ledger P00 row (line 267) append: `; D32 replatform committed `eb41c2e`, locally verified 2026-09-27 (artifacts/acceptance/P06/commands.txt)`.",
    "fixCorrections": [
-    "The suggested rows are accurate against git: origin/agent/design-b is at 0f2d87a, the branch is ahead 2, there is no lock file and the D41 edits are in the working tree. Two additions: the ledger P06 row (:275) still ends with 'D32 replatform pending local verification; round 3 not started' after already saying 'round 3 done', so drop that trailing clause too. Label the P00 ledger addition as verified 2026-09-27 per artifacts/acceptance/P06/commands.txt."
+    "The suggested rows are accurate against git: origin/agent/design-b is at 4e04ac1, the branch is ahead 2, there is no lock file and the D41 edits are in the working tree. Two additions: the ledger P06 row (:275) still ends with 'D32 replatform pending local verification; round 3 not started' after already saying 'round 3 done', so drop that trailing clause too. Label the P00 ledger addition as verified 2026-09-27 per artifacts/acceptance/P06/commands.txt."
    ],
    "fixSize": "small",
    "needsOwnerDecision": false,
    "reasons": [
-    "CONFIRM: PLANS/EXECUTION-STATUS.md:5-16 still dates the Current state 2026-09-26: the Branch row names `sync/local-2026-09-26`, which git shows at 788cbbe, 6 commits behind HEAD 181245f on agent/design-b. The P00 row (:11) says D32 is 'pending local verification', while :15 and the P06 ledger say it was verified 2026-09-27; :15 still ends 'Round 3 not started' and :16 says DESIGN-B is uncommitted. The Lock row (:17) points to a lock that `ls` shows does not exist, and KICKOFF.md:5 sends every session to this table first."
+    "CONFIRM: PLANS/EXECUTION-STATUS.md:5-16 still dates the Current state 2026-09-26: the Branch row names `sync/local-2026-09-26`, which git shows at 41658d3, 6 commits behind HEAD a93ccc2 on agent/design-b. The P00 row (:11) says D32 is 'pending local verification', while :15 and the P06 ledger say it was verified 2026-09-27; :15 still ends 'Round 3 not started' and :16 says DESIGN-B is uncommitted. The Lock row (:17) points to a lock that `ls` shows does not exist, and KICKOFF.md:5 sends every session to this table first."
    ]
   },
   {
@@ -1162,7 +1162,7 @@
    "reasons": [
     "CONFIRM: previewPathFor at src/components/admin/CollectionForm.tsx:37-40 returns a path only for the four PREVIEW_ROOMS rooms, so PublishBar.tsx:90 renders no preview button for posts. RoomPreview.tsx:73 only queries collection 'rooms', and its ROOMS map (line 33) has no posts renderer. Meanwhile src/app/(public)/journal/[slug]/page.tsx is a real post page. C15 (COVERAGE.md:21) lists preview under P04, and neither ISSUES.md nor the DESIGN-B evidence records this as deferred. I lowered severity to medium because it is a missing feature with no security or data impact: the draft text is still visible in the editor, and nothing publishes early.",
     "CONFIRM: previewPathFor (src/components/admin/CollectionForm.tsx:37-40) only returns a path for the four rooms, and RoomPreview hard-codes `.eq('collection','rooms')` with renderers only for rooms (RoomPreview.tsx:33-50,73), so posts get no «معاينة» button. P04 deferred post preview only because 'Posts have no public page until the journal composition' (PLANS/WORK-PACKAGES.md:57), but /journal/[slug] now exists (src/app/(public)/journal/[slug]/page.tsx), C15 lists preview (PLANS/COVERAGE.md:21), and nothing in ISSUES.md or docs/development.md:176 records the gap. I lowered it to medium: the owner is the only author and still sees every field in the editor, so this is a missing review step with no security or data-loss risk.",
-    "CONFIRM: PLANS/WORK-PACKAGES.md:57 (P04 part 2) deferred post preview only because \"Posts have no public page until the journal composition\". DESIGN-B (1ffb8a1) then added src/app/(public)/journal/[slug]/page.tsx, but CollectionForm.tsx:37-40 still returns null for every non-room, and RoomPreview.tsx:73 hard-codes .eq('collection','rooms') and ROOMS has no post renderer. C15 (PLANS/COVERAGE.md:21) lists preview, and D20/D32 promise a staff draft preview; no ISSUES/DESIGN-AUDIT/EXCEPTIONS entry records this gap. Lowered to medium: nothing is lost and there is no security impact, and the owner can archive a post after publishing, but a draft article cannot be reviewed in its public form before publish."
+    "CONFIRM: PLANS/WORK-PACKAGES.md:57 (P04 part 2) deferred post preview only because \"Posts have no public page until the journal composition\". DESIGN-B (2f54f85) then added src/app/(public)/journal/[slug]/page.tsx, but CollectionForm.tsx:37-40 still returns null for every non-room, and RoomPreview.tsx:73 hard-codes .eq('collection','rooms') and ROOMS has no post renderer. C15 (PLANS/COVERAGE.md:21) lists preview, and D20/D32 promise a staff draft preview; no ISSUES/DESIGN-AUDIT/EXCEPTIONS entry records this gap. Lowered to medium: nothing is lost and there is no security impact, and the owner can archive a post after publishing, but a draft article cannot be reviewed in its public form before publish."
    ]
   },
   {
@@ -2555,15 +2555,15 @@
     "artifacts/acceptance/DESIGN-B/screenshots/book-1440-js.png:1"
    ],
    "evidence": "expect(overflow, `horizontal overflow on ${route} at ${width}px`).toBeLessThanOrEqual(1)\n\n      await page.screenshot({ path: `${OUT_DIR}/${slug}-${width}-js.png`, fullPage: true })",
-   "failureScenario": "The visual suite only captures screenshots and asserts horizontal overflow. It never compares against a baseline. artifacts/acceptance/DESIGN-B/screenshots/book-*-js.png were last committed at 7ac94e8, before P02. CLEANUP-1 measured the current /book as 1,100 to 1,500 px taller, and each run restores the stale files instead of comparing them. A regression outside the reader (cover B, standing B, the contents strip) would pass visual 50/50. VERIFICATION line 35 requires a book comparison that masks only the reader region.",
+   "failureScenario": "The visual suite only captures screenshots and asserts horizontal overflow. It never compares against a baseline. artifacts/acceptance/DESIGN-B/screenshots/book-*-js.png were last committed at 379790e, before P02. CLEANUP-1 measured the current /book as 1,100 to 1,500 px taller, and each run restores the stale files instead of comparing them. A regression outside the reader (cover B, standing B, the contents strip) would pass visual 50/50. VERIFICATION line 35 requires a book comparison that masks only the reader region.",
    "suggestedFix": "Re-capture and commit the /book baselines from the current tree. Add one `expect(page).toHaveScreenshot()` for /book at 360 and 1440 with `mask` on the reader stage. If that is not done now, record the proof as open in the EXECUTION-STATUS P02 section.",
    "fixCorrections": [
-    "A pixel comparison against the pre-P02 baselines cannot work: the reader shifts everything below it by 1,100 to 1,500 px. Do a one-time masked comparison of the regions above and below the reader stage, current /book against 7ac94e8 at 360 and 1440, aligned by section offset, and record the result in artifacts/acceptance/P02. Then re-baseline book-*-js.png and book-768-nojs.png from the current tree. Adding toHaveScreenshot is optional and flaky across machines because of font rasterization. If the comparison is not run now, record the proof as open in the EXECUTION-STATUS P02 'Open' line."
+    "A pixel comparison against the pre-P02 baselines cannot work: the reader shifts everything below it by 1,100 to 1,500 px. Do a one-time masked comparison of the regions above and below the reader stage, current /book against 379790e at 360 and 1440, aligned by section offset, and record the result in artifacts/acceptance/P02. Then re-baseline book-*-js.png and book-768-nojs.png from the current tree. Adding toHaveScreenshot is optional and flaky across machines because of font rasterization. If the comparison is not run now, record the proof as open in the EXECUTION-STATUS P02 'Open' line."
    ],
    "fixSize": "small",
    "needsOwnerDecision": false,
    "reasons": [
-    "CONFIRM: WORK-PACKAGES.md:37 and VERIFICATION.md:35 require a /book comparison that masks only the reader region. visual.spec.ts:51 only writes screenshots and never compares them. P02 commands.txt:25 and CLEANUP-1 commands.txt:85-89 show the run's /book captures were restored to the pre-P02 7ac94e8 versions, which are 1,100 to 1,500 px shorter. EXECUTION-STATUS P02 (L207-238) claims no such proof and lists no open item for it, so the proof is missing and unrecorded."
+    "CONFIRM: WORK-PACKAGES.md:37 and VERIFICATION.md:35 require a /book comparison that masks only the reader region. visual.spec.ts:51 only writes screenshots and never compares them. P02 commands.txt:25 and CLEANUP-1 commands.txt:85-89 show the run's /book captures were restored to the pre-P02 379790e versions, which are 1,100 to 1,500 px shorter. EXECUTION-STATUS P02 (L207-238) claims no such proof and lists no open item for it, so the proof is missing and unrecorded."
    ]
   },
   {
@@ -2711,7 +2711,7 @@
     "PLANS/ISSUES.md:81"
    ],
    "evidence": "      \"network\": \"إكس\",\n      \"handle\": \"@anasa.aq\",\n      \"href\": \"https://x.com/anasa.aq\"",
-   "failureScenario": "X usernames allow only letters, digits and underscores, so `anasa.aq` cannot exist there. Only the Instagram handle `anasa.aq` is confirmed in the sources (anasaq-me-full-package.md:8, 47). The TikTok, X and Snapchat entries were derived by assuming the same handle «on every network» (commit 1ffb8a1, src/content/site.ts). /contact renders every social link as a tile (DESIGN.md §7), so a visitor who taps «إكس @anasa.aq» lands on X's «This account doesn't exist». I41 also tells P11 to copy these four entries to the hosted site_settings.",
+   "failureScenario": "X usernames allow only letters, digits and underscores, so `anasa.aq` cannot exist there. Only the Instagram handle `anasa.aq` is confirmed in the sources (anasaq-me-full-package.md:8, 47). The TikTok, X and Snapchat entries were derived by assuming the same handle «on every network» (commit 2f54f85, src/content/site.ts). /contact renders every social link as a tile (DESIGN.md §7), so a visitor who taps «إكس @anasa.aq» lands on X's «This account doesn't exist». I41 also tells P11 to copy these four entries to the hosted site_settings.",
    "suggestedFix": "Remove the X entry from content/initial-content.json `social`, and from the published local site_settings through the admin or `pnpm db:import --force`, until Anas gives his real X handle. Ask him to confirm the TikTok and Snapchat handles before I41 copies them to the hosted project.",
    "fixCorrections": [
     "Smallest fix: amend I41 so it copies only the entries Anas has confirmed, and state there that the X entry is invalid because X handles cannot contain '.'. Reword questionnaire Q29 so it asks for his real X handle and does not pre-select «صحيحة» for the X link. Remove the X entry from content/initial-content.json (and the local site_settings) only if Anas has no X account or does not answer. TikTok and Snapchat need his confirmation but are not technically invalid."
@@ -2938,7 +2938,7 @@
    "file": "package.json",
    "line": 53,
    "otherLocations": [],
-   "evidence": "    \"esbuild\": \"0.28.2\",\n-- grep over src/ scripts/ tests/ supabase/ and all root configs: no import, require or config reference. `git log -S'\"esbuild\"' -- package.json` shows it arrived in 07cbc49 'Payload on Workers via OpenNext'. In pnpm-lock.yaml it is resolved only as the direct devDependency (vite 8 lists it as an optional peer).",
+   "evidence": "    \"esbuild\": \"0.28.2\",\n-- grep over src/ scripts/ tests/ supabase/ and all root configs: no import, require or config reference. `git log -S'\"esbuild\"' -- package.json` shows it arrived in 2cfed29 'Payload on Workers via OpenNext'. In pnpm-lock.yaml it is resolved only as the direct devDependency (vite 8 lists it as an optional peer).",
    "failureScenario": "Every install downloads and builds a native binary that no script uses (it is also listed in pnpm.onlyBuiltDependencies).",
    "suggestedFix": "Remove `esbuild` from devDependencies and from `pnpm.onlyBuiltDependencies` in package.json, refresh the lockfile, then confirm `pnpm test` and `pnpm build` still pass (the orchestrator runs the battery).",
    "fixCorrections": [
@@ -3263,13 +3263,13 @@
     "PLANS/HANDOFF.md:25"
    ],
    "evidence": "1. The owner reviews CLEANUP-1 and decides on the push of `agent/design-b` (nothing is pushed).",
-   "failureScenario": "git: refs/remotes/origin/agent/design-b is 0f2d87a, 'update by push' at 2026-09-29 00:37 +0300, so 1ffb8a1, 7ac94e8, 976176f and 0f2d87a are already on origin; only 5d85654 and 181245f are local. HANDOFF lines 24-25 also say DESIGN-B and P02 are 'not pushed'. The owner deciding on the push believes DESIGN-B/P02 were never published and reviews the wrong range.",
-   "suggestedFix": "PLANS/EXECUTION-STATUS.md line 282: replace '(nothing is pushed)' with '(origin has everything through `0f2d87a`; only the CLEANUP-1 commits `5d85654` and `181245f` are unpushed)'. PLANS/HANDOFF.md lines 24-25: replace 'not pushed' with 'pushed to `origin/agent/design-b` on 2026-09-29'.",
+   "failureScenario": "git: refs/remotes/origin/agent/design-b is 4e04ac1, 'update by push' at 2026-09-29 00:37 +0300, so 2f54f85, 379790e, 42708f3 and 4e04ac1 are already on origin; only 0de9b4a and a93ccc2 are local. HANDOFF lines 24-25 also say DESIGN-B and P02 are 'not pushed'. The owner deciding on the push believes DESIGN-B/P02 were never published and reviews the wrong range.",
+   "suggestedFix": "PLANS/EXECUTION-STATUS.md line 282: replace '(nothing is pushed)' with '(origin has everything through `4e04ac1`; only the CLEANUP-1 commits `0de9b4a` and `a93ccc2` are unpushed)'. PLANS/HANDOFF.md lines 24-25: replace 'not pushed' with 'pushed to `origin/agent/design-b` on 2026-09-29'.",
    "fixCorrections": [],
    "fixSize": "trivial",
    "needsOwnerDecision": false,
    "reasons": [
-    "CONFIRM: `git branch -vv` shows agent/design-b '[origin/agent/design-b: ahead 2]', and the origin ref is 0f2d87a ('update by push' 2026-09-29 00:37). So 1ffb8a1, 7ac94e8, 976176f and 0f2d87a are all on origin. EXECUTION-STATUS.md:282 says '(nothing is pushed)', and HANDOFF.md:24-25 says DESIGN-B and P02 are 'not pushed'. Only the CLEANUP-1 'not pushed' notes (HANDOFF.md:5, ledger CLEANUP-1 row) are correct."
+    "CONFIRM: `git branch -vv` shows agent/design-b '[origin/agent/design-b: ahead 2]', and the origin ref is 4e04ac1 ('update by push' 2026-09-29 00:37). So 2f54f85, 379790e, 42708f3 and 4e04ac1 are all on origin. EXECUTION-STATUS.md:282 says '(nothing is pushed)', and HANDOFF.md:24-25 says DESIGN-B and P02 are 'not pushed'. Only the CLEANUP-1 'not pushed' notes (HANDOFF.md:5, ledger CLEANUP-1 row) are correct."
    ]
   },
   {
@@ -3289,14 +3289,14 @@
    "otherLocations": [
     "PLANS/EXECUTION-STATUS.md:65"
    ],
-   "evidence": "The work is on branch `agent/design-b` from `788cbbe`, under the lock, and is uncommitted until the owner reviews it.\n...\n- Session booking (P09) and the reader (P02).",
-   "failureScenario": "The ledger (line 269) says DESIGN-B was committed as 1ffb8a1/7ac94e8 and the lock released, and P02 (the reader) was committed as 976176f/0f2d87a. The 'Open for the owner and Anas' list (line 65) still asks them for the reader, so the owner is asked for work already delivered.",
-   "suggestedFix": "PLANS/EXECUTION-STATUS.md line 22: replace 'under the lock, and is uncommitted until the owner reviews it' with 'and was committed on the owner's word (`1ffb8a1`, `7ac94e8`); the lock is released'. Line 65: replace with '- Session booking (P09).'",
+   "evidence": "The work is on branch `agent/design-b` from `41658d3`, under the lock, and is uncommitted until the owner reviews it.\n...\n- Session booking (P09) and the reader (P02).",
+   "failureScenario": "The ledger (line 269) says DESIGN-B was committed as 2f54f85/379790e and the lock released, and P02 (the reader) was committed as 42708f3/4e04ac1. The 'Open for the owner and Anas' list (line 65) still asks them for the reader, so the owner is asked for work already delivered.",
+   "suggestedFix": "PLANS/EXECUTION-STATUS.md line 22: replace 'under the lock, and is uncommitted until the owner reviews it' with 'and was committed on the owner's word (`2f54f85`, `379790e`); the lock is released'. Line 65: replace with '- Session booking (P09).'",
    "fixCorrections": [],
    "fixSize": "trivial",
    "needsOwnerDecision": false,
    "reasons": [
-    "CONFIRM: EXECUTION-STATUS.md:22 says DESIGN-B is 'under the lock, and is uncommitted until the owner reviews it'. The ledger (:269-270) records it as committed 1ffb8a1/7ac94e8 with the lock released. Line 65 still lists 'the reader (P02)' as open for the owner and Anas, but the ledger records P02 as committed 976176f/0f2d87a."
+    "CONFIRM: EXECUTION-STATUS.md:22 says DESIGN-B is 'under the lock, and is uncommitted until the owner reviews it'. The ledger (:269-270) records it as committed 2f54f85/379790e with the lock released. Line 65 still lists 'the reader (P02)' as open for the owner and Anas, but the ledger records P02 as committed 42708f3/4e04ac1."
    ]
   },
   {
@@ -3318,7 +3318,7 @@
     "PLANS/HANDOFF.md:56"
    ],
    "evidence": "```sh\ngit fetch origin\ngit checkout sync/local-2026-09-26\ngit pull --ff-only origin sync/local-2026-09-26   # the commit that adds this file, or later\n```",
-   "failureScenario": "HANDOFF line 13 ('P08 under D38 (the list in the 2026-09-27 section below, step 4)') sends the next session into the 2026-09-27 section, whose 'Start' is written as an instruction, not history. Running it moves the worktree to 788cbbe, which lacks DESIGN-B, P02 and CLEANUP-1 (6 commits); P08 work started there would branch from pre-D39 code and conflict with every restyled store page.",
+   "failureScenario": "HANDOFF line 13 ('P08 under D38 (the list in the 2026-09-27 section below, step 4)') sends the next session into the 2026-09-27 section, whose 'Start' is written as an instruction, not history. Running it moves the worktree to 41658d3, which lacks DESIGN-B, P02 and CLEANUP-1 (6 commits); P08 work started there would branch from pre-D39 code and conflict with every restyled store page.",
    "suggestedFix": "In PLANS/HANDOFF.md, directly under the heading '# Handoff: orchestrator session of 2026-09-27 (second) to the next session' insert: `History. The working branch is now `agent/design-b` (see the 2026-09-29 section at the top); do not run the Start block below, and workers follow D41 (`sonnet-worker`, `auditor`), not glm-worker.` and change the Start fence lines to `git checkout agent/design-b`.",
    "fixCorrections": [
     "Add one history banner directly under the :47 heading: 'History. Superseded: the working branch is `agent/design-b` (top section); do not run the Start block; workers follow D41 (`sonnet-worker`, `auditor`); commit and push only on the owner's word.' Leave the historical commands as recorded; do not change them to agent/design-b. Also fix :13 so it points to the real P08 list, which is the 2026-09-27 section's 'Next' list, and cite its actual step instead of 'step 4'."
@@ -3380,8 +3380,8 @@
    "line": 85,
    "otherLocations": [],
    "evidence": "## Small UI items for when design reopens\n\n- `src/app/(public)/error.tsx` styles its button inline instead of through the CSS Module.",
-   "failureScenario": "src/app/(public)/error.tsx (rewritten in 1ffb8a1) uses `<ActionButton onClick={() => reset()}>` inside `styles.panel` from lost.module.css; there is no inline style. Design reopened with D39. A worker assigned this item edits a correct file.",
-   "suggestedFix": "PLANS/ISSUES.md: delete lines 83-85 and add to '## Closed': '- Inline-styled error button (I27 small UI item): `src/app/(public)/error.tsx` uses `ActionButton` and `lost.module.css` since DESIGN-B (`1ffb8a1`).'",
+   "failureScenario": "src/app/(public)/error.tsx (rewritten in 2f54f85) uses `<ActionButton onClick={() => reset()}>` inside `styles.panel` from lost.module.css; there is no inline style. Design reopened with D39. A worker assigned this item edits a correct file.",
+   "suggestedFix": "PLANS/ISSUES.md: delete lines 83-85 and add to '## Closed': '- Inline-styled error button (I27 small UI item): `src/app/(public)/error.tsx` uses `ActionButton` and `lost.module.css` since DESIGN-B (`2f54f85`).'",
    "fixCorrections": [],
    "fixSize": "trivial",
    "needsOwnerDecision": false,
@@ -3405,13 +3405,13 @@
    "line": 45,
    "otherLocations": [],
    "evidence": "... `media-delete` swallows Storage-removal failures so orphaned public derivatives can outlive their row until the I29 sweep exists, ... The original-promotion TOCTOU is closed: signed upload URLs no longer allow upsert, so a verified part cannot be replaced before it is moved (local e2e proof pending).",
-   "failureScenario": "EXECUTION-STATUS line 294 records the local run of 00586ea with 'media's two no-upsert refusals' passing on 2026-09-27, and I29's own status says the sweep exists but does not cover orphaned public derivatives. The residual list tells P11 to wait for a sweep that already shipped and to rerun a proof already recorded.",
+   "failureScenario": "EXECUTION-STATUS line 294 records the local run of 079e676 with 'media's two no-upsert refusals' passing on 2026-09-27, and I29's own status says the sweep exists but does not cover orphaned public derivatives. The residual list tells P11 to wait for a sweep that already shipped and to rerun a proof already recorded.",
    "suggestedFix": "PLANS/ISSUES.md line 45: replace 'until the I29 sweep exists' with '(the I29 sweep does not remove orphaned public derivatives)' and '(local e2e proof pending)' with '(proven locally 2026-09-27, artifacts/acceptance/P06/commands.txt)'.",
    "fixCorrections": [],
    "fixSize": "trivial",
    "needsOwnerDecision": false,
    "reasons": [
-    "CONFIRM: PLANS/ISSUES.md:45 still says 'until the I29 sweep exists' and '(local e2e proof pending)'. But I29's status (:23) says the sweep shipped without covering orphaned public derivatives, and EXECUTION-STATUS.md:294 plus artifacts/acceptance/P06/commands.txt:678,715 record the no-upsert refusals passing in the 00586ea run. The suggested wording and evidence path are correct."
+    "CONFIRM: PLANS/ISSUES.md:45 still says 'until the I29 sweep exists' and '(local e2e proof pending)'. But I29's status (:23) says the sweep shipped without covering orphaned public derivatives, and EXECUTION-STATUS.md:294 plus artifacts/acceptance/P06/commands.txt:678,715 record the no-upsert refusals passing in the 079e676 run. The suggested wording and evidence path are correct."
    ]
   },
   {
@@ -3956,7 +3956,7 @@
    "file": "src/admin/fields.ts",
    "line": 27,
    "otherLocations": [],
-   "evidence": "  | 'date'\n...\n    case 'date':\n      return isoDateSchema\n-- Count of `type: 'date'` in src/admin: 0. `git log -G\"type: 'date'\"` shows it was last used only in src/payload/collections/RuntimeProbe.ts, removed by 6f09321 (D29). Dead branches remain in fields.ts:27, 47, 71 and 128, and in src/components/admin/FieldInput.tsx:202 (default) and 359-373 (a `<input type=\"date\">` renderer). `FieldType` (fields.ts:17) itself has no references anywhere.",
+   "evidence": "  | 'date'\n...\n    case 'date':\n      return isoDateSchema\n-- Count of `type: 'date'` in src/admin: 0. `git log -G\"type: 'date'\"` shows it was last used only in src/payload/collections/RuntimeProbe.ts, removed by 3c88331 (D29). Dead branches remain in fields.ts:27, 47, 71 and 128, and in src/components/admin/FieldInput.tsx:202 (default) and 359-373 (a `<input type=\"date\">` renderer). `FieldType` (fields.ts:17) itself has no references anywhere.",
    "failureScenario": "No runtime failure: the admin bundle ships a renderer, a schema branch and a type alias that no collection or table config can reach.",
    "suggestedFix": "Remove `'date'` from the Field union and BaseValue (fields.ts 47, 71), the `case 'date'` in baseSchemaFor (128) and in FieldInput.tsx (202, 359-373), and delete the unused `FieldType` alias (fields.ts 17-33).",
    "fixCorrections": [
@@ -4021,7 +4021,7 @@
    "fixSize": "trivial",
    "needsOwnerDecision": false,
    "reasons": [
-    "CONFIRM: src/app/(public)/book/page.tsx:7 still says the reader \"arrives with P02\", but BookView.tsx:1 already imports BookPreview from '@/components/book/BookPreview' and P02 is accepted (commit 976176f). src/lib/content.ts:151-152 says the lenient schema stops a bad value from causing a \"500 every public page\", but next.config output is 'export' (D32, next.config:11), so there is no request-time render and a bad value would fail the build instead. Both comments are stale, though they have no effect on runtime."
+    "CONFIRM: src/app/(public)/book/page.tsx:7 still says the reader \"arrives with P02\", but BookView.tsx:1 already imports BookPreview from '@/components/book/BookPreview' and P02 is accepted (commit 42708f3). src/lib/content.ts:151-152 says the lenient schema stops a bad value from causing a \"500 every public page\", but next.config output is 'export' (D32, next.config:11), so there is no request-time render and a bad value would fail the build instead. Both comments are stale, though they have no effect on runtime."
    ]
   },
   {
@@ -7942,7 +7942,7 @@
    "severity": "medium",
    "file": "offer-site-v3/index.html:58",
    "reasons": [
-    "REFUTE: Keeping the Lyon file was deliberate. The D33 commit b284451 says in its message: \"offer-site-v3/ keeps its embedded font: it is the signed offer record.\" It removed only public/fonts/lyon, Lyon_Arabic_FONT/ and the deploy/ frozen copies. offer-site-v3/index.html is the signed scope source that COVERAGE.md:3 references by line, and SOURCE-NOTES.md:25 records that web licences for Lyon are claimed to be held; the only real gap is that DECISIONS.md:40 and EXECUTION-STATUS.md:107 leave that exception out."
+    "REFUTE: Keeping the Lyon file was deliberate. The D33 commit 6fbf724 says in its message: \"offer-site-v3/ keeps its embedded font: it is the signed offer record.\" It removed only public/fonts/lyon, Lyon_Arabic_FONT/ and the deploy/ frozen copies. offer-site-v3/index.html is the signed scope source that COVERAGE.md:3 references by line, and SOURCE-NOTES.md:25 records that web licences for Lyon are claimed to be held; the only real gap is that DECISIONS.md:40 and EXECUTION-STATUS.md:107 leave that exception out."
    ]
   },
   {

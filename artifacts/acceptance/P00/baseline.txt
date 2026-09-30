@@ -1,8 +1,8 @@
 # P00 baseline — recorded before any scaffolding
 date_utc: 2026-09-22T02:40:54Z
-head: 09f7de17689361b79c7f207b99d475ea44ae3156
+head: 16336ecfdec67fee4259fe356c2c1350d1c43376
 branch: agent/p00-runtime-spike
-planning_baseline_commit: 64c71f7cbf9903f33abd41faba3d9df251cf2453
+planning_baseline_commit: c3930276d564021ed45eeac7f66d8595653cc005
 
 ## git status --porcelain (dirty working tree at start)
 ?? PLANS/EXECUTION-STATUS.md

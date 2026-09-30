@@ -15,10 +15,10 @@ W3's files as the tree has them: `src/admin/collections/scenes.ts` (new), `src/l
 
 ## What to check against the brief, item by item
 
-- The 19 items moved byte for byte: compare `git show 0f2d87a:src/content/scenes.ts` (`SCENES`) against `content/initial-content.json` (ids, categories, captions, order) with a script, not by eye.
+- The 19 items moved byte for byte: compare `git show 4e04ac1:src/content/scenes.ts` (`SCENES`) against `content/initial-content.json` (ids, categories, captions, order) with a script, not by eye.
 - The categories enforced at publish (and the choice between a select type and a validated text field, with the reason, stated in `w3.md`).
 - Hidden items kept in data, skipped on the page; unresolvable images skipped; empty categories not offered as filters; the truthful empty state with no published document (one plain line, existing pattern).
-- `SceneGallery` and the D39 design unchanged: diff `src/components/public/scenes/**` against `0f2d87a` (expected: no change), and compare the rendered `/scenes` with the published document against today's.
+- `SceneGallery` and the D39 design unchanged: diff `src/components/public/scenes/**` against `4e04ac1` (expected: no change), and compare the rendered `/scenes` with the published document against today's.
 - The admin: the document appears under `/admin/content`, edits with the generic form and the image picker. Exercise add, reorder, hide, change category, publish in a browser at 360 and 1440; keep or replace `w3-admin-scenes-*.png` and `w3-scenes-empty-*.png` so they show what `w3.md` says they show.
 - Unit, integration (enum + publish case) and e2e tests as the brief lists them. Each test must fail if its behaviour breaks: prove it for at least the category rule and the hidden-item rule with a quick mutation, then restore.
 

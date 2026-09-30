@@ -235,7 +235,7 @@ published content at build time since P04).
   present; react-easy-crop 0 (admin client only); service_role 0; sb_secret_ 2
   files, both supabase-js's own key-prefix check (no key: 0 matches for
   sb_secret_ followed by 20+ key characters).
-- Size against the P04 commit, same recipe: 4ffc78f → 9653.36 KiB; P05 →
+- Size against the P04 commit, same recipe: 54f46fc → 9653.36 KiB; P05 →
   10459.97 KiB (+807 KiB, +8%). The growth since P00 (5494 KiB) came mostly
   in P04. The Workers Free limit is 64 MiB uncompressed; the compressed limit
   was removed on 2026-09-04 (developers.cloudflare.com/workers/platform/limits,

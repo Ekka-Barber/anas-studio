@@ -2,7 +2,7 @@
 # No deploy, no Cloudflare API calls, no hosted DB/R2/D1. Nothing read from .env.
 
 recorded_utc: 2026-09-23
-base_commit: 575d9af (branch agent/p00-runtime-spike)
+base_commit: c8b0a12 (branch agent/p00-runtime-spike)
 container: anasaq-bundle (node:24-bookworm-slim, pre-existing, synced via tar;
   node_modules already matched pnpm-lock.yaml's sha256, no reinstall needed)
 wrangler: 4.136.1
@@ -82,7 +82,7 @@ everything below is a *relative*, same-hardware, same-container comparison
 of one build against another, not a claim about hosted numbers, which were
 already measured in I20/I21 and are not re-measured here.
 
-## 2. BEFORE (static top-level import, HEAD 575d9af)
+## 2. BEFORE (static top-level import, HEAD c8b0a12)
 
 `PAYLOAD_SECRET=throwaway-build-secret pnpm build:worker`: exit 0.
 `npx wrangler deploy --dry-run`: **Total Upload: 29620.27 KiB / gzip:

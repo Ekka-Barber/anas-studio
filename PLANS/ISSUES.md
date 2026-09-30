@@ -32,10 +32,6 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 **Package:** P11 (hosted setup), from CLEANUP-1 (2026-09-29). `pnpm db:import` runs only against a loopback database, and the hosted project has neither `site_settings.social` (C09) nor a published `scenes/gallery` (C05). The pages stay truthful without them: the footer shows no handle, /contact no social tiles, and /scenes says «لا توجد مَشاهد بعد.». Before the first hosted build, the hosted `site_settings/site` needs the four `social` entries and the hosted `scenes/gallery` the 19 photos from `content/initial-content.json`, through the P11 content bootstrap or the owner in the admin; the migrations through `20260930120000_audit_fixes.sql` must be applied first. Check after the first hosted build that `/contact` shows the four tiles and `/scenes` its photos.
 
-## I42: a WhatsApp export with third parties' data is in Git history (owner)
-
-**From AUDIT-1 (G4.1, G4.4).** `BOOK_ASSETS/ANAS_WHATSAPP_CHAT/` (a chat export, four third-party `.vcf` contact cards, voice notes) and five root-level `WhatsApp Image 2026-09-18*.jpeg` files are tracked and pushed to origin on about ten refs; the chat transcript is also pinned in `PLANS/evidence/source-manifest.json`, and its hash matches only this machine's skip-worktree copy, so `verify-plan.ps1` fails on a clean checkout. The data has no product purpose (PDPL purpose limitation). Only the owner can decide, because the real fix rewrites history and needs a force push on every branch: (1) `git rm -r --cached BOOK_ASSETS/ANAS_WHATSAPP_CHAT` with a `.gitignore` rule and the manifest entry removed; (2) a history rewrite (for example `git filter-repo --path BOOK_ASSETS/ANAS_WHATSAPP_CHAT --invert-paths`) and a force push, after which every clone must re-clone. The root `WhatsApp Image` files may be product images: the owner says whether they go too.
-
 ## I43: the contact form and the privacy policy (owner, E08)
 
 **From AUDIT-1 (S03.4).** The contact form neither links nor records the privacy policy (`contacts.policy_revision` stays null). Decide with E08 whether the form links the policy and records its revision. (The buyer-retention half of this item is done: D42, 90 days, `20260930130000_buyer_retention.sql`.)
@@ -58,6 +54,7 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## Closed
 
+- I42 — the WhatsApp export in Git history: removed from the repository and from all 116 commits of every branch, then force-pushed (D42, 2026-09-30); the files stay on the owner's machine, git-ignored, and a pre-rewrite bundle sits outside the repository until the owner deletes it. The Codex app's local `refs/codex/*` checkpoints still hold the old trees on this machine only (never pushed).
 - I25 — public design direction: closed by D39 (2026-09-28); the port is DESIGN-B.
 - I29 — media housekeeping in Storage: `20260927120000_rebuild_delivery_and_media_sweep.sql` and the daily `media_sweep` job (P06 round 3); the orphaned-derivative residual is under I34.
 - I31 — append-only `audit_events` and deleting auth users: `privacy_erase_staff` erases instead of deleting (P06 round 3); runbook `docs/privacy-data-map.md`.
@@ -70,7 +67,7 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 - I01 — withdrawn: the Worker never exceeded the enforced size limit.
 - I02 — P00 hosted half: the public route was proven; the admin half was withdrawn by D29.
 - I06, I10, I16, I17, I18 — Payload job rows, `payload run`, PBKDF2 login CPU, seeded-owner login and cron bundling: gone with Payload (D29).
-- I07 — the superseded 3 MiB limit was removed from code and docs (`07cbc49`, `9f64d2a`).
+- I07 — the superseded 3 MiB limit was removed from code and docs (`2cfed29`, `9aa8b74`).
 - I11, I12, I14, I15 — P00 pooler connection, CPU and budget findings: resolved or measured in P00 and committed.
 - I13 — external audit of P00: fixes accepted; its two open items (Payload job-sweep role check, unenforced migration-connection helper) are superseded by D29's roles and `supabase/migrations/`.
 - I19, I22 — the Oracle VM admin (proposed D27) and its impact analysis: withdrawn by D29; the VM files are removed in the P00 D29 swap.

@@ -12,7 +12,7 @@
 
 recorded_utc: 2026-09-22T07:47Z
 branch: agent/p00-runtime-spike
-lock_base_commit: 09f7de17689361b79c7f207b99d475ea44ae3156
+lock_base_commit: 16336ecfdec67fee4259fe356c2c1350d1c43376
 
 ## Local gate, re-run in full against the final tree
 

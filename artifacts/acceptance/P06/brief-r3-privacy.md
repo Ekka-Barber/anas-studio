@@ -1,6 +1,6 @@
 # Brief: P06 round 3, step 4, the privacy erase functions (I31) and contact retention (D36)
 
-You work under `.anasaq-execution.lock` at base commit `5008138`. Do this one task, run the checks, report, stop. Read `docs/privacy-data-map.md` (the runbook these functions serve), `PLANS/ISSUES.md` I31 and `PLANS/DECISIONS.md` D08 and D36 first. The runbook is uncommitted in the working tree; read it, do not edit it.
+You work under `.anasaq-execution.lock` at base commit `4540e95`. Do this one task, run the checks, report, stop. Read `docs/privacy-data-map.md` (the runbook these functions serve), `PLANS/ISSUES.md` I31 and `PLANS/DECISIONS.md` D08 and D36 first. The runbook is uncommitted in the working tree; read it, do not edit it.
 
 ## Goal
 

@@ -1,7 +1,7 @@
 CLEANUP-1 + PLAN-GAPS (owner, 2026-09-29): quick cleanup; social links editable (C09); the scenes
 as an admin collection (C05); the project-pages decision (D40, C04/C19); status docs
 
-Base commit 0f2d87a, branch agent/design-b. Orchestrator: Claude Opus 5.5. Workers: opus-worker
+Base commit 4e04ac1, branch agent/design-b. Orchestrator: Claude Opus 5.5. Workers: opus-worker
 (Opus 5.5, effort max) and auditor (Opus 5.5), one at a time under .anasaq-execution.lock.
 
 Rounds (reports in this folder)
@@ -68,7 +68,7 @@ Docs
   favicon item closed.
 - PLANS/EXECUTION-STATUS.md and PLANS/HANDOFF.md: the CLEANUP-1 record, ledger row and next work.
 
-Acceptance battery (orchestrator, Windows, at 0f2d87a plus the package's working tree)
+Acceptance battery (orchestrator, Windows, at 4e04ac1 plus the package's working tree)
 - pnpm check -> 0: lint 0 problems (the 3 old warnings are gone), typecheck, check:frozen (50
   files unchanged), check:copy (166 files), unit 23 files 432/432
 - TEST_ENV=local DATABASE_URL=<local DB_URL> pnpm test:db -> 0, 14 files 181/181
@@ -84,7 +84,7 @@ Acceptance battery (orchestrator, Windows, at 0f2d87a plus the package's working
   run rewrote, and 10 DESIGN-B captures. Of those, the home, rooms, contact and scenes captures
   with JavaScript were byte-identical (so the footer and /contact render as before); the
   differences were the four book-*-js captures and book-768-nojs, 1,100 to 1,500 px taller since
-  P02 (976176f) added the reader after the DESIGN-B baseline (7ac94e8), and mid-page lazy
+  P02 (42708f3) added the reader after the DESIGN-B baseline (379790e), and mid-page lazy
   photos in five 768-nojs captures (built, passed, scenes, shelf, started), none near the footer
   and none in a page this package changed.
 - The visual suite is part of that run: visual 50/50 (every public page at 360, 768, 1024 and
@@ -125,7 +125,7 @@ Screenshots (screenshots/), with the exercise that produced them
   aubergine ground with B's three coral triangles, solid fills.
 
 DESIGN-AUDIT recheck (the items this package touches; the rest stand as in the D39 recheck)
-- 2: no em dash in any added line under src/, content/ or scripts/ (git diff 0f2d87a).
+- 2: no em dash in any added line under src/, content/ or scripts/ (git diff 4e04ac1).
 - 19, 35, 48, 51: the icon is Anas's own mark (B's triangles) on a solid ground, no gradient
   tile; the social links are text, no borrowed logos.
 - 43, 45, 59, 60: 0 px overflow at 360 and 1440 on /, /contact, /scenes and both admin screens;
@@ -149,7 +149,7 @@ script, not visible in the element shot. The controls are also proven by cms e2e
 edit, add, refuse http, reorder, publish, check /contact and the footer, restore; scenes: add,
 move first, hide, publish, check /scenes, restore).
 
-Final audit (fresh auditor, the whole diff since 0f2d87a): audit_failed, 1 high, 1 medium,
+Final audit (fresh auditor, the whole diff since 4e04ac1): audit_failed, 1 high, 1 medium,
 8 low (final-audit.json). All fixed by the orchestrator:
 - high: D40 claimed the admin adds, orders and hides projects in all three rooms; in على الرف the
   three ideas are fixed groups with a status line each. D40, DESIGN.md §7, COVERAGE C19 and the

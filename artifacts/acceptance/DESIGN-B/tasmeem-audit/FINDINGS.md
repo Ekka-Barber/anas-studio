@@ -1,7 +1,7 @@
 # tasmeem audit · anas.studio (direction B «أنساق») · findings only
 
 - **Date:** 2026-09-28
-- **Commit:** `788cbbe7d3b64c37feeb54145cbb9a1ec1b7e5ab` (HEAD of `agent/design-b`). The audited code is that commit plus the uncommitted DESIGN-B working tree (the lock's work in progress), exactly as served by the dev server and built by `pnpm build`.
+- **Commit:** `41658d35179286568c1b4e130ad3f48fe67e5cb5` (HEAD of `agent/design-b`). The audited code is that commit plus the uncommitted DESIGN-B working tree (the lock's work in progress), exactly as served by the dev server and built by `pnpm build`.
 - **Measured:**
   - scan ✓ (`src`, 157 files) → `scan.json`
   - built ✓ (`pnpm build` against the running local Supabase stack, 52 HTML files in `out/`) → `built.json`

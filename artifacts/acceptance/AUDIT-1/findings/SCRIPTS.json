@@ -152,7 +152,7 @@
    "file": "package.json",
    "line": 53,
    "otherLocations": [],
-   "evidence": "    \"esbuild\": \"0.28.2\",\n-- grep over src/ scripts/ tests/ supabase/ and all root configs: no import, require or config reference. `git log -S'\"esbuild\"' -- package.json` shows it arrived in 07cbc49 'Payload on Workers via OpenNext'. In pnpm-lock.yaml it is resolved only as the direct devDependency (vite 8 lists it as an optional peer).",
+   "evidence": "    \"esbuild\": \"0.28.2\",\n-- grep over src/ scripts/ tests/ supabase/ and all root configs: no import, require or config reference. `git log -S'\"esbuild\"' -- package.json` shows it arrived in 2cfed29 'Payload on Workers via OpenNext'. In pnpm-lock.yaml it is resolved only as the direct devDependency (vite 8 lists it as an optional peer).",
    "failureScenario": "Every install downloads and builds a native binary that no script uses (it is also listed in pnpm.onlyBuiltDependencies).",
    "suggestedFix": "Remove `esbuild` from devDependencies and from `pnpm.onlyBuiltDependencies` in package.json, refresh the lockfile, then confirm `pnpm test` and `pnpm build` still pass (the orchestrator runs the battery).",
    "verifierCorrections": [

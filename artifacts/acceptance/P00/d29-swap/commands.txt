@@ -1,5 +1,5 @@
 P00 D29 swap — proof commands, exit codes, key numbers
-Run 2026-09-24 on branch agent/p00-runtime-spike, base commit c98b091.
+Run 2026-09-24 on branch agent/p00-runtime-spike, base commit 70be5c9.
 
 a) pnpm install --frozen-lockfile -> exit 0
    grep -i payload package.json pnpm-lock.yaml -> 0 matches

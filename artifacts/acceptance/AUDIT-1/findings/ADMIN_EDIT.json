@@ -220,7 +220,7 @@
    "file": "src/admin/fields.ts",
    "line": 27,
    "otherLocations": [],
-   "evidence": "  | 'date'\n...\n    case 'date':\n      return isoDateSchema\n-- Count of `type: 'date'` in src/admin: 0. `git log -G\"type: 'date'\"` shows it was last used only in src/payload/collections/RuntimeProbe.ts, removed by 6f09321 (D29). Dead branches remain in fields.ts:27, 47, 71 and 128, and in src/components/admin/FieldInput.tsx:202 (default) and 359-373 (a `<input type=\"date\">` renderer). `FieldType` (fields.ts:17) itself has no references anywhere.",
+   "evidence": "  | 'date'\n...\n    case 'date':\n      return isoDateSchema\n-- Count of `type: 'date'` in src/admin: 0. `git log -G\"type: 'date'\"` shows it was last used only in src/payload/collections/RuntimeProbe.ts, removed by 3c88331 (D29). Dead branches remain in fields.ts:27, 47, 71 and 128, and in src/components/admin/FieldInput.tsx:202 (default) and 359-373 (a `<input type=\"date\">` renderer). `FieldType` (fields.ts:17) itself has no references anywhere.",
    "failureScenario": "No runtime failure: the admin bundle ships a renderer, a schema branch and a type alias that no collection or table config can reach.",
    "suggestedFix": "Remove `'date'` from the Field union and BaseValue (fields.ts 47, 71), the `case 'date'` in baseSchemaFor (128) and in FieldInput.tsx (202, 359-373), and delete the unused `FieldType` alias (fields.ts 17-33).",
    "verifierCorrections": [

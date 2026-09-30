@@ -210,7 +210,7 @@ Round 2 (glm-worker) — 2026-09-26/27
   this build (I30). A stale .open-next/assets handle from a sandboxed earlier run had to be
   released first (dev-server tree killed, takeown+grant, rm).
 
-== 2026-09-26 audit-fix pass 2 (response to the verification audit of a324577) ==
+== 2026-09-26 audit-fix pass 2 (response to the verification audit of 36235e0) ==
 - Coordinator ZCode (GLM-5.3) + four parallel sub-agents, disjoint file ownership (L11 record):
   E: admin.module.css, InboxView.tsx, EmailView.tsx, StatsView.tsx
   F: src/lib/format.ts, src/admin/collections/site-settings.ts, SettingsView.tsx,
@@ -242,75 +242,75 @@ Round 2 (glm-worker) — 2026-09-26/27
   playwright owner-operations + cms + auth → 22/22; screenshots re-captured (next dev; production
   capture remains round-3 evidence).
 
-== 2026-09-26 cloud audit of efa0e45 + fixes (pass 3; cloud Claude Code session, writer by owner authorization) ==
+== 2026-09-26 cloud audit of 518fe19 + fixes (pass 3; cloud Claude Code session, writer by owner authorization) ==
 Writer: the cloud reviewer, made writer by the owner for this pass while the local machine stayed
-idle (one writer). Branch claude/keen-mayer-iuyfz0 cut from efa0e45; commits 2325466..f5fe74d plus
-the ledger/evidence commit that adds this section. Scope: 9b6d1e5..efa0e45 and P06 seams. The
+idle (one writer). Branch claude/keen-mayer-iuyfz0 cut from 518fe19; commits 8935c62..25b90c0 plus
+the ledger/evidence commit that adds this section. Scope: 4518520..518fe19 and P06 seams. The
 model is named in each commit's Co-Authored-By trailer.
 
 Findings (D1–D17), fix and commit:
-- D1 LOW (evidence): efa0e45 rewrote PLANS/EXECUTION-STATUS.md, PLANS/ISSUES.md and
+- D1 LOW (evidence): 518fe19 rewrote PLANS/EXECUTION-STATUS.md, PLANS/ISSUES.md and
   tests/e2e/owner-operations.spec.ts with CRLF endings (whole-file diffs hid the real edits).
-  Stripped back to LF, content identical ignoring CR. 2325466
-- D2 MEDIUM (evidence): efa0e45 overwrote the accepted P00 playwright-report/index.html again.
-  Restored from 79d8cf6; P00, P01 and P05 evidence trees are identical to 79d8cf6. d44ca70
+  Stripped back to LF, content identical ignoring CR. 8935c62
+- D2 MEDIUM (evidence): 518fe19 overwrote the accepted P00 playwright-report/index.html again.
+  Restored from df0d5a9; P00, P01 and P05 evidence trees are identical to df0d5a9. 3f6f10e
 - D3 HIGH (M5 still regressed): inside the 38rem reading measure the 8-column email table
   scrolled sideways inside its box — pass 2's own email-1440.png shows no date and no replay
   column, inbox-1440.png no time and no status. The page-level overflow check cannot see a table
   scrolling inside its wrapper. AdminShell `wide` (72rem) for the inbox and email pages,
   .cellEllipsis 12rem; the e2e screenshot test now fails on any table wrapper overflow or an
   off-screen row control, and waits for data (resolved home count, a row's replay button).
-  a9bd91c
+  0314b8c
 - D4 MEDIUM: formatRiyadh used 'ar-SA-u-nu-latn', which current Chromium (141) resolves to the
   Hijri Umm al-Qura calendar («15 ربيع الآخر 1448 هـ») while Node gives Gregorian — admin dates
-  differed per browser. Pinned 'ar-SA-u-ca-gregory-nu-latn' there and in src/lib/format.ts. 3d0fdeb
+  differed per browser. Pinned 'ar-SA-u-ca-gregory-nu-latn' there and in src/lib/format.ts. 06fd556
 - D5 MEDIUM: the email-problems filter «تحتاج تدخل» kept uncertain/sending and filed exhausted
   under «انتهت» — the actionable rows were hidden and "ended" rows carried replay buttons.
-  Both filters now use REPLAYABLE_STATUSES; e2e step 4 exercises them. c7aa839
+  Both filters now use REPLAYABLE_STATUSES; e2e step 4 exercises them. 6fdf0b5
 - D6 LOW: the inbox's role-aware empty state treated operations like an editor although RLS
-  gives operations the full read; a filtered empty view claimed "no messages yet". 24f59d3
+  gives operations the full read; a filtered empty view claimed "no messages yet". 3f190b6
 - D7 MEDIUM (webhook state machine): (a) created_at went to timestamptz whenever Date.parse
   accepted it — "1" or a year past 9999 made a signed event 503 on every redelivery (endpoint
   disable loop), contrary to the code comment; now ISO for 1970–9999, else null. (b) the
   malformed path deduped on the payload `id` when present, the normal path on svix-id; both use
   svix-id now. (c) a malformed signed event whose record failed was answered 200 and the bounce
   lost; with every value bounded a failure can only be the database, so it is now 503. Unit tests
-  and the operations.md response table updated. 5338b07
+  and the operations.md response table updated. c0277b9
 - D8 LOW-MEDIUM: toAsciiAddress kept only the URL hostname, so `x@ü.test/extra`, `#frag`, `:25`
   and `%41` forms were silently rewritten and accepted. Domains with whitespace or / \ ? # : @ %
   now fail the grammar. New tests/unit/contact-route.test.ts asserts the stored value (lowercase,
-  punycode) and 11 grammar cases; 4 fail without the fix. 38cbe17
+  punycode) and 11 grammar cases; 4 fail without the fix. c4fecc8
 - D9 LOW: the N6 sent_at index was unused — the quota recount used FILTER with no WHERE (full
-  scan per claim). One month-bounded range now (index-only scan), bounds pinned to UTC. e8c2105
+  scan per claim). One month-bounded range now (index-only scan), bounds pinned to UTC. fdb5369
 - D10 MEDIUM (test quality): the pass-2 race test's `(select pg_sleep(0.2))` initplan never runs
   for a claim that returns no row (measured 1 ms), so serialized sessions also finished under the
   350 ms bound — the "overlap proof" proved nothing, and the bound was flaky. Rewritten: the first
   claim holds its row lock in an open transaction and the second claim, under lock_timeout 2s,
-  must return without the row. 8484333
+  must return without the row. 62f333a
 - D11 LOW (test hygiene): the e2e beforeAll still rewrote every pending/uncertain/sending row in
-  the shared database (pass 2 fixed only email-delivery.test.ts); now only rows due now. 7e0b618
+  the shared database (pass 2 fixed only email-delivery.test.ts); now only rows due now. bf9fdbe
 - D12 LOW: normalizeSaudiMobile refused `+966 050…` (trunk 0 kept) while whatsappLink turned it
   into the broken wa.me/9660501234567; numbers copied out of RTL text (LRM/RLM/ALM, no-break
-  spaces) were refused. Both now normalize to 9665XXXXXXXX. cb558a5
+  spaces) were refused. Both now normalize to 9665XXXXXXXX. 994d7c7
 - D13 MEDIUM: pass 2's dir="ltr" on the date cells scrambles the Arabic-locale date — its own
   inbox-360.png reads «/2026/09. 2:08 م26». The cells inherit RTL again («2026/09/26، 7:54 ص»);
-  360px card labels in Latin cells no longer run into the value. 51a1b9f
+  360px card labels in Latin cells no longer run into the value. 089c91c
 - D14 LOW (evidence): source-resend-bounced.md is a paraphrase (its example payload is dated
   2026-11-22, after the stated fetch); now marked so. I31 named round 1 for the round 2 user
-  cleanup. f5fe74d
+  cleanup. 25b90c0
 - D15 LOW (evidence): pass 2's section above claims "M5 desktop regression fixed", intact dates
   and a race "proof"; its own screenshots and the D10 measurement contradict all three. The
   committed P06 screenshots (email/inbox 360 and 1440, inbox-open) still show D3 and D13 and are
   superseded until re-captured. Recorded here; the section above is left as written.
-- D16 LOW (ledger): EXECUTION-STATUS said "this commit" for efa0e45 and "independent
+- D16 LOW (ledger): EXECUTION-STATUS said "this commit" for 518fe19 and "independent
   verification pending"; updated in the commit that adds this section.
 - D17 LOW (left, recommendation): the 8 KiB contact body limit (ARCHITECTURE) is reached near
   4,000 Arabic characters, before the schema's 5,000; the route comment now says so and the 413
-  copy names the message (d81d8cd). The P01 form should cap its textarea; changing the limit is
+  copy names the message (4ac05e2). The P01 form should cap its textarea; changing the limit is
   a plan decision.
 
-Improvements applied: clearer contact 413 copy and an accurate SettingsView comment (d81d8cd);
-the webhook response table and Temporary-bounce rule in docs/operations.md (5338b07).
+Improvements applied: clearer contact 413 copy and an accurate SettingsView comment (4ac05e2);
+the webhook response table and Temporary-bounce rule in docs/operations.md (c0277b9).
 Recommended only (not done): an owner-facing un-suppress path (still a manual DB action); purge
 of old sent outbox rows (round 3 retention); outbox_result's false return (lost lease) is not
 reflected in the run summary; a production-build screenshot pass; confirming Resend's bounce
@@ -320,7 +320,7 @@ Checks run in the cloud sandbox (Node 22 with engine-strict off; the repo pins N
 - pnpm typecheck → 0; pnpm lint → 0 (the 3 pre-existing <img> warnings).
 - pnpm vitest run (unit) → 211 passed, 1 skipped (15 files). The skip is the CONTENT.md drift
   check (BOOK_ASSETS source absent here); with it a local run should count 215. Baseline at
-  efa0e45 in the same sandbox: 197 passed, 1 skipped (= the 201 recorded above).
+  518fe19 in the same sandbox: 197 passed, 1 skipped (= the 201 recorded above).
 - pnpm check:copy → OK (97 files); pnpm check:frozen → OK (59 files under deploy/).
 - Throwaway PostgreSQL 16 (not the Supabase stack): all five migrations applied in order with
   stand-ins for auth.users/auth.uid()/auth.mfa_factors, a no-op cron.schedule and the pg_cron
@@ -341,7 +341,7 @@ Pending local verification (after pulling; none of these ran in the cloud):
 1. pnpm db:reset (the P06 migration changed in place again: outbox_claim quota count) and
    pnpm db:import.
 2. TEST_ENV=local … pnpm test:db — all 9 files; expect 93 (unchanged count; the race test is a
-   rewrite). The API-backed cases (RLS, staff, stats, operations views) have not run since efa0e45.
+   rewrite). The API-backed cases (RLS, staff, stats, operations views) have not run since 518fe19.
 3. pnpm test (expect 215 with the local drift check) and pnpm check.
 4. Playwright owner-operations + cms + auth on next dev (expect 22): the screenshot test's new
    table-overflow/off-screen-control assertions and data waits, email-problems step 4 (filters),
@@ -351,7 +351,7 @@ Pending local verification (after pulling; none of these ran in the cloud):
    with a gap after each label.
 6. Linux build:worker and the cron CPU measurement (I30), production-build screenshots (round 3).
 
-Local verification of the cloud pass (bc3b915, commits 2325466…f5fe74d + docs) — run
+Local verification of the cloud pass (7df791f, commits 8935c62…25b90c0 + docs) — run
 2026-09-26 on Windows (Git Bash, Node 24), the pending list above, in order:
 
 1. pnpm db:reset + pnpm db:import — OK; the changed P06 migration (outbox_claim quota count)
@@ -389,9 +389,9 @@ from the dev server was reverted. The accepted P00 playwright report was overwri
 by this e2e run (third occurrence of H2) and restored with `git checkout --`; the recurring
 cause is the shared playwright output dir, and it needs a per-package report dir in round 3.
 
-2026-09-26 cloud verification of 0086cff/ed1bc36 (the local verification pass)
+2026-09-26 cloud verification of 56699d7/488ff51 (the local verification pass)
 
-V1. 0086cff eventTime(): correct. Probed old vs new on 17 inputs under UTC and Asia/Riyadh:
+V1. 56699d7 eventTime(): correct. Probed old vs new on 17 inputs under UTC and Asia/Riyadh:
     zone-naive ISO (date-only, T or space separator, minutes-only, fractional seconds, 24:00)
     now gives the same instant on every machine; Z and offset inputs are unchanged;
     whitespace-padded ISO is now accepted (was null); only non-ISO strings ("1", an RFC 2822
@@ -399,10 +399,10 @@ V1. 0086cff eventTime(): correct. Probed old vs new on 17 inputs under UTC and A
     production behaviour is unchanged. tests/unit/resend-webhook.test.ts: 19 passed under
     UTC, Asia/Riyadh, America/Los_Angeles and Pacific/Kiritimati; whole unit suite 211 passed
     + 1 skipped (212; 215 locally with the drift check) under the last three zones.
-V2. Evidence: the P00 playwright report is byte-identical to 79d8cf6; the ledger's hash
-    correction (ed1bc36) is right. settings-360/1440 are unchanged bytes because that page
+V2. Evidence: the P00 playwright report is byte-identical to df0d5a9; the ledger's hash
+    correction (488ff51) is right. settings-360/1440 are unchanged bytes because that page
     renders identically between runs.
-V3. The 360 screenshots re-captured by 0086cff show D13's card-label gap never shipped
+V3. The 360 screenshots re-captured by 56699d7 show D13's card-label gap never shipped
     (D18, LOW-MEDIUM, cloud's own miss): email-360 «المستلم:p06r2-…», «آخر خطأ:HTTP_422»,
     inbox-360 «البريد:guest-…» are glued. Cause: Next 16 compiles CSS with lightningcss at its
     default targets (chrome/edge/firefox 111, safari 16.4 —
@@ -411,7 +411,7 @@ V3. The 360 screenshots re-captured by 0086cff show D13's card-label gap never s
     never matches under <html lang="ar">. The cloud's D13 harness loaded the raw CSS, not the
     compiled CSS, so it showed a gap that the app never had. The local 1440-only visual review
     could not see it (cards exist only at ≤480px).
-    Fix 87ebd1c (src/components/admin/admin.module.css): the label is isolated with
+    Fix 3fef85b (src/components/admin/admin.module.css): the label is isolated with
     RLI…PDI inside `content` ('\2067' attr(data-label) ':\2069' ' '), with the space outside the
     isolate, so it lands between label and value in either direction with no direction
     selector. Checked: lightningcss at Next's targets keeps the rule as written (no :lang
@@ -422,7 +422,7 @@ V3. The 360 screenshots re-captured by 0086cff show D13's card-label gap never s
     (While compiling, the cloud harness's admin.css turned out to be a symlink into src/ and was
     overwritten with compiled CSS; it was restored with `git checkout --` before the fix, and
     the committed diff is the rule change only.)
-    Checks at 87ebd1c: typecheck 0, lint 0 (3 old warnings), check:copy OK (97), check:frozen
+    Checks at 3fef85b: typecheck 0, lint 0 (3 old warnings), check:copy OK (97), check:frozen
     OK (59). CSS-only change; no unit or DB test touches it.
 
 Left as recommendations (not fixed):
@@ -432,13 +432,13 @@ Left as recommendations (not fixed):
 - The Arabic comma in «2026/09/26، 4:11 م» reads like a period at 1440 (local note);
   design pass.
 
-Pending local verification (after pulling 87ebd1c):
+Pending local verification (after pulling 3fef85b):
 1. Owner-operations spec (Playwright), then view email-360 and inbox-360: a space between
    every card label and its Latin value, labels still on the right in Arabic rows.
 2. Linux build:worker and the cron CPU measurement (I30), production-build screenshots
    (unchanged from the earlier list).
 
-Local verification of 87ebd1c (D18) — run 2026-09-26, the pending list above:
+Local verification of 3fef85b (D18) — run 2026-09-26, the pending list above:
 
 1. Owner-operations spec: 17/17 passed on `next dev` via
    PLAYWRIGHT_BASE_URL=http://localhost:3000, screenshots rewritten (17:00 local).
@@ -474,12 +474,12 @@ address as Anas's homework (1894). Email Routing only receives and forwards; it 
 automatic customer mail, so the sender and البريد stay.
 
 Commits:
-- 738801c: the notice carries Reply-To = the visitor (sendEmail replyTo → Resend `reply_to`,
+- 979bfcc: the notice carries Reply-To = the visitor (sendEmail replyTo → Resend `reply_to`,
   Mailpit `ReplyTo`) and no /admin/inbox line; the الوارد screen, nav link, home count and the
   CSS only it used are removed; public.contacts is server-only (no API grant or policy, owner
   included; status/notes/assigned_to/updated_at, the enum and the touch trigger dropped — P06
   migration edited in place, local-only); tests updated.
-- 4e0684d: settings lists the Email Routing step.
+- cfe6bed: settings lists the Email Routing step.
 - this commit: D31 in DECISIONS; WORK-PACKAGES P06/P08/P11, DATA, ARCHITECTURE, COVERAGE C22/C24,
   EXECUTION-STATUS, docs/operations.md and docs/development.md updated; the notify routes move
   to P08; the four inbox screenshots (inbox-*, inbox-open-*) deleted, their screen no longer
@@ -518,10 +518,10 @@ code and pg_cron calling them. This project ran the whole Next server on an Open
 cache, a per-minute cron through the full app (I30) and the prefetch loop (I23).
 
 Commits:
-- b284451 feat(fonts): Thmanyah only (D33). Lyon deleted from public/, Lyon_Arabic_FONT/,
+- 6fbf724 feat(fonts): Thmanyah only (D33). Lyon deleted from public/, Lyon_Arabic_FONT/,
   deploy/fonts and deploy/design/fonts (owner override); check-frozen and the source manifest
   drop those rows; the display face is Thmanyah Serif Display 300/400/500.
-- fcad3fd feat(d32): see PLANS/WORK-PACKAGES.md "P00 D32 replatform" for the file list.
+- eb41c2e feat(d32): see PLANS/WORK-PACKAGES.md "P00 D32 replatform" for the file list.
 - the docs commit: DECISIONS D32–D34 (and the amended D01/D03/D04/D06/D20/D23/D26 and
   E01/E02/E03/E06/E07/E08), ARCHITECTURE, DATA-AND-SECURITY, WORK-PACKAGES, VERIFICATION,
   COVERAGE, research-final, ISSUES (I04/I05/I08/I09/I21/I23/I30 closed as moot; I29 restated;
@@ -588,7 +588,7 @@ Pending local verification (after pulling; Node 24):
    `cf-connecting-ip` header passing through the local gateway.
 6. Screenshots: the rooms at 360 and 1440 (Thmanyah titles) and the P06 screens.
 
-Local verification of D31–D34 (eed6625) + independent audit fix pass — run
+Local verification of D31–D34 (5988872) + independent audit fix pass — run
 2026-09-27, on Windows against the full local stack (Storage + edge runtime live):
 
 Verification of the pending list (commands.txt section above):
@@ -645,9 +645,9 @@ test fidelity). Findings and the fixes applied in this pass:
 After the fixes: pnpm check 216/216 unit (15 files), db:reset + db:import + test:db
 115/115, build + check:export (18 files) + check:budgets green, full e2e 67/67.
 
-2026-09-27 cloud audit of 3c4347c (the local verification + 4-agent audit fix pass)
+2026-09-27 cloud audit of c4937e5 (the local verification + 4-agent audit fix pass)
 
-Read: the full code diff eed6625..3c4347c, the evidence above and the plan changes.
+Read: the full code diff 5988872..c4937e5, the evidence above and the plan changes.
 Accepted as is: pg_net created explicitly; verify_jwt pinned for admin and staff-admin;
 callFunction shape guard; the widened check-export (18 files, lang="ar" dir="rtl" on
 public pages); the new unit coverage (MISSING_PART, shell 405/400/413, operations x stats);
@@ -663,7 +663,7 @@ x-forwarded-for got the real address appended after it; an older thread (#7884) 
 x-forwarded-for sometimes empty, which would pool those visitors under `local`. The last hop
 is also right only while no proxy behind the one that saw the visitor appends its own
 address (Kong's default is to append). The local e2e could not tell these apart: passing
-does not show which hop keyed the bucket. Fix 00586ea: cf-connecting-ip first, else the
+does not show which hop keyed the bucket. Fix 079e676: cf-connecting-ip first, else the
 last hop, else `local`; unit tests rewritten (4); the e2e sets cf-connecting-ip again. I32
 now says how to probe it at P11 (a throwaway header-echo function with forged values).
 
@@ -671,11 +671,11 @@ admin.html budget exclusion: accepted. Measured here (initial JS gzip incl. the 
 polyfill): /admin 333 KiB, /admin/sign-in 232, /admin/media 431, a post editor 435 — the
 staff CMS client (supabase-js, Lexical, cropping); no visitor loads it. But the scan was
 top-level only, so a nested public page (journal/<slug>.html, a product page) would have
-escaped the budget: 00586ea walks every depth, excluding admin.html and admin/**. Proven
+escaped the budget: 079e676 walks every depth, excluding admin.html and admin/**. Proven
 by a planted out/journal/probe-post.html being measured (then removed). A missing out/ now
 gives the friendly error instead of an ENOENT at import time.
 
-I34 TOCTOU: closed in 00586ea by creating signed upload URLs without upsert (every browser
+I34 TOCTOU: closed in 079e676 by creating signed upload URLs without upsert (every browser
 retry already starts a new ticket); the media e2e now asserts a second upload to a signed
 path is refused — first real proof on the next local run.
 
@@ -689,15 +689,15 @@ check:frozen OK (50); check:copy OK (100); vitest 15 files, 211 passed + 1 skipp
 deno check contact and admin OK; next build 0 against the local Data API stand-in;
 check:export OK (18 files, 181 scanned); check:budgets OK (largest 142.2 KiB, 10 pages).
 
-Pending local verification of 00586ea: pnpm test; the media spec (the two new refusals) and
+Pending local verification of 079e676: pnpm test; the media spec (the two new refusals) and
 owner-operations (the contact bucket via cf-connecting-ip); pnpm build + check:budgets.
 
-2026-09-27 local verification of 00586ea (HANDOFF Step 1), on Windows against the full
+2026-09-27 local verification of 079e676 (HANDOFF Step 1), on Windows against the full
 local stack (Docker 29.8.0, Supabase CLI 2.106.0, Node 24.19.0, pnpm 10.33.0)
 
 Lock: the P06 round 2 lock was still on this machine in status `building`. Its owner had
-stopped (no glm-worker, pnpm, next dev or playwright process; round 2 closed at 8818e7f),
-the tree was clean at 3c4347c, the recovery was recorded, and the lock was released and
+stopped (no glm-worker, pnpm, next dev or playwright process; round 2 closed at 80dc61e),
+the tree was clean at c4937e5, the recovery was recorded, and the lock was released and
 recreated with fs.openSync(path, 'wx') for this step.
 
 1. pnpm install --frozen-lockfile -> exit 0 (lockfile up to date).
@@ -705,7 +705,7 @@ recreated with fs.openSync(path, 'wx') for this step.
 3. TEST_ENV=local DATABASE_URL=<DB_URL from supabase status -o json> pnpm test:db -> exit 0,
    10 files, 115/115.
 4. pnpm check -> exit 0: lint 0 errors (the 3 old no-img-element warnings), typecheck,
-   frozen, copy, unit 15 files 215/215 (rate-limit now 4 cases, per 00586ea).
+   frozen, copy, unit 15 files 215/215 (rate-limit now 4 cases, per 079e676).
    pnpm build -> exit 0. pnpm check:export -> exit 0 (18 required files, 180 text files
    scanned, no secrets). pnpm check:budgets -> exit 0 (10 public pages at every depth,
    admin excluded; largest passed.html 142.1 KiB, budget 150).
@@ -717,10 +717,10 @@ recreated with fs.openSync(path, 'wx') for this step.
      cf-connecting-ip passes through the local gateway.
    The run overwrote the P00 playwright report a sixth time (H2) and re-captured the P01,
    P05 and P06 screenshots; next dev rewrote next-env.d.ts. No UI changed since the
-   accepted captures (3c4347c removed a comment and added a response-shape guard; 00586ea
+   accepted captures (c4937e5 removed a comment and added a response-shape guard; 079e676
    touched no UI), so all of them were restored to HEAD.
 
-Not run: the I32 hosted probes (P11). Nothing is pending for 00586ea.
+Not run: the I32 hosted probes (P11). Nothing is pending for 079e676.
 
 2026-09-27 P06 round 3, step 1: H2 (per-package Playwright report dir)
 
@@ -791,7 +791,7 @@ edge runtime served the changed function in the e2e above).
 2026-09-27 P06 round 3, step 3: commerce settings without tax (D34)
 
 Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-r3-commerce-settings.md
-at 068fd6a; 104 turns, 25 min; exit 0 (spawnSync returned, so the worker process had exited).
+at b7e0591; 104 turns, 25 min; exit 0 (spawnSync returned, so the worker process had exited).
 Its report: pnpm check 223/223, test:db 131/131, owner-operations + auth e2e 20/20. It applied
 the migration, then edited the file (a text[] || text concatenation bug) and reconciled the
 running database by hand, so the orchestrator re-proved the file from a clean reset.
@@ -829,7 +829,7 @@ against DESIGN-AUDIT item 2.
 2026-09-27 P06 round 3, step 5: owner-run local backups (D35)
 
 Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-r3-backups.md at
-e1a29cd; 128 turns, 48 min; exit 0 (spawnSync returned). Its report: pnpm check 235 unit;
+e0cce8b; 128 turns, 48 min; exit 0 (spawnSync returned). Its report: pnpm check 235 unit;
 owner-operations 19/19; backup --local 227 entries / 222 objects; restore-check 44 tables and
 222 objects verified in 45.5 s; wrong passphrase refused; no scratch containers left. Its
 evidence-based deviations from the brief, all accepted: `storage cp` needs a RELATIVE
@@ -882,7 +882,7 @@ macOS.
 2026-09-27 P06 round 3, step 4: privacy erase functions (I31) and contact retention (D36)
 
 Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-r3-privacy.md at
-49d6354; 30 turns, 10 min; exit 0. Its report: pnpm check 236; test:db 139 (8 new). Its
+74539ed; 30 turns, 10 min; exit 0. Its report: pnpm check 236; test:db 139 (8 new). Its
 judgment calls, both accepted: a repeat erase that removes nothing adds no audit row; the D36
 purge treats delivery IS NULL as "not reported bounced" (the brief's literal
 `delivery not in (...)` would have excluded every unreported send).
@@ -939,7 +939,7 @@ tsconfig.json and the ledgers. Next 16.3.5 dev already writes to .next/dev, but 
 2026-09-27 I35: the email job warns only when mail is waiting
 
 Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P06/brief-i35-email-due.md at
-b447504; 33 turns, 8.6 min; exit 0 (spawnSync returned, port 3000 free afterwards). Diff: exactly
+1a494eb; 33 turns, 8.6 min; exit 0 (spawnSync returned, port 3000 free afterwards). Diff: exactly
 the six allowed paths. Its report says it restored the e2e screenshots with git checkout; the
 launcher denied that call (permission_denials), a later call restored them, and they were clean
 at the audit.
@@ -1034,7 +1034,7 @@ The security screenshots show the TOTP seed of a throwaway local test account.
 
 2026-09-27 P06 acceptance battery (ACCEPTANCE_PACKAGE=P06), orchestrator, Windows, full local stack
 
-At 556e910, one script, every exit code recorded; port 3000 free before the run:
+At a192e3f, one script, every exit code recorded; port 3000 free before the run:
 - pnpm install --frozen-lockfile -> 0
 - supabase db reset -> 0 (every migration from scratch, 20260927150000 included)
 - pnpm db:import -> 0 (5 documents)
@@ -1045,7 +1045,7 @@ At 556e910, one script, every exit code recorded; port 3000 free before the run:
   pnpm check:budgets -> 0 (largest 142.1 KiB of 150)
 - ACCEPTANCE_PACKAGE=P06 pnpm test:e2e -> 0, 71/71 in 3.2 min on a cold .next/e2e server;
   report in artifacts/acceptance/P06/playwright-report/, .last-run.json "passed"
-Linux CI on 556e910 (run 36320561040) -> success: typecheck, frozen sources, local Supabase with
+Linux CI on a192e3f (run 36320561040) -> success: typecheck, frozen sources, local Supabase with
 the import, static build, export check, budget.
 Screenshots: the eight P06 captures (home, email, stats, settings at 360 and 1440) re-captured
 by this run and reviewed (no em dash, «لا يوجد» in empty cells, the webhook step reads

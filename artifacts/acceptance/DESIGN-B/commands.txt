@@ -1,5 +1,5 @@
 DESIGN-B: direction B «أنساق» ported into the product (D39), 2026-09-28
-Orchestrator only (owner: no sub-agents, no GLM). Branch agent/design-b from 788cbbe. Local Supabase stack, content re-imported with `pnpm db:import --force`.
+Orchestrator only (owner: no sub-agents, no GLM). Branch agent/design-b from 41658d3. Local Supabase stack, content re-imported with `pnpm db:import --force`.
 
 Checks (all run on the final tree)
 - pnpm check                      exit 0: lint 0 errors (3 warnings, all pre-existing admin <img>), types clean, check:frozen 50 files unchanged, check:copy 157 files, unit 382/382 (21 files; new: tests/unit/design-b.test.ts).

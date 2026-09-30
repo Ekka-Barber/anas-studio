@@ -1,6 +1,6 @@
 # Brief: P06 round 3, step 3, commerce settings without tax (D34)
 
-You work under `.anasaq-execution.lock` at base commit `3520028`. Do this one task, run the checks, report, stop.
+You work under `.anasaq-execution.lock` at base commit `0981532`. Do this one task, run the checks, report, stop.
 
 ## Goal
 

@@ -12,7 +12,7 @@
       "severity": "low",
       "file": "C:\\Users\\alazi\\Downloads\\Tech\\Code\\My_projects\\not shipped yet\\ANASAQ.ME\\tests\\unit\\reader-mapping.test.ts",
       "line": "159 (and tests/unit/content.test.ts:72)",
-      "issue": "`pnpm -s test` is flaky: two tests sometimes hit the 5 s default timeout. The worker saw 3 failed runs out of 5. My single run passed (23 files, 417 tests, exit 0). This round did not cause it: it added no test file, it touched neither test, and the new import of `isHttpsUrl` comes from `@/admin/collections`, which content.ts already imported. The worker's timing of base 0f2d87a already shows the PDF test at 4.46 to 4.95 s.",
+      "issue": "`pnpm -s test` is flaky: two tests sometimes hit the 5 s default timeout. The worker saw 3 failed runs out of 5. My single run passed (23 files, 417 tests, exit 0). This round did not cause it: it added no test file, it touched neither test, and the new import of `isHttpsUrl` comes from `@/admin/collections`, which content.ts already imported. The worker's timing of base 4e04ac1 already shows the PDF test at 4.46 to 4.95 s.",
       "fix": "Orchestrator, outside w2's brief: give both tests an explicit timeout (for example 15_000), or move the `src/lib/content` import at content.test.ts:95 into a `beforeAll`."
     },
     {

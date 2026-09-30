@@ -1,5 +1,5 @@
 P02: the book preview reader, 2026-09-28
-Orchestrator only (owner: "you should do it"; no sub-agents, no GLM). Branch agent/design-b on top of 7ac94e8, under its own .anasaq-execution.lock.
+Orchestrator only (owner: "you should do it"; no sub-agents, no GLM). Branch agent/design-b on top of 379790e, under its own .anasaq-execution.lock.
 
 Scope and approval
 - Owner, 2026-09-28: "P02 should done !! ANAS provide two or three PDF texts !! we only want to let users see these then had to buy the whole book to read".

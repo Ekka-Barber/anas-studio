@@ -1,6 +1,6 @@
 # Brief: P06 round 3, step 5, owner-run local backups (D35)
 
-You work under `.anasaq-execution.lock` at base commit `cf69955`. Do this one task, run the checks, report, stop. Read `PLANS/DECISIONS.md` D35 first, and Supabase's guide, the source of every dump and restore command below: https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore (fetched by the orchestrator 2026-09-27).
+You work under `.anasaq-execution.lock` at base commit `6d15cf8`. Do this one task, run the checks, report, stop. Read `PLANS/DECISIONS.md` D35 first, and Supabase's guide, the source of every dump and restore command below: https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore (fetched by the orchestrator 2026-09-27).
 
 ## Goal
 

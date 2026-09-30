@@ -2,7 +2,7 @@
 
 **Asked by the owner (2026-09-30):** "deep audit everything been built so far, find all issues, fix them all before proceeding on our plan … combine all findings in one full report, update all stale docs, let me know where we are in percentages."
 
-**Scope audited:** everything committed through `181245f` plus the uncommitted D41 change: P00 (runtime, D29 swap, D32 static replatform), P01 with DESIGN-B, P02, P03 to P07, CLEANUP-1; about 27,000 lines of product code (`src/`, `supabase/`, `scripts/`), 17,000 lines of tests, and every plan and guide document. P08 to P12 are not started, so their absence was never counted as a defect.
+**Scope audited:** everything committed through `a93ccc2` plus the uncommitted D41 change: P00 (runtime, D29 swap, D32 static replatform), P01 with DESIGN-B, P02, P03 to P07, CLEANUP-1; about 27,000 lines of product code (`src/`, `supabase/`, `scripts/`), 17,000 lines of tests, and every plan and guide document. P08 to P12 are not started, so their absence was never counted as a defect.
 
 ## 1. Result in one table
 
@@ -39,7 +39,7 @@ Rules every auditor kept: read-only; settled decisions D01–D41, open ISSUES, d
 
 ## 3. How the fixes ran
 
-Under `.anasaq-execution.lock` (package AUDIT-1, base `181245f`), with exactly one writer at a time (D18):
+Under `.anasaq-execution.lock` (package AUDIT-1, base `a93ccc2`), with exactly one writer at a time (D18):
 
 - **The orchestrator** fixed G4.2 first (the only high-privacy finding).
 - **The fix workflow** (`wf_c80bdd18-a3a`, 38 agents, about 4.9 hours) ran 11 sequential rounds: DB → Edge Functions → admin editor → admin fields and media → admin operations → store → public site → book reader → scripts and configuration → tests → docs. Each round was one fresh `sonnet-worker` (Sonnet 5.5, effort xhigh, D41) with its findings file and an exact file allowlist. The worker's first act was `git stash create`, so an independent `auditor` (Sonnet 5.5) could diff only that round. The auditor re-ran the checks and passed or failed the round; a failed round got up to two fresh re-fix workers. Nine rounds ended `pass`; ADMIN_FIELDS failed on a CRLF rewrite of one file and PUBLIC on four items in a file outside its allowlist.
@@ -120,7 +120,7 @@ The table below is the state as first reported.
 
 Recorded as open work: X2.4 (approve the revisions the owner read: I44), S06.4 (the store-wide throttle residual: I44 and `docs/operations.md`), S12.2 beyond the safe baseline (the full CSP is P10: I46), X5.5 (I47), S18.6 (the model routing of workflow agents, section 3).
 
-## 7. Verification (acceptance battery, 2026-09-30, working tree on `181245f`)
+## 7. Verification (acceptance battery, 2026-09-30, working tree on `a93ccc2`)
 
 | Check | Result |
 |---|---|
@@ -133,7 +133,7 @@ Recorded as open work: X2.4 (approve the revisions the owner read: I44), S06.4 (
 | Child films in the export | none (`out/` has no `-kid-` file or string) |
 | `pnpm test:e2e` with `ACCEPTANCE_PACKAGE=AUDIT-1` | exit 0: **168/168** in 9.7 min (on a DB reset from zero, content and demo catalog re-imported) |
 | `supabase db reset` | exit 0: all 15 migrations, `20260930120000_audit_fixes.sql` included, apply from zero |
-| `PLANS/verify-plan.ps1` | every check passes (C-IDs, ownership, frozen hashes with AGENTS.md refreshed for D41, links); its last step, `git diff --check`, flags only the CR bytes of the CRLF `source-manifest.json` while that edit is uncommitted (`git -c core.whitespace=cr-at-eol diff --check` exits 0), as after `068fd6a` |
+| `PLANS/verify-plan.ps1` | every check passes (C-IDs, ownership, frozen hashes with AGENTS.md refreshed for D41, links); its last step, `git diff --check`, flags only the CR bytes of the CRLF `source-manifest.json` while that edit is uncommitted (`git -c core.whitespace=cr-at-eol diff --check` exits 0), as after `b7e0591` |
 
 How the battery got green: the first full e2e run gave 161/168. Four failures were selectors the accessibility fixes had made stale (the reader's arrow is now `aria-hidden`, cart quantities are named after their line, and validation paths are in Arabic); the specs were updated. One was the reader drag, which passes alone 18/18 and in the final run. `auth.spec` failed because repeated test runs had left 1,730 test staff, and the team list stops at PostgREST's 1,000 rows. That exposed an order dependence in a new outbox test, which needed an active owner that only a polluted database had. The test now creates its owner, and the database was reset from zero before the final run. Commands and results are in `commands.txt`.
 

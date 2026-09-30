@@ -189,7 +189,7 @@ Commands and exit codes, in order:
     Total Upload: 29617.01 KiB / gzip: 6513.69 KiB
 
     Compared against the same container/toolchain, not just the recorded
-    25338.23 KiB baseline number: `git archive e0d6464` extracted to a
+    25338.23 KiB baseline number: `git archive 764c23a` extracted to a
     sibling directory (`/app-baseline`) in the same container, same
     node_modules, same build/dry-run commands, gave `Total Upload: 25338.32
     KiB` — 0.09 KiB from the recorded baseline, noise. So the real delta from

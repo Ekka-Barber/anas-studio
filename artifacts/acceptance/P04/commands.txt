@@ -116,7 +116,7 @@ stop" rule):
    fails with INVALID ("expected \"root\"", "expected array, received undefined")
    on the post fixture's body field, i.e. the test's post data predates the
    richtext schema src/admin/richtext.ts now enforces for posts.body. Both files
-   are unchanged since ff67889 (this package's base commit), so this is a
+   are unchanged since 62a958c (this package's base commit), so this is a
    pre-existing part-1/D14 gap, not something introduced this session.
 
 ## Round 2: cms.spec.ts rewrite + UI bug fix (2026-09-25)

@@ -18,7 +18,7 @@
 
 recorded_utc: 2026-09-22T13:47Z
 branch: agent/p00-runtime-spike
-base_commit: 9f64d2a
+base_commit: 9aa8b74
 
 ## Step 1 — hosted migrations, from the Windows host, before any deploy
 

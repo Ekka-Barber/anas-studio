@@ -6,15 +6,15 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 
 | Field | Value |
 |---|---|
-| Branch | `agent/design-b` (from `788cbbe`). `origin/agent/design-b` is at `0f2d87a` (DESIGN-B and P02, pushed 2026-09-29); the CLEANUP-1 commits `5d85654` and `181245f` are local only. `sync/local-2026-09-26` (`788cbbe`) and `agent/p00-runtime-spike` are behind and are not the working line. |
-| Last commit | `181245f` (CLEANUP-1 evidence); last product commit `5d85654`. Uncommitted in the working tree: D41 (sonnet-worker, auditor, settings) and AUDIT-1 (below), both waiting for the owner. |
-| Packages | P00 (D29 `6f09321`; D32 `fcad3fd`, locally verified on the full stack 2026-09-27), P01 part 1 `c98b091` with DESIGN-B `1ffb8a1`/`7ac94e8`, P02 `976176f`/`0f2d87a`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (built and audited 2026-09-30, not committed): see the package ledger. P08–P12 not started. |
-| Lock | `.anasaq-execution.lock` is held by the orchestrator for AUDIT-1 (base `181245f`) until the owner decides on the commit. |
+| Branch | `agent/design-b` (from `41658d3`), pushed: `origin/agent/design-b` carries DESIGN-B, P02, CLEANUP-1, D41, AUDIT-1 and D42. **History rewritten on 2026-09-30 (D42)** to remove the WhatsApp export: every commit id changed, every branch was force-pushed, and the ids in these documents are the rewritten ones (commit messages were remapped too). Any other clone must be re-cloned, not pulled. `sync/local-2026-09-26`, `main` and `agent/p00-runtime-spike` are behind and are not the working line. |
+| Last commit | The D42 docs commit on top of `9f6f37f` (AUDIT-1 evidence); AUDIT-1 code and docs `f38f04d`, D42 untrack `397f4d3`, D41 `c222225`. |
+| Packages | P00 (D29 `3c88331`; D32 `eb41c2e`, locally verified on the full stack 2026-09-27), P01 part 1 `70be5c9` with DESIGN-B `2f54f85`/`379790e`, P02 `42708f3`/`4e04ac1`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (built and audited 2026-09-30, not committed): see the package ledger. P08–P12 not started. |
+| Lock | None: AUDIT-1 released `.anasaq-execution.lock` on 2026-09-30 after the commits and the push. |
 | Hosted resources | Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). Unused since D32 and the owner's to delete once the Pages site works (irreversible, his own action): Worker `anas-studio` (test), R2 `anas-studio-media-test`, Hyperdrive `anasaq-cms`, D1 `anas-studio-tag-cache`. No deploys until P11 (local-first). |
 
 ## DESIGN-B: direction B in the product (D39, orchestrator, 2026-09-28)
 
-**Scope.** Anas picked direction B «أنساق», with cover B and standing mockup B. The owner assigned the design work to the orchestrator alone (no sub-agents, no GLM). The work is on branch `agent/design-b` from `788cbbe`, under the lock; committed on the owner's word (`1ffb8a1`, `7ac94e8`, 2026-09-28) and pushed with P02 (`origin/agent/design-b` at `0f2d87a`, 2026-09-29).
+**Scope.** Anas picked direction B «أنساق», with cover B and standing mockup B. The owner assigned the design work to the orchestrator alone (no sub-agents, no GLM). The work is on branch `agent/design-b` from `41658d3`, under the lock; committed on the owner's word (`2f54f85`, `379790e`, 2026-09-28) and pushed with P02 (`origin/agent/design-b` at `4e04ac1`, 2026-09-29).
 
 **What was built.**
 - **Design system:**
@@ -63,7 +63,7 @@ Round 2 re-proved check, build, export, budgets, e2e (public, cart-checkout, aut
 
 ## Process note, 2026-09-26 (owner-authorized)
 
-The two audit-fix passes (`a324577` and this commit) were written by the ZCode
+The two audit-fix passes (`36235e0` and this commit) were written by the ZCode
 (GLM-5.3) coordinator session dispatching four parallel sub-agents per pass
 with disjoint, enumerated file ownership — one agent per file, no overlaps —
 plus coordinator-owned seam fixes and this ledger. This deviates from
@@ -82,10 +82,10 @@ project receives migrations only at P11. The local DB is reset after each
 edit; the hosted first-apply will get the final version.
 
 Cloud audit pass (2026-09-26, owner-authorized): the cloud reviewer, which
-had audited `9b6d1e5` and `a324577` read-only, was made the writer for one
+had audited `4518520` and `36235e0` read-only, was made the writer for one
 pass while the local machine stayed idle, so there was still one writer. It
-audited `efa0e45`, then fixed what it found in small labeled commits
-`2325466`…`f5fe74d` on branch `claude/keen-mayer-iuyfz0` (cut from `efa0e45`)
+audited `518fe19`, then fixed what it found in small labeled commits
+`8935c62`…`25b90c0` on branch `claude/keen-mayer-iuyfz0` (cut from `518fe19`)
 plus the commit that records this note; the model is named in each commit's
 Co-Authored-By trailer. It edited the P06 migration in place once more
 (`outbox_claim`'s quota count), under the same resettable-local-only
@@ -93,14 +93,14 @@ reasoning as above. It could not run the Supabase stack: the database, e2e
 and screenshot items it lists as pending local verification were run after
 its push by the local session and all passed (one timezone-dependent test
 fixed on top, recorded in `artifacts/acceptance/P06/commands.txt`). The
-cloud verification of that local pass (`ed1bc36`) found one more defect in
-the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
+cloud verification of that local pass (`488ff51`) found one more defect in
+the cloud's own D13 fix and fixed it in `3fef85b` (D18, same file).
 
 ## Owner decisions, 2026-09-26: D32–D34, static site, Thmanyah only, no tax
 
 - The owner asked why this project struggled on the free Cloudflare tier while his Ekka-Rekaz (100k+ lines) runs on Pages without issues. The difference is the build, not the host: Ekka is static files on Pages with Supabase Edge Functions; this project ran the whole Next server on a Worker (I21, I23, I30). He then asked for "THE BEST PLAN EVER / THE BEST STACK EVER" and approved the D32–D34 plan.
-- D33 (`b284451`): Thmanyah is the only font; Lyon deleted from the site, the repo and the frozen reference copies (owner override for those files).
-- D32 (`fcad3fd`): Next.js `output: 'export'` to `out/` for Cloudflare Pages; publishing from the admin calls the SQL functions as the signed-in staff member and requests a coalesced Pages rebuild through pg_cron; the draft preview is `/admin/preview`; the Edge Functions `contact`, `resend-webhook`, `outbox` (pg_cron through `outbox_kick()`) and `admin` (media tickets and checks, stats, settings status) over `supabase/functions/_shared/`; Supabase Storage buckets `media-private`/`media-public`; `service_role` replaces `app_server`, which is dropped. Removed: OpenNext, wrangler, Hyperdrive, the R2/D1 bindings, the Worker cron, `src/app/api/**`. I04, I05, I08, I09, I21, I23 and I30 closed as moot; I29 restated for Storage; I32 (hosted checks) and I33 (room videos) opened.
+- D33 (`6fbf724`): Thmanyah is the only font; Lyon deleted from the site, the repo and the frozen reference copies (owner override for those files).
+- D32 (`eb41c2e`): Next.js `output: 'export'` to `out/` for Cloudflare Pages; publishing from the admin calls the SQL functions as the signed-in staff member and requests a coalesced Pages rebuild through pg_cron; the draft preview is `/admin/preview`; the Edge Functions `contact`, `resend-webhook`, `outbox` (pg_cron through `outbox_kick()`) and `admin` (media tickets and checks, stats, settings status) over `supabase/functions/_shared/`; Supabase Storage buckets `media-private`/`media-public`; `service_role` replaces `app_server`, which is dropped. Removed: OpenNext, wrangler, Hyperdrive, the R2/D1 bindings, the Worker cron, `src/app/api/**`. I04, I05, I08, I09, I21, I23 and I30 closed as moot; I29 restated for Storage; I32 (hosted checks) and I33 (room videos) opened.
 - D34: no tax anywhere; the site launches before payments with the store «قريباً»; E02 blocks paid operation only.
 - Flag for Anas: the offer lists Cloudflare R2 for images and files (lines 1556, 1785, 1956). Supabase Storage fills that role now; like D29 for Payload, he is told, and R2 through its S3 API stays a bounded change behind `MediaStore` if he wants it.
 - Cloud checks and the pending local list are at the end of `artifacts/acceptance/P06/commands.txt`.
@@ -108,7 +108,7 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 ## Owner decision, 2026-09-26: D31, the owner's mailbox is the inbox
 
 - Anas uses his own Gmail; `help@anas.studio` is a Cloudflare Email Routing address forwarding to it (his launch step, no code). Building an email interface in the admin is not worth it.
-- Done by the cloud writer after the owner approved the plan: the الوارد screen, its nav link and home count are removed; the contact notice carries Reply-To set to the visitor and no admin link; `public.contacts` is server-only (no API grant, no status/notes/assignment; the P06 migration edited in place, local-only, same precedent as above); settings lists the Email Routing step. Commits `738801c`, `4e0684d` and the one recording this.
+- Done by the cloud writer after the owner approved the plan: the الوارد screen, its nav link and home count are removed; the contact notice carries Reply-To set to the visitor and no admin link; `public.contacts` is server-only (no API grant, no status/notes/assignment; the P06 migration edited in place, local-only, same precedent as above); settings lists the Email Routing step. Commits `979bfcc`, `cfe6bed` and the one recording this.
 - Kept: the contact form and its protections, the outbox, Resend, the bounce webhook and the البريد failed-sends page, because automatic customer mail (receipts, download links, bookings, availability notices, Supabase Auth SMTP) still needs them. Email Routing cannot send.
 - Moved: the availability opt-in routes (`notify`, `notify/confirm`, `notify/unsubscribe`) and the notifications collection go from P06 round 3 to P08, where products exist.
 
@@ -234,7 +234,7 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 
 ## CLEANUP-1 + PLAN-GAPS (orchestrator, 2026-09-29)
 
-**Scope.** The owner (2026-09-29): a quick cleanup, the social links editable (C09), the scenes as an admin collection (C05), and the project-pages decision (C04, C19). Built on `agent/design-b` from `0f2d87a` under one lock by `opus-worker` rounds (Opus 5.5, effort max), each audited by a fresh `auditor`; the first orchestrator session died twice (a `/compact` sent while a background workflow ran) and a second session finished the package with foreground agents only.
+**Scope.** The owner (2026-09-29): a quick cleanup, the social links editable (C09), the scenes as an admin collection (C05), and the project-pages decision (C04, C19). Built on `agent/design-b` from `4e04ac1` under one lock by `opus-worker` rounds (Opus 5.5, effort max), each audited by a fresh `auditor`; the first orchestrator session died twice (a `/compact` sent while a background workflow ran) and a second session finished the package with foreground agents only.
 
 **What changed.**
 - **Cleanup (W1).** Every Edge Function passes `deno check`; the three admin lint warnings are gone (lint 0 problems); `pnpm check:export` now carries the I40 demo guard (`scripts/lib/demo-guard.mjs`).
@@ -257,7 +257,7 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 
 ## AUDIT-1: deep audit of everything built, and the fixes (orchestrator, 2026-09-30)
 
-**Scope.** The owner (2026-09-30): "deep audit everything been built so far, find all issues, fix them all before proceeding … combine all findings in one full report, update all stale docs". Everything through `181245f` plus the uncommitted D41 change was audited. The full report is `artifacts/acceptance/AUDIT-1/REPORT.md`, and every finding with its outcome is in `APPENDIX-findings.md`.
+**Scope.** The owner (2026-09-30): "deep audit everything been built so far, find all issues, fix them all before proceeding … combine all findings in one full report, update all stale docs". Everything through `a93ccc2` plus the uncommitted D41 change was audited. The full report is `artifacts/acceptance/AUDIT-1/REPORT.md`, and every finding with its outcome is in `APPENDIX-findings.md`.
 
 **Audit.** A read-only workflow (`wf_0902627f-f2d`) ran 29 specialist auditors (file slices plus security, concurrency, accessibility and RTL, visual design, plan coverage, dead code and performance lenses), a completeness critic, 5 gap auditors, deduplication and adversarial verification (three independent verifiers per critical or high finding). 324 raw findings became 258 unique and **253 confirmed**: 0 critical, 2 high (G4.2: the five films with children shipped in every export; S08.2: autosave erased the unsaved copy it offered), 62 medium, 172 low, 17 info. The verifiers refuted 5.
 
@@ -296,41 +296,49 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 - build, check:export (51 required files, no secret, no child-film file) and check:budgets (largest 147.0 KiB);
 - e2e **168/168** on the reset database (the first run, 161/168, surfaced stale selectors and test-data pollution, both fixed).
 
-**Open.** The owner's decisions I42 to I45: the WhatsApp export in Git history, buyer-data retention and the privacy link, preorder and policy-approval scope, and the Anas inputs. Nothing hosted was changed: I28 now also lists the password hook and "Secure password change" for P11.
+**Owner decisions after the report (2026-09-30, D42).**
+- Commit and push: done.
+- The WhatsApp export is out of the repository and its whole history: untracked (`397f4d3`), then `git filter-branch` removed the folder from all 116 commits and every branch was force-pushed with a lease on its old value. Only that folder changed; commit ids in messages and documents were remapped. A full bundle of the old history and a copy of the folder are kept outside the repository at `../anas-studio-backup-2026-09-30/`, for the owner to delete when satisfied.
+- Buyer retention of 90 days: `20260930130000_buyer_retention.sql` and its test (test:db 207/207).
+- Preorder moves to P08.
+- anas.studio is the only name.
+- The seeded social links stay, edited by the owner in «روابط التواصل».
+
+**Open.** I43 (the contact form and the privacy policy, E08), I44 (policy-approval and throttle residuals), I45 (Anas inputs), I46, I47. Nothing hosted was changed: I28 now also lists the password hook and "Secure password change" for P11.
 
 ## Package ledger
 
 | Package | Status | Evidence |
 |---|---|---|
-| P00 | public runtime accepted; D29 swap audited and committed `6f09321` | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
-| P01 | part 1 committed (`c98b091`); D39 direction B ported for every public page (DESIGN-B, committed `1ffb8a1`, `7ac94e8`) | `artifacts/acceptance/P01/`, `artifacts/acceptance/DESIGN-B/` |
-| DESIGN-B | committed on the owner's word (2026-09-28: "commit"): `1ffb8a1` (code and docs), `7ac94e8` (evidence); lock released | `artifacts/acceptance/DESIGN-B/` |
+| P00 | public runtime accepted; D29 swap audited and committed `3c88331` | `artifacts/acceptance/P00/`, `docs/runtime-spike.md` (rewritten by the swap) |
+| P01 | part 1 committed (`70be5c9`); D39 direction B ported for every public page (DESIGN-B, committed `2f54f85`, `379790e`) | `artifacts/acceptance/P01/`, `artifacts/acceptance/DESIGN-B/` |
+| DESIGN-B | committed on the owner's word (2026-09-28: "commit"): `2f54f85` (code and docs), `379790e` (evidence); lock released | `artifacts/acceptance/DESIGN-B/` |
 | P02 | committed on the owner's word (2026-09-28: "once all fixes done commit") on `agent/design-b`, after audit-2: the book preview reader on /book with Anas's three approved fragments, plus the audit-2 site fixes (motion on dev, calm money pages); E04's preview range approved by the owner, the final manuscript still open; lock released | `artifacts/acceptance/P02/`, `docs/book-preview.md` |
 | CLEANUP-1 | built and audited on `agent/design-b` (2026-09-29): cleanup (deno check, lint, I40 demo guard, favicon), social links in the admin (C09), the scenes collection (C05), D40 (projects stay in the room documents, C04/C19); acceptance battery green (unit 432, test:db 181, e2e 168/168, build, export, budgets); committed on the owner's word (2026-09-29: "I authorize the commits"), not pushed; lock released | `artifacts/acceptance/CLEANUP-1/` |
-| P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
-| P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
-| P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |
-| P06 | accepted by the owner (2026-09-27, "yes commit changes"): acceptance battery green at `556e910` (2026-09-27: test:db 141, unit 237, e2e 71/71, build, export, budgets, Linux CI), round 3 done, phase 2 walk-through done (`556e910`); earlier: rounds 1–2 in `9b6d1e5` (round 1 audited by the orchestrator); fix passes `a324577`/`efa0e45`; cloud audit fixes `2325466`…`f5fe74d` locally verified (db 93, unit 215, e2e 22/22, screenshots reviewed; one TZ-dependent test fixed on top); card-label fix `87ebd1c` locally verified (17/17, computed-content probe, screenshots re-captured); round 2 closed except the Linux build items; D31 no-inbox change `738801c`/`4e0684d` and the D32 replatform locally verified 2026-09-27 | `artifacts/acceptance/P06/` |
-| P07 | accepted by the owner (2026-09-28: "I accept p07 for now"); acceptance record at `c3dc19e`; C20 closes only after P08, and E02/E03 stay open (D37, D38). History: round 1 done (2026-09-27): the orchestrator's catalog and checkout migration (`87015fc`), then glm-worker's `checkout` function, demo catalog seed (D37) and tests, audited with six fixes (unit 327, test:db 172, e2e 24/24); round 2 done (2026-09-27): the store admin (products with variants, delivery, coupons, customers) and owner-approved policies, built by glm-worker, audited with five fixes (unit 356, test:db 177, e2e 16/16); round 3 built by glm-worker (store, product, cart, checkout, policy pages), audited in two sessions (budget, lint, em dashes, the empty-catalog build, I39 with the owner's approval; then `d10dd1d`: eight fixes, among them the spent Turnstile token that failed every retry, cart-checkout e2e 11/11, I38's cause found); acceptance battery green: at `d10dd1d` every step (build empty and seeded, test:db 178, unit 375, export, budgets), and the e2e, cut short there by a memory crash, rerun to completion on 2026-09-28 at `45dbfa6`: 95/95; one test-isolation fix on top (P06's owner-operations spec now restores the settings row, 20/20); proof map in `commands.txt` | `artifacts/acceptance/P07/` |
-| AUDIT-1 | built and audited on `agent/design-b` (2026-09-30): the deep audit (253 confirmed findings) and 241 fixes, independently audited round by round; acceptance battery in `commands.txt`; not committed, waiting for the owner; the lock is held | `artifacts/acceptance/AUDIT-1/` |
+| P03 | accepted, committed `0da3910` | `artifacts/acceptance/P03/` |
+| P04 | accepted, committed `62a958c` and `54f46fc` | `artifacts/acceptance/P04/` |
+| P05 | accepted, committed `df0d5a9` | `artifacts/acceptance/P05/` |
+| P06 | accepted by the owner (2026-09-27, "yes commit changes"): acceptance battery green at `a192e3f` (2026-09-27: test:db 141, unit 237, e2e 71/71, build, export, budgets, Linux CI), round 3 done, phase 2 walk-through done (`a192e3f`); earlier: rounds 1–2 in `4518520` (round 1 audited by the orchestrator); fix passes `36235e0`/`518fe19`; cloud audit fixes `8935c62`…`25b90c0` locally verified (db 93, unit 215, e2e 22/22, screenshots reviewed; one TZ-dependent test fixed on top); card-label fix `3fef85b` locally verified (17/17, computed-content probe, screenshots re-captured); round 2 closed except the Linux build items; D31 no-inbox change `979bfcc`/`cfe6bed` and the D32 replatform locally verified 2026-09-27 | `artifacts/acceptance/P06/` |
+| P07 | accepted by the owner (2026-09-28: "I accept p07 for now"); acceptance record at `92c69da`; C20 closes only after P08, and E02/E03 stay open (D37, D38). History: round 1 done (2026-09-27): the orchestrator's catalog and checkout migration (`4c80459`), then glm-worker's `checkout` function, demo catalog seed (D37) and tests, audited with six fixes (unit 327, test:db 172, e2e 24/24); round 2 done (2026-09-27): the store admin (products with variants, delivery, coupons, customers) and owner-approved policies, built by glm-worker, audited with five fixes (unit 356, test:db 177, e2e 16/16); round 3 built by glm-worker (store, product, cart, checkout, policy pages), audited in two sessions (budget, lint, em dashes, the empty-catalog build, I39 with the owner's approval; then `7607a17`: eight fixes, among them the spent Turnstile token that failed every retry, cart-checkout e2e 11/11, I38's cause found); acceptance battery green: at `7607a17` every step (build empty and seeded, test:db 178, unit 375, export, budgets), and the e2e, cut short there by a memory crash, rerun to completion on 2026-09-28 at `7d6c766`: 95/95; one test-isolation fix on top (P06's owner-operations spec now restores the settings row, 20/20); proof map in `commands.txt` | `artifacts/acceptance/P07/` |
+| AUDIT-1 | committed and pushed on the owner's word (2026-09-30: "yes"): the deep audit (253 confirmed findings) and 241 fixes, independently audited round by round, `f38f04d` (with D42) and the evidence `9f6f37f`; acceptance battery in `commands.txt`; lock released | `artifacts/acceptance/AUDIT-1/` |
 | P08–P12 | not_started | — |
 
 ## Next work, in order
 
 **Now (2026-09-30, after AUDIT-1).**
-1. The owner reviews AUDIT-1 (`artifacts/acceptance/AUDIT-1/REPORT.md`) and decides on the commit of D41 and AUDIT-1, and on the push of `agent/design-b` (`origin` is at `0f2d87a`; CLEANUP-1 is local only). The owner also decides I42 (the WhatsApp export in Git history) and I43 to I45.
-2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox. With it: the buyer-data retention job once the owner sets the period (I43), and preorder if the owner keeps it in scope (I44).
+1. DONE 2026-09-30: AUDIT-1 and the owner's D42 decisions (committed, history rewritten, pushed).
+2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox. With it: preorder (moved from P07 by D42).
 3. Owner and Anas inputs that reopen small admin work when they arrive: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40), the services in the CMS.
 4. P11 when the owner authorizes hosting: I40's launch steps and I41's content bootstrap join the list below.
 
 The history below is kept as it was.
 
-Round 3 steps 1 to 6 are done (2026-09-27, local session). The next session starts from `PLANS/HANDOFF.md`: I37 (DONE 2026-09-27: the e2e dev server's own `.next/e2e`, evidence in `artifacts/acceptance/P06/commands.txt`), I35 (DONE 2026-09-27: one due predicate, `finance.outbox_due_since()`, for the home and `outbox_kick()`; built by glm-worker, audited), the phase 2 gate walk-through (DONE 2026-09-27: every admin screen at 360 and 1440, 14 findings fixed, evidence in `artifacts/acceptance/P06/walkthrough/` and `commands.txt`), the full acceptance battery (DONE 2026-09-27 at `556e910`, all green, proof map in `commands.txt`), and the owner's P06 acceptance (DONE 2026-09-27). Next: P07 under D37 and D38. Round 1 is the data and checkout core: the orchestrator writes the migration, then glm-worker builds the `checkout` function, the demo catalog seed (`pnpm db:demo-catalog`, local only) and the tests. Round 2 is the admin catalog screens and the plain public store pages.
+Round 3 steps 1 to 6 are done (2026-09-27, local session). The next session starts from `PLANS/HANDOFF.md`: I37 (DONE 2026-09-27: the e2e dev server's own `.next/e2e`, evidence in `artifacts/acceptance/P06/commands.txt`), I35 (DONE 2026-09-27: one due predicate, `finance.outbox_due_since()`, for the home and `outbox_kick()`; built by glm-worker, audited), the phase 2 gate walk-through (DONE 2026-09-27: every admin screen at 360 and 1440, 14 findings fixed, evidence in `artifacts/acceptance/P06/walkthrough/` and `commands.txt`), the full acceptance battery (DONE 2026-09-27 at `a192e3f`, all green, proof map in `commands.txt`), and the owner's P06 acceptance (DONE 2026-09-27). Next: P07 under D37 and D38. Round 1 is the data and checkout core: the orchestrator writes the migration, then glm-worker builds the `checkout` function, the demo catalog seed (`pnpm db:demo-catalog`, local only) and the tests. Round 2 is the admin catalog screens and the plain public store pages.
 
 
 1. DONE 2026-09-26: owner-operations 17/17 via `PLAYWRIGHT_BASE_URL=http://localhost:3000` (Next 16 dev blocks 127.0.0.1 as a cross-origin dev origin — the admin form never hydrates over 127.0.0.1; details in `artifacts/acceptance/P06/commands.txt`); screenshots re-captured; every card label's computed `::before` serves the isolated label plus trailing space.
 2. DONE 2026-09-27 (plus the audit fix pass above). Local note for future runs: an early `supabase stop --no-backup` wiped the imported content (7 loader failures) — the recipe's plain restart keeps volumes; and the import/tests need `DATABASE_URL` from `supabase status -o json`'s DB_URL (it is no longer in any env file).
-3. DONE 2026-09-27: local run of `00586ea` on the full stack — test:db 115/115, `pnpm check` (unit 215/215), build, check:export, check:budgets (largest 142.1 KiB), full Playwright 67/67 including media's two no-upsert refusals and the contact bucket keyed by `cf-connecting-ip` (details at the end of `artifacts/acceptance/P06/commands.txt`).
+3. DONE 2026-09-27: local run of `079e676` on the full stack — test:db 115/115, `pnpm check` (unit 215/215), build, check:export, check:budgets (largest 142.1 KiB), full Playwright 67/67 including media's two no-upsert refusals and the contact bucket keyed by `cf-connecting-ip` (details at the end of `artifacts/acceptance/P06/commands.txt`).
 3a. P06 round 3, in this order: (1) DONE 2026-09-27: H2 — routine e2e runs report to the git-ignored `test-results/`, and `ACCEPTANCE_PACKAGE=Pxx` files the report under `artifacts/acceptance/Pxx/`; (2) DONE 2026-09-27: `20260927120000_rebuild_delivery_and_media_sweep.sql` plus the `media_sweep` job (Storage refuses SQL deletes, so the parts go through the Storage API; I35 recorded on the way) — one pg_cron migration for I29 (quarantine objects and ticket rows older than a day) and I34 (the deploy hook's `net._http_response` checked, a failed call re-armed and recorded in `finance.job_runs` as `site_build`); (3) DONE 2026-09-27: commerce settings without tax (D34), built by glm-worker and audited (four orchestrator fixes; clean-reset proof, e2e 69/69); (4) DONE 2026-09-27: the I31 privacy runbook (docs/privacy-data-map.md, privacy_erase_staff/privacy_erase_contacts, D36 contacts-purge) — buyers are guests (D08), so a customer request touches customers/orders, never `auth.users`; for a departed staff member the path is revoke (already built) and, if erasure is asked, a tombstoned email in `auth.users` instead of deleting the user, which leaves `audit_events` append-only; (5) DONE 2026-09-27: backups, owner-run and local (D35, owner 2026-09-27): `pnpm backup` on Anas's machine and `pnpm restore-check` into a throwaway local stack, the last run shown on the owner home, no CI workflow, destination or separate key custodian; (6) DONE 2026-09-27: docs/costs.md with cited prices only (Pages, Supabase, Resend, Email Routing, domain), nothing invented. Then the phase 2 gate walk-through.
 4. DONE 2026-09-27: P06 accepted by the owner.
 5. When the owner authorizes hosting (P11): the Pages project, its deploy hook in Vault, the function deploy and secrets, the I32 checks, the I33 video decision; then he deletes the old Worker, Hyperdrive, D1 and R2 resources himself.

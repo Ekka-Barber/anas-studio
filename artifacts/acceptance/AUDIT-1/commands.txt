@@ -1,5 +1,5 @@
 AUDIT-1 — commands, results and evidence (orchestrator, 2026-09-30)
-Branch agent/design-b, base 181245f, working tree with the owner's uncommitted D41 change.
+Branch agent/design-b, base a93ccc2, working tree with the owner's uncommitted D41 change.
 Lock: .anasaq-execution.lock (package AUDIT-1), created with fs.openSync('wx'), held throughout.
 
 == Baseline, before any change ==
@@ -61,9 +61,30 @@ Dev-server spot checks (pnpm dev): /journal empty state at 360; /contact submit 
 pnpm lint ; pnpm typecheck ; pnpm test      exit 0 ; exit 0 ; exit 0 (486/486) after the last edits
 powershell -File PLANS/verify-plan.ps1      every check passes; the last step (git diff --check) flags only the CR bytes
   of the CRLF PLANS/evidence/source-manifest.json edit while uncommitted;
-  `git -c core.whitespace=cr-at-eol diff --check` exit 0 (same as after 068fd6a).
+  `git -c core.whitespace=cr-at-eol diff --check` exit 0 (same as after b7e0591).
 
 == Not done (and why) ==
 - Nothing hosted (no authority; P11): the password hook, "Secure password change", the migration and _headers need I28/I32.
 - G4.1/G4.4 (WhatsApp export in Git history): needs a history rewrite and force push, which only the owner can authorize (I42).
 - No commit, no push: waiting for the owner.
+
+== Owner decisions D42 (2026-09-30), after the report ==
+supabase migration up --local (20260930130000_buyer_retention.sql)            exit 0
+vitest --mode db tests/integration/buyer-retention.test.ts                    2/2
+pnpm lint ; pnpm typecheck ; pnpm test (486/486) ; pnpm test:db (207/207)       exit 0 each
+Commits: c222225 (D41), f38f04d (AUDIT-1 + D42), 397f4d3 (untrack the WhatsApp export,
+  .gitignore rule, 110 frozen-manifest entries removed), 9f6f37f (evidence) — ids after the rewrite.
+Backup outside the repository: ../anas-studio-backup-2026-09-30/ (git bundle --all, verified; a copy of the folder).
+git filter-branch --index-filter 'git rm -r --cached --ignore-unmatch -q -- BOOK_ASSETS/ANAS_WHATSAPP_CHAT'
+  --msg-filter (commit ids in messages remapped) -- --all                     exit 0, 116 commits rewritten
+Checks: no rewritten ref has the folder or a commit touching it; the old and new tips differ only by
+  the folder (git -c core.quotepath=false diff --name-status); the working-tree copy (226 files) is intact.
+git push --force-with-lease=<branch>:<old id> for main, sync/local-2026-09-26, agent/p00-runtime-spike,
+  claude/keen-mayer-iuyfz0, claude/relaxed-hypatia-sml5mq (each at its rewritten remote position) and
+  agent/design-b (the full local line)                                        6 x forced update
+git ls-remote --heads origin: every branch has files=0 and 0 commits touching the folder.
+refs/original deleted, reflogs expired, git gc --prune=now. The Codex app's local refs/codex/* checkpoints
+  (trees, never pushed) still reference the old files on this machine.
+Commit ids in 37 tracked text files remapped (347 references, 73 ids) with the rewrite map; files pinned by
+  the frozen manifest and deploy/ untouched.
+powershell -File PLANS/verify-plan.ps1                                        PASS (162 frozen hashes)

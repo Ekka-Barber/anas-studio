@@ -32,7 +32,7 @@ Next: round 1 part 2, glm-worker from artifacts/acceptance/P07/brief-r1-checkout
 2026-09-27 Round 1, part 2: checkout function, demo catalog, tests (glm-worker), audited
 
 Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P07/brief-r1-checkout.md at
-87015fc; 112 turns, 41.7 min; exit 0 (spawnSync returned, port 3000 free), no permission
+4c80459; 112 turns, 41.7 min; exit 0 (spawnSync returned, port 3000 free), no permission
 denials. Diff: 14 paths, all inside the lock allowlist. Its report: unit 327, test:db 172
 (checkout 31), e2e checkout-api + owner-operations 24/24, the seed idempotent, deno not
 installed (the handler is type-checked by tsc). Its one deviation, accepted: foldDigits is
@@ -57,7 +57,7 @@ Fixes by the orchestrator:
    the original \u escapes, the money test comment carried raw RLM marks, and the orchestrator's
    own formatRiyadh edit and its test had a raw no-break space (the tool transport turns \u
    sequences into characters). All are ASCII escapes or plain words again; a scan of every file
-   changed since d758336 finds only the deliberate phone-normalization test inputs.
+   changed since d8ebeb6 finds only the deliberate phone-normalization test inputs.
 5. format.ts: the shared import moved to the top; formatMoney's comment in plain words.
 6. The integration file left published fixture products, enabled rates and coupons in the
    local store (orders reference them, so they cannot be deleted): they are now archived and
@@ -77,7 +77,7 @@ Not run: deno check (deno is not installed on this machine).
 2026-09-27 Round 2: the store admin and approved policies (glm-worker), audited
 
 Builder: glm-worker (GLM-5.3, max effort) from artifacts/acceptance/P07/brief-r2-store-admin.md at
-152dff6; 116 turns, 40.0 min; exit 0, no permission denials. Diff: 42 paths, all inside the lock
+97e3802; 116 turns, 40.0 min; exit 0, no permission denials. Diff: 42 paths, all inside the lock
 allowlist. Its report: unit 356, test:db 174 passed with 3 failures it called pre-existing
 (checkout.test.ts SELLER_NOT_CONFIGURED and POLICIES_NOT_CONFIGURED, commerce-settings.test.ts
 "the owner reads the singleton row"), build 0, e2e store-admin + cms + checkout-api 16/16.
@@ -132,7 +132,7 @@ Next: round 3 part 2, glm-worker from artifacts/acceptance/P07/brief-r3-store-pa
 
 2026-09-27 Round 3, part 2: the public store pages (glm-worker); orchestrator audit IN PROGRESS
 
-Builder: glm-worker from artifacts/acceptance/P07/brief-r3-store-pages.md at 9fd3925; 131 turns,
+Builder: glm-worker from artifacts/acceptance/P07/brief-r3-store-pages.md at 38fcccf; 131 turns,
 50.7 min, exit 0, no denials. It ended WITHOUT a final report while its own background
 Playwright run was going; afterwards no playwright, next dev or worker process was left (its
 port-3000 server exited), and its stray artifacts/pw-cart-checkout.log (outside the allowlist)
@@ -183,7 +183,7 @@ scanned, no secrets); check:budgets -> 0 (largest 143.6 KiB).
 
 2026-09-27 Round 3, part 2: orchestrator audit completed (second session)
 
-Lock taken at f42d8ca (orchestrator, exact paths listed; the checkout integration file added
+Lock taken at 2559244 (orchestrator, exact paths listed; the checkout integration file added
 before it was written). Read in full: CartView, CheckoutForm, CartProvider, CartLink, AddToCart,
 quote.ts, store.module.css, src/lib/cart.ts, src/lib/store.ts, the store, product, cart,
 checkout and policies routes, the docs changes, local-env.mjs, check-export.mjs, cart.test.ts
@@ -255,14 +255,14 @@ closed shadow root); next-env.d.ts and tsconfig.json, rewritten by the dev serve
 Screenshots reviewed (screenshots/store-*.png at 360 and 1440): the list, a product, the cart
 with lines, the checkout with the solved test widget, the pending order. No horizontal or
 in-card overflow (asserted). The Next dev indicator overlaps content in development only.
-Committed as d10dd1d; Linux CI on d10dd1d (run 36345088302) -> success: lint, typecheck, unit,
+Committed as 7607a17; Linux CI on 7607a17 (run 36345088302) -> success: lint, typecheck, unit,
 frozen sources, copy, local Supabase with the import, static build with no published product,
 export check, budget.
 
 2026-09-27 P07 acceptance battery (ACCEPTANCE_PACKAGE=P07), orchestrator, Windows: e2e cut short
 (completed by the rerun of 2026-09-28 below)
 
-At d10dd1d, one script, every exit code recorded; port 3000 free before the run. (A first attempt
+At 7607a17, one script, every exit code recorded; port 3000 free before the run. (A first attempt
 stopped at db:import because the script exported DATABASE_URL only later; fixed, rerun from the
 reset.)
 - pnpm install --frozen-lockfile -> 0
@@ -300,12 +300,12 @@ job. Its report and traces were replaced by the rerun.
 The owner closed other sessions first: 11.8 GB free before the run (6.2 GB at the crash), MCP
 node processes down from 75 to 8. Port 3000 free, local stack as documented (demo catalog, the
 demo seller DEMO-0000, no pending hold).
-- ACCEPTANCE_PACKAGE=P07 pnpm test:e2e at 45dbfa6 -> 0, 95/95 in 6.3 min on a cold .next/e2e
+- ACCEPTANCE_PACKAGE=P07 pnpm test:e2e at 7d6c766 -> 0, 95/95 in 6.3 min on a cold .next/e2e
   server: auth 2, cart-checkout 11, checkout-api 4, cms 3, media 8, owner-operations 20,
   public 18, store-admin 9, visual 20. Report artifacts/acceptance/P07/playwright-report/
   (index.html only, no failure trace), .last-run.json "passed".
-- The rest of the battery stands from the d10dd1d run above (build empty and seeded, test:db
-  178, unit 375, export, budgets); since then only tests and records changed (45dbfa6: one unit
+- The rest of the battery stands from the 7607a17 run above (build empty and seeded, test:db
+  178, unit 375, export, budgets); since then only tests and records changed (7d6c766: one unit
   case, unit 376).
 Screenshots: the P07 captures this run re-took were reviewed and kept: the store admin (products,
 a product with its variant card, rates, the coupon form, the settings policy block) and the
@@ -359,6 +359,6 @@ Not closed by P07: paid stats and availability dispatch (P08); C20 closes only a
 E02 (sandbox) and E03 (Anas's real catalog values) stay open (D37, D38). Not e2e-tested: the
 product page's «غير مسعّر» row (the SQL refusal of an unpriced variant is tested).
 
-2026-09-28 P07 accepted by the owner ("I accept p07 for now"), on the record at c3dc19e. The
-orchestrator's lock (taken at f42d8ca, amended three times, each path added before it was
+2026-09-28 P07 accepted by the owner ("I accept p07 for now"), on the record at 92c69da. The
+orchestrator's lock (taken at 2559244, amended three times, each path added before it was
 written) is released after the push that records this acceptance; the tree was clean.

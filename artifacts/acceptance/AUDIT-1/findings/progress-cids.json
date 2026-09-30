@@ -3,15 +3,15 @@
   {
    "pkg": "P00",
    "complexity": "high",
-   "status": "accepted: runtime spike, D29 swap (6f09321) and D32 replatform (fcad3fd) verified locally on the full stack 2026-09-27",
+   "status": "accepted: runtime spike, D29 swap (3c88331) and D32 replatform (eb41c2e) verified locally on the full stack 2026-09-27",
    "completionPct": 100,
-   "rationale": "Every proof in the D29 swap and the D32 replatform is in the evidence: no Payload in the lockfile, pnpm check, db reset, static export with rooms, admin shells and 404, check:export free of secrets, budget, Thmanyah static smoke at 360 and 1440, deno check (all functions since CLEANUP-1 W1), migrations on a throwaway Postgres, and the ported unit, integration and e2e tests (115 db and 67 e2e at 00586ea). Hosted re-measurement belongs to P10 by the package text.",
+   "rationale": "Every proof in the D29 swap and the D32 replatform is in the evidence: no Payload in the lockfile, pnpm check, db reset, static export with rooms, admin shells and 404, check:export free of secrets, budget, Thmanyah static smoke at 360 and 1440, deno check (all functions since CLEANUP-1 W1), migrations on a throwaway Postgres, and the ported unit, integration and e2e tests (115 db and 67 e2e at 079e676). Hosted re-measurement belongs to P10 by the package text.",
    "missingProofItems": []
   },
   {
    "pkg": "P01",
    "complexity": "high",
-   "status": "built on direction B (DESIGN-B 1ffb8a1/7ac94e8, CLEANUP-1); no formal acceptance line; E05 and E06 open",
+   "status": "built on direction B (DESIGN-B 2f54f85/379790e, CLEANUP-1); no formal acceptance line; E05 and E06 open",
    "completionPct": 88,
    "rationale": "Every room, the book, المجلس, scenes (now a CMS collection), contact, 404 and error are ported to D39. Covered: menu dialog and focus return, scenes filter and keyboard lightbox, JS-off pages, 0 px overflow at 360/768/1024/1440 (visual 50/50) and the motion checks. Missing: the journal's dated list, the journal name as the only hardcoded CMS-labelled room, no journal clicks in any test, and home order/visibility fixed in code. The 'built tabs' proof was superseded by D39 but the package text was never amended.",
    "missingProofItems": [
@@ -39,7 +39,7 @@
   {
    "pkg": "P03",
    "complexity": "high",
-   "status": "accepted, committed 4322ccc",
+   "status": "accepted, committed 0da3910",
    "completionPct": 97,
    "rationale": "Done: passwordless email-code sign-in through Mailpit, sign-up off, unknown email gets the identical response, TOTP step-up (stale-claim unit tests), staff-admin invite/role/revoke with the last-owner guard, a revoked member losing access and being banned, and D32 service_role-only functions. Test gaps: the operations role and the revoked member are missing from the staff and audit Data API cases. Google sign-in waits for an OAuth client; hosted Auth settings are I28 (P11).",
    "missingProofItems": [
@@ -51,7 +51,7 @@
   {
    "pkg": "P04",
    "complexity": "medium",
-   "status": "accepted, committed ff67889 and 4ffc78f (D32 amendment verified)",
+   "status": "accepted, committed 62a958c and 54f46fc (D32 amendment verified)",
    "completionPct": 86,
    "rationale": "Done: generic collection store, versions and conflicts (the losing session keeps its text), the Lexical allowlist, schedule/cancel/publish/archive/restore through authenticated functions with the owner/editor recheck, rebuild requests, room edit/reorder/hide/preview/publish e2e, and six collections. Missing: journal posts have no draft preview even though the journal now has a public page, the home cannot be reordered, the SEO fields are stored but unused (P10), and C19 is only partly met per D40.",
    "missingProofItems": [
@@ -64,7 +64,7 @@
   {
    "pkg": "P05",
    "complexity": "medium",
-   "status": "accepted, committed 79d8cf6; moved to Supabase Storage under D32 and re-verified",
+   "status": "accepted, committed df0d5a9; moved to Supabase Storage under D32 and re-verified",
    "completionPct": 97,
    "rationale": "Done: browser crop and WebP derivatives without upscaling, EXIF removed, spoof/size/key/expiry/cross-user refusals, private original, folders, reuse, where-used delete guard, and one-time claims with no upsert (TOCTOU closed). Nothing server-side uses Sharp. Hosted nosniff on the Storage origin is an I32 check at P11. The unsupported-encoder and corrupt-file UI path exists but has no e2e.",
    "missingProofItems": [
@@ -75,7 +75,7 @@
   {
    "pkg": "P06",
    "complexity": "high",
-   "status": "accepted by the owner 2026-09-27 (battery at 556e910: db 141, unit 237, e2e 71/71, Linux CI)",
+   "status": "accepted by the owner 2026-09-27 (battery at a192e3f: db 141, unit 237, e2e 71/71, Linux CI)",
    "completionPct": 93,
    "rationale": "Done: settings, team, owner home, stats with explicit 'unavailable', outbox, the signed webhook with dedupe and suppression, quota priority and safe replay, contact with Turnstile/honeypot/throttle and Reply-To (D31), the site-build and media-sweep jobs, privacy erase and the D36 purge, local encrypted backup with a restore drill (49 s), and the phase-2 walkthrough. The prerequisites the package itself defers are recorded explicitly.",
    "missingProofItems": [
@@ -88,7 +88,7 @@
   {
    "pkg": "P07",
    "complexity": "high",
-   "status": "accepted 'for now' by the owner 2026-09-28 (e2e 95/95 at 45dbfa6)",
+   "status": "accepted 'for now' by the owner 2026-09-28 (e2e 95/95 at 7d6c766)",
    "completionPct": 88,
    "rationale": "Done: catalog tables with owner column grants and audit, computed availability under row locks, largest-remainder coupons, idempotent pending orders, hold and throttle abuse limits, Turnstile, the cart with a session fallback, versioned policy consent, a non-book product reaching a pending order without code, and a truthful empty store. The preorder scope is missing and unrecorded. C20 closes only with P08, and E02/E03 stay open.",
    "missingProofItems": [

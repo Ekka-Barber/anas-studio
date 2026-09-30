@@ -1,5 +1,5 @@
 P03 part 2 (staff auth, RLS and admin shell) — proof log.
-Repo: ANASAQ.ME, branch agent/p00-runtime-spike, base 6f09321.
+Repo: ANASAQ.ME, branch agent/p00-runtime-spike, base 3c88331.
 
 pnpm install                        -> 0
 pnpm install --frozen-lockfile      -> 0
