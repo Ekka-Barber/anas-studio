@@ -37,3 +37,6 @@ __pycache__/
 # would be uploaded IS committed, so it stays out of this ignore rule.
 /public/media/*
 !/public/media/manifest.json
+
+# D42: the WhatsApp export stays on the owner's machine only (removed from Git history).
+/BOOK_ASSETS/ANAS_WHATSAPP_CHAT/
