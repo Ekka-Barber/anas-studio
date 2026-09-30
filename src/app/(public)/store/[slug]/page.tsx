@@ -68,6 +68,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             id={product.cover}
             alt={product.title}
             sizes="(min-width: 768px) 480px, 100vw"
+            loading="eager"
+            fetchPriority="high"
             className={styles.productCover}
             data-reveal=""
             data-fx="media"
@@ -76,21 +78,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <div className={styles.productBody} data-reveal="">
           <RichText document={product.body} />
         </div>
-        <ul className={styles.variants}>
-          {product.variants.map((variant) => (
-            <li key={variant.id} className={styles.variant}>
-              <p className={styles.variantTitle}>{variant.title}</p>
-              {variant.priceHalalas === null ? (
-                <p className={styles.unpriced}>غير مسعّر</p>
-              ) : (
-                <>
-                  <p className={styles.variantPrice}>{formatMoney(variant.priceHalalas)}</p>
-                  <AddToCart variantId={variant.id} />
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
+        <noscript>السلة والطلب يحتاجان JavaScript.</noscript>
+        {product.variants.length === 0 ? (
+          <p className={styles.unpriced}>غير متاح حاليًا</p>
+        ) : (
+          <ul className={styles.variants}>
+            {product.variants.map((variant) => (
+              <li key={variant.id} className={styles.variant}>
+                <p className={styles.variantTitle}>{variant.title}</p>
+                {variant.priceHalalas === null ? (
+                  <p className={styles.unpriced}>غير مسعّر</p>
+                ) : (
+                  <>
+                    <p className={styles.variantPrice}>{formatMoney(variant.priceHalalas)}</p>
+                    <AddToCart variantId={variant.id} label={`${product.title}: ${variant.title}`} />
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </Band>
     </main>
   )

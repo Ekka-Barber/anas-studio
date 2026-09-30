@@ -18,6 +18,7 @@ import {
   functionUrl,
   localEnv,
   readCodeFromMailpit,
+  restoreLive,
   SENT_MESSAGE,
   signInByCode,
   SITE_ORIGIN,
@@ -26,6 +27,7 @@ import {
   svixHeaders,
   totpCode,
 } from './helpers'
+import { shotsDir } from './shots'
 
 const env = localEnv()
 
@@ -43,13 +45,17 @@ const fixtureRecipients: string[] = []
 // (the local demo seed fills it, D37).
 let savedSettings: Record<string, unknown>
 
-/** Inserts one attention-worthy outbox row directly (local postgres fixture). */
+/**
+ * Inserts one attention-worthy outbox row directly (local postgres fixture).
+ * Its kind is `receipt`: a contact notice may only be replayed to an active
+ * owner or operations member (S03.5), and these recipients are made up.
+ */
 async function insertOutboxRow(rowStatus: string, firstAttemptAgoSeconds: number | null): Promise<string> {
   const recipient = `p06r2-${rowStatus}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`
   await db.query(
     `insert into finance.email_outbox
        (dedupe_key, kind, priority, recipient, payload, status, attempts, max_attempts, last_error, first_attempt_at)
-     values ($1, 'contact_notice', 1, $2, '{"contactId":"00000000-0000-0000-0000-000000000000"}'::jsonb,
+     values ($1, 'receipt', 1, $2, '{"contactId":"00000000-0000-0000-0000-000000000000"}'::jsonb,
              $3::text, 5, 5, 'HTTP_422', $4)`,
     [
       `p06r2-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
@@ -61,6 +67,13 @@ async function insertOutboxRow(rowStatus: string, firstAttemptAgoSeconds: number
   fixtureRecipients.push(recipient)
   return recipient
 }
+
+// What the settings test must undo whether it passes or fails (S21.2): it
+// registers the SQL that puts the site settings back, and afterEach runs it.
+const cleanups: Array<() => Promise<void>> = []
+test.afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((run) => run()))
+})
 
 test.beforeAll(async () => {
   db = new Client({ connectionString: status.DB_URL })
@@ -375,6 +388,9 @@ test('the owner home shows the backup job: never run, ok, then stale after 30 da
   await expect(page.getByText(/النسخ الاحتياطي: سليم/)).toBeVisible()
 
   await db.query("update finance.job_runs set finished_at = now() - interval '31 days' where job = 'backup'")
+  // The nightly purge keeps each job's newest run, so the warning outlives it (S17.1).
+  const purge = await db.query<{ command: string }>("select command from cron.job where jobname = 'job-runs-purge'")
+  await db.query(purge.rows[0]!.command)
   await page.goto('/admin')
   await expect(page.getByText('آخر نسخة احتياطية أقدم من 30 يومًا.')).toBeVisible()
 
@@ -564,6 +580,7 @@ test('settings: SEO and WhatsApp persist, the preview normalizes, status shows n
     "select seq from public.published_documents where collection = 'site_settings' and doc_id = 'site'",
   )
   const originalSeq = String(live.rows[0]!.seq)
+  cleanups.push(() => restoreLive('site_settings', 'site', Number(originalSeq)))
 
   const owner = await createStaff('owner')
   await signInByCode(page, owner.email)
@@ -683,7 +700,8 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
       path: '/admin/email',
       wait: page.locator('tbody tr').getByRole('button', { name: 'إعادة الإرسال' }).first(),
     },
-    { name: 'stats', path: '/admin/stats', wait: 'المتجر' },
+    // «المتجر» is also the nav link, which is always there; this line renders only once the stats answered.
+    { name: 'stats', path: '/admin/stats', wait: 'وقت التوليد:' },
     { name: 'settings', path: '/admin/settings', wait: page.getByText('ريال سعودي').first() },
   ]
   for (const viewport of [
@@ -724,7 +742,7 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
 })
 
 function mkdirScreenshots(): string {
-  const dir = join('artifacts', 'acceptance', 'P06', 'screenshots')
+  const dir = shotsDir('P06')
   mkdirSync(dir, { recursive: true })
   return dir
 }

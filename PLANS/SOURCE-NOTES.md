@@ -1,6 +1,6 @@
 # Source findings and precedence
 
-Inspected 2026-09-21. `evidence/source-manifest.json` records SHA-256/bytes for 360 source files across deploy, offer v3, book assets and original fonts, plus mission/AGENTS/PRD/brand documents. It is a read-only baseline, not permission to ship every asset. `_archive/` was not inspected or changed.
+Inspected 2026-09-21. `evidence/source-manifest.json` records SHA-256/bytes for 272 source files (after D33; `verify-plan.ps1` checks all 272) across deploy, offer v3, book assets and original fonts, plus mission/AGENTS/PRD/brand documents. It is a read-only baseline, not permission to ship every asset. `_archive/` was not inspected or changed.
 
 ## Product and visual sources
 
@@ -12,7 +12,7 @@ Inspected 2026-09-21. `evidence/source-manifest.json` records SHA-256/bytes for 
 
 ## Brand package and documents
 
-`anasaq-me-full-package.md` is a historical brand/design package: craftsman-storyteller, engineer plus memory-keeper, restrained Saudi hospitality, the greatest pride in unsigned contributions. Name stays modest; ideas/places/stories carry attention. It rejects hype, neon, generic corporate English and exclamation marks. Early Google-font and palette prompts are superseded by its later locked design notes and the delivered Lyon/Thmanyah system. Do not execute old image-generation/build prompts in that document or add their tool vocabulary to the site.
+`anasaq-me-full-package.md` is a historical brand/design package: craftsman-storyteller, engineer plus memory-keeper, restrained Saudi hospitality, the greatest pride in unsigned contributions. Name stays modest; ideas/places/stories carry attention. It rejects hype, neon, generic corporate English and exclamation marks. Early Google-font and palette prompts are superseded by its later locked design notes and the delivered Thmanyah system (D33; Lyon is gone). Do not execute old image-generation/build prompts in that document or add their tool vocabulary to the site.
 
 The two Word documents were read through their XML parts for content, not visually re-exported. Extracts and document hashes are in `evidence/offer-docx-1.txt` and `offer-docx-2.txt`. One discusses integrated CMS choices; the older launch offer has a fixed fee, shorter timeline and limited launch scope. These do not override v3's client-set fee, full CMS/commerce/services or four phases. No old price/timeline is copied into product or commercial promises.
 
@@ -20,6 +20,6 @@ The two Word documents were read through their XML parts for content, not visual
 
 `evidence/book-pdf-inventory.json` records all 9 PDFs under BOOK_ASSETS, source hashes and first-page metadata. Top-level ` (11).pdf` is a 2-page introduction, ` (8).pdf` a 1-page dedication, and ` (9).pdf` a 2-page photo/memory fragment. Corresponding WhatsApp PDFs repeat that fragment class. `ANAS ALQARNI .pdf` has 7 pages and opens as a services presentation, not the manuscript. Signature PDF and an artboard/color PDF are single-page artwork. There is no evidence here of a complete final sale manuscript. This corrects the temptation to assume that every PDF named Anas is the book.
 
-`BOOK_ASSETS/final/README.md` identifies four coherent web/retail cover assets. `khous-flat-cover-comp.png` is explicitly an approval comp, not a print file. Trim/spine/paper/CMYK/bleed need a print designer; physical production belongs to Anas. Prices mentioned in that asset note are historical and cannot seed store data. Use existing optimized `deploy/images/` web derivatives, not multi-megabyte source comps as hero payloads.
+`BOOK_ASSETS/final/README.md` identifies four coherent web/retail cover assets: the pre-D39 cover set. The site's book images are cover B in `public/images/v2` (D39), and the README's instruction to set type in Lyon is superseded by D33; the frozen README stays unchanged. `khous-flat-cover-comp.png` is explicitly an approval comp, not a print file. Trim/spine/paper/CMYK/bleed need a print designer; physical production belongs to Anas. Prices mentioned in that asset note are historical and cannot seed store data. Use optimized web derivatives (the v1 ones are in `deploy/images/`; the site's own are under `public/images/`), not multi-megabyte source comps as hero payloads.
 
-Self-hosted Lyon Arabic OTF and Thmanyah WOFF2 files exist. The PRD states web licenses are held, and Thmanyah contains license PDFs; asset presence alone does not prove the precise web/subsetting/distribution permissions. E06 requires a private rights register. Do not publish license PDFs, `.DS_Store`, `__MACOSX` resource forks, original commercial font packs or private book chat material.
+Self-hosted Thmanyah WOFF2 files exist. The only Lyon file left is `offer-site-v3/assets/fonts/LyonArabicDisplay-Medium.otf`, an offer-site copy that D33's deletion did not remove. The PRD states web licenses are held, and Thmanyah contains license PDFs; asset presence alone does not prove the precise web/subsetting/distribution permissions. E06 requires a private rights register. Do not publish license PDFs, `.DS_Store`, `__MACOSX` resource forks, original commercial font packs or private book chat material.

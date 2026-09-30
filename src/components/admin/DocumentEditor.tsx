@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation'
 
-import { POLICY_DOC_IDS, roomSchemas, SCENES_DOC_ID, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
+import { isRoomSlug, POLICY_DOC_IDS, SCENES_DOC_ID, SITE_SETTINGS_DOC_ID, type Collection } from '@/admin/collections'
 
 import { CollectionForm } from './CollectionForm'
 import styles from './admin.module.css'
@@ -11,7 +11,7 @@ const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function isValidDocId(collection: Collection, docId: string): boolean {
-  if (collection === 'rooms') return docId in roomSchemas
+  if (collection === 'rooms') return isRoomSlug(docId)
   if (collection === 'site_settings') return docId === SITE_SETTINGS_DOC_ID
   if (collection === 'policies') return (POLICY_DOC_IDS as readonly string[]).includes(docId)
   if (collection === 'scenes') return docId === SCENES_DOC_ID

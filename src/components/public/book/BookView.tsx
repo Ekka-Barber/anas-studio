@@ -34,14 +34,26 @@ const SECTIONS = [
   { id: 'editions', label: 'الطلب' },
 ] as const
 
-export function BookView() {
+/**
+ * `journalName` is the journal's editable name (D11) for the link onward. It is
+ * optional because the admin's preview draws this view in the browser, where
+ * the loaders cannot run.
+ */
+export function BookView({ journalName = 'المجلس' }: { journalName?: string }) {
   const cover = imageSources(BOOK.cover.id)
   return (
     <>
       <main id="main">
         <Band as="header" tone="saffron" edge="crenel" pad="hero" padEnd="l" className={styles.hero}>
           <div className={styles.cover} {...enter(240, 'media')}>
-            <Picture id={BOOK.cover.id} alt={BOOK.cover.alt} sizes="(min-width: 1024px) 400px, 70vw" loading="eager" />
+            <Picture
+              id={BOOK.cover.id}
+              alt={BOOK.cover.alt}
+              // Laid out at min(400px, 40%) of the band, never under 220px, and it stays that wide when the band wraps.
+              sizes="(min-width: 1024px) 400px, (min-width: 560px) 40vw, 220px"
+              loading="eager"
+              fetchPriority="high"
+            />
           </div>
           <div className={styles.heroText}>
             <p className={styles.roomLabel} {...enter(80)}>
@@ -209,7 +221,7 @@ export function BookView() {
           </Band>
         </section>
       </main>
-      <RoomNav back={{ href: '/shelf', label: 'على الرف' }} next={{ href: '/journal', label: 'المجلس' }} nextTone="coral" />
+      <RoomNav back={{ href: '/shelf', label: 'على الرف' }} next={{ href: '/journal', label: journalName }} nextTone="coral" />
     </>
   )
 }

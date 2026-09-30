@@ -11,7 +11,7 @@ import { Client } from 'pg'
 
 import { typeset } from '../../src/lib/format'
 
-import { anonClient, createOwner, signInByCode, status, tomorrowRiyadhLocal } from './helpers'
+import { anonClient, createOwner, restoreLive, signInByCode, SITE_ORIGIN, status, tomorrowRiyadhLocal } from './helpers'
 
 const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. نصّك محفوظ هنا؛ حمّل آخر نسخة ثم أعد التعديل.'
 /** `src/admin/richtext.ts`'s `TEXT_FORMAT_BOLD`: bit 0 of Lexical's format bitmask. */
@@ -29,6 +29,35 @@ async function isPublished(collection: string, docId: string): Promise<boolean> 
     .eq('doc_id', docId)
   if (error) throw new Error(`isPublished: ${error.message}`)
   return (data?.length ?? 0) > 0
+}
+
+/**
+ * What a test must undo whether it passes or fails (S21.2): each edit test
+ * registers the SQL that puts its document back, and afterEach runs it. A failed
+ * test then never leaves test content published, or saved as the draft the
+ * next run's editor opens.
+ */
+const cleanups: Array<() => Promise<void>> = []
+test.afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((run) => run()))
+})
+
+/** Takes a document off the site through SQL (archive_document needs a publisher's JWT). */
+async function unpublish(collection: string, docId: string): Promise<void> {
+  const db = new Client({ connectionString: status.DB_URL })
+  await db.connect()
+  try {
+    await db.query('delete from public.published_documents where collection = $1::public.content_collection and doc_id = $2', [
+      collection,
+      docId,
+    ])
+    await db.query('update public.content_versions set publish_at = null where collection = $1::public.content_collection and doc_id = $2', [
+      collection,
+      docId,
+    ])
+  } finally {
+    await db.end()
+  }
 }
 
 interface RichTextNode {
@@ -62,9 +91,38 @@ async function createAndPublishTaxonomy(
   await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
 }
 
+/** Creates a visible post with a body under `category`, publishes it and returns its document id. */
+async function publishPost(
+  page: import('@playwright/test').Page,
+  { slug, title, category }: { slug: string; title: string; category: string },
+): Promise<string> {
+  await page.goto('/admin/content/posts')
+  await page.getByRole('button', { name: 'جديد' }).click()
+  await expect(page).toHaveURL(/\/admin\/content\/posts\/edit\?id=[0-9a-f-]{36}$/)
+  const docId = page.url().match(/id=([0-9a-f-]{36})$/)?.[1]
+  if (!docId) throw new Error('No post id in URL')
+  await page.getByLabel('المعرّف').fill(slug)
+  await page.getByLabel('العنوان').fill(title)
+  await page.getByLabel('مقتطف').fill('مقتطف الاختبار')
+  await page.getByLabel('الكاتب').fill('الكاتب')
+  const editor = page.getByLabel('محرر النص المنسق')
+  await editor.click()
+  await editor.pressSequentially('نص المقال الثاني')
+  await page.getByLabel(category).check()
+  await page.getByLabel('ظاهر').check()
+  await page.getByRole('button', { name: 'حفظ' }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+  return docId
+}
+
 test('post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore', async ({
   page,
+  browser,
 }) => {
+  // Three taxonomies, two posts and the public journal on top of the lifecycle.
+  test.setTimeout(180_000)
   const email = await createOwner('ناشر الاختبار')
   await signInByCode(page, email)
 
@@ -79,6 +137,7 @@ test('post lifecycle: taxonomies, rich text, relations, cover, schedule, publish
   await expect(page).toHaveURL(/\/admin\/content\/posts\/edit\?id=[0-9a-f-]{36}$/)
   const docId = page.url().match(/id=([0-9a-f-]{36})$/)?.[1]
   if (!docId) throw new Error('No post id in URL')
+  cleanups.push(() => unpublish('posts', docId))
 
   const title = `مقال الاختبار ${stamp}`
   await page.getByLabel('المعرّف').fill(`e2e-post-${stamp}`)
@@ -133,6 +192,46 @@ test('post lifecycle: taxonomies, rich text, relations, cover, schedule, publish
   const body = (published.data as { body: { root: RichTextNode } }).body
   expect(findBoldText(body.root, BOLD_WORD)).toBe(true)
 
+  // The journal (P01, C16): a second post in a second category, then the public
+  // list, its category filter and the article page read both published posts.
+  const secondCategory = `فئة ثانية ${stamp}`
+  const secondTitle = `مقال ثانٍ ${stamp}`
+  await createAndPublishTaxonomy(page, `e2e-category-b-${stamp}`, 'category', secondCategory)
+  const secondDocId = await publishPost(page, { slug: `e2e-post-b-${stamp}`, title: secondTitle, category: secondCategory })
+  cleanups.push(() => unpublish('posts', secondDocId))
+  // `next dev` answers a generateStaticParams page from the params it cached, so
+  // a new slug is a 404 until it has seen it (I38); the static export has no such cache.
+  await expect
+    .poll(async () => (await fetch(`${SITE_ORIGIN}/journal/e2e-post-${stamp}`)).status, { timeout: 60_000 })
+    .toBe(200)
+  const journalContext = await browser.newContext()
+  try {
+    const journal = await journalContext.newPage()
+    await journal.goto('/journal')
+    // Newest first: the second post is the lead card, and both posts are listed.
+    await expect(journal.getByRole('main').locator('ol > li').first()).toContainText(secondTitle)
+    await expect(journal.getByRole('heading', { name: title })).toBeVisible()
+    // The filter is a client component: click again until it has hydrated.
+    const toggle = journal.getByRole('group', { name: 'التصنيفات' }).getByRole('button', { name: categoryLabel })
+    await expect(async () => {
+      await toggle.click()
+      await expect(toggle).toHaveAttribute('aria-pressed', 'true', { timeout: 1_000 })
+    }).toPass({ timeout: 20_000 })
+    await expect(journal.getByRole('heading', { name: title })).toBeVisible()
+    await expect(journal.getByRole('heading', { name: secondTitle })).toHaveCount(0)
+    // The article page: title, the bold word, the author and the category.
+    await journal.getByRole('link', { name: new RegExp(title) }).click()
+    await expect(journal).toHaveURL(new RegExp(`/journal/e2e-post-${stamp}$`))
+    await expect(journal.getByRole('heading', { level: 1 })).toHaveText(title)
+    await expect(journal.locator('article strong', { hasText: BOLD_WORD })).toBeVisible()
+    await expect(journal.getByText('الكاتب', { exact: true })).toBeVisible()
+    await expect(journal.getByText(categoryLabel, { exact: true })).toBeVisible()
+  } finally {
+    await journalContext.close()
+  }
+  // Back to the first post for the archive and restore steps.
+  await page.goto(`/admin/content/posts/edit?id=${docId}`)
+
   // Archive: absent again.
   await page.getByRole('button', { name: 'أرشفة' }).click()
   await expect(page.getByText('أرشفة: تم بنجاح.')).toBeVisible()
@@ -166,6 +265,7 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   )
   await liveAtStart.end()
   const originalSeq = String(live.rows[0]!.seq)
+  cleanups.push(() => restoreLive('rooms', 'started', Number(originalSeq)))
 
   await page.goto('/admin/content/rooms/edit?id=started')
   const heroLine = page.getByLabel('سطر البداية')
@@ -274,6 +374,7 @@ test('social links: edit, add, reorder and publish; the footer and contact page 
   )
   await liveAtStart.end()
   const originalSeq = String(live.rows[0]!.seq)
+  cleanups.push(() => restoreLive('site_settings', 'site', Number(originalSeq)))
 
   await page.goto('/admin/content/site_settings/edit?id=site')
   const socialGroup = page.getByRole('group', { name: 'روابط التواصل' })
@@ -299,7 +400,7 @@ test('social links: edit, add, reorder and publish; the footer and contact page 
   await items.nth(4).getByLabel('الشبكة').fill(added.network)
   await items.nth(4).getByLabel('المعرّف').fill(added.handle)
   await items.nth(4).getByLabel('الرابط').fill(added.href.replace('https:', 'http:'))
-  await expect(page.getByText('social.4.href: الرابط غير صالح.')).toBeVisible()
+  await expect(page.getByText(/^روابط التواصل: الرابط غير صالح./)).toBeVisible()
   await items.nth(4).getByLabel('الرابط').fill(added.href)
   await expect(page.getByText('هناك مشاكل في البيانات:')).toHaveCount(0)
 
@@ -367,6 +468,7 @@ test('scenes: add, move first, hide and publish; the scenes page follows (requir
   )
   await liveAtStart.end()
   const originalSeq = String(live.rows[0]!.seq)
+  cleanups.push(() => restoreLive('scenes', 'gallery', Number(originalSeq)))
 
   // The gallery is one fixed document under المحتوى.
   await page.goto('/admin/content')

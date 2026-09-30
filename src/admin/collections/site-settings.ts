@@ -5,12 +5,13 @@ import { normalizeSaudiMobile } from '../../lib/format'
 import { type Field, schemaFromFields } from '../fields'
 
 /**
- * `site_settings`: one fixed document, `site` — nav, footer and the home
- * intro addition (`content/initial-content.json` `nav`/`footer`/`home`).
- * P06 round 2 adds the optional `seo` and `contact` groups (`required:
- * false`), so the already-published document without them still validates;
- * the public pages read them from P10 (design paused). C09 adds the optional
- * `social` list the same way (it was `SOCIAL` in `src/content/site.ts`).
+ * `site_settings`: one fixed document, `site` — nav, footer, the home page's
+ * words (D39) and the social links (C09) (`content/initial-content.json`
+ * `nav`/`footer`/`home`). P06 round 2 adds the optional `seo` and `contact`
+ * groups (`required: false`), so the already-published document without them
+ * still validates; `contact` is read by /contact (`getContact`), `seo` is not
+ * read yet (P10). C09 adds the optional `social` list the same way (it was
+ * `SOCIAL` in `src/content/site.ts`).
  */
 export const navItemFields = [
   { name: 'label', label: 'التسمية', type: 'text' },
@@ -20,7 +21,6 @@ export const navItemSchema = schemaFromFields(navItemFields)
 
 export const footerFields = [
   { name: 'poem', label: 'أبيات التذييل', type: 'paragraphs' },
-  { name: 'signature', label: 'التوقيع', type: 'text' },
   { name: 'domain', label: 'النطاق', type: 'text' },
 ] as const satisfies Field[]
 export const footerSchema = schemaFromFields(footerFields)

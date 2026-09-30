@@ -84,6 +84,17 @@ describe('writeBackup / readBackup', () => {
     }
   })
 
+  it('extracts an archive whose last entry is an empty file', async () => {
+    // Studio's `.emptyFolderPlaceholder` objects are 0 bytes and can sort last.
+    const lastEmpty = [ENTRIES[0]!, ENTRIES[2]!]
+    const emptyOut = join(root, 'backup-empty-last.enc')
+    const emptyDest = join(root, 'dest-empty-last')
+    await writeBackup(emptyOut, lastEmpty, key)
+    const manifest = await readBackup(emptyOut, key, emptyDest)
+    expect(manifest.files.map((f: { path: string }) => f.path)).toEqual(['a.txt', 'nested/deep/empty.txt'])
+    expect(readFileSync(join(emptyDest, 'nested', 'deep', 'empty.txt')).length).toBe(0)
+  })
+
   it('works with a string passphrase too (real scrypt on both sides)', async () => {
     const stringOut = join(root, 'backup-string.enc')
     const stringDest = join(root, 'dest-string')
@@ -166,8 +177,20 @@ describe('writeBackup / readBackup', () => {
   })
 
   it('the writer deletes the partial file and rethrows when an entry disappears', async () => {
-    const broken = [{ path: 'gone.txt', file: join(root, 'does-not-exist.txt') }]
+    // writeBackup reads `file` three times: stat, the digest pass, then the
+    // write pass after `${outFile}.partial` is open. Only the third read sees
+    // the file gone, so the failure happens mid-write and the cleanup must run.
+    let reads = 0
+    const broken = [
+      {
+        path: 'gone.txt',
+        get file() {
+          return reads++ < 2 ? ENTRIES[0]!.file : join(root, 'does-not-exist.txt')
+        },
+      },
+    ]
     await expect(writeBackup(outFile, broken, key)).rejects.toThrow()
+    expect(reads).toBe(3)
     expect(existsSync(`${outFile}.partial`)).toBe(false)
   })
 

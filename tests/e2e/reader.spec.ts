@@ -120,7 +120,7 @@ test.describe('the book preview', () => {
     await expect(where(page)).toHaveText(/2 \/ 5/)
     await page.keyboard.press('End')
     await expect(where(page)).toHaveText(/5 \/ 5/)
-    await expect(page.getByRole('link', { name: 'النسخ ←' })).toBeVisible()
+    await expect(page.locator('#pages').getByRole('link', { name: 'النسخ', exact: true })).toBeVisible()
     await page.getByRole('button', { name: /التالية/ }).click()
     await expect(where(page)).toHaveText('نهاية الصفحات المتاحة')
     await page.getByRole('button', { name: /التالية/ }).click()
@@ -238,7 +238,7 @@ test.describe('the book preview', () => {
     await expect(page.locator('#pages [data-page="2"]')).toBeInViewport()
     // At reading size: a sheet 880px wide on a laptop.
     expect(await page.locator('#pages [data-page="2"]').evaluate((sheet) => Math.round(sheet.getBoundingClientRect().width))).toBe(880)
-    await page.getByRole('link', { name: 'النسخ ←' }).click()
+    await page.locator('#pages').getByRole('link', { name: 'النسخ', exact: true }).click()
     await expect(page).toHaveURL(/#editions$/)
   })
 
@@ -250,7 +250,7 @@ test.describe('the book preview', () => {
     await expect(where(page)).toHaveText(/2 \/ 3/)
     await page.keyboard.press('ArrowLeft')
     await expect(where(page)).toHaveText(/3 \/ 3/)
-    await expect(page.getByRole('link', { name: 'النسخ ←' })).toBeVisible()
+    await expect(page.locator('#pages').getByRole('link', { name: 'النسخ', exact: true })).toBeVisible()
 
     await page.unroute(`**${PREVIEW}`)
     await page.route(`**${PREVIEW}`, (route) => route.fulfill({ contentType: 'application/pdf', body: readFileSync(path.join(FIXTURES, 'one-page.pdf')) }))
@@ -258,7 +258,7 @@ test.describe('the book preview', () => {
     await openBook(page)
     await expect(where(page)).toHaveText(/1 \/ 1/)
     await page.keyboard.press('ArrowLeft')
-    await expect(page.getByRole('link', { name: 'النسخ ←' })).toBeVisible()
+    await expect(page.locator('#pages').getByRole('link', { name: 'النسخ', exact: true })).toBeVisible()
   })
 
   test('a corrupt or unreachable file says so, and a retry opens the book', async ({ page }) => {

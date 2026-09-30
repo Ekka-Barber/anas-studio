@@ -24,9 +24,6 @@
   min-block-size: 50vh;
 }
 
-.inner {
-  max-inline-size: 880px;
-}
 /* The cart and the checkout: room for the summary panel beside them. */
 .innerWide {
   max-inline-size: 1180px;

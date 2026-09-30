@@ -183,8 +183,8 @@ four, since this document governs the enhancement.
 
 ### Domain in the footer
 
-The frozen footer's small caption reads "anasaq.me". D25 makes anas.studio the
-canonical production domain, so the footer and header wordmark here show
+The frozen footer's small caption shows the earlier V1 domain. anas.studio is the
+only name (D25, D42), so the footer and header wordmark here show
 "anas.studio" instead of reproducing the frozen literal string — the poem and
 signature above it are the actual frozen content and are unchanged.
 

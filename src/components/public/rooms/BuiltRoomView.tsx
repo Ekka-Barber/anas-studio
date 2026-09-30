@@ -82,8 +82,24 @@ export function BuiltRoomView({ room }: { room: BuiltRoom }) {
     ...branchParas.filter((para) => para.text !== branches?.label),
     ...closing.slice(0, -1).map((text) => ({ text, kind: 'body' as const })),
   ]
-  // The poster stands beside the text after the band.
+  // The opening film follows the first band, and the poster stands beside the first text after it.
+  // Both are drawn exactly once, whatever band lines the owner sets: with no band, the film comes
+  // after the intro and the poster goes beside its last text.
   const firstBand = intro.findIndex((block) => block.kind === 'band')
+  const texts = intro.flatMap((block, i) => (block.kind === 'text' ? [i] : []))
+  const posterAt = firstBand === -1 ? texts[texts.length - 1] : texts.find((i) => i > firstBand)
+  const openingFilm = (
+    <figure className={built.openingFilm}>
+      <div className="motion-expand">
+        <VideoTile id={room.media.droneFilm.id} alt={room.media.droneFilm.alt} ratio="16 / 9" large />
+      </div>
+      {FILM_CAPTIONS[room.media.droneFilm.id] && (
+        <figcaption data-tone="aub" className={`t-label ${built.filmCaption}`}>
+          {FILM_CAPTIONS[room.media.droneFilm.id]}
+        </figcaption>
+      )}
+    </figure>
+  )
 
   return (
     <>
@@ -107,23 +123,19 @@ export function BuiltRoomView({ room }: { room: BuiltRoom }) {
               return (
                 <div key={i}>
                   <StatementBand text={block.text} size="band" heading />
-                  <figure className={built.openingFilm}>
-                    <div className="motion-expand">
-                      <VideoTile id={room.media.droneFilm.id} alt={room.media.droneFilm.alt} ratio="16 / 9" large />
-                    </div>
-                    {FILM_CAPTIONS[room.media.droneFilm.id] && (
-                      <figcaption data-tone="aub" className={`t-label ${built.filmCaption}`}>
-                        {FILM_CAPTIONS[room.media.droneFilm.id]}
-                      </figcaption>
-                    )}
-                  </figure>
+                  {i === firstBand && openingFilm}
                   <Edge kind="weave" />
                 </div>
               )
             }
-            const afterBand = firstBand !== -1 && i > firstBand
-            return <TextRun key={i} paras={block.paras} figure={afterBand ? room.intro.vignette : null} end="xs" />
+            return <TextRun key={i} paras={block.paras} figure={i === posterAt ? room.intro.vignette : null} end="xs" />
           })}
+          {firstBand === -1 && (
+            <>
+              {openingFilm}
+              <Edge kind="weave" />
+            </>
+          )}
 
           {team && (
             <>

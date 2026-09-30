@@ -20,27 +20,18 @@ import { cache } from 'react'
 import type { z } from 'zod'
 
 import {
-  boutiqueItemSchema,
   brandSchema,
-  builtMovementSchema,
   builtRoomSchema,
   footerSchema,
-  galleryPhotoSchema,
   isHttpsUrl,
-  jewelSchema,
-  moonlightCupItemSchema,
   navItemSchema,
   passedRoomSchema,
-  reelMediaSchema,
-  roomVignetteSchema,
   SCENES_DOC_ID,
   scenesSchema,
   shelfRoomSchema,
   siteSettingsStoredSchema,
   startedMovementSchema,
   startedRoomSchema,
-  thuraFlavourSchema,
-  thuraItemSchema,
 } from '../admin/collections'
 
 import { requireEnv } from './env'
@@ -48,20 +39,11 @@ import { collectMediaIds, formatMediaRef, MEDIA_ORIGIN } from './media-ref'
 
 export type NavItem = z.infer<typeof navItemSchema>
 export type FooterContent = z.infer<typeof footerSchema>
-export type RoomJewel = z.infer<typeof jewelSchema>
-export type RoomVignette = z.infer<typeof roomVignetteSchema>
-export type ReelMedia = z.infer<typeof reelMediaSchema>
 export type StartedMovement = z.infer<typeof startedMovementSchema>
 export type StartedRoom = z.infer<typeof startedRoomSchema>
-export type BuiltMovement = z.infer<typeof builtMovementSchema>
 export type BuiltRoom = z.infer<typeof builtRoomSchema>
 export type Brand = z.infer<typeof brandSchema>
-export type GalleryPhoto = z.infer<typeof galleryPhotoSchema>
 export type PassedRoom = z.infer<typeof passedRoomSchema>
-export type ThuraFlavour = z.infer<typeof thuraFlavourSchema>
-export type ThuraItem = z.infer<typeof thuraItemSchema>
-export type MoonlightCupItem = z.infer<typeof moonlightCupItemSchema>
-export type BoutiqueItem = z.infer<typeof boutiqueItemSchema>
 export type ShelfRoom = z.infer<typeof shelfRoomSchema>
 export type SiteContent = z.infer<typeof siteSettingsStoredSchema>
 export type SocialLink = NonNullable<SiteContent['social']>[number]
@@ -73,25 +55,43 @@ export interface MediaDerivative {
   height: number
 }
 
+// Ids per request: each UUID adds about 39 characters to the GET URL, and
+// Cloudflare, which fronts hosted Supabase, refuses one past 16 KB.
+const MEDIA_CHUNK = 100
+
+/**
+ * The derivatives of each media row, read with the publishable key in chunks
+ * of `MEDIA_CHUNK` ids. An id anon may not read (no published document
+ * references it) has no entry — an unreadable library is an error. The one
+ * media read of every build-time loader.
+ */
+export async function mediaById(ids: string[]): Promise<Map<string, MediaDerivative[]>> {
+  const byId = new Map<string, MediaDerivative[]>()
+  for (let start = 0; start < ids.length; start += MEDIA_CHUNK) {
+    const params = new URLSearchParams({
+      select: 'id,derivatives',
+      id: `in.(${ids.slice(start, start + MEDIA_CHUNK).join(',')})`,
+    })
+    const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {
+      headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') },
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch media: ${response.status}`)
+    }
+    const rows = (await response.json()) as Array<{ id: string; derivatives: MediaDerivative[] }>
+    for (const row of rows) byId.set(row.id, row.derivatives)
+  }
+  return byId
+}
+
 /**
  * Replaces media-library ids in a parsed document with `formatMediaRef`
- * strings (P05), read with the publishable key. An id anon may not read (no
- * published document references it) simply stays a bare string — an
- * unreadable library is an error.
+ * strings (P05). An id anon may not read stays a bare string.
  */
 async function resolveMedia<T>(data: T): Promise<T> {
   const ids = collectMediaIds(data)
   if (ids.length === 0) return data
-  const params = new URLSearchParams({ select: 'id,derivatives', id: `in.(${ids.join(',')})` })
-  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {
-    headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') },
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to fetch media: ${response.status}`)
-  }
-  const rows = (await response.json()) as Array<{ id: string; derivatives: MediaDerivative[] }>
-  const byId = new Map(rows.map((row) => [row.id, row.derivatives]))
-  return replaceMediaIds(data, byId, MEDIA_ORIGIN)
+  return replaceMediaIds(data, await mediaById(ids), MEDIA_ORIGIN)
 }
 
 /** Deep-walks `value`, swapping each resolved media id for its reference string. */
@@ -149,7 +149,7 @@ function dropHidden<T extends { hidden?: boolean }>(items: readonly T[]): T[] {
 
 // One fetch of `site_settings/site` per render, shared by Header and Footer.
 // The lenient stored schema on purpose: the publish gate enforces the contact
-// rules, so one bad stored value cannot 500 every public page.
+// rules, so one bad stored value cannot fail the whole site build.
 const fetchSiteSettings = cache(
   async (): Promise<SiteContent> => fetchPublished('site_settings', 'site', siteSettingsStoredSchema),
 )
@@ -160,6 +160,14 @@ export async function getNav(): Promise<NavItem[]> {
 
 export async function getFooter(): Promise<FooterContent> {
   return (await fetchSiteSettings()).footer
+}
+
+/**
+ * The journal's name (D11, C08): the label of its menu item, so renaming it
+ * there renames it on every page. «المجلس» until the menu says otherwise.
+ */
+export async function getJournalName(): Promise<string> {
+  return (await getNav()).find((item) => item.href === '/journal')?.label ?? 'المجلس'
 }
 
 export type HomeContent = SiteContent['home']

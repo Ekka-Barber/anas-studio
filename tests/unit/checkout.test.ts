@@ -149,6 +149,8 @@ describe('the gates, in contact\'s order', () => {
     ['a bad idempotency key', createBody({ idempotencyKey: 'not-a-uuid' })],
     ['a bad email', createBody({ email: 'nope' })],
     ['a missing name', createBody({ name: '' })],
+    // The database refuses an address over 500 characters (ADDRESS_REQUIRED); the schema names the field first.
+    ['an address over the database limit', createBody({ address: 'ا'.repeat(501) })],
     ['a non-integer policy revision', createBody({ policyRevisions: { store: 'one' } })],
     ['a bad order number', { action: 'cancel', orderNumber: 'ABCD01', accessToken: 'A'.repeat(43) }],
     ['a bad access token', { action: 'cancel', orderNumber: 'ABCD2345', accessToken: 'short' }],
@@ -348,6 +350,21 @@ describe('Turnstile (create only)', () => {
     expect(response.status).toBe(503)
     expect((await replyOf(response)).error?.code).toBe('TURNSTILE_UNAVAILABLE')
     expect(recorded).toHaveLength(0)
+  })
+
+  it('asks siteverify for the checkout action, the site hostname and the configured secret', async () => {
+    // The widget renders action 'checkout' (CheckoutForm); a drift here would fail every hosted checkout.
+    const verify = vi.fn(verifyOk)
+    await handleCheckout(request(createBody()), { rpc: recorderRpc, verify })
+    expect(verify).toHaveBeenCalledTimes(1)
+    expect(verify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: 'XXXX.DUMMY.TOKEN.XXXX',
+        secret: '1x0000000000000000000000000000000AA',
+        expectedAction: 'checkout',
+        expectedHostname: new URL(SITE).hostname,
+      }),
+    )
   })
 
   it.each([

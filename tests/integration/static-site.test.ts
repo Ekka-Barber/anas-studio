@@ -236,6 +236,32 @@ describe('site rebuilds (D32)', () => {
       await postgres.query('update finance.site_builds set requested_at = null')
       expect(await scalar<number>('public.publish_due()')).toBe(0)
       expect(await scalar<string | null>('(select requested_at from finance.site_builds)')).toBeNull()
+
+      // The other half: a due version goes live, is unscheduled, is audited and
+      // asks for one rebuild; a second run finds nothing due.
+      const docId = `due-${Date.now()}`
+      await postgres.query(
+        "insert into public.content_versions (collection, doc_id, seq, data, publish_at) values ('taxonomies', $1, 1, '{}'::jsonb, now() - interval '1 minute')",
+        [docId],
+      )
+      expect(await scalar<number>('public.publish_due()')).toBe(1)
+      const live = await postgres.query<{ seq: number }>(
+        "select seq from public.published_documents where collection = 'taxonomies' and doc_id = $1",
+        [docId],
+      )
+      expect(live.rows).toEqual([{ seq: 1 }])
+      const version = await postgres.query<{ publish_at: string | null }>(
+        "select publish_at from public.content_versions where collection = 'taxonomies' and doc_id = $1 and seq = 1",
+        [docId],
+      )
+      expect(version.rows).toEqual([{ publish_at: null }])
+      expect(await scalar<string | null>('(select requested_at from finance.site_builds)')).not.toBeNull()
+      const audit = await postgres.query<{ n: number }>(
+        "select count(*)::int as n from public.audit_events where action = 'content.publish_due' and entity = 'taxonomies' and entity_id = $1",
+        [docId],
+      )
+      expect(audit.rows[0]!.n).toBe(1)
+      expect(await scalar<number>('public.publish_due()')).toBe(0)
     })
   })
 })

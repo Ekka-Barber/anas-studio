@@ -1,6 +1,6 @@
 # Design-law audit and execution checklist
 
-This walks the entire supplied design law, including repeated tells, premium techniques, signature formula and field notes. Planning audit only: no new UI has been built or certified. References read: frozen Style Board, Motion Spec, Responsive Frames, eight page designs and assembled showcase; book/reader inspected in browser. Source hashes remain protected.
+This walks the entire supplied design law, including repeated tells, premium techniques, signature formula and field notes. Planning audit; the built UI is rechecked in the D39 section at the end. References read: frozen Style Board, Motion Spec, Responsive Frames, eight page designs and assembled showcase; book/reader inspected in browser. Source hashes remain protected.
 
 Codes: **F** = explicit frozen identity overrides the generic stylistic ban; reproduce carefully, not permission to copy into unrelated new screens. **N** = new journal/admin/store/services/board rule. **B** = defect prevention required everywhere, including production port of frozen design. **O** = optional technique, use only when it fits; never a required decoration. The orchestrator must append actual screenshot/interaction evidence for each applicable item during P10/P12. An N/O item absent from output is recorded not applicable, not embellished to satisfy a checklist.
 
@@ -193,13 +193,14 @@ Evidence: `artifacts/acceptance/DESIGN-B/` (commands and results in `commands.tx
 | 46, 50, 55 | One depth only: the book stands on a solid, directional offset block. No halos. |
 | 54, 75 | Photos and films sit on aubergine-900 frames; bands meet at a triangle or weave edge, never a raw seam. |
 | 56 | Contrast measured per tone (DESIGN.md §1). Coral text only at display size on aubergine (3.2:1); errors coral-deep (4.9:1); admin field borders 4.8:1. |
-| 58, 129 | The current room is marked with `aria-current` plus B's coral triangle (the design's own "you are here"). The menu is a native modal dialog: focus is trapped, Escape closes it and focus returns (e2e). |
+| 58, 129 | The current room is marked with `aria-current` plus B's triangle in the link's own ink (aubergine, 6.6:1; the design's own "you are here"). With scripting off (`@media (scripting: none)`) the header shows the inline room links at every width; no e2e run covers that rule. The menu is a native modal dialog: focus is trapped, Escape closes it and focus returns (e2e). |
 | 66 | The home's first screen is the name bands and the portrait. |
 | 67 | The sand page is Anas's palette (identity), not a default cream. |
-| 95, 149 | No dead controls. The menu, the scenes filter and lightbox (keyboard and swipe), films, the book's contents and the contact form are exercised in e2e. Forms without a backend (availability, booking) and the reader are not shown. |
+| 95, 149 | No dead controls. The menu, the scenes filter and lightbox (keyboard and swipe), films, the book's contents and the contact form are exercised in e2e; the P02 book reader is shown and exercised in `tests/e2e/reader.spec.ts`. Forms without a backend (availability, booking) are not shown. With scripting off the scenes and journal filters are hidden and a scenes tile opens the photo (`@media (scripting: none)` rules; the JS-off e2e still lists only '/', the rooms and '/book', so no run covers these). |
 | 98 | The footer is Anas's closing line and signature. |
 | 105 | The labels are short («ادخل ←», «اطلب جلسة», «أرسل»); errors say what is missing. |
-| 111, 127 | Thmanyah only, the medium serif and bold sans preloaded. |
+| 111, 127 | Thmanyah only, the medium serif and bold sans preloaded. «مائل» renders upright in the display face on the public site (no synthetic oblique). |
+| 138, 142 | The admin's nav links are 44px targets, and every admin page has a skip link and a main landmark. |
 | 123, 144 | The signature artifact is the Khous book in cover B and standing B. The photographs are Anas's own; there is no stock. |
 | 126, 130 | Truthful states: a section waiting for material is omitted, prices are «يُعلن قريباً», and there are no placeholders (e2e checks the placeholder wording). |
 | 137 | «←» is forward in RTL throughout; «→» is back. |

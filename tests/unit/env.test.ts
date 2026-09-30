@@ -26,6 +26,10 @@ describe('isLocalDatabaseUrl', () => {
     expect(isLocalDatabaseUrl('postgres://user:pass@db.example.com:5432/db')).toBe(false)
   })
 
+  it('rejects a ?host= override, which pg prefers to the URL host', () => {
+    expect(isLocalDatabaseUrl('postgres://u:p@127.0.0.1:5432/db?host=db.example.com')).toBe(false)
+  })
+
   it('rejects a non-postgres scheme', () => {
     expect(isLocalDatabaseUrl('https://127.0.0.1:5432/db')).toBe(false)
   })

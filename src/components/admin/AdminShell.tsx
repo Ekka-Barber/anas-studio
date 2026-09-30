@@ -8,12 +8,13 @@ import type { Session } from '@supabase/supabase-js'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
+import type { StaffRole } from './TableList'
 
-type StaffRole = 'owner' | 'editor' | 'operations'
 type Gate =
   | { status: 'checking' }
   | { status: 'signed-out' }
   | { status: 'no-role' }
+  | { status: 'error' }
   | { status: 'ready'; role: StaffRole }
 
 /**
@@ -40,7 +41,14 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
       }
       const { data, error } = await supabase.rpc('current_staff_role')
       if (!active) return
-      if (error || !data) {
+      if (error) {
+        // A failed call says nothing about the role. An open screen stays as it
+        // is: auth-js re-emits SIGNED_IN on every tab refocus, possibly before
+        // the network is back, and the children hold unsaved work.
+        setGate((prev) => (prev.status === 'ready' ? prev : { status: 'error' }))
+        return
+      }
+      if (!data) {
         setGate({ status: 'no-role' })
         return
       }
@@ -64,11 +72,11 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
 
   if (gate.status === 'checking' || gate.status === 'signed-out') return null
 
-  if (gate.status === 'no-role') {
+  if (gate.status === 'no-role' || gate.status === 'error') {
     return (
       <div className={styles.shell}>
         <div className={styles.gate}>
-          <p>لا تملك صلاحية الوصول</p>
+          <p>{gate.status === 'error' ? 'تعذّر التحقق من صلاحيتك. أعد تحميل الصفحة.' : 'لا تملك صلاحية الوصول'}</p>
           <button type="button" className={styles.buttonSecondary} onClick={signOut}>
             تسجيل الخروج
           </button>
@@ -79,7 +87,10 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
 
   return (
     <div className={styles.shell}>
-      <nav className={styles.nav}>
+      <a href="#main" className="skip-link">
+        انتقل إلى المحتوى
+      </a>
+      <nav className={styles.nav} aria-label="لوحة التحكم">
         <Link href="/admin">الرئيسية</Link>
         {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/email">البريد</Link>}
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/content">المحتوى</Link>}
@@ -93,7 +104,9 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
           تسجيل الخروج
         </button>
       </nav>
-      <div className={wide ? `${styles.page} ${styles.pageWide}` : styles.page}>{children}</div>
+      <main id="main" className={wide ? `${styles.page} ${styles.pageWide}` : styles.page}>
+        {children}
+      </main>
     </div>
   )
 }

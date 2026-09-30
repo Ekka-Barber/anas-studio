@@ -20,14 +20,18 @@ import styles from './admin.module.css'
 
 export type StaffRole = 'owner' | 'editor' | 'operations'
 
+/** The Arabic name of each staff role, shared by the home and team screens. */
+export const ROLE_LABEL: Record<StaffRole, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل' }
+
 const LIST_LIMIT = 500
 
 /** One list cell as Arabic text, from the column, the field config and the row. */
 export function cellText(config: TableConfig, column: ListColumn, row: Record<string, unknown>): string {
   if (column.text) return column.text(row)
   const value = row[column.key]
-  if (value === null || value === undefined) return column.nullText ?? 'لا يوجد'
   const field = config.fields.find((candidate) => candidate.name === column.key)
+  // The same empty text the form shows (`nullHint`), so the two never disagree.
+  if (value === null || value === undefined) return field?.type === 'money' && field.nullHint ? field.nullHint : 'لا يوجد'
   if (field?.type === 'select') return field.optionLabels?.[String(value)] ?? String(value)
   if (field?.type === 'money') {
     return field.unit === 'percent' ? `${formatRiyalsInput(value as number)}٪` : formatMoney(value as number)
@@ -42,7 +46,7 @@ export function cellText(config: TableConfig, column: ListColumn, row: Record<st
 
 /** The columns a list reads: the row id, the list's own columns, and the demo flag. */
 export function listSelect(config: TableConfig): string {
-  const keys = config.listColumns.map((column) => column.key)
+  const keys = config.listColumns.flatMap((column) => [column.key, ...(column.extra ?? [])])
   if (config.listBadge) keys.push('demo')
   return ['id', ...keys].join(',')
 }

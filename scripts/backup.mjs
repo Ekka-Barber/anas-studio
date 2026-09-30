@@ -13,7 +13,7 @@
  * or written anywhere.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -43,6 +43,20 @@ for (let i = 0; i < args.length; i += 1) {
 }
 if (outArg === '') usage(2)
 
+// `storage cp` runs in the temp dir (its destination must be relative), where
+// the CLI cannot find the link file, so --linked hands it the project ref.
+function linkedProjectRef() {
+  if (process.env.SUPABASE_PROJECT_ID) return process.env.SUPABASE_PROJECT_ID
+  const refFile = join(repoRoot, 'supabase', '.temp', 'project-ref')
+  const ref = existsSync(refFile) ? readFileSync(refFile, 'utf8').trim() : ''
+  if (ref === '') {
+    console.error('No linked Supabase project: run `supabase link` first (see docs/operations.md, "Backups (D35)"). Nothing was written.')
+    process.exit(1)
+  }
+  return ref
+}
+const projectRef = mode === '--linked' ? linkedProjectRef() : undefined
+
 // A backup inside the repository could be committed by accident.
 const outDir = resolve(outArg ?? join(homedir(), 'ANASAQ-backups'))
 const relOut = relative(repoRoot, outDir)
@@ -52,7 +66,7 @@ if (relOut === '' || (!relOut.startsWith('..') && !isAbsolute(relOut))) {
 }
 mkdirSync(outDir, { recursive: true })
 
-/** Runs the Supabase CLI (by name, the way scripts/glm-worker.mjs runs claude). */
+/** Runs the Supabase CLI by name. */
 function supabase(cliArgs, options = {}) {
   return spawnSync('supabase', cliArgs, { stdio: 'inherit', cwd: repoRoot, ...options })
 }
@@ -119,6 +133,12 @@ process.on('SIGTERM', () => {
   cleanup()
   process.exit(143)
 })
+// Closing the console window raises SIGHUP on Windows; without a listener Node
+// exits without the 'exit' event and the plaintext dumps stay in the temp dir.
+process.on('SIGHUP', () => {
+  cleanup()
+  process.exit(129)
+})
 
 try {
   const passphrase = await getPassphrase()
@@ -167,7 +187,10 @@ try {
       .map((line) => line.slice(`/${bucket}/`.length))
       .filter((name) => name !== '' && !name.endsWith('/'))
     if (names.length === 0) continue
-    const result = supabase(['storage', 'cp', '-r', `ss:///${bucket}`, `storage/${bucket}`, mode, '--experimental'], { cwd: work })
+    const result = supabase(['storage', 'cp', '-r', `ss:///${bucket}`, `storage/${bucket}`, mode, '--experimental'], {
+      cwd: work,
+      env: { ...process.env, ...(projectRef && { SUPABASE_PROJECT_ID: projectRef }) },
+    })
     if (result.status !== 0) {
       console.error(`Downloading bucket ${bucket} failed. No backup was written.`)
       process.exit(result.status ?? 1)

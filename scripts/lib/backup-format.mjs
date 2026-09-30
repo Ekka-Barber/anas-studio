@@ -151,14 +151,15 @@ export async function writeBackup(outFile, entries, passphrase, options = {}) {
   const out = createWriteStream(`${outFile}.partial`)
   const cipherDone = readableEnded(cipher)
   const outFailed = failurePromise(out)
+  const framingFailed = failurePromise(framing) // one listener for the whole run, not one per entry
   try {
     // The header goes to the file first, unencrypted: it is the AAD.
     await writeChunk(out, header, outFailed)
     framing.pipe(gzip).pipe(cipher).pipe(out, { end: false }) // the tag is appended after the cipher ends
 
-    await writeEntryBytes(framing, 'manifest.json', manifestBytes)
+    await writeEntryBytes(framing, 'manifest.json', manifestBytes, framingFailed)
     for (let index = 0; index < entries.length; index += 1) {
-      await writeEntryFile(framing, files[index], entries[index].file)
+      await writeEntryFile(framing, files[index], entries[index].file, framingFailed)
     }
     framing.end()
     await cipherDone
@@ -173,14 +174,13 @@ export async function writeBackup(outFile, entries, passphrase, options = {}) {
   return manifest
 }
 
-async function writeEntryBytes(framing, path, bytes) {
-  await writeEntryHeader(framing, { path, size: bytes.length, sha256: sha256Hex(bytes) })
-  const failed = failurePromise(framing)
+async function writeEntryBytes(framing, path, bytes, failed) {
+  await writeEntryHeader(framing, { path, size: bytes.length, sha256: sha256Hex(bytes) }, failed)
   await writeChunk(framing, bytes, failed)
 }
 
-async function writeEntryFile(framing, meta, file) {
-  await writeEntryHeader(framing, meta)
+async function writeEntryFile(framing, meta, file, failed) {
+  await writeEntryHeader(framing, meta, failed)
   await new Promise((resolve, reject) => {
     createReadStream(file)
       .once('error', reject)
@@ -189,12 +189,11 @@ async function writeEntryFile(framing, meta, file) {
   })
 }
 
-async function writeEntryHeader(framing, meta) {
+async function writeEntryHeader(framing, meta, failed) {
   const json = Buffer.from(JSON.stringify({ path: meta.path, size: meta.size, sha256: meta.sha256 }), 'utf8')
   if (json.length > MAX_JSON_LEN) throw new Error(`Entry header too long: ${meta.path}`)
   const prefix = Buffer.alloc(4)
   prefix.writeUInt32BE(json.length)
-  const failed = failurePromise(framing)
   await writeChunk(framing, prefix, failed)
   await writeChunk(framing, json, failed)
 }
@@ -337,6 +336,11 @@ class EntryExtractor extends Writable {
         data = data.subarray(this.jsonLen)
       } else {
         // state === 'data'
+        if (this.sizeLeft === 0) {
+          // An empty file: no data byte follows, so close it here, not on the next byte.
+          await this.closeEntry()
+          continue
+        }
         if (data.length === 0) break
         const take = Math.min(this.sizeLeft, data.length)
         const slice = data.subarray(0, take)

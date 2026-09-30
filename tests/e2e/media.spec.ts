@@ -15,7 +15,8 @@ import { Client } from 'pg'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import sharp from 'sharp'
 
-import { anonClient, createOwner, createStaff, functionUrl, signInByCode, staffAccessToken, status } from './helpers'
+import { anonClient, createOwner, createStaff, functionUrl, restoreLive, signInByCode, staffAccessToken, status } from './helpers'
+import { shotsDir } from './shots'
 
 const WIDTHS = [360, 720, 1200, 1800]
 
@@ -282,7 +283,15 @@ test('no token is 401; an operations token is 403', async ({ request }) => {
 
 // --- Round 2: the browser screens -------------------------------------------
 
-const SHOT_DIR = path.resolve('artifacts/acceptance/P05/screenshots')
+// P05 evidence goes to artifacts/acceptance/P05 only for an ACCEPTANCE_PACKAGE=P05 run.
+const SHOT_DIR = path.resolve(shotsDir('P05'))
+
+// What the round 2 room test must undo whether it passes or fails (S21.2): it
+// registers the SQL that puts the built room back, and afterEach runs it.
+const cleanups: Array<() => Promise<void>> = []
+test.afterEach(async () => {
+  await Promise.all(cleanups.splice(0).map((run) => run()))
+})
 
 /** A JPEG original; `exif` adds an IFD0 marker so removal is provable. */
 async function jpegBuffer(width: number, height: number, exif = false): Promise<Buffer> {
@@ -342,6 +351,7 @@ test('round 2: library upload with crop and EXIF removal, reuse in a room, folde
   )
   await liveAtStart.end()
   const originalSeq = String(live.rows[0]!.seq)
+  cleanups.push(() => restoreLive('rooms', 'built', Number(originalSeq)))
 
   // 1. Upload a 2400x1600 JPEG that carries EXIF, cropped 1:1 in the browser.
   await page.goto('/admin/media')
@@ -458,12 +468,14 @@ test('round 2: library upload with crop and EXIF removal, reuse in a room, folde
 
   // 7. Restore the room to its previous published state.
   await page.goto('/admin/content/rooms/edit?id=built')
-  const historyTable = page.locator('table')
-  await historyTable
-    .locator('tbody tr')
-    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
-    .getByRole('button', { name: 'استعادة' })
-    .click()
+  const historyRows = page.locator('table tbody tr')
+  const originalRow = historyRows.filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })
+  await expect(originalRow).toHaveCount(1)
+  const rowsBefore = await historyRows.count()
+  await originalRow.getByRole('button', { name: 'استعادة' }).click()
+  // The restore appends a version and reloads the form: publishing before that
+  // would publish this test's version again, so wait for the new history row.
+  await expect(historyRows).toHaveCount(rowsBefore + 1)
   await page.getByRole('button', { name: 'نشر' }).click()
   await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
   const restoredHtml = await (await request.get('/built')).text()
@@ -506,6 +518,16 @@ test('round 2: search and المزيد paging past 40 items', async ({ page, req
   await expect(page.getByRole('button', { name: 'المزيد' })).toBeHidden()
 })
 
+/** Fails when the page scrolls sideways, and records the reading in overflow.txt beside the screenshots. */
+async function assertNoOverflow(page: Page, label: string, where: string): Promise<void> {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  appendFileSync(
+    path.join(SHOT_DIR, 'overflow.txt'),
+    `${label}px ${where}: scrollWidth - innerWidth = ${overflow} ${overflow <= 0 ? 'OK' : 'OVERFLOW'}\n`,
+  )
+  expect(overflow, `${label}px ${where}: horizontal overflow`).toBeLessThanOrEqual(0)
+}
+
 test('round 2: screenshots at 360 and 1440, and horizontal overflow', async ({ browser }) => {
   mkdirSync(SHOT_DIR, { recursive: true })
   appendFileSync(path.join(SHOT_DIR, 'overflow.txt'), `run ${new Date().toISOString()}\n`)
@@ -522,11 +544,13 @@ test('round 2: screenshots at 360 and 1440, and horizontal overflow', async ({ b
     await uploadThroughUi(page, `p05-shot-${run}-${label}.jpg`, await jpegBuffer(1600, 1000, true))
     await expect(page.getByRole('button', { name: new RegExp(`p05-shot-${run}-${label}`) })).toBeVisible()
     await page.screenshot({ path: path.join(SHOT_DIR, `library-${label}.png`), fullPage: true })
+    await assertNoOverflow(page, label, 'library')
 
     await page.getByRole('button', { name: new RegExp(`p05-shot-${run}-${label}`) }).click()
     await expect(page.getByText('مستخدمة في')).toBeVisible()
     await expect(page.getByText('غير مستخدمة')).toBeVisible()
     await page.screenshot({ path: path.join(SHOT_DIR, `details-${label}.png`), fullPage: true })
+    await assertNoOverflow(page, label, 'details')
 
     await page.getByRole('button', { name: 'رفع صورة' }).click()
     const dialog = page.getByRole('dialog')
@@ -538,6 +562,7 @@ test('round 2: screenshots at 360 and 1440, and horizontal overflow', async ({ b
     await zoom.press('ArrowRight')
     await expect(dialog.getByRole('button', { name: 'الأصل', exact: true })).toBeVisible()
     await page.screenshot({ path: path.join(SHOT_DIR, `upload-${label}.png`), fullPage: true })
+    await assertNoOverflow(page, label, 'upload')
     await dialog.getByRole('button', { name: 'إلغاء' }).click()
 
     await page.goto('/admin/content/rooms/edit?id=built')
@@ -556,11 +581,7 @@ test('round 2: screenshots at 360 and 1440, and horizontal overflow', async ({ b
     await expect(page.getByRole('dialog').getByRole('heading', { name: 'اختيار من المكتبة' })).toBeVisible()
     await page.screenshot({ path: path.join(SHOT_DIR, `picker-${label}.png`), fullPage: true })
 
-    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
-    appendFileSync(
-      path.join(SHOT_DIR, 'overflow.txt'),
-      `${label}px: scrollWidth - innerWidth = ${overflow} ${overflow <= 0 ? 'OK' : 'OVERFLOW'}\n`,
-    )
+    await assertNoOverflow(page, label, 'picker')
     await context.close()
   }
 })

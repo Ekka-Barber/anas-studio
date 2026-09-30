@@ -114,6 +114,9 @@ describe('folder rules', () => {
     expect(folderIsInvalid('/أغلفة')).toBe(true)
     expect(folderIsInvalid('أغلفة//٢٠٢٦')).toBe(true)
     expect(folderIsInvalid('أغلفة\t٢٠٢٦')).toBe(true)
+    // The SQL `[[:cntrl:]]` check also refuses the C1 controls.
+    expect(folderIsInvalid('أغلفة\u0085٢٠٢٦')).toBe(true)
+    expect(folderIsInvalid('أغلفة\u009F')).toBe(true)
     expect(folderIsInvalid('x'.repeat(121))).toBe(true)
   })
 })

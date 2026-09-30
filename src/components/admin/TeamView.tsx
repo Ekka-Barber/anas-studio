@@ -8,20 +8,18 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { StepUp } from './StepUp'
 import styles from './admin.module.css'
+import { ROLE_LABEL, type StaffRole } from './TableList'
 
-type Role = 'owner' | 'editor' | 'operations'
 type Member = {
   user_id: string
   email: string
   display_name: string
-  role: Role
+  role: StaffRole
   active: boolean
   has_totp: boolean
   created_at: string
 }
 type ActionResult = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }
-
-const ROLE_LABEL: Record<Role, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل' }
 
 async function callStaffAdmin(body: Record<string, unknown>): Promise<ActionResult> {
   const supabase = getSupabaseBrowserClient()
@@ -52,10 +50,10 @@ export function TeamView() {
   const [needsEnrollment, setNeedsEnrollment] = useState(false)
   const [busy, setBusy] = useState(false)
   const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown> } | null>(null)
-  const [roleEdits, setRoleEdits] = useState<Record<string, Role>>({})
+  const [roleEdits, setRoleEdits] = useState<Record<string, StaffRole>>({})
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
-  const [inviteRole, setInviteRole] = useState<Role>('editor')
+  const [inviteRole, setInviteRole] = useState<StaffRole>('editor')
 
   async function loadDirectory() {
     const supabase = getSupabaseBrowserClient()
@@ -74,7 +72,13 @@ export function TeamView() {
     })()
   }, [])
 
-  async function runAction(body: Record<string, unknown>) {
+  function clearInvite() {
+    setInviteEmail('')
+    setInviteName('')
+  }
+
+  /** True only when the action succeeded; a step-up prompt or an error is false. */
+  async function runAction(body: Record<string, unknown>): Promise<boolean> {
     setBusy(true)
     setActionError(null)
     setNeedsEnrollment(false)
@@ -82,7 +86,7 @@ export function TeamView() {
     setBusy(false)
     if (result.ok) {
       await loadDirectory()
-      return
+      return true
     }
     if (result.error.code === 'STEP_UP_REQUIRED') {
       const supabase = getSupabaseBrowserClient()
@@ -90,12 +94,15 @@ export function TeamView() {
       const verified = data?.totp.find((factor) => factor.status === 'verified')
       if (!verified) {
         setNeedsEnrollment(true)
-        return
+        return false
       }
       setStepUp({ factorId: verified.id, body })
-      return
+      return false
     }
     setActionError(result.error.message)
+    // A refused action may still have changed the row (BAN_FAILED commits `active` first).
+    await loadDirectory()
+    return false
   }
 
   async function onStepUpVerified() {
@@ -107,17 +114,17 @@ export function TeamView() {
     const result = await callStaffAdmin(body)
     setBusy(false)
     if (result.ok) {
-      await loadDirectory()
+      if (body.action === 'invite') clearInvite()
     } else {
       setActionError(result.error.message)
     }
+    await loadDirectory()
   }
 
   async function submitInvite(event: FormEvent) {
     event.preventDefault()
-    await runAction({ action: 'invite', email: inviteEmail, displayName: inviteName, role: inviteRole })
-    setInviteEmail('')
-    setInviteName('')
+    // A refused invite keeps what was typed; the owner corrects it and retries.
+    if (await runAction({ action: 'invite', email: inviteEmail, displayName: inviteName, role: inviteRole })) clearInvite()
   }
 
   if (members === null) {
@@ -163,13 +170,14 @@ export function TeamView() {
                     <div className={styles.row}>
                       <select
                         className={styles.input}
+                        aria-label={`دور ${member.display_name}`}
                         value={role}
                         disabled={busy}
                         onChange={(event) =>
-                          setRoleEdits((prev) => ({ ...prev, [member.user_id]: event.target.value as Role }))
+                          setRoleEdits((prev) => ({ ...prev, [member.user_id]: event.target.value as StaffRole }))
                         }
                       >
-                        {(Object.keys(ROLE_LABEL) as Role[]).map((option) => (
+                        {(Object.keys(ROLE_LABEL) as StaffRole[]).map((option) => (
                           <option key={option} value={option}>
                             {ROLE_LABEL[option]}
                           </option>
@@ -196,9 +204,11 @@ export function TeamView() {
                       type="button"
                       className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
                       disabled={busy}
-                      onClick={() =>
-                        runAction({ action: 'set_active', userId: member.user_id, active: !member.active })
-                      }
+                      onClick={() => {
+                        // A revoke bans the account at once, the caller's own row included.
+                        if (member.active && !window.confirm(`إيقاف ${member.display_name}؟`)) return
+                        void runAction({ action: 'set_active', userId: member.user_id, active: !member.active })
+                      }}
                     >
                       {member.active ? 'إيقاف' : 'استعادة'}
                     </button>
@@ -220,6 +230,9 @@ export function TeamView() {
             id="invite-email"
             className={styles.input}
             type="email"
+            dir="ltr"
+            spellCheck={false}
+            autoComplete="email"
             required
             value={inviteEmail}
             onChange={(event) => setInviteEmail(event.target.value)}
@@ -246,9 +259,9 @@ export function TeamView() {
             id="invite-role"
             className={styles.input}
             value={inviteRole}
-            onChange={(event) => setInviteRole(event.target.value as Role)}
+            onChange={(event) => setInviteRole(event.target.value as StaffRole)}
           >
-            {(Object.keys(ROLE_LABEL) as Role[]).map((option) => (
+            {(Object.keys(ROLE_LABEL) as StaffRole[]).map((option) => (
               <option key={option} value={option}>
                 {ROLE_LABEL[option]}
               </option>
@@ -261,11 +274,15 @@ export function TeamView() {
       </form>
 
       {needsEnrollment && (
-        <p className={styles.error}>
+        <p role="alert" className={styles.error}>
           يلزم تفعيل تطبيق المصادقة أولًا. اذهب إلى <Link href="/admin/security">صفحة الأمان</Link>.
         </p>
       )}
-      {actionError && <p className={styles.error}>{actionError}</p>}
+      {actionError && (
+        <p role="alert" className={styles.error}>
+          {actionError}
+        </p>
+      )}
 
       {stepUp && (
         <StepUp

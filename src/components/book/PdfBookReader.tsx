@@ -4,7 +4,7 @@ import type { PageFlip } from 'page-flip'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
 
-import { describe, leafPlan, PREVIEW_URL, progress, renderWindow, sections, toFlip, visibleLeaves, type Leaf } from '@/lib/book-preview'
+import { describe, empty, leafPlan, PREVIEW_URL, progress, renderWindow, sections, toFlip, visibleLeaves, type Leaf } from '@/lib/book-preview'
 import type { ImageSources } from '@/lib/images'
 
 import { ClosedBook, Opening } from './ClosedBook'
@@ -23,8 +23,6 @@ const BOOK_DPR = 1.5
 const FADE_MS = 150
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
-// A leaf with nothing on it: one page at a time, the book never stops there.
-const empty = (leaf: Leaf | undefined) => leaf?.kind === 'blank' || leaf?.kind === 'endpaper'
 const subscribeFullscreen = (onChange: () => void) => {
   document.addEventListener('fullscreenchange', onChange)
   return () => document.removeEventListener('fullscreenchange', onChange)
@@ -43,7 +41,9 @@ function toEditions(event: { preventDefault: () => void }) {
   if (!document.fullscreenElement) return
   event.preventDefault()
   void document.exitFullscreen().then(() => {
-    window.location.hash = 'editions'
+    // The same fragment again would not scroll.
+    if (window.location.hash === '#editions') document.getElementById('editions')?.scrollIntoView()
+    else window.location.hash = 'editions'
   })
 }
 
@@ -82,6 +82,8 @@ function makeLeaf(leaf: Leaf, cover: ImageSources): HTMLElement {
     link.href = '#editions'
     link.className = cls('endLink')
     link.textContent = 'النسخ ←'
+    // The arrow is a glyph, not a word; a child span would swallow the click.
+    link.setAttribute('aria-label', 'النسخ')
     link.addEventListener('click', toEditions)
     el.append(first, second, link)
   }
@@ -120,6 +122,9 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
   const pressRef = useRef<{ x: number; y: number } | null>(null)
   const pressTurnRef = useRef<0 | 1 | -1>(0)
   const skipRef = useRef<number | null>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const statusRef = useRef<HTMLDivElement>(null)
+  const refocusToggleRef = useRef(false)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -148,7 +153,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
   useEffect(() => {
     let live = true
     openPreview(url).then(
-      (result) => live && setLoaded(result),
+      (result) => (live ? setLoaded(result) : void result.doc.loadingTask.destroy()),
       () => live && setFailed(true),
     )
     return () => {
@@ -157,6 +162,11 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
   }, [url, attempt])
 
   useEffect(() => () => void loaded?.doc.loadingTask.destroy(), [loaded])
+
+  // A retry replaces the focused «إعادة المحاولة» with the loading status: focus follows it.
+  useEffect(() => {
+    if (attempt > 0 && !loaded && !failed) statusRef.current?.focus()
+  }, [attempt, loaded, failed])
 
   /** Where the book is for a reading index: closed on either cover, or open. */
   const atFor = useCallback(
@@ -414,12 +424,19 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
       leaf.toggleAttribute('data-corner-back', i === back && i > firstPage)
     })
     const width = Math.round(flip.getBoundsRect().pageWidth)
-    const wanted = new Set(renderWindow(index, total, portrait))
+    const wanted = new Set(renderWindow(index, total, portrait, leaves))
     surfacesRef.current.forEach((surface, leaf) => {
       if (wanted.has(leaf)) surface.draw(loaded.pdfjs, loaded.doc, loaded.frame, width, BOOK_DPR).catch(() => {})
       else surface.clear()
     })
-  }, [loaded, mode, index, portrait, total, sizeTick, atFor, firstPage, endLeaf])
+  }, [loaded, mode, index, portrait, total, sizeTick, atFor, firstPage, endLeaf, leaves])
+
+  // Entering the reading view unmounts the toggle that was pressed and mounts
+  // its twin; focus follows it. The book view focuses its own host (above).
+  useEffect(() => {
+    if (mode === 'pages' && refocusToggleRef.current) toggleRef.current?.focus()
+    refocusToggleRef.current = false
+  }, [mode])
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const actions: Record<string, () => void> = {
@@ -472,7 +489,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     return (
       <div className={styles.reader}>
         <ClosedBook cover={cover} />
-        <div className={styles.controls} role="status" aria-label="جارٍ فتح الكتاب">
+        <div ref={statusRef} tabIndex={-1} className={styles.controls} role="status" aria-label="جارٍ فتح الكتاب">
           <Opening onOpen={() => {}} loading />
         </div>
       </div>
@@ -500,7 +517,15 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
           </select>
         </label>
       )}
-      <button type="button" className={styles.tool} onClick={() => setMode(mode === 'book' ? 'pages' : 'book')}>
+      <button
+        ref={toggleRef}
+        type="button"
+        className={styles.tool}
+        onClick={() => {
+          refocusToggleRef.current = true
+          setMode(mode === 'book' ? 'pages' : 'book')
+        }}
+      >
         {mode === 'book' ? 'عرض للقراءة' : 'عرض الكتاب'}
       </button>
       {canFullscreen && (
@@ -526,7 +551,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
           <p>هنا تنتهي الصفحات المتاحة للقراءة.</p>
           <p className={styles.endLine}>بقية الحكاية في الكتاب.</p>
           <a href="#editions" className={styles.endLink} onClick={toEditions}>
-            النسخ ←
+            النسخ <span aria-hidden="true">←</span>
           </a>
         </div>
       </div>

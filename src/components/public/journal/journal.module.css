@@ -21,6 +21,12 @@
   background: var(--aub);
   color: var(--sand-50);
 }
+/* The filter runs in script; without it every post stays listed. */
+@media (scripting: none) {
+  .filters {
+    display: none;
+  }
+}
 
 .cards {
   list-style: none;
@@ -49,6 +55,11 @@
   flex-wrap: wrap;
   align-items: stretch;
   text-decoration: none;
+}
+/* The card's tone is on the <li>, so the ring is drawn inside the card, on the
+   surface that chose its colour, not over the neighbour. */
+.cardLink:focus-visible {
+  outline-offset: -6px;
 }
 @media (hover: hover) {
   .cardLink:hover h2 {

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { documentTitle, schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
+import { documentTitle, isRoomSlug, ROOM_DOC_LABELS, schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
 import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policySchema } from '../../src/admin/collections/policies'
 import { SCENE_CAPTION_ERROR, sceneFields, scenesSchema } from '../../src/admin/collections/scenes'
 import {
@@ -12,8 +12,10 @@ import {
   siteSettingsStoredSchema,
 } from '../../src/admin/collections/site-settings'
 import { tables, type TableKey } from '../../src/admin/tables'
-import { type Field, schemaFromFields } from '../../src/admin/fields'
+import { equalData, type Field, schemaFromFields } from '../../src/admin/fields'
+import { startedRoomSchema } from '../../src/admin/collections/rooms'
 import { SCENE_CATEGORIES } from '../../src/content/scenes'
+import { formatMediaRef } from '../../src/lib/media-ref'
 import content from '../../content/initial-content.json'
 
 const ROOM_SLUGS = ['started', 'built', 'passed', 'shelf'] as const
@@ -86,13 +88,13 @@ describe('schemaFor: rejects malformed data', () => {
 
   it('rejects an unknown image id', () => {
     const bad = structuredClone(content.rooms.started)
-    bad.vignette.id = 'not-a-real-image-id'
+    ;(bad.movements[0] as Record<string, unknown>).vignette = 'not-a-real-image-id'
     expect(schemaFor('rooms', 'started').safeParse(bad).success).toBe(false)
   })
 
   it('accepts a media-library id for an image field (P05)', () => {
     const doc = structuredClone(content.rooms.started)
-    doc.vignette.id = randomUUID()
+    ;(doc.movements[0] as Record<string, unknown>).vignette = randomUUID()
     expect(schemaFor('rooms', 'started').safeParse(doc).success).toBe(true)
   })
 
@@ -215,7 +217,7 @@ describe('hideable lists', () => {
     expect(visible).toHaveLength(content.rooms.started.movements.length - 1)
   })
 
-  it('the real fixture hides only films: the five with children and those D39 leaves out', () => {
+  it('the real fixture hides only the films D39 leaves out and holds none with children', () => {
     const hidden: string[] = []
     for (const slug of ROOM_SLUGS) {
       JSON.stringify((content.rooms as Record<string, unknown>)[slug], (_key, value: unknown) => {
@@ -225,10 +227,10 @@ describe('hideable lists', () => {
         return value
       })
     }
-    const kids = hidden.filter((id) => id.includes('-kid-'))
-    // Guardian consent for the films that show children is pending (PACK-INDEX).
-    expect(kids).toHaveLength(5)
-    expect(hidden.filter((id) => !id.includes('-kid-')).sort()).toEqual([
+    // Guardian consent for the films that show children is pending, so they are
+    // not in the content or the public tree at all, hidden or not (AUDIT-1, G4.2).
+    expect(JSON.stringify(content)).not.toContain('-kid-')
+    expect(hidden.sort()).toEqual([
       'arm-modern-black-gold-dessert_HD',
       'arm-modern-layered-drink_HD',
       'arm-modern-red-drink_HD',
@@ -373,5 +375,40 @@ describe('the table configs (P07 round 2)', () => {
   it('a shipping fee may be zero (money min 0), a price may not', () => {
     expect(tables['shipping-rates'].fields.find((field) => field.name === 'fee_halalas')).toMatchObject({ min: 0 })
     expect(tables.variants.fields.find((field) => field.name === 'price_halalas')).not.toMatchObject({ min: 0 })
+  })
+})
+
+describe('admin editing fixes (AUDIT-1)', () => {
+  it('a room saved with an empty title keeps a title in the list and the editor', () => {
+    expect(documentTitle('rooms', 'started', { roomLabel: 'الغرفة الأولى', title: '' })).toBe(ROOM_DOC_LABELS.started)
+    expect(documentTitle('rooms', 'started', { roomLabel: 'الغرفة الأولى', title: 'بدأتُ' })).toBe('الغرفة الأولى: بدأتُ')
+  })
+
+  it('only the four room slugs are room ids, not keys every object inherits', () => {
+    for (const slug of ROOM_SLUGS) expect(isRoomSlug(slug)).toBe(true)
+    for (const bad of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'not-a-room']) {
+      expect(isRoomSlug(bad)).toBe(false)
+    }
+  })
+
+  it('equalData ignores key order at every depth, but not values or list order', () => {
+    expect(equalData({ a: 1, b: { c: [1, { x: 1, y: 2 }], d: 'z' } }, { b: { d: 'z', c: [1, { y: 2, x: 1 }] }, a: 1 })).toBe(true)
+    expect(equalData({ a: 1 }, { a: 2 })).toBe(false)
+    expect(equalData({ a: [1, 2] }, { a: [2, 1] })).toBe(false)
+  })
+
+  it('a draft that uses a library image is valid as its id and invalid once resolved, so the preview parses first', () => {
+    const id = randomUUID()
+    const draft = structuredClone(content.rooms.started)
+    ;(draft.movements[0] as Record<string, unknown>).vignette = id
+    expect(startedRoomSchema.safeParse(draft).success).toBe(true)
+    const resolved = structuredClone(draft)
+    ;(resolved.movements[0] as Record<string, unknown>).vignette = formatMediaRef({
+      base: `https://media.test/m/${id}`,
+      width: 1200,
+      height: 800,
+      widths: [1200],
+    })
+    expect(startedRoomSchema.safeParse(resolved).success).toBe(false)
   })
 })

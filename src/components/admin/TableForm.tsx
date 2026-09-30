@@ -31,6 +31,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 const CONFLICT_MESSAGE = 'تغيّر هذا السجل من جلسة أخرى. حمّل آخر نسخة ثم أعد التعديل.'
 const CHECK_MESSAGE = 'تحقق من القيم.'
+const COVER_MESSAGE = 'صورة الغلاف لم تعد في المكتبة؛ اختر صورة أخرى.'
+const NO_ACCESS_MESSAGE = 'لا تملك صلاحية الوصول'
 
 interface ProductOption {
   id: string
@@ -44,17 +46,25 @@ function ProductIdsField({
   selected,
   onChange,
   id,
+  failed,
 }: {
   products: ProductOption[]
   selected: string[]
   onChange: (value: string[]) => void
   id: string
+  failed: boolean
 }) {
   return (
     <fieldset className={styles.fieldset}>
       <legend className={styles.legend}>المنتجات المشمولة</legend>
       <p className={styles.message}>لا اختيار يعني كل المنتجات.</p>
-      {products.length === 0 && <p className={styles.message}>لا توجد منتجات بعد.</p>}
+      {/* A failed load must not read as an empty list: no choice would then look like «كل المنتجات». */}
+      {failed && (
+        <p role="alert" className={styles.error}>
+          تعذّر تحميل المنتجات.
+        </p>
+      )}
+      {!failed && products.length === 0 && <p className={styles.message}>لا توجد منتجات بعد.</p>}
       {/* An archived product is offered only while this coupon still names it. */}
       {products
         .filter((product) => product.status !== 'archived' || selected.includes(product.id))
@@ -106,6 +116,8 @@ export function TableForm({ table }: { table: TableKey }) {
   const [saving, setSaving] = useState(false)
   const [variants, setVariants] = useState<Record<string, unknown>[] | null>(null)
   const [products, setProducts] = useState<ProductOption[]>([])
+  const [variantsError, setVariantsError] = useState(false)
+  const [productsError, setProductsError] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -117,6 +129,11 @@ export function TableForm({ table }: { table: TableKey }) {
 
       const isNew = idParam === 'new'
       if (isNew) {
+        // A table without an insert (customers) has no «new» page.
+        if (!config.insert) {
+          setNotFound(true)
+          return
+        }
         if (table === 'variants') {
           if (!UUID_PATTERN.test(productParam)) {
             setNotFound(true)
@@ -159,12 +176,17 @@ export function TableForm({ table }: { table: TableKey }) {
       if (table === 'products' && rowId) {
         let query = supabase.from('product_variants').select('*').eq('product_id', rowId)
         for (const order of tables.variants.order) query = query.order(order.column, { ascending: order.ascending })
-        const { data } = await query
-        if (active) setVariants((data as Record<string, unknown>[]) ?? [])
+        const { data, error } = await query
+        if (!active) return
+        // On a failure `variants` stays null, so «لا توجد خيارات بعد.» is not claimed.
+        if (error) setVariantsError(true)
+        else setVariants((data as Record<string, unknown>[]) ?? [])
       }
       if (table === 'coupons') {
-        const { data } = await supabase.from('products').select('id,title,status').order('sort_order').order('title')
-        if (active) setProducts((data as ProductOption[]) ?? [])
+        const { data, error } = await supabase.from('products').select('id,title,status').order('sort_order').order('title')
+        if (!active) return
+        if (error) setProductsError(true)
+        else setProducts((data as ProductOption[]) ?? [])
       }
     })()
     return () => {
@@ -201,12 +223,15 @@ export function TableForm({ table }: { table: TableKey }) {
     if (failure) {
       if (failure.code === '23505') setMessage(config.uniqueMessage)
       else if (failure.code === '23514') setMessage(CHECK_MESSAGE)
+      else if (failure.code === '23503' && table === 'products') setMessage(COVER_MESSAGE)
       else setMessage('تعذّر الحفظ.')
       return
     }
     if (savedRows.length === 0) {
-      // Another session changed the row first; the typed values stay.
-      setMessage(CONFLICT_MESSAGE)
+      // Another session changed the row first, or RLS filtered the update out
+      // because the caller is no longer the owner; the typed values stay.
+      const { data: current, error: roleError } = await supabase.rpc('current_staff_role')
+      setMessage(!roleError && current !== 'owner' ? NO_ACCESS_MESSAGE : CONFLICT_MESSAGE)
       return
     }
     const saved = savedRows[0]!
@@ -220,14 +245,19 @@ export function TableForm({ table }: { table: TableKey }) {
   }
 
   if (role === null) return <p className={styles.message}>يحمّل...</p>
-  if (role === 'editor') return <p className={styles.error}>لا تملك صلاحية الوصول</p>
+  // Mirrors TableList: editors see nothing of the store, operations cannot read coupons (RLS).
+  if (role === 'editor' || (config.read === 'owner' && role !== 'owner')) {
+    return <p className={styles.error}>{NO_ACCESS_MESSAGE}</p>
+  }
   if (notFound) return <p className={styles.error}>السجل غير موجود.</p>
-  if (loadError || !values) return <p className={styles.error}>تعذّر تحميل السجل.</p>
+  if (loadError) return <p className={styles.error}>تعذّر تحميل السجل.</p>
+  if (!values) return <p className={styles.message}>يحمّل...</p>
 
   const owner = role === 'owner'
-  const schema = schemaFromFields(config.fields)
-  const parsed = schema.safeParse(values)
   const visibleFields = config.fields.filter((field) => field.visibleWhen?.(values) ?? true)
+  // Only what the form shows is checked: a hidden field's stale value is not sent (`toRow`).
+  const schema = schemaFromFields(visibleFields)
+  const parsed = schema.safeParse(values)
   // The record's own name: a product or variant title, a city, a code or a customer.
   const named = [values.title, values.name_ar, values.code, values.name].find(
     (candidate): candidate is string => typeof candidate === 'string' && candidate !== '',
@@ -282,6 +312,7 @@ export function TableForm({ table }: { table: TableKey }) {
                 selected={selected}
                 onChange={(next) => setValues((prev) => ({ ...(prev ?? {}), [field.name]: next }))}
                 id={`${table}-${field.name}`}
+                failed={productsError}
               />
             )
           }
@@ -316,7 +347,9 @@ export function TableForm({ table }: { table: TableKey }) {
           <button type="button" className={styles.button} disabled={saving || !parsed.success} onClick={() => void save()}>
             حفظ
           </button>
-          {message && <p className={styles.message}>{message}</p>}
+          <p role="status" className={styles.message}>
+            {message}
+          </p>
         </div>
       )}
       {!owner && message === null && <p className={styles.message}>هذه الصفحة للقراءة فقط.</p>}
@@ -350,6 +383,11 @@ export function TableForm({ table }: { table: TableKey }) {
               </tbody>
             </table>
           </div>
+          {variantsError && (
+            <p role="alert" className={styles.error}>
+              تعذّر تحميل الخيارات.
+            </p>
+          )}
           {variants !== null && variants.length === 0 && <p className={styles.message}>لا توجد خيارات بعد.</p>}
           {owner && (
             <Link className={styles.buttonSecondary} href={`/admin/store/variants/edit?id=new&product=${rowId}`}>

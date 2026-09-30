@@ -112,12 +112,20 @@ describe('staff-admin', () => {
       .eq('role', 'owner')
       .eq('active', true)
       .neq('user_id', owner.userId)
-    for (const row of others.data ?? []) {
-      await serviceClient.from('staff').update({ active: false }).eq('user_id', row.user_id)
-    }
+    const paused = (others.data ?? []).map((row) => row.user_id as string)
+    try {
+      for (const userId of paused) {
+        await serviceClient.from('staff').update({ active: false }).eq('user_id', userId)
+      }
 
-    const result = await callStaffAdmin(client, { action: 'set_role', userId: owner.userId, role: 'editor' })
-    expect(result.status).toBe(409)
-    expect(result.reply).toMatchObject({ ok: false, error: { code: 'LAST_OWNER' } })
+      const result = await callStaffAdmin(client, { action: 'set_role', userId: owner.userId, role: 'editor' })
+      expect(result.status).toBe(409)
+      expect(result.reply).toMatchObject({ ok: false, error: { code: 'LAST_OWNER' } })
+    } finally {
+      // The shared local database keeps its owners, the bootstrapped one included.
+      for (const userId of paused) {
+        await serviceClient.from('staff').update({ active: true }).eq('user_id', userId)
+      }
+    }
   })
 })

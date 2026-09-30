@@ -10,7 +10,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { runOutbox } from '../../supabase/functions/_shared/outbox.ts'
-import { pgRpc, serviceRoleDb } from './support'
+import { createStaff, pgRpc, serviceRoleDb } from './support'
 
 let app: Client
 let rpc: Rpc
@@ -264,6 +264,8 @@ describe('runOutbox (fetch stubbed, service_role through a direct session)', () 
     const contactId = contact.rows[0]!.id
     created.contacts.push(contactId)
     const recipient = `${unique(label)}@example.com`
+    // A contact notice goes only to an active owner or operations member (S03.5).
+    await createStaff('operations', { email: recipient })
     const row = await postgres.query<{ id: string }>(
       `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload)
        values ($1, 'contact_notice', 1, $2, jsonb_build_object('contactId', $3::text)) returning id`,
@@ -337,6 +339,28 @@ describe('runOutbox (fetch stubbed, service_role through a direct session)', () 
     expect(state.status).toBe('pending')
     expect(state.last_error).toBe('HTTP_500')
     expect(state.next_at.getTime()).toBeGreaterThan(Date.now())
+  })
+
+  it('quota: a 429 daily_quota_exceeded stops the run, gives the attempt back and waits for the next UTC day (S04.2)', async () => {
+    await parkOthers()
+    const first = await pendingNotice('quota-a', 'رسالة أولى')
+    const second = await pendingNotice('quota-b', 'رسالة ثانية')
+    const { fn } = stubFetch(() => new Response(JSON.stringify({ name: 'daily_quota_exceeded' }), { status: 429 }))
+    const summary = await runOutbox(rpc)
+    // One send tried, the run stopped: the second row was never claimed.
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(summary).toMatchObject({ status: 'failed', claimed: 1, retry: 1 })
+    const rows = (
+      await postgres.query<{ id: string; status: string; attempts: number; last_error: string | null; waits: boolean }>(
+        `select id, status, attempts, last_error, next_at = date_trunc('day', now(), 'UTC') + interval '1 day' as waits
+           from finance.email_outbox where id = any($1)`,
+        [[first.id, second.id]],
+      )
+    ).rows
+    const tried = rows.filter((row) => row.attempts === 0 && row.last_error === 'QUOTA')
+    expect(tried).toHaveLength(1)
+    expect(tried[0]).toMatchObject({ status: 'pending', waits: true })
+    expect(rows.filter((row) => row !== tried[0]).map((row) => row.status)).toEqual(['pending'])
   })
 
   it('permanent: a 4xx exhausts the row now', async () => {

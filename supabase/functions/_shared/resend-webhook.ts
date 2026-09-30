@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { type Rpc, serviceRpc } from './db.ts'
 import { verifySvixSignature } from './email.ts'
 import { optionalEnv } from './env.ts'
+import { boundedText, NO_STORE } from './http.ts'
 
 /**
  * Resend delivery events (P06): the `resend-webhook` Edge Function (D32). The
@@ -12,11 +13,10 @@ import { optionalEnv } from './env.ts'
  * provider's event id, suppresses hard-bounced/complained recipients and
  * tracks delivery. The body is never logged.
  */
-/** The webhook body limit (ARCHITECTURE: "webhooks to 256 KiB"): a request that declares more via content-length is refused before the body is read, and the post-read check below stays as the backstop. */
+/** The webhook body limit (ARCHITECTURE: "webhooks to 256 KiB"): `boundedText` refuses a body past it, declared or streamed, without buffering it. */
 const MAX_BODY_BYTES = 262_144
 /** A signed body past this size is recorded as a malformed event and acknowledged — never rejected once the signature checked out. */
 const MAX_EVENT_BYTES = 32_768
-const NO_STORE = { 'cache-control': 'no-store' }
 
 /** The event types this endpoint records. Anything else is acknowledged and ignored. */
 const RECORDED_TYPES = new Set([
@@ -106,26 +106,16 @@ export async function handleResendWebhook(request: Request, rpc: Rpc = serviceRp
     return new Response(null, { status: 404 })
   }
 
-  // Refuse an oversized request before reading the body; the post-read check
-  // below stays as the backstop when content-length is absent or understates.
   // A real Svix delivery never approaches the limit — only oversized junk
   // does, so this early 413 can never trigger the Svix retry/disable loop.
-  const declaredLength = Number(request.headers.get('content-length'))
-  if (declaredLength > MAX_BODY_BYTES) {
+  const rawBody = await boundedText(request, MAX_BODY_BYTES)
+  if (rawBody === null) {
     return Response.json(
       { ok: false, error: { code: 'TOO_LARGE', message: 'Webhook body too large.' } },
       { status: 413, headers: NO_STORE },
     )
   }
-
-  const rawBody = await request.text()
   const bodyBytes = new TextEncoder().encode(rawBody).length
-  if (bodyBytes > MAX_BODY_BYTES) {
-    return Response.json(
-      { ok: false, error: { code: 'TOO_LARGE', message: 'Webhook body too large.' } },
-      { status: 413, headers: NO_STORE },
-    )
-  }
 
   const svixId = request.headers.get('svix-id')
   const svixTimestamp = request.headers.get('svix-timestamp')

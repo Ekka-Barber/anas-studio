@@ -11,7 +11,7 @@ Supabase CLI stack.
 | Node.js | 24.19.0 | `.node-version`, and `engines.node` (`>=24.9.0 <25`) in `package.json` |
 | pnpm | 10.33.0 | `packageManager` in `package.json` |
 | Docker | any recent release | runs the Supabase CLI stack |
-| Supabase CLI | 2.106.0 | `supabase.toolVersion` (see `supabase/config.toml`) |
+| Supabase CLI | 2.106.0 | `version:` of the `supabase/setup-cli` step in `.github/workflows/ci.yml` |
 
 `.npmrc` sets `engine-strict=true`, `strict-peer-dependencies=true` and
 `save-exact=true`: a wrong Node version, an unresolved peer range or a floating
@@ -24,9 +24,11 @@ pnpm install --frozen-lockfile
 
 ## Environment
 
-`pnpm db:env` (below) writes everything local development needs from the
-running local stack: `.env.local` for Next and the tests, and
-`supabase/functions/.env` for the Edge Functions. Both are git-ignored,
+`pnpm db:env` (below) writes the values Next, the Edge Functions and the
+tests read from the running local stack: `.env.local` for Next and the tests,
+and `supabase/functions/.env` for the Edge Functions. `DATABASE_URL` (and
+`TEST_ENV` for `pnpm test:db`) are not written: pass them on the command
+line, as in the commands below. Both files are git-ignored,
 generated, local-only and safe to regenerate. `.env.example` lists the names
 the hosted setup uses, in three groups: the Pages build (public
 `NEXT_PUBLIC_*` values only), the Edge Function secrets, and Vault. Never
@@ -76,7 +78,8 @@ The Edge Functions reach the database as `service_role` through the Data API
 `anon` or `authenticated`. Migrations run over `DATABASE_URL`, a separate
 non-pooled connection.
 
-`pnpm db:demo-catalog` seeds the local demo catalog (D37): three demo products
+`DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:demo-catalog`
+seeds the local demo catalog (D37): three demo products
 with their variants, seven city rates, the `DEMO10` coupon, the three demo
 policy documents and local commerce settings with checkout enabled. It refuses
 any non-loopback `DATABASE_URL` and is idempotent, so a second run writes
@@ -125,10 +128,10 @@ just a running stack; `pnpm dev` renders the same pages on every request:
 
 ```sh
 pnpm db:reset
-pnpm db:import           # imports content/initial-content.json, skips already-published docs
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:import   # imports content/initial-content.json, skips already-published docs
 pnpm db:env
 pnpm build               # the static export in out/
-pnpm check:export        # every page present, no secret in out/
+pnpm check:export        # the 51 required files (every public and admin page) present, no secret in out/
 ```
 
 `db:import` connects with `DATABASE_URL` (the local `postgres` superuser) and
@@ -173,9 +176,11 @@ document someone else changed since it was opened fails with a conflict
 message and keeps the typed text — reload to see the newer version. Once the
 saved draft validates, "نشر" publishes it; a document can also be scheduled
 for a future Riyadh time, unscheduled, and (for `posts`/`taxonomies`) archived.
-"معاينة" opens `/admin/preview?id=<room>` in a new tab: the latest saved
-draft, read under RLS and drawn with the public room's own view component,
-for the four built rooms. "سجل النسخ" lists
+"معاينة" opens `/admin/preview?id=<room>` (a journal post:
+`/admin/preview?collection=posts&id=<post>`) in a new tab: the latest saved
+draft, read under RLS and drawn with the public view component of the room or
+the post, for the four built rooms and the posts. The home page and the
+scenes have no preview. "سجل النسخ" lists
 every saved version and can restore an older one as a new version.
 
 ## Media library (P05)
@@ -261,7 +266,7 @@ publish shows at once. The artifact that ships is the static export:
 ```sh
 pnpm build              # writes out/
 pnpm check:export       # every page present, no secret bundled
-pnpm check:budgets      # initial public JavaScript under 150 KiB gzip
+pnpm check:budgets      # initial public JavaScript under 150 KiB gzip; fails on an empty export or a page with no /_next/static script
 ```
 
 `out/` can be served by any static file server for a smoke test; Cloudflare
@@ -277,9 +282,9 @@ pnpm test            # vitest unit tests (tests/unit)
 pnpm test:db         # vitest integration tests against a real local PostgreSQL
 pnpm test:e2e        # playwright against next dev and the local functions
 pnpm check:frozen    # re-hashes deploy/ against the recorded manifest
-pnpm check:copy      # Latin digits only, no placeholder copy
+pnpm check:copy      # Latin digits only, no placeholder copy (src, supabase/functions, content, scripts; .ts .tsx .json .mjs)
 pnpm check:budgets   # public JavaScript budget, on out/
-pnpm check:export    # the static export is complete and holds no secret
+pnpm check:export    # the static export has all 51 required files and holds no secret
 pnpm check           # lint + typecheck + check:frozen + check:copy + test
 ```
 
@@ -290,6 +295,18 @@ git-ignored `test-results/playwright-report/`; for a package acceptance run, set
 `ACCEPTANCE_PACKAGE=P06` (for example) to keep the report under
 `artifacts/acceptance/P06/` instead. Accepted reports of other packages are
 never touched.
+
+Spec screenshots follow the same rule: they go to
+`artifacts/acceptance/<pkg>/screenshots` only when `ACCEPTANCE_PACKAGE` names
+the spec's own package (P05 media, P06 owner-operations, P07
+cart-checkout/store-admin, DESIGN-B visual), and to
+`test-results/screenshots/<pkg>` otherwise. Another package's acceptance run
+(for example AUDIT-1) therefore leaves them under `test-results/`.
+
+The e2e tests that edit content (`cms.spec`, `media.spec`) change live
+documents and put them back in `afterEach`. If a run is killed hard, restore
+the fixture by hand with
+`DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:import --force`.
 
 ### `pnpm test:db` refuses a non-local database
 

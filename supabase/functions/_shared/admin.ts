@@ -26,8 +26,10 @@
  *   `commerce_policies_approve`; a stale version answers 409 and a missing
  *   required policy answers 422 POLICIES_NOT_PUBLISHED.
  *
- * Every SQL function rechecks the actor's role itself; the role check here
- * only shapes the reply. Tokens and bodies are never logged.
+ * The media and commerce SQL functions recheck the actor's role themselves;
+ * the owner-only `stats` and `status` checks and every TOTP step-up (the SQL
+ * cannot see aal/amr) are enforced only here and must stay. Tokens and
+ * bodies are never logged.
  */
 import { createHash } from 'node:crypto'
 
@@ -129,7 +131,13 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS })
   if (request.method !== 'POST') return fail(405, 'METHOD_NOT_ALLOWED', 'طلب غير مسموح.')
 
-  const staff = await deps.staff(request)
+  let staff: StaffIdentity | null
+  try {
+    staff = await deps.staff(request)
+  } catch {
+    // A failed staff lookup is a server fault, not a bad token.
+    return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
+  }
   if (!staff) return fail(401, 'UNAUTHENTICATED', 'سجّل الدخول أولًا.')
 
   const text = await request.text()
@@ -323,13 +331,16 @@ async function mediaDelete(deps: AdminDeps, actor: string, id: unknown): Promise
     if (!keys?.originalKey) return fail(500, 'FAILED', 'تعذّر حذف الصورة.')
   } catch (error) {
     const code = (error as { code?: string } | null)?.code
-    if (code === '23503') return fail(409, 'IN_USE', 'الصورة مستخدمة؛ أزلها من المستندات أولًا.')
+    if (code === '23503') return fail(409, 'IN_USE', 'الصورة مستخدمة؛ أزلها من المستندات أو المنتجات أولًا.')
     if (code === 'P0002') return fail(404, 'NOT_FOUND', 'الصورة غير موجودة.')
     return sqlFail(error)
   }
   // The row is gone, so the objects are unreachable either way.
-  // ponytail: a failed object removal still answers ok; the leftovers are
-  // unreferenced and covered by the storage orphan sweep (I29 housekeeping).
+  // ponytail: a failed object removal still answers ok, and `storageStore().remove`
+  // does not surface Storage errors, so the catch below is only a guard. The
+  // leftovers (`media-private/originals/<id>` and the `media-public` derivatives)
+  // are NOT swept: the I29 sweep covers only `quarantine/` (I29 "Not covered",
+  // I34 residual).
   try {
     await deps.store.remove(PRIVATE_BUCKET, [keys.originalKey])
     await deps.store.remove(PUBLIC_BUCKET, keys.derivativeKeys ?? [])

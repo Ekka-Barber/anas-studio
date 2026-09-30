@@ -82,6 +82,7 @@
 }
 .teamFilm {
   flex: 0 1 300px;
+  align-self: flex-start;
   margin: 0;
 }
 .teamCaption {

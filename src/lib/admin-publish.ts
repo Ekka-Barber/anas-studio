@@ -18,13 +18,13 @@ import { collectMediaIds } from './media-ref'
 import { getSupabaseBrowserClient } from './supabase/browser'
 
 export interface PublishActionError {
-  code: 'FORBIDDEN' | 'INVALID' | 'NOT_FOUND' | 'FAILED'
+  code: 'FORBIDDEN' | 'INVALID' | 'NOT_FOUND' | 'CONFLICT' | 'FAILED'
   message: string
   fields?: unknown
 }
 export type PublishActionResult = { ok: true } | { ok: false; error: PublishActionError }
 
-function sqlErrorResult(error: { code?: string } | null): PublishActionResult {
+function sqlErrorResult(error: { code?: string; message?: string } | null): PublishActionResult {
   const code = error?.code
   if (code === '42501') {
     return { ok: false, error: { code: 'FORBIDDEN', message: 'هذا الإجراء متاح فقط لمالك أو محرر نشِط.' } }
@@ -34,6 +34,20 @@ function sqlErrorResult(error: { code?: string } | null): PublishActionResult {
   }
   if (code === 'P0002') {
     return { ok: false, error: { code: 'NOT_FOUND', message: 'النسخة غير موجودة.' } }
+  }
+  // 23505: the publishing functions refuse a version older than the latest,
+  // and the live post-slug index refuses a slug another post already uses.
+  if (code === '23505') {
+    const slug = error?.message?.includes('published_documents_post_slug')
+    return {
+      ok: false,
+      error: {
+        code: 'CONFLICT',
+        message: slug
+          ? 'معرّف المقال مستخدم في مقال منشور آخر؛ غيّره ثم انشر.'
+          : 'تغيّر هذا المستند منذ فتحته؛ حمّل آخر نسخة ثم أعد المحاولة.',
+      },
+    }
   }
   return { ok: false, error: { code: 'FAILED', message: 'تعذّر إكمال الإجراء.' } }
 }

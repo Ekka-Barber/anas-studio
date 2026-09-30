@@ -1,6 +1,6 @@
 'use client'
 
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 
 import { ActionButton } from '@/components/weave/Action'
 import { useTurnstile } from '@/lib/turnstile'
@@ -9,11 +9,24 @@ import styles from './contact.module.css'
 
 type Field = 'name' | 'email' | 'message'
 type Errors = Partial<Record<Field, string>>
+const FIELDS: Field[] = ['name', 'email', 'message']
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/** The function refuses a body past 8 KiB and Arabic is two bytes a character, so 5,000 characters can be too long. */
+const MESSAGE_MAX_BYTES = 5500
+
 /** The event a service's «اطلب جلسة» sends to put its name in the message. */
 export const SERVICE_EVENT = 'anasaq:contact-service'
+
+/** What the function's 422 says is wrong with a field the browser accepted. */
+const REJECTED: Errors = {
+  name: 'تأكد من كتابة الاسم بشكل صحيح.',
+  email: 'تأكد من كتابة البريد بشكل صحيح.',
+  message: 'تأكد من كتابة الرسالة بشكل صحيح.',
+}
+
+const noSubscribe = () => () => {}
 
 /**
  * The contact form (D16, D31), wired to the `contact` Edge Function: name,
@@ -27,6 +40,11 @@ export function ContactForm() {
   const [errors, setErrors] = useState<Errors>({})
   const [status, setStatus] = useState<{ kind: 'idle' | 'sending' | 'sent' | 'failed'; text: string }>({ kind: 'idle', text: '' })
   const submissionKey = useRef<string | null>(null)
+  // The message the last «اطلب جلسة» put in, so the next service can replace it while it is untouched.
+  const prefill = useRef('')
+  // False in the static HTML and until React takes over: a native submit before then would send
+  // the visitor's name, email and message in the address bar and lose them.
+  const scripted = useSyncExternalStore(noSubscribe, () => true, () => false)
   const nameRef = useRef<HTMLInputElement>(null)
   const emailRef = useRef<HTMLInputElement>(null)
   const messageRef = useRef<HTMLTextAreaElement>(null)
@@ -38,7 +56,11 @@ export function ContactForm() {
   useEffect(() => {
     function onService(event: Event) {
       const name = (event as CustomEvent<string>).detail
-      setValues((v) => ({ ...v, message: v.message.trim() ? v.message : `أرغب في جلسة استشارية: ${name}.\n` }))
+      const text = `أرغب في جلسة استشارية: ${name}.\n`
+      const previous = prefill.current
+      prefill.current = text
+      // An empty message, or one still exactly the previous service's line, is replaced; anything the visitor wrote stays.
+      setValues((v) => ({ ...v, message: v.message.trim() && v.message !== previous ? v.message : text }))
       setStatus({ kind: 'idle', text: '' })
       requestAnimationFrame(() => messageRef.current?.focus({ preventScroll: true }))
     }
@@ -61,6 +83,7 @@ export function ContactForm() {
     if (!values.email.trim()) found.email = 'اكتب بريدك الإلكتروني.'
     else if (!EMAIL.test(values.email.trim())) found.email = 'تأكد من كتابة البريد بشكل صحيح.'
     if (!values.message.trim()) found.message = 'اكتب رسالتك.'
+    else if (new TextEncoder().encode(values.message.trim()).length > MESSAGE_MAX_BYTES) found.message = 'رسالتك أطول من المسموح؛ اختصرها.'
     setErrors(found)
     const first = found.name ? nameRef : found.email ? emailRef : found.message ? messageRef : null
     if (first) {
@@ -87,12 +110,22 @@ export function ContactForm() {
           ...(values.website ? { website: values.website } : {}),
         }),
       })
-      const reply = (await response.json().catch(() => null)) as { ok?: boolean; error?: { code: string; message: string } } | null
+      const reply = (await response.json().catch(() => null)) as {
+        ok?: boolean
+        error?: { code: string; message: string; fields?: { fieldErrors?: Partial<Record<Field, string[]>> } }
+      } | null
       if (reply?.ok || reply?.error?.code === 'CONFLICT') {
         setValues({ name: '', email: '', message: '', website: '' })
         submissionKey.current = null
         setStatus({ kind: 'sent', text: 'وصلت رسالتك. شكراً لك.' })
       } else {
+        // The function's grammar is stricter than the browser's: mark the field it refused and put focus there.
+        const refused = reply?.error?.code === 'INVALID' ? FIELDS.filter((f) => reply.error?.fields?.fieldErrors?.[f]?.length) : []
+        if (refused.length > 0) {
+          setErrors(Object.fromEntries(refused.map((f) => [f, REJECTED[f]])))
+          const target = refused[0] === 'name' ? nameRef : refused[0] === 'email' ? emailRef : messageRef
+          target.current?.focus()
+        }
         setStatus({ kind: 'failed', text: reply?.error?.message ?? 'تعذّر إرسال الرسالة؛ حاول مرة أخرى.' })
       }
     } catch {
@@ -180,8 +213,11 @@ export function ContactForm() {
         <p className={styles.notice}>التحقق من المرسل غير مُعدّ بعد، فالإرسال متوقف مؤقتاً. راسلني عبر القنوات المجاورة.</p>
       )}
       {turnstileFailed && <p className={styles.notice}>تعذّر تحميل التحقق من المرسل. أعد تحميل الصفحة.</p>}
+      <noscript>
+        <p className={styles.notice}>الإرسال يحتاج JavaScript؛ راسلني عبر القنوات المجاورة.</p>
+      </noscript>
       <div className={styles.submitRow}>
-        <ActionButton type="submit" arrow disabled={!turnstileAvailable || status.kind === 'sending'}>
+        <ActionButton type="submit" arrow disabled={!scripted || !turnstileAvailable || status.kind === 'sending'}>
           أرسل
         </ActionButton>
         <p role="status" aria-live="polite" className={styles.status}>

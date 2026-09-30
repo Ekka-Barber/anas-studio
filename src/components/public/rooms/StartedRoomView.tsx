@@ -56,6 +56,15 @@ function Movement({
   const isYear = /^\d{4}$/.test(movement.year)
   const tone = YEAR_TONES[index % YEAR_TONES.length] ?? 'aub'
   const blocks = toBlocks(classify(movement.paragraphs, room.pullLines, room.bandLines))
+  // The picture and the films belong to the first block of text, wherever a band line falls.
+  const firstText = blocks.findIndex((x) => x.kind === 'text')
+  const finalBlock = blocks[blocks.length - 1]
+  // The closing rides the movement's last text. A movement that ends on a band, has no text, or
+  // ends on the films (a first block with no large line to split at) gives it a band of its own.
+  const closingInText =
+    last &&
+    finalBlock?.kind === 'text' &&
+    !(blocks.length - 1 === firstText && movement.films && splitAfterFirstDisplay(finalBlock.paras)[1].length === 0)
   const closing = (
     <>
       <Signature width={220} className={styles.signature} />
@@ -87,12 +96,13 @@ function Movement({
         </>
       )}
       {blocks.map((block, b) => {
-        const lastBlock = last && b === blocks.length - 1
         if (block.kind === 'band') return <StatementBand key={b} text={block.text} edge={false} />
-        const withFigure = b === 0 && movement.vignette
+        const first = b === firstText
+        const withFigure = first && movement.vignette
         let before: Para[] = block.paras
         let after: Para[] = []
-        if (b === 0 && movement.films) [before, after] = splitAfterFirstDisplay(block.paras)
+        if (first && movement.films) [before, after] = splitAfterFirstDisplay(block.paras)
+        const lastBlock = closingInText && b === blocks.length - 1
         return (
           <div key={b}>
             <Band tone="sand" pad="m">
@@ -103,19 +113,24 @@ function Movement({
                 {withFigure && <StoryFigure id={movement.vignette} drop />}
               </div>
             </Band>
+            {first && movement.films && <Films reels={room.media.reels} />}
             {after.length > 0 && (
-              <>
-                <Films reels={room.media.reels} />
-                <Band tone="sand" pad="m">
-                  <div className={layout.text}>
-                    <StoryText paras={after}>{lastBlock && closing}</StoryText>
-                  </div>
-                </Band>
-              </>
+              <Band tone="sand" pad="m">
+                <div className={layout.text}>
+                  <StoryText paras={after}>{lastBlock && closing}</StoryText>
+                </div>
+              </Band>
             )}
           </div>
         )
       })}
+      {last && !closingInText && (
+        <Band tone="sand" pad="m">
+          <div className={layout.text}>
+            <StoryText paras={[]}>{closing}</StoryText>
+          </div>
+        </Band>
+      )}
     </section>
   )
 }
@@ -147,10 +162,12 @@ export function StartedRoomView({ room }: { room: StartedRoom }) {
           <Edge kind="weave" />
           <Band tone="sand" pad="l">
             <Link href="/shelf#boutique" prefetch={false} data-tone="aub" className={styles.boutiqueDoor} data-reveal="">
-              <span className={`t-statement t-accent ${styles.boutiqueLine}`}>وشيء لم يبدأ بعد.</span>
+              <span className="t-statement t-accent">وشيء لم يبدأ بعد.</span>
               <span className={styles.boutiqueName}>
                 <span className="t-h3">بوتيك أنس القرني</span>
-                <span className="t-label">على الرف ←</span>
+                <span className="t-label">
+                  على الرف <span aria-hidden="true">←</span>
+                </span>
               </span>
             </Link>
           </Band>

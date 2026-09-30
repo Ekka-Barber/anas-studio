@@ -52,6 +52,13 @@ const REQUIRED = [
   'admin/content/taxonomies/edit.html',
   'admin/content/policies/edit.html',
   'admin/content/scenes/edit.html',
+  // Every other admin screen (src/app/(admin)): the index pages of the
+  // collections and store tables, and the fixed screens.
+  'admin/content.html',
+  ...['rooms', 'posts', 'site_settings', 'taxonomies', 'policies', 'scenes'].map((c) => `admin/content/${c}.html`),
+  ...['email', 'media', 'security', 'settings', 'stats', 'store', 'team'].map((p) => `admin/${p}.html`),
+  ...['coupons', 'customers', 'products', 'shipping-rates'].flatMap((t) => [`admin/store/${t}.html`, `admin/store/${t}/edit.html`]),
+  'admin/store/variants/edit.html',
 ]
 
 // Every public page is Arabic RTL; losing the html attributes would scramble
@@ -78,6 +85,7 @@ for (const file of REQUIRED) {
   if (!existsSync(path.join(outDir, file))) failures.push(`missing ${file}`)
 }
 for (const page of RTL_PAGES) {
+  if (!existsSync(path.join(outDir, page))) continue // already recorded as missing
   const head = readFileSync(path.join(outDir, page), 'utf8').slice(0, 600)
   if (!/<html\b[^>]*\blang="ar"[^>]*\bdir="rtl"/.test(head)) failures.push(`${page}: html is not lang="ar" dir="rtl"`)
 }

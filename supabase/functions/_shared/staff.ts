@@ -3,7 +3,8 @@
  * `src/lib/staff-auth.ts`): the bearer token is verified with Supabase Auth
  * (`auth.getClaims`), then the caller's active role is read from `staff`.
  *
- * `null` means unauthenticated (a missing, bad or unverifiable token). A
+ * `null` means unauthenticated (a missing, bad or unverifiable token); a
+ * failed `staff` lookup throws, so callers answer a server error, never 401. A
  * valid token whose caller has no active staff row yields `role: null`, so
  * callers answer 403, not 401: the token itself is genuine. A revoked member
  * (`active = false`) loses access on the next call, like RLS (D13).
@@ -34,7 +35,7 @@ export const staffFromRequest: StaffResolver = async (request) => {
   const userId = claims?.sub
   if (error || typeof userId !== 'string') return null
   const staff = await client.from('staff').select('role, active').eq('user_id', userId).maybeSingle()
-  if (staff.error) return null
+  if (staff.error) throw new Error('STAFF_LOOKUP_FAILED')
   const role = staff.data?.active && ROLES.has(staff.data.role) ? (staff.data.role as StaffRole) : null
   return { userId, role, recentTotp: hasRecentTotp(claims ?? {}, Math.floor(Date.now() / 1000)) }
 }

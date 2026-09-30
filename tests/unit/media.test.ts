@@ -75,7 +75,13 @@ describe('ticketRequestSchema', () => {
       baseRequest({
         original: { mime: 'image/jpeg', bytes: 1000, width: 8000, height: 5001 },
         crop: { x: 0, y: 0, width: 8000, height: 5001 },
-        derivatives: [{ width: 1800, height: 1125, bytes: 100 }],
+        // The full width set, so only the pixel count (8000 x 5001 > 40 MP) is wrong.
+        derivatives: [
+          { width: 360, height: 225, bytes: 100 },
+          { width: 720, height: 450, bytes: 200 },
+          { width: 1200, height: 750, bytes: 300 },
+          { width: 1800, height: 1125, bytes: 400 },
+        ],
       }),
     )
     expect(parsed.success).toBe(false)
@@ -83,7 +89,8 @@ describe('ticketRequestSchema', () => {
 
   it('rejects a crop outside the original', () => {
     const parsed = ticketRequestSchema.safeParse(
-      baseRequest({ crop: { x: 0, y: 0, width: 2001, height: 1500 } }),
+      // x + width = 2001 > 2000; the base derivatives already match a 2000 x 1500 crop.
+      baseRequest({ crop: { x: 1, y: 0, width: 2000, height: 1500 } }),
     )
     expect(parsed.success).toBe(false)
   })
@@ -117,7 +124,7 @@ describe('ticketRequestSchema', () => {
 
   it('rejects an SVG MIME type', () => {
     const parsed = ticketRequestSchema.safeParse(
-      baseRequest({ original: { mime: 'image/svg+xml', bytes: 100, width: 100, height: 100 } }),
+      baseRequest({ original: { mime: 'image/svg+xml', bytes: 100, width: 2000, height: 1500 } }),
     )
     expect(parsed.success).toBe(false)
   })
@@ -130,8 +137,9 @@ describe('ticketRequestSchema', () => {
   it('rejects an unknown key anywhere in the declaration', () => {
     expect(ticketRequestSchema.safeParse(baseRequest({ extra: 1 })).success).toBe(false)
     expect(
-      ticketRequestSchema.safeParse(baseRequest({ original: { mime: 'image/jpeg', bytes: 1, width: 2, height: 2, extra: 1 } }))
-        .success,
+      ticketRequestSchema.safeParse(
+        baseRequest({ original: { mime: 'image/jpeg', bytes: 1000, width: 2000, height: 1500, extra: 1 } }),
+      ).success,
     ).toBe(false)
   })
 

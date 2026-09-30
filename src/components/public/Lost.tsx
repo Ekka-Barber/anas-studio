@@ -11,7 +11,18 @@ import styles from './lost.module.css'
  * The 404 and the error page (D39): a road not built yet, on aubergine, with
  * the rooms that are, beside the Street No. 4 sign.
  */
-export function Lost({ title, accent, children }: { title: string; accent: string; children?: ReactNode }) {
+export function Lost({
+  title,
+  accent,
+  journalName,
+  children,
+}: {
+  title: string
+  accent: string
+  /** The journal's editable name (D11); the stock label without it. */
+  journalName?: string
+  children?: ReactNode
+}) {
   return (
     <main id="main" className={styles.lost}>
       <div data-tone="aub" className={styles.panel}>
@@ -25,7 +36,7 @@ export function Lost({ title, accent, children }: { title: string; accent: strin
           </Link>
           {ROOM_ORDER.map((room) => (
             <Link key={room.href} href={room.href} prefetch={false}>
-              {room.label}
+              {room.href === '/journal' && journalName ? journalName : room.label}
             </Link>
           ))}
         </nav>

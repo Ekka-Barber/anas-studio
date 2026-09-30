@@ -28,10 +28,10 @@ export interface ListColumn {
   /** The row column shown. */
   key: string
   label: string
-  /** Shown when the column's value is null; the default is «لا يوجد». */
-  nullText?: string
   /** A column the generic renderer cannot derive (the coupon's value). */
   text?: (row: Record<string, unknown>) => string
+  /** Other row columns `text` reads, added to the list's select. */
+  extra?: readonly string[]
 }
 
 export interface TableConfig {

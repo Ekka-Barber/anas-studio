@@ -41,7 +41,8 @@ describe('richTextSchema: rejects what is not allowlisted', () => {
     const doc = {
       root: {
         type: 'root',
-        children: [{ type: 'link', url: 'javascript:alert(1)', children: [] }],
+        // Inside a paragraph, where a link is allowed: only its URL is wrong.
+        children: [{ type: 'paragraph', children: [{ type: 'link', url: 'javascript:alert(1)', children: [] }] }],
       },
     }
     expect(richTextSchema.safeParse(doc).success).toBe(false)

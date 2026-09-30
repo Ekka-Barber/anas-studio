@@ -26,6 +26,12 @@
     text-decoration: underline;
   }
 }
+/* The filter runs in script; without it the whole gallery stays listed. */
+@media (scripting: none) {
+  .filters {
+    display: none;
+  }
+}
 
 .grid {
   list-style: none;
@@ -210,13 +216,14 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  background: transparent;
+  /* Always backed: on a phone the arrows sit over the edge of the photo. */
+  background: color-mix(in srgb, var(--aub-900) 60%, transparent);
   color: var(--sand-50);
   font-size: var(--size-h3);
 }
 @media (hover: hover) {
   .stepButton:hover {
-    background: color-mix(in srgb, var(--aub-900) 60%, transparent);
+    background: color-mix(in srgb, var(--aub-900) 80%, transparent);
   }
 }
 .prev {

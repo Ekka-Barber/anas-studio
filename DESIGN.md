@@ -97,7 +97,7 @@ The two-tone headline. The 404 and the error page set their headline in two part
 - A reading column is at most 700px (`--measure`); a journal article 33em.
 - Text beside a picture: `layout.split` with `layout.text` (flex 520px, max 700) and `layout.aside` (flex 300px, max 480); they stack when the room runs out. No breakpoints to maintain.
 - A grid of equal tiles on 1px lines: `layout.lattice` (set `--tile` for the minimum width). A gap-free photo grid: `layout.mosaic`.
-- One breakpoint exists: the header shows the rooms inline from 1024px.
+- Breakpoints: the header shows the rooms inline from 1024px; in the store, a cart line card becomes a row from 768px and the order summary sits beside the form from 1024px; the book reader shows one page below an 800px container (with tighter chrome below 480px); admin tables become stacked cards at 480px and below; everything else flows without breakpoints.
 
 ## 4. Edges: the signature
 

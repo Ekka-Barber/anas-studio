@@ -912,6 +912,12 @@ describe('expiry', () => {
     expect(reservations.every((row) => row.state === 'released')).toBe(true)
     const redemptions = (await postgres.query<{ state: string }>('select state from finance.coupon_redemptions where order_id = $1', [orderId])).rows
     expect(redemptions.every((row) => row.state === 'released')).toBe(true)
+    // The release is tied to its order in the audit trail (S05.3).
+    const audit = await postgres.query<{ summary: { orderNumber: string } }>(
+      "select summary from public.audit_events where action = 'order.expired' and entity_id = $1",
+      [orderId],
+    )
+    expect(audit.rows.map((row) => row.summary.orderNumber)).toEqual([created.result.order.orderNumber])
 
     const job = await postgres.query("select 1 from cron.job where jobname = 'checkout-expire'")
     expect(job.rowCount).toBe(1)

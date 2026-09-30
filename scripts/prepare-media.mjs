@@ -152,16 +152,15 @@ const IMAGES = [
 
 /** @type {{room:string,id:string,src:string,keepAudio?:boolean}[]} */
 const VIDEOS = [
-  // بدأتُ من هنا — seven family-product reels (two animated, five with a child;
-  // guardian consent for the child-featuring reels is an open question in
-  // CONTENT.md and is flagged separately in the task report, not decided here)
+  // بدأتُ من هنا — two animated family-product reels. The five reels with a
+  // child (46-kid-picnic-jam, 47-kid-bisht-honey-jar,
+  // 48-kid-supermarket-tomato-pesto, 49-kid-hotel-breakfast,
+  // 50-kid-cafe-croissant-jam, same folder) are left out until their guardians
+  // consent (AUDIT-1, G4.2): public/ ships whole in the static export, so a
+  // hidden flag in the content is not enough. After consent, add them back
+  // here, rerun this script, and add the reels in the admin.
   { room: 'started', id: '44-animated-kitchen', src: P('01-started-here', 'videos', '44-animated-kitchen.mp4') },
   { room: 'started', id: '45-animated-pottery-signature', src: P('01-started-here', 'videos', '45-animated-pottery-signature.mp4') },
-  { room: 'started', id: '46-kid-picnic-jam', src: P('01-started-here', 'videos', '46-kid-picnic-jam.mp4') },
-  { room: 'started', id: '47-kid-bisht-honey-jar', src: P('01-started-here', 'videos', '47-kid-bisht-honey-jar.mp4') },
-  { room: 'started', id: '48-kid-supermarket-tomato-pesto', src: P('01-started-here', 'videos', '48-kid-supermarket-tomato-pesto.mp4') },
-  { room: 'started', id: '49-kid-hotel-breakfast', src: P('01-started-here', 'videos', '49-kid-hotel-breakfast.mp4') },
-  { room: 'started', id: '50-kid-cafe-croissant-jam', src: P('01-started-here', 'videos', '50-kid-cafe-croissant-jam.mp4') },
 
   // بنيتُ هنا — Raha reels + drone films. The drive-thru reel keeps its audio:
   // the slogan «اتسعت الدار وحيّ الله الجار» is spoken in it and is the point
@@ -443,6 +442,14 @@ async function main() {
     console.log(`video  ${entry.room}/${entry.id}: ${(video.bytes / 1024).toFixed(0)} KiB, audio=${video.audioKept}`)
   }
 
+  // The sources are git-excluded, so a fresh clone lacks them: a full run with
+  // any missing must not overwrite the committed manifests (--only and
+  // --posters-only merge into the existing files instead).
+  if (missing.length > 0) {
+    console.error(`Missing source files (${missing.length}); the manifests were not rewritten:`)
+    for (const m of missing) console.error(`  ${path.relative(repoRoot, m)}`)
+    process.exit(1)
+  }
   writeFileSync(path.join(IMAGES_OUT, 'manifest.json'), JSON.stringify(imageManifest, null, 2) + '\n')
   mkdirSync(MEDIA_OUT, { recursive: true })
   writeFileSync(
@@ -451,10 +458,6 @@ async function main() {
   )
 
   console.log(`\nDone. ${Object.keys(imageManifest).length} image entries, ${Object.keys(videoManifest).length} videos (${(totalVideoBytes / 1024 / 1024).toFixed(1)} MiB).`)
-  if (missing.length > 0) {
-    console.log(`Missing source files (${missing.length}):`)
-    for (const m of missing) console.log(`  ${path.relative(repoRoot, m)}`)
-  }
 }
 
 main().catch((err) => {

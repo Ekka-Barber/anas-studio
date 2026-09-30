@@ -14,6 +14,7 @@ import { Client } from 'pg'
 import { expect, test, type Locator } from '@playwright/test'
 
 import { createStaff, readStatus, signInByCode, SITE_ORIGIN } from './helpers'
+import { shotsDir } from './shots'
 
 const status = readStatus()
 const CHECKOUT = `${status.FUNCTIONS_URL}/checkout`
@@ -185,15 +186,16 @@ test('with checkout on (a fixture), a create reaches a persisted pending order',
     quoteHash: quoted.data.quoteHash,
     turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX',
   })
-  expect(created.status()).toBe(201)
   const createdBody = (await created.json()) as { ok: boolean; data: { order: { id: string; status: string } } }
+  // Before any assertion: afterAll must find the order (and free its stock reservation) even when one fails.
+  orderId = createdBody.data?.order?.id ?? null
+  expect(created.status()).toBe(201)
   expect(createdBody.ok).toBe(true)
   expect(createdBody.data.order.status).toBe('pending_payment')
   const persisted = (
     await db.query<{ status: string }>('select status from finance.orders where id = $1', [createdBody.data.order.id])
   ).rows[0]!
   expect(persisted.status).toBe('pending_payment')
-  orderId = createdBody.data.order.id
 
   // Leave the row off for the rest of the spec; afterAll restores the saved one.
   await db.query('update finance.commerce_settings set checkout_enabled = false where id = 1')
@@ -313,7 +315,7 @@ test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page })
 })
 
 function mkdirScreenshots(): string {
-  const dir = join('artifacts', 'acceptance', 'P07', 'screenshots')
+  const dir = shotsDir('P07')
   mkdirSync(dir, { recursive: true })
   return dir
 }

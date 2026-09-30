@@ -5,8 +5,8 @@
  * an edit panel over `mediaFields`, the where-used guard and deletion, and
  * the upload dialog. Reads and edits the `media` table through the browser
  * Supabase client as the signed-in owner/editor (RLS and the column grants
- * are the real enforcement); deletion goes through the `deleteMediaAction`
- * server action, which calls `media_delete` as `app_server`.
+ * are the real enforcement); deletion goes through the `admin` Edge Function's
+ * `media-delete` action, which calls `media_delete` as `service_role`.
  *
  * `MediaBrowser` (the grid with search and paging) is exported for
  * `MediaPicker` — the same browser inside content forms' picker dialog.
@@ -16,6 +16,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 
 import { COLLECTION_LABELS, ROOM_DOC_LABELS } from '@/admin/collections'
 import { mediaFields, mediaMetaSchema } from '@/admin/collections/media'
+import { POLICY_DOC_LABELS } from '@/admin/collections/policies'
 import { folderIsInvalid, mediaUrl } from '@/lib/media-ref'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction, documentHref } from '@/lib/supabase/functions'
@@ -54,17 +55,31 @@ interface WhereUsedRow {
   state: string
 }
 
+/** What `media_product_usage` returns: a product that names the image as its cover. */
+interface ProductUsageRow {
+  product_id: string
+  title: string
+  status: string
+}
+
 const MEDIA_COLUMNS =
   'id,name,folder,alt_ar,caption,rights,original_bytes,original_width,original_height,original_mime,derivatives,created_at'
 const PAGE_SIZE = 40
+const FOLDER_PAGE_SIZE = 1000
 /** Select-option sentinel for the root folder (whose real value is ''). */
 const ROOT_OPTION = '__root__'
 
 const STATE_LABELS: Record<string, string> = { live: 'منشورة', draft: 'مسودة', scheduled: 'مجدولة' }
+const PRODUCT_STATUS_LABELS: Record<string, string> = { draft: 'مسودة', published: 'منشور', archived: 'مؤرشف' }
 
 /** `أ/ب` displays as «أ / ب»; the value stays the raw path. */
 function folderLabel(folder: string): string {
   return folder.split('/').join(' / ')
+}
+
+/** A folder path after `media_rename_folder(from, to)`: the same prefix rule the SQL uses. */
+export function movedFolder(folder: string, from: string, to: string): string {
+  return folder === from || folder.startsWith(`${from}/`) ? to + folder.slice(from.length) : folder
 }
 
 function whereUsedLabel(row: WhereUsedRow): string {
@@ -73,7 +88,12 @@ function whereUsedLabel(row: WhereUsedRow): string {
     if (label) return label
   }
   if (row.collection === 'site_settings' || row.collection === 'scenes') return COLLECTION_LABELS[row.collection]
-  return row.doc_id
+  if (row.collection === 'policies') {
+    const label = POLICY_DOC_LABELS[row.doc_id as keyof typeof POLICY_DOC_LABELS]
+    if (label) return label
+  }
+  // Post ids are random UUIDs and the RPC returns no title: the section name plus the id's start keeps posts apart.
+  return `${(COLLECTION_LABELS as Record<string, string>)[row.collection] ?? row.collection} · ${row.doc_id.slice(0, 8)}`
 }
 
 function formatBytes(bytes: number): string {
@@ -131,6 +151,9 @@ export function MediaBrowser({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [more, setMore] = useState(false)
+  // Bumped whenever a query's first page lands. A «المزيد» request started
+  // before that must not append its rows to the new query's grid.
+  const generation = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -150,7 +173,9 @@ export function MediaBrowser({
             setMore(false)
           })
           .finally(() => {
-            if (active) setLoading(false)
+            if (!active) return
+            generation.current += 1
+            setLoading(false)
           })
       },
       search ? 300 : 0,
@@ -186,7 +211,7 @@ export function MediaBrowser({
               key={row.id}
               type="button"
               className={styles.mediaTile}
-              aria-pressed={selectedId === row.id}
+              aria-pressed={selectedId === undefined ? undefined : selectedId === row.id}
               onClick={() => onSelect(row)}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32) */}
@@ -207,10 +232,17 @@ export function MediaBrowser({
           type="button"
           className={styles.buttonSecondary}
           onClick={() => {
-            void loadMediaPage(folder, search, rows.length).then((page) => {
-              setRows((previous) => [...previous, ...page])
-              setMore(page.length === PAGE_SIZE)
-            })
+            const requested = generation.current
+            void loadMediaPage(folder, search, rows.length)
+              .then((page) => {
+                if (requested !== generation.current) return
+                setError(null)
+                setRows((previous) => [...previous, ...page])
+                setMore(page.length === PAGE_SIZE)
+              })
+              .catch(() => {
+                if (requested === generation.current) setError('تعذّر تحميل المكتبة.')
+              })
           }}
         >
           المزيد
@@ -229,9 +261,12 @@ export function MediaLibrary() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [usedInState, setUsedInState] = useState<{ id: string; rows: WhereUsedRow[] | null; error: boolean } | null>(
-    null,
-  )
+  const [usedInState, setUsedInState] = useState<{
+    id: string
+    rows: WhereUsedRow[] | null
+    products: ProductUsageRow[]
+    error: boolean
+  } | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -241,6 +276,7 @@ export function MediaLibrary() {
   const [renameMessage, setRenameMessage] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const deleteDialogRef = useRef<HTMLDialogElement>(null)
+  const deleteTitleId = useId()
   const detailsRef = useRef<HTMLElement>(null)
   const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
   // Bumped on every selection so the details scroll into view and take focus
@@ -272,17 +308,30 @@ export function MediaLibrary() {
   }, [deleteOpen])
 
   useEffect(() => {
-    // ponytail: the Data API has no DISTINCT; read only the folder column of
-    // every row (RLS already scopes it to owner/editor) and dedupe here.
-    void getSupabaseBrowserClient()
-      .from('media')
-      .select('folder')
-      .order('folder')
-      .limit(10000)
-      .then(({ data }) => {
-        const distinct = new Set<string>(((data ?? []) as unknown as Array<{ folder: string }>).map((row) => row.folder))
-        setFolders([...distinct])
-      })
+    // ponytail: the Data API has no DISTINCT, and a response is capped at
+    // PostgREST's max_rows (1000), so `.limit()` cannot lift it. Read only the
+    // folder column (RLS already scopes it to owner/editor) page by page and
+    // dedupe here; a SQL function returning the distinct folders would replace this.
+    let active = true
+    void (async () => {
+      const supabase = getSupabaseBrowserClient()
+      const distinct = new Set<string>()
+      for (let from = 0; ; ) {
+        const { data } = await supabase
+          .from('media')
+          .select('folder')
+          .order('folder')
+          .range(from, from + FOLDER_PAGE_SIZE - 1)
+        const page = (data ?? []) as unknown as Array<{ folder: string }>
+        for (const row of page) distinct.add(row.folder)
+        if (page.length === 0) break
+        from += page.length
+      }
+      if (active) setFolders([...distinct])
+    })()
+    return () => {
+      active = false
+    }
   }, [reloadToken])
 
   // The where-used list for the selected item only; a fetch result for a
@@ -292,12 +341,21 @@ export function MediaLibrary() {
   useEffect(() => {
     if (!selected) return
     let active = true
-    void getSupabaseBrowserClient()
-      .rpc('media_where_used', { p_id: selected.id })
-      .then(({ data, error }) => {
-        if (!active) return
-        setUsedInState({ id: selected.id, rows: error ? null : ((data ?? []) as unknown as WhereUsedRow[]), error: Boolean(error) })
+    const supabase = getSupabaseBrowserClient()
+    // Content documents and product covers both block a delete, so both are listed.
+    void Promise.all([
+      supabase.rpc('media_where_used', { p_id: selected.id }),
+      supabase.rpc('media_product_usage', { p_id: selected.id }),
+    ]).then(([content, products]) => {
+      if (!active) return
+      const failed = Boolean(content.error || products.error)
+      setUsedInState({
+        id: selected.id,
+        rows: failed ? null : ((content.data ?? []) as unknown as WhereUsedRow[]),
+        products: failed ? [] : ((products.data ?? []) as unknown as ProductUsageRow[]),
+        error: failed,
       })
+    })
     return () => {
       active = false
     }
@@ -374,7 +432,12 @@ export function MediaLibrary() {
       return
     }
     setRenameMessage(data > 0 ? `نُقلت ${data} صورة إلى «${folderLabel(to)}».` : 'لا توجد صور في هذا المجلد.')
-    if (selectedFolder === renameFrom) setSelectedFolder(to)
+    // The open details form and the filter still hold the old path: follow the rename, or a save would move the image back.
+    if (selectedFolder !== null && selectedFolder !== ROOT_OPTION) setSelectedFolder(movedFolder(selectedFolder, renameFrom, to))
+    if (selected) {
+      setSelected({ ...selected, folder: movedFolder(selected.folder, renameFrom, to) })
+      setValues((previous) => ({ ...previous, folder: movedFolder(previous.folder ?? '', renameFrom, to) }))
+    }
     setRenameFrom('')
     setRenameTo('')
     setReloadToken((token) => token + 1)
@@ -422,11 +485,13 @@ export function MediaLibrary() {
           >
             <option value="">الكل</option>
             <option value={ROOT_OPTION}>بلا مجلد</option>
-            {folders.map((folder) => (
-              <option key={folder} value={folder}>
-                {folderLabel(folder)}
-              </option>
-            ))}
+            {folders
+              .filter((folder) => folder !== '')
+              .map((folder) => (
+                <option key={folder} value={folder}>
+                  {folderLabel(folder)}
+                </option>
+              ))}
           </select>
         </div>
       </div>
@@ -473,7 +538,9 @@ export function MediaLibrary() {
           >
             إعادة تسمية المجلد
           </button>
-          {renameMessage && <p className={styles.message}>{renameMessage}</p>}
+          <p role="status" className={styles.message}>
+            {renameMessage}
+          </p>
         </div>
       </fieldset>
       <div className={styles.mediaLayout}>
@@ -492,14 +559,20 @@ export function MediaLibrary() {
                   }
                   id={`media-edit-${field.name}`}
                 />
-                {fieldErrors[field.name] && <p className={styles.error}>{fieldErrors[field.name]}</p>}
+                {fieldErrors[field.name] && (
+                  <p role="alert" className={styles.error}>
+                    {fieldErrors[field.name]}
+                  </p>
+                )}
               </div>
             ))}
             <div className={styles.row}>
               <button type="button" className={styles.button} disabled={saving} onClick={() => void save()}>
                 حفظ
               </button>
-              {saveMessage && <p className={styles.message}>{saveMessage}</p>}
+              <p role="status" className={styles.message}>
+                {saveMessage}
+              </p>
             </div>
             <p className={styles.message}>
               الأصل: {selected.original_width}×{selected.original_height} بكسل، {formatBytes(selected.original_bytes)}،{' '}
@@ -516,19 +589,30 @@ export function MediaLibrary() {
             <fieldset className={styles.fieldset}>
               <legend className={styles.legend}>مستخدمة في</legend>
               {usedIn?.error && <p className={styles.error}>تعذّر معرفة الاستخدام؛ الخادم يمنع حذف المستخدمة.</p>}
-              {!usedIn?.error && usedIn?.rows && usedIn.rows.length === 0 && <p className={styles.message}>غير مستخدمة</p>}
+              {!usedIn?.error && usedIn?.rows && usedIn.rows.length + usedIn.products.length === 0 && (
+                <p className={styles.message}>غير مستخدمة</p>
+              )}
               {usedIn?.rows?.map((row) => (
                 <div key={`${row.collection}-${row.doc_id}-${row.state}`} className={styles.row}>
                   <Link href={documentHref(row.collection, row.doc_id)}>{whereUsedLabel(row)}</Link>
                   <span className={styles.badge}>{STATE_LABELS[row.state] ?? row.state}</span>
                 </div>
               ))}
+              {usedIn?.products.map((product) => (
+                <div key={`product-${product.product_id}`} className={styles.row}>
+                  <Link href={`/admin/store/products/edit?id=${product.product_id}`}>{product.title}</Link>
+                  <span className={styles.badge}>{PRODUCT_STATUS_LABELS[product.status] ?? product.status}</span>
+                </div>
+              ))}
             </fieldset>
             <button
               type="button"
               className={styles.buttonSecondary}
-              disabled={!usedIn || (usedIn.rows?.length ?? 0) > 0}
-              onClick={() => setDeleteOpen(true)}
+              disabled={!usedIn || usedIn.error || (usedIn.rows?.length ?? 0) + usedIn.products.length > 0}
+              onClick={() => {
+                setDeleteError(null)
+                setDeleteOpen(true)
+              }}
             >
               حذف
             </button>
@@ -537,7 +621,7 @@ export function MediaLibrary() {
         <MediaBrowser
           folder={selectedFolder === null ? null : selectedFolder === ROOT_OPTION ? '' : selectedFolder}
           reloadToken={reloadToken}
-          selectedId={selected?.id}
+          selectedId={selected?.id ?? null}
           onSelect={select}
         />
       </div>
@@ -549,10 +633,14 @@ export function MediaLibrary() {
           onUploaded={(id) => void handleUploaded(id)}
         />
       )}
-      <dialog ref={deleteDialogRef} className={styles.dialog} onClose={() => setDeleteOpen(false)}>
-        <h2>حذف الصورة</h2>
+      <dialog ref={deleteDialogRef} className={styles.dialog} aria-labelledby={deleteTitleId} onClose={() => setDeleteOpen(false)}>
+        <h2 id={deleteTitleId}>حذف الصورة</h2>
         <p>سيحذف الأصل الخاص وكل المشتقات، ولن يمكن التراجع.</p>
-        {deleteError && <p className={styles.error}>{deleteError}</p>}
+        {deleteError && (
+          <p role="alert" className={styles.error}>
+            {deleteError}
+          </p>
+        )}
         <div className={styles.row}>
           <button type="button" className={styles.button} disabled={deleting} onClick={() => void confirmDelete()}>
             تأكيد الحذف

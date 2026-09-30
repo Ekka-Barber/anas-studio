@@ -3,6 +3,7 @@
  * API routes"): `{ok:true,data}` or `{ok:false,error:{code,message,fields?},
  * requestId}`, never cached, Arabic messages, ASCII codes.
  */
+import { optionalEnv } from './env.ts'
 
 export const NO_STORE = { 'cache-control': 'no-store' }
 
@@ -33,10 +34,38 @@ export function ok(data: unknown, status = 200, headers: Record<string, string> 
   return Response.json({ ok: true, data }, { status, headers: { ...NO_STORE, ...headers } })
 }
 
-/** Reads a bounded body as text; null when it is larger than `maxBytes`. */
+/** The site origin the public forms live on; null when `SITE_URL` is unset or invalid. */
+export function siteOrigin(): string | null {
+  const siteUrl = optionalEnv('SITE_URL')
+  if (!siteUrl) return null
+  try {
+    return new URL(siteUrl).origin
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reads a body as UTF-8 text; null when it is larger than `maxBytes`. A
+ * declared content-length is refused before any read, and the stream is
+ * counted chunk by chunk and cancelled at the limit, so a chunked body with no
+ * content-length never sits in memory whole.
+ */
 export async function boundedText(request: Request, maxBytes: number): Promise<string | null> {
-  const declared = Number(request.headers.get('content-length'))
-  if (declared > maxBytes) return null
-  const text = await request.text()
-  return new TextEncoder().encode(text).length > maxBytes ? null : text
+  if (Number(request.headers.get('content-length')) > maxBytes) return null
+  const reader = request.body?.getReader()
+  if (!reader) return ''
+  const decoder = new TextDecoder()
+  let text = ''
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) return text + decoder.decode()
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel()
+      return null
+    }
+    text += decoder.decode(value, { stream: true })
+  }
 }

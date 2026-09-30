@@ -104,9 +104,12 @@ test.describe('a first visit plays the reveals', () => {
   for (const path of STORY) {
     test(`${path}: reveals below the fold are held, then each one plays`, async ({ page }) => {
       const response = await page.goto(path)
-      // The demo product exists only in the local seed.
-      const missing = response?.status() === 404 || (await page.locator('main h1').first().textContent())?.includes('هذا الطريق')
-      test.skip(Boolean(missing), `${path} is not in this build (the local seed's demo product)`)
+      // The demo product exists only in the local seed; every other page must be there (a 404 fails below).
+      const missing = Boolean(
+        response?.status() === 404 || (await page.locator('main h1').first().textContent())?.includes('هذا الطريق'),
+      )
+      test.skip(path === '/store/demo-khous' && missing, `${path} is not in this build (the local seed's demo product)`)
+      expect(missing, `${path} is not in this build (the woven 404)`).toBe(false)
 
       // Once MotionLayer has held something it has run (twice on dev), and a first visit is not a return.
       await expect.poll(async () => (await counts(page)).holds).toBeGreaterThan(0)

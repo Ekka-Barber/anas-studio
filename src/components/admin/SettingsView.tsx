@@ -30,7 +30,12 @@ const PROVIDER_LABEL: Record<SettingsStatus['email']['provider'], string> = {
   none: 'غير مُعد',
 }
 
-type WhatsAppPreview = { state: 'loading' } | { state: 'not-set' } | { state: 'ok'; url: string } | { state: 'invalid' }
+type WhatsAppPreview =
+  | { state: 'loading' }
+  | { state: 'error' }
+  | { state: 'not-set' }
+  | { state: 'ok'; url: string }
+  | { state: 'invalid' }
 
 function setOrNot(set: boolean): string {
   return set ? 'مضبوط' : 'غير مضبوط'
@@ -46,23 +51,30 @@ export function SettingsView() {
     void (async () => {
       const supabase = getSupabaseBrowserClient()
       // The published settings first; the latest draft when nothing is live.
-      const { data: published } = await supabase
+      const { data: published, error: publishedError } = await supabase
         .from('published_documents')
         .select('data')
         .eq('collection', 'site_settings')
         .eq('doc_id', 'site')
         .maybeSingle()
       let data = (published?.data as { contact?: { whatsapp?: unknown } } | null)?.contact
+      let draftError: unknown = null
       if (!data) {
-        const { data: row } = await supabase
+        const { data: row, error } = await supabase
           .from('content_documents')
           .select('latest_data')
           .eq('collection', 'site_settings')
           .eq('doc_id', 'site')
           .maybeSingle()
+        draftError = error
         data = (row?.latest_data as { contact?: { whatsapp?: unknown } } | null)?.contact
       }
       if (!active) return
+      // D21: when a failed read leaves the answer unknown, say so; «غير مُعدّ» is only for a real absence.
+      if (!data && (publishedError || draftError)) {
+        setWhatsapp({ state: 'error' })
+        return
+      }
       const raw = data?.whatsapp
       if (typeof raw !== 'string' || raw.trim() === '') {
         setWhatsapp({ state: 'not-set' })
@@ -100,6 +112,7 @@ export function SettingsView() {
         </p>
         <p>معاينة رابط واتساب:</p>
         {whatsapp.state === 'loading' && <p className={styles.message}>يحمّل...</p>}
+        {whatsapp.state === 'error' && <p className={styles.error}>تعذّر التحميل</p>}
         {whatsapp.state === 'not-set' && <p className={styles.message}>غير مُعدّ بعد.</p>}
         {whatsapp.state === 'ok' && (
           <p>

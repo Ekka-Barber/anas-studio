@@ -107,6 +107,15 @@ describe('renderWindow', () => {
     expect(renderWindow(3, 8, true)).toEqual([2, 3, 4])
     for (let i = 0; i < 8; i++) expect(renderWindow(i, 8, false).length).toBeLessThanOrEqual(6)
   })
+
+  it('one page at a time reaches past the empty leaves a turn skips', () => {
+    const leaves = leafPlan(5) // 0 cover, 1 endpaper, 2 page 1, 3 blank, 4 page 2, 5 page 3 ... 8 end, 9 blank, 10 endpaper, 11 back
+    expect(renderWindow(2, 12, true, leaves)).toEqual([0, 2, 4])
+    expect(renderWindow(4, 12, true, leaves)).toEqual([2, 4, 5])
+    expect(renderWindow(8, 12, true, leaves)).toEqual([7, 8, 11])
+    // Two pages at a time nothing is skipped.
+    expect(renderWindow(3, 12, false, leaves)).toEqual(renderWindow(3, 12, false))
+  })
 })
 
 describe('describe and sections', () => {
@@ -161,6 +170,7 @@ describe('the real preview, read by pdf.js', () => {
     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
     const data = new Uint8Array(readFileSync('public/book/khous-preview.pdf'))
     const doc = await pdfjs.getDocument({ data, verbosity: 0 }).promise
+    let reversedHamzaBelow = false
     for (let n = 1; n <= doc.numPages; n++) {
       const content = await (await doc.getPage(n)).getTextContent()
       const items = content.items.flatMap((item) => ('str' in item ? [item.str] : []))
@@ -168,9 +178,13 @@ describe('the real preview, read by pdf.js', () => {
       const fixed = fixLigatures(items, pageText.pages[n - 1] ?? '').join('')
       // «األ» (a reversed «الأ») is never Arabic; pdf.js alone writes it.
       if (n === 1) expect(raw).toMatch(/األ/)
-      expect(fixed).not.toMatch(/األ|اآل/)
-      expect(fixed.length).toBe(raw.length)
+      // «اإل» (a reversed «الإ», as in «اإلهداء») is never Arabic either, except
+      // «ا» then «إلى», which the lookahead leaves alone.
+      if (/اإل(?!ى)/.test(raw)) reversedHamzaBelow = true
+      expect(fixed).not.toMatch(/األ|اآل|اإل(?!ى)/)
     }
+    // The fixture really has the hamza-below case, so the check above can fail.
+    expect(reversedHamzaBelow).toBe(true)
     expect((await (await doc.getPage(1)).getTextContent()).items.length).toBeGreaterThan(0)
     await doc.loadingTask.destroy()
   }, 15_000)

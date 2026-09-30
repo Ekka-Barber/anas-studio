@@ -96,6 +96,16 @@ describe('admin function: who may do what', () => {
     expect((await handleAdmin(post({ action: 'nope' }), { rpc, staff: staffAs('owner'), store })).status).toBe(422)
   })
 
+  it('a failed staff lookup is a 500 with the JSON contract, not a 401', async () => {
+    const staff = async (): Promise<StaffIdentity | null> => {
+      throw new Error('STAFF_LOOKUP_FAILED')
+    }
+    const response = await handleAdmin(post({ action: 'stats' }), { rpc, staff, store: memoryStore() })
+    expect(response.status).toBe(500)
+    expect(response.headers.get('access-control-allow-origin')).toBe('*')
+    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'FAILED' } })
+  })
+
   it.each([
     ['operations', 'media-ticket'],
     ['operations', 'media-delete'],

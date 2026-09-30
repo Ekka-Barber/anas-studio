@@ -12,6 +12,8 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 // Routine runs write to the git-ignored test-results/, so they never overwrite
 // an accepted package's report; an acceptance run names its package
 // (ACCEPTANCE_PACKAGE=P06) to keep the report under artifacts/acceptance/P06/.
+// The specs' own screenshots follow the same rule per package (tests/e2e/shots.ts):
+// a package's evidence folder is written only when ACCEPTANCE_PACKAGE names that package.
 const acceptancePackage = process.env.ACCEPTANCE_PACKAGE
 if (acceptancePackage && !/^(P\d{2}|[A-Z]+-\d+)$/.test(acceptancePackage)) {
   throw new Error(`ACCEPTANCE_PACKAGE must look like P06 or CLEANUP-1, got "${acceptancePackage}"`)

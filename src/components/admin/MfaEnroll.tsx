@@ -132,7 +132,11 @@ export function MfaEnroll() {
         <button type="submit" className={styles.button} disabled={busy}>
           تفعيل
         </button>
-        {error && <p className={styles.error}>{error}</p>}
+        {error && (
+          <p role="alert" className={styles.error}>
+            {error}
+          </p>
+        )}
       </form>
     </div>
   )

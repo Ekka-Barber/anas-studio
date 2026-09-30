@@ -7,8 +7,9 @@ import type { TableConfig, TableField } from './index'
  * with P08), and `sku` is stored upper case.
  */
 const fields: readonly TableField[] = [
-  { name: 'sku', label: 'رمز SKU', type: 'text' },
-  { name: 'title', label: 'العنوان', type: 'text' },
+  // The table's check is upper case; `toRow` upper-cases what is typed.
+  { name: 'sku', label: 'رمز SKU', type: 'text', pattern: { regex: /^[A-Za-z0-9][A-Za-z0-9-]{0,39}$/, message: 'حروف لاتينية وأرقام وشرطات، من 1 إلى 40، ولا يبدأ بشرطة.' } },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true, maxLength: 120 },
   {
     name: 'fulfillment',
     label: 'نوع التنفيذ',
@@ -34,7 +35,7 @@ export const variantsConfig: TableConfig = {
     { key: 'sku', label: 'رمز SKU' },
     { key: 'title', label: 'العنوان' },
     { key: 'fulfillment', label: 'النوع' },
-    { key: 'price_halalas', label: 'السعر', nullText: 'غير مسعّر: لا يُعرض للبيع.' },
+    { key: 'price_halalas', label: 'السعر' },
     { key: 'stock', label: 'المخزون' },
     { key: 'enabled', label: 'معروض' },
   ],

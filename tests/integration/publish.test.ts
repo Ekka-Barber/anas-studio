@@ -226,3 +226,64 @@ describe('content_versions optimistic concurrency', () => {
     expect(stale.error?.code).toBe('23505')
   })
 })
+
+describe('a stale admin tab (X2.3)', () => {
+  it('publishing or scheduling a version older than the latest is refused as a conflict; the newer live copy stays', async () => {
+    const editor = await as('editor')
+    const docId = uniqueSlug('tax-stale-tab')
+    for (const [seq, label] of [[1, 'أول'], [2, 'ثان']] as const) {
+      const { error } = await editor
+        .from('content_versions')
+        .insert({ collection: 'taxonomies', doc_id: docId, seq, data: { kind: 'tag', label } })
+      expect(error).toBeNull()
+    }
+    expect(await publishDocument('taxonomies', docId, 2)).toEqual({ ok: true })
+
+    const publish = await publishDocument('taxonomies', docId, 1)
+    expect(publish.ok).toBe(false)
+    if (!publish.ok) expect(publish.error.code).toBe('CONFLICT')
+    const schedule = await scheduleDocument('taxonomies', docId, 1, new Date(Date.now() + 3_600_000).toISOString())
+    expect(schedule.ok).toBe(false)
+    if (!schedule.ok) expect(schedule.error.code).toBe('CONFLICT')
+    expect(await liveData('taxonomies', docId)).toEqual([{ kind: 'tag', label: 'ثان' }])
+
+    // The latest version still publishes (again) and schedules.
+    expect(await publishDocument('taxonomies', docId, 2)).toEqual({ ok: true })
+    expect(await scheduleDocument('taxonomies', docId, 2, new Date(Date.now() + 3_600_000).toISOString())).toEqual({ ok: true })
+  })
+})
+
+describe('a post slug already live (S01.2)', () => {
+  it('a manual publish that collides is a CONFLICT with its own message, not a generic failure', async () => {
+    const editor = await as('editor')
+    const slug = uniqueSlug('slug-clash')
+    const post = (extra: Record<string, unknown> = {}) => ({
+      slug,
+      title: 'عنوان',
+      excerpt: 'مقتطف',
+      body: { root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: 'نص', format: 0 }] }] } },
+      author: 'أنس',
+      categories: [],
+      tags: [],
+      visible: true,
+      ...extra,
+    })
+    const first = randomUUID()
+    const second = randomUUID()
+    try {
+      for (const docId of [first, second]) {
+        const { error } = await editor.from('content_versions').insert({ collection: 'posts', doc_id: docId, seq: 1, data: post() })
+        expect(error).toBeNull()
+      }
+      expect(await publishDocument('posts', first, 1)).toEqual({ ok: true })
+      const clash = await publishDocument('posts', second, 1)
+      expect(clash.ok).toBe(false)
+      if (!clash.ok) {
+        expect(clash.error.code).toBe('CONFLICT')
+        expect(clash.error.message).toContain('معرّف المقال')
+      }
+    } finally {
+      await postgres.query('delete from public.published_documents where collection = $1 and doc_id = any($2)', ['posts', [first, second]])
+    }
+  })
+})

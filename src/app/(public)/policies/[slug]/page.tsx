@@ -25,7 +25,10 @@ export function generateStaticParams(): Array<{ slug: string }> {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
   const id = POLICY_DOC_IDS.find((entry) => entry === slug)
-  return { title: id === undefined ? undefined : POLICY_DOC_LABELS[id] }
+  if (id === undefined) return {}
+  // The published title, like the page's h1 (the same fetch: Next memoizes it).
+  const policy = await getPublishedPolicy(id)
+  return { title: policy?.title ?? POLICY_DOC_LABELS[id] }
 }
 
 async function getPublishedPolicy(id: PolicyDocId): Promise<z.infer<typeof policySchema> | null> {

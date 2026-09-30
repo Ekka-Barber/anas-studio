@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { postSchema, taxonomySchema } from '../admin/collections'
 import type { RichTextDocument } from '../admin/richtext'
 
-import { replaceMediaIds, type MediaDerivative } from './content'
+import { mediaById, replaceMediaIds, type MediaDerivative } from './content'
 import { requireEnv } from './env'
 import { collectMediaIds, MEDIA_ORIGIN } from './media-ref'
 
@@ -40,15 +40,30 @@ async function published(collection: 'posts' | 'taxonomies') {
   return z.array(rowSchema).parse(await response.json())
 }
 
-async function mediaById(ids: string[]): Promise<Map<string, MediaDerivative[]>> {
-  if (ids.length === 0) return new Map()
-  const params = new URLSearchParams({ select: 'id,derivatives', id: `in.(${ids.join(',')})` })
-  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {
-    headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') },
-  })
-  if (!response.ok) throw new Error(`Failed to fetch media: ${response.status}`)
-  const rows = (await response.json()) as Array<{ id: string; derivatives: MediaDerivative[] }>
-  return new Map(rows.map((row) => [row.id, row.derivatives]))
+type PostData = z.infer<typeof postSchema>
+
+/**
+ * A stored post as the public pages show it: category slugs become their
+ * labels, the cover resolves to a media reference. The build (`getPosts`) and
+ * the admin's draft preview both shape through here, so they cannot differ.
+ */
+export function shapePost(
+  post: PostData,
+  meta: { id: string; publishedAt: string },
+  labels: Map<string, string>,
+  byId: Map<string, MediaDerivative[]>,
+): JournalPost {
+  return {
+    id: meta.id,
+    slug: post.slug,
+    title: post.title,
+    excerpt: post.excerpt,
+    body: post.body,
+    author: post.author,
+    categories: post.categories.flatMap((slug) => labels.get(slug) ?? []),
+    cover: post.cover ? replaceMediaIds(post.cover, byId, MEDIA_ORIGIN) : null,
+    publishedAt: meta.publishedAt,
+  }
 }
 
 export const getPosts = cache(async (): Promise<JournalPost[]> => {
@@ -66,17 +81,7 @@ export const getPosts = cache(async (): Promise<JournalPost[]> => {
   const visible = posts.filter(({ post }) => post.visible)
   const byId = await mediaById([...new Set(visible.flatMap(({ post }) => (post.cover ? collectMediaIds(post.cover) : [])))])
   return visible
-    .map(({ row, post }) => ({
-      id: row.doc_id,
-      slug: post.slug,
-      title: post.title,
-      excerpt: post.excerpt,
-      body: post.body,
-      author: post.author,
-      categories: post.categories.flatMap((slug) => labels.get(slug) ?? []),
-      cover: post.cover ? replaceMediaIds(post.cover, byId, MEDIA_ORIGIN) : null,
-      publishedAt: row.first_published_at,
-    }))
+    .map(({ row, post }) => shapePost(post, { id: row.doc_id, publishedAt: row.first_published_at }, labels, byId))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
 })
 

@@ -46,6 +46,10 @@ if (!existsSync(outDir)) {
 }
 
 const PUBLIC_PAGES = publicPages(outDir)
+if (PUBLIC_PAGES.length === 0) {
+  console.error('out/ holds no public page (a partial export?). Run `pnpm build` first.')
+  process.exit(1)
+}
 
 const scriptTagRe = /<script\b[^>]*\bsrc="([^"]+)"[^>]*>/gi
 const results = []
@@ -77,6 +81,11 @@ for (const page of PUBLIC_PAGES) {
 console.log('check:budgets')
 for (const { page, bytes, scripts } of results) {
   console.log(`  ${page.padEnd(12)} initial JS gzip ${kib(bytes)} (${scripts} scripts)`)
+}
+const bare = results.filter((r) => r.scripts === 0).map((r) => r.page)
+if (bare.length > 0) {
+  console.error(`  FAIL no /_next/static/ script found in ${bare.join(', ')}; was the asset path changed?`)
+  process.exit(1)
 }
 const largest = Math.max(...results.map((r) => r.bytes))
 if (largest > PUBLIC_JS_GZIP_BUDGET_BYTES) {

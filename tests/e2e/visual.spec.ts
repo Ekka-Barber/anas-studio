@@ -1,9 +1,12 @@
 import { expect, test } from '@playwright/test'
 
+import { shotsDir } from './shots'
+
 /**
  * Screenshot evidence for DESIGN-AUDIT.md's responsive and no-overflow checks
  * (D39, direction B): every public page at 360/768/1024/1440 with JS on, and
- * at 768 with JS off, saved under `artifacts/acceptance/DESIGN-B/screenshots/`.
+ * at 768 with JS off, saved under `artifacts/acceptance/DESIGN-B/screenshots/`
+ * for an ACCEPTANCE_PACKAGE=DESIGN-B run and under `test-results/` otherwise.
  * Reduced motion, so the captures show the finished page, not a reveal.
  */
 
@@ -21,7 +24,7 @@ const PAGES: { route: string; slug: string }[] = [
 ]
 
 const WIDTHS = [360, 768, 1024, 1440]
-const OUT_DIR = 'artifacts/acceptance/DESIGN-B/screenshots'
+const OUT_DIR = shotsDir('DESIGN-B')
 
 test.use({ reducedMotion: 'reduce' })
 

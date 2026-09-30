@@ -3,6 +3,7 @@
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 # The admin: never indexed, never cached, never framed. `/admin/*` does not
 # match `/admin` itself, so both are listed.

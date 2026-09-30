@@ -11,7 +11,7 @@ import type { TableConfig, TableField } from './index'
  */
 const fields: readonly TableField[] = [
   { name: 'email', label: 'البريد الإلكتروني', type: 'text' },
-  { name: 'name', label: 'الاسم', type: 'text' },
+  { name: 'name', label: 'الاسم', type: 'text', nonBlank: true, maxLength: 120 },
   { name: 'phone', label: 'الجوال', type: 'text', nullable: true },
 ]
 

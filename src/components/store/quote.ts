@@ -200,7 +200,6 @@ function parseOrder(value: unknown): OrderSummary {
 
 /** The parsers under the names the cart and checkout already call. */
 export const priceSchema = { parse: parsePrice }
-export const quoteSchema = { parse: parseQuote }
 export const orderSchema = { parse: parseOrder }
 
 export interface CheckoutError {
@@ -258,6 +257,9 @@ export function quoteErrorMessage(error: QuoteError): string {
       return 'لا ينطبق هذا الكود على منتجات السلة.'
     case 'EMPTY_CART':
       return 'سلتك فارغة.'
+    case 'DEDICATION_NOT_ALLOWED':
+    case 'INVALID_DEDICATION':
+      return 'تحقق من نص الإهداء.'
     default:
       return 'تحقق من محتويات السلة.'
   }

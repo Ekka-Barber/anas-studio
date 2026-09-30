@@ -60,6 +60,7 @@ function Toolbar(): JSX.Element {
   const [italic, setItalic] = useState(false)
   const [blockType, setBlockType] = useState<BlockType>('paragraph')
   const [linkUrl, setLinkUrl] = useState('')
+  const [linkError, setLinkError] = useState(false)
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
@@ -82,7 +83,14 @@ function Toolbar(): JSX.Element {
   }, [editor])
 
   function applyLink() {
-    editor.dispatchCommand(TOGGLE_LINK_COMMAND, linkUrl.startsWith('https://') ? linkUrl : null)
+    const url = linkUrl.trim()
+    // An empty field removes the link; anything else must be https, and says so.
+    if (url !== '' && !url.startsWith('https://')) {
+      setLinkError(true)
+      return
+    }
+    setLinkError(false)
+    editor.dispatchCommand(TOGGLE_LINK_COMMAND, url === '' ? null : url)
   }
 
   function toggleList(type: 'bullet' | 'number') {
@@ -166,16 +174,51 @@ function Toolbar(): JSX.Element {
         aria-label="رابط https"
         placeholder="https://"
         value={linkUrl}
-        onChange={(event) => setLinkUrl(event.target.value)}
+        onChange={(event) => {
+          setLinkUrl(event.target.value)
+          setLinkError(false)
+        }}
       />
       <button type="button" className={styles.toolbarButton} onClick={applyLink}>
         تطبيق الرابط
       </button>
+      {linkError && (
+        <p role="alert" className={styles.error}>
+          الرابط يجب أن يبدأ بـ https://
+        </p>
+      )}
     </div>
   )
 }
 
 const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode]
+
+/**
+ * Pasted HTML brings nodes the schema rejects: h1 and h4–h6 headings, and
+ * links that are not https. Turn them into the nearest allowed node instead,
+ * so publishing is never blocked by a paste.
+ */
+export function registerAllowlistTransforms(editor: LexicalEditor): () => void {
+  const heading = editor.registerNodeTransform(HeadingNode, (node) => {
+    const tag = node.getTag()
+    if (tag !== 'h2' && tag !== 'h3') node.setTag(tag === 'h1' ? 'h2' : 'h3')
+  })
+  const link = editor.registerNodeTransform(LinkNode, (node) => {
+    if (node.getURL().startsWith('https://')) return
+    for (const child of node.getChildren()) node.insertBefore(child)
+    node.remove()
+  })
+  return () => {
+    heading()
+    link()
+  }
+}
+
+function AllowlistPlugin(): null {
+  const [editor] = useLexicalComposerContext()
+  useEffect(() => registerAllowlistTransforms(editor), [editor])
+  return null
+}
 
 export function RichTextEditor({
   value,
@@ -217,6 +260,7 @@ export function RichTextEditor({
       <ListPlugin />
       <LinkPlugin />
       <HistoryPlugin />
+      <AllowlistPlugin />
       <OnChangePlugin onChange={handleChange} />
     </LexicalComposer>
   )

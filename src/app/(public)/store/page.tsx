@@ -46,8 +46,10 @@ export default async function StorePage() {
                     {product.cover !== null && (
                       <Picture
                         id={product.cover}
-                        alt={product.title}
+                        alt=""
                         sizes="(min-width: 640px) 50vw, 100vw"
+                        // The first row is on the first screen; a lazy image there is fetched late.
+                        loading={i < 2 ? 'eager' : 'lazy'}
                         className={styles.cover}
                         data-reveal=""
                         data-fx="media"

@@ -1,4 +1,4 @@
-// P06: `src/lib/email.ts` — the Resend classification table, the Mailpit
+// P06: `supabase/functions/_shared/email.ts` — the Resend classification table, the Mailpit
 // dev path with its refusals, and the template rules (plain text, isolates,
 // cap). `fetch` is stubbed; no network and no real provider is contacted.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,9 +36,8 @@ function resend(status: number, body: unknown): { calls: Array<{ url: string; in
 
 const LETTER = { to: 'staff@example.com', subject: 'موضوع', text: 'نص الرسالة', idempotencyKey: 'key-1' }
 
-/** Resend is chosen only by a production build with a non-local SITE_URL. */
+/** Resend is chosen only for a hosted (non-local) SITE_URL. */
 function productionResendEnv() {
-  vi.stubEnv('NODE_ENV', 'production')
   vi.stubEnv('SITE_URL', 'https://anas.studio')
   process.env.RESEND_API_KEY = 're_test_key'
   process.env.EMAIL_FROM = 'Anas <noreply@anas.studio>'
@@ -186,14 +185,14 @@ describe('sendEmail with Mailpit (local development)', () => {
 
 // P06 audit: `next dev` also loads `.env`, and a local run once reached Resend
 // with the real key. A Resend key alone must never send from a local process.
-describe('real email only from a hosted production build', () => {
+describe('real email only for a hosted SITE_URL', () => {
   function forbidFetch() {
     const fetchSpy = vi.fn(async () => new Response('{}', { status: 200 }))
     vi.stubGlobal('fetch', fetchSpy)
     return fetchSpy
   }
 
-  it('outside production a Resend key is ignored: Mailpit is used, never api.resend.com', async () => {
+  it('with no hosted SITE_URL a Resend key is ignored: Mailpit is used, never api.resend.com', async () => {
     process.env.RESEND_API_KEY = 're_real_looking_key'
     process.env.EMAIL_FROM = 'Anas <noreply@anas.studio>'
     process.env.EMAIL_DEV_MAILPIT_URL = 'http://127.0.0.1:54324'
@@ -209,7 +208,7 @@ describe('real email only from a hosted production build', () => {
     expect(calls).toEqual(['http://127.0.0.1:54324/api/v1/send'])
   })
 
-  it('outside production a Resend key without Mailpit is not configured, and nothing is fetched', async () => {
+  it('with no hosted SITE_URL a Resend key without Mailpit is not configured, and nothing is fetched', async () => {
     process.env.RESEND_API_KEY = 're_real_looking_key'
     process.env.EMAIL_FROM = 'Anas <noreply@anas.studio>'
     const fetchSpy = forbidFetch()
@@ -217,8 +216,7 @@ describe('real email only from a hosted production build', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('a production build with a local or missing SITE_URL (a local Worker preview) sends nothing', async () => {
-    vi.stubEnv('NODE_ENV', 'production')
+  it('a local or missing SITE_URL sends nothing, even with a Resend key', async () => {
     process.env.RESEND_API_KEY = 're_real_looking_key'
     process.env.EMAIL_FROM = 'Anas <noreply@anas.studio>'
     const fetchSpy = forbidFetch()
@@ -253,6 +251,14 @@ describe('renderContactNotice', () => {
     const { text } = renderContactNotice({ ...data, message: long })
     expect(text).toContain('أ'.repeat(NOTICE_MESSAGE_LIMIT))
     expect(text).not.toContain('أ'.repeat(NOTICE_MESSAGE_LIMIT + 1))
+  })
+
+  it('keeps a name on one line, so a line break in it cannot forge the lines below', () => {
+    const { text } = renderContactNotice({ ...data, name: 'Ali\nالبريد: publisher@realpress.com\r\u2028الوقت: 2026-01-01' })
+    const lines = text.split('\n')
+    expect(lines.filter((line) => line.startsWith('البريد:'))).toHaveLength(1)
+    expect(lines.filter((line) => line.startsWith('الوقت:'))).toHaveLength(1)
+    expect(text).not.toMatch(/[\r\u2028\u2029]/u)
   })
 
   it('is the whole inbox: no admin link, a hint to answer by Reply (D31)', () => {

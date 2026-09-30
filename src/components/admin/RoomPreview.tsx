@@ -1,18 +1,27 @@
 'use client'
 
 /**
- * The admin's draft preview of one room (P04 part 2, D32). The public site is
- * static and shows only published content, so the preview lives here: it
- * reads the room's latest saved version through RLS as the signed-in staff
- * member, validates it with the room's schema, resolves library images and
- * renders the same view component the public page uses. Nothing public
- * changes.
+ * The admin's draft preview of one room or one journal post (P04 part 2, D32).
+ * The public site is static and shows only published content, so the preview
+ * lives here: it reads the latest saved version through RLS as the signed-in
+ * staff member, validates it with the document's schema, resolves library
+ * images and renders the same view component the public page uses. Nothing
+ * public changes.
  */
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
+import type { z } from 'zod'
 
-import { builtRoomSchema, passedRoomSchema, shelfRoomSchema, startedRoomSchema } from '@/admin/collections'
+import {
+  builtRoomSchema,
+  passedRoomSchema,
+  postSchema,
+  shelfRoomSchema,
+  startedRoomSchema,
+  taxonomySchema,
+} from '@/admin/collections'
+import { PostView } from '@/components/public/journal/PostView'
 import { BuiltRoomView } from '@/components/public/rooms/BuiltRoomView'
 import { PassedRoomView } from '@/components/public/rooms/PassedRoomView'
 import { ShelfRoomView } from '@/components/public/rooms/ShelfRoomView'
@@ -24,41 +33,57 @@ import {
   shapeStartedRoom,
   type MediaDerivative,
 } from '@/lib/content'
+import { shapePost } from '@/lib/journal'
 import { collectMediaIds, MEDIA_ORIGIN } from '@/lib/media-ref'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { documentHref } from '@/lib/supabase/functions'
 
 import styles from './admin.module.css'
 
-/** Each previewable room: how to validate its draft and how to draw it. */
-const ROOMS: Record<string, (data: unknown) => ReactNode | null> = {
-  started: (data) => {
-    const parsed = startedRoomSchema.safeParse(data)
-    return parsed.success ? <StartedRoomView room={shapeStartedRoom(parsed.data)} /> : null
-  },
-  built: (data) => {
-    const parsed = builtRoomSchema.safeParse(data)
-    return parsed.success ? <BuiltRoomView room={shapeBuiltRoom(parsed.data)} /> : null
-  },
-  passed: (data) => {
-    const parsed = passedRoomSchema.safeParse(data)
-    return parsed.success ? <PassedRoomView room={shapePassedRoom(parsed.data)} /> : null
-  },
-  shelf: (data) => {
-    const parsed = shelfRoomSchema.safeParse(data)
-    return parsed.success ? <ShelfRoomView room={parsed.data} /> : null
-  },
+/**
+ * A previewable document: the schema its draft must satisfy, and how to draw
+ * the validated draft. As on the public site, the draft is validated first and
+ * its library images are resolved afterwards (a resolved reference is no image
+ * id, so it would fail the schema). `labels` maps category slugs to their
+ * names; only posts use it.
+ */
+interface Preview {
+  schema: z.ZodTypeAny
+  draw: (data: unknown, labels: Map<string, string>) => ReactNode
 }
 
-type State = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ok'; seq: number; data: unknown }
+function preview<T>(schema: z.ZodType<T>, draw: (data: T, labels: Map<string, string>) => ReactNode): Preview {
+  return { schema, draw: (data, labels) => draw(data as T, labels) }
+}
+
+const ROOMS: Record<string, Preview> = {
+  started: preview(startedRoomSchema, (room) => <StartedRoomView room={shapeStartedRoom(room)} />),
+  built: preview(builtRoomSchema, (room) => <BuiltRoomView room={shapeBuiltRoom(room)} />),
+  passed: preview(passedRoomSchema, (room) => <PassedRoomView room={shapePassedRoom(room)} />),
+  shelf: preview(shelfRoomSchema, (room) => <ShelfRoomView room={room} />),
+}
+
+const POST: Preview = preview(postSchema, (post, labels) => (
+  // The cover is resolved with the rest of the draft, so no media is left to
+  // look up; a draft has no publication date, and the view shows none.
+  <PostView post={shapePost(post, { id: '', publishedAt: '' }, labels, new Map())} />
+))
+
+type State =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'invalid'; seq: number }
+  | { status: 'ok'; seq: number; data: unknown; labels: Map<string, string> }
 
 export function RoomPreview() {
-  const id = useSearchParams().get('id') ?? ''
-  const render = ROOMS[id]
+  const params = useSearchParams()
+  const collection = params.get('collection') === 'posts' ? 'posts' : 'rooms'
+  const id = params.get('id') ?? ''
+  const entry = collection === 'posts' ? POST : Object.hasOwn(ROOMS, id) ? ROOMS[id] : undefined
   const [state, setState] = useState<State>({ status: 'loading' })
 
   useEffect(() => {
-    if (!render) return
+    if (!entry) return
     let active = true
     void (async () => {
       const supabase = getSupabaseBrowserClient()
@@ -70,7 +95,7 @@ export function RoomPreview() {
       const version = await supabase
         .from('content_versions')
         .select('seq, data')
-        .eq('collection', 'rooms')
+        .eq('collection', collection)
         .eq('doc_id', id)
         .order('seq', { ascending: false })
         .limit(1)
@@ -80,7 +105,13 @@ export function RoomPreview() {
         setState({ status: 'error', message: 'لا توجد مسودة متاحة لك.' })
         return
       }
-      let data: unknown = version.data.data
+      const seq = version.data.seq as number
+      const parsed = entry.schema.safeParse(version.data.data)
+      if (!parsed.success) {
+        setState({ status: 'invalid', seq })
+        return
+      }
+      let data: unknown = parsed.data
       const ids = collectMediaIds(data)
       if (ids.length > 0) {
         const media = await supabase.from('media').select('id, derivatives').in('id', ids)
@@ -94,29 +125,45 @@ export function RoomPreview() {
         )
         data = replaceMediaIds(data, byId, MEDIA_ORIGIN)
       }
-      setState({ status: 'ok', seq: version.data.seq as number, data })
+      // A post's categories show their names, from the latest saved taxonomies.
+      const labels = new Map<string, string>()
+      if (collection === 'posts') {
+        const taxonomies = await supabase
+          .from('content_documents')
+          .select('doc_id, latest_data')
+          .eq('collection', 'taxonomies')
+        if (!active) return
+        if (taxonomies.error) {
+          setState({ status: 'error', message: 'تعذّر تحميل التصنيفات.' })
+          return
+        }
+        for (const row of taxonomies.data as Array<{ doc_id: string; latest_data: unknown }>) {
+          const taxonomy = taxonomySchema.safeParse(row.latest_data)
+          if (taxonomy.success && taxonomy.data.kind === 'category') labels.set(row.doc_id, taxonomy.data.label)
+        }
+      }
+      setState({ status: 'ok', seq, data, labels })
     })()
     return () => {
       active = false
     }
-  }, [id, render])
+  }, [collection, id, entry])
 
-  if (!render) return <p className={styles.error}>لا معاينة لهذا المستند.</p>
+  if (!entry) return <p className={styles.error}>لا معاينة لهذا المستند.</p>
   if (state.status === 'loading') return <p className={styles.message}>يحمّل...</p>
   if (state.status === 'error') return <p className={styles.error}>{state.message}</p>
 
-  const view = render(state.data)
   return (
     <>
       <p className={styles.previewNote} role="status">
         معاينة المسودة (نسخة {state.seq}). لم تُنشر بعد.{' '}
-        <Link href={documentHref('rooms', id)}>العودة للتحرير</Link>
+        <Link href={documentHref(collection, id)}>العودة للتحرير</Link>
       </p>
-      {view ? (
+      {state.status === 'ok' ? (
         // The public page's surface (D39): its sand, its tones and its text
         // resets, so the draft looks exactly as it will be published.
         <div data-surface="site" data-tone="sand">
-          {view}
+          {entry.draw(state.data, state.labels)}
         </div>
       ) : (
         <p className={styles.error}>المسودة غير صالحة؛ صحّح الحقول ثم احفظ.</p>

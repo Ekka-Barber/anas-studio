@@ -12,7 +12,8 @@ import type { TableConfig, TableField } from './index'
  * (an empty selection means every product).
  */
 const fields: readonly TableField[] = [
-  { name: 'code', label: 'الكود', type: 'text' },
+  // The table's check is upper case; `toRow` upper-cases what is typed.
+  { name: 'code', label: 'الكود', type: 'text', pattern: { regex: /^[A-Za-z0-9]{3,32}$/, message: 'حروف لاتينية وأرقام فقط، من 3 إلى 32.' } },
   {
     name: 'kind',
     label: 'نوع الخصم',
@@ -20,10 +21,12 @@ const fields: readonly TableField[] = [
     options: ['percent', 'fixed'],
     optionLabels: { percent: 'نسبة', fixed: 'مبلغ ثابت' },
   },
-  { name: 'percent', label: 'النسبة المئوية', type: 'money', unit: 'percent', max: 10000, nullable: true, visibleWhen: (values) => values.kind === 'percent' },
-  { name: 'amount_halalas', label: 'المبلغ', type: 'money', nullable: true, visibleWhen: (values) => values.kind === 'fixed' },
+  // Not nullable: the form validates only the visible one, and the coupon's
+  // kind needs its value (the table's `(kind = 'percent') = (percent_bp is not null)`).
+  { name: 'percent', label: 'النسبة المئوية', type: 'money', unit: 'percent', max: 10000, visibleWhen: (values) => values.kind === 'percent' },
+  { name: 'amount_halalas', label: 'المبلغ', type: 'money', visibleWhen: (values) => values.kind === 'fixed' },
   { name: 'starts_at', label: 'يبدأ في', type: 'datetime', nullable: true },
-  { name: 'ends_at', label: 'ينتهي في', type: 'datetime', nullable: true },
+  { name: 'ends_at', label: 'ينتهي في', type: 'datetime', nullable: true, after: 'starts_at' },
   { name: 'min_subtotal_halalas', label: 'الحد الأدنى للسلة', type: 'money', min: 0 },
   { name: 'usage_limit', label: 'حد الاستخدام', type: 'number', min: 1, nullable: true },
   { name: 'product_ids', label: 'المنتجات المشمولة', type: 'relation' },
@@ -41,6 +44,7 @@ export const couponsConfig: TableConfig = {
     {
       key: 'percent_bp',
       label: 'القيمة',
+      extra: ['amount_halalas'],
       text: (row) =>
         row.kind === 'percent'
           ? `${formatRiyalsInput(row.percent_bp as number)}٪`

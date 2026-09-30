@@ -21,7 +21,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createClient } from '@supabase/supabase-js'
@@ -50,7 +50,18 @@ for (let i = 0; i < args.length; i += 1) {
 if (!backupFile || extractArg === '') usage(2)
 backupFile = resolve(backupFile)
 
-/** Runs the Supabase CLI by name (the way scripts/glm-worker.mjs runs claude). */
+// The extracted files are plaintext (auth password hashes, TOTP secrets,
+// customer data): never inside the repository, where a `git add -A` could
+// publish them.
+if (extractArg) {
+  const relDest = relative(repoRoot, resolve(extractArg))
+  if (relDest === '' || (!relDest.startsWith('..') && !isAbsolute(relDest))) {
+    console.error(`Refusing --extract inside the repository: ${resolve(extractArg)}`)
+    process.exit(1)
+  }
+}
+
+/** Runs the Supabase CLI by name. */
 function supabase(cliArgs, options = {}) {
   return spawnSync('supabase', cliArgs, { cwd: repoRoot, ...options })
 }
@@ -311,6 +322,7 @@ async function main() {
     console.log(`Extracted ${manifest.files.length + 1} files to ${destDir} (manifest.json + the files below):`)
     for (const file of manifest.files) console.log(`  ${file.size.toString().padStart(10)}  ${file.path}`)
     console.log('These are the files for a real restore (see docs/operations.md, "Backups (D35)").')
+    console.log('WARNING: they are NOT encrypted. They hold every customer record and the auth secrets. Delete the directory once the restore is verified.')
     return
   }
 
@@ -324,11 +336,13 @@ async function main() {
   const cleanup = () => {
     if (cleaned) return
     cleaned = true
+    // The decrypted dumps go first: `supabase stop` can take minutes, longer
+    // than Windows allows after the console window closes (SIGHUP).
+    rmSync(extractDir, { recursive: true, force: true })
     if (existsSync(scratch)) {
       supabase(['stop', '--no-backup', '--workdir', scratch], { stdio: 'ignore', timeout: 300000 })
     }
     rmSync(scratch, { recursive: true, force: true })
-    rmSync(extractDir, { recursive: true, force: true })
   }
   process.on('exit', cleanup)
   const startedAt = Date.now()
@@ -407,5 +421,6 @@ async function main() {
 
 process.on('SIGINT', () => process.exit(130))
 process.on('SIGTERM', () => process.exit(143))
+process.on('SIGHUP', () => process.exit(129))
 
 await main()

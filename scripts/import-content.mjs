@@ -28,7 +28,7 @@ try {
 } catch {
   parsed = null
 }
-if (!parsed || (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') || !LOCAL_HOSTS.has(parsed.hostname)) {
+if (!parsed || (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') || !LOCAL_HOSTS.has(parsed.hostname) || parsed.searchParams.has('host')) {
   console.error('Refusing: DATABASE_URL does not point at a local PostgreSQL host.')
   process.exit(1)
 }

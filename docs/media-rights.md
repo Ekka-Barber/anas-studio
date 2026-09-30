@@ -45,9 +45,11 @@ future crop does not lose quality.
 - During upload, derivatives wait in a private **quarantine** area until
   every part has been verified. Anything that fails verification is deleted
   immediately.
-- Only the verified WebP derivatives are published, from an isolated public
-  origin, with `nosniff` and a sandboxing content-security-policy. A visitor
-  can never list the library or fetch another image by guessing.
+- Only the verified WebP derivatives are published, from the separate
+  Supabase Storage origin through the `media-public` bucket, which accepts
+  `image/webp` only. No content-security-policy is set on those responses,
+  and `nosniff` there is unverified until the P11 hosted check (I32). A
+  visitor can never list the library or fetch another image by guessing.
 
 ## Reuse and deletion
 

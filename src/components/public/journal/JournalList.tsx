@@ -14,6 +14,10 @@ export interface JournalCard {
   excerpt: string
   categories: string[]
   cover: ImageSources | null
+  /** The publication instant, for the machine-readable `<time>`. */
+  publishedAt: string
+  /** The publication day as the page shows it, formatted where the page is built. */
+  date: string
 }
 
 const ALL = 'الكل'
@@ -32,7 +36,7 @@ export function JournalList({ posts }: { posts: JournalCard[] }) {
   return (
     <>
       {categories.length > 1 && (
-        <div role="toolbar" aria-label="التصنيفات" className={styles.filters}>
+        <div role="group" aria-label="التصنيفات" className={styles.filters}>
           {[ALL, ...categories].map((name) => (
             <button key={name} type="button" aria-pressed={category === name} className={styles.filter} onClick={() => setCategory(name)}>
               {name}
@@ -54,7 +58,9 @@ export function JournalList({ posts }: { posts: JournalCard[] }) {
                     width={post.cover.width}
                     height={post.cover.height}
                     alt=""
-                    loading="lazy"
+                    // The lead card is on the first screen, and it is the largest thing there.
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    fetchPriority={i === 0 ? 'high' : undefined}
                     decoding="async"
                   />
                 </span>
@@ -63,7 +69,12 @@ export function JournalList({ posts }: { posts: JournalCard[] }) {
                 {post.categories[0] && <span className={styles.cardTag}>{post.categories[0]}</span>}
                 <h2 className={i === 0 ? 't-h2' : 't-h3'}>{post.title}</h2>
                 {post.excerpt && <span className="t-body">{post.excerpt}</span>}
-                <span className="t-label">اقرأ ←</span>
+                <time dateTime={post.publishedAt} className="t-label">
+                  {post.date}
+                </time>
+                <span className="t-label">
+                  اقرأ <span aria-hidden="true">←</span>
+                </span>
               </span>
             </Link>
           </li>

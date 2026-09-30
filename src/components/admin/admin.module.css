@@ -26,6 +26,13 @@
   background: var(--sand);
 }
 
+/* 44px targets: a bare link is line-height tall, beside the 44px sign-out button. */
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+}
+
 .gate {
   padding: 2rem;
   text-align: center;
@@ -332,6 +339,12 @@
 .editor:focus-visible {
   outline: 2px solid var(--focus, var(--aub));
   outline-offset: -2px;
+}
+
+/* «مائل» as the site draws it (globals.css): Arabic has no italic face. */
+.editor em {
+  font-style: normal;
+  font-family: var(--font-display);
 }
 
 /* Media library (P05 round 2). */

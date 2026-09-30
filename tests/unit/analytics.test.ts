@@ -99,6 +99,11 @@ describe('analytics request shape', () => {
     expect(TOP_PATHS_QUERY).toContain('dimensions { clientRequestPath }')
     expect(TOP_PATHS_QUERY).toContain('orderBy: [count_DESC]')
   })
+
+  it('the top-paths query counts 2xx answers only, so probes and redirects never rank', () => {
+    expect(TOP_PATHS_QUERY).toContain('edgeResponseStatus_geq: 200')
+    expect(TOP_PATHS_QUERY).toContain('edgeResponseStatus_lt: 300')
+  })
 })
 
 describe('analytics fixtures', () => {
@@ -278,6 +283,7 @@ describe('parsers against raw shapes', () => {
       { count: 999, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/admin' } },
       { count: 999, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/api/contact' } },
       { count: 999, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/_next/x.js' } },
+      { count: 999, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/cdn-cgi/rum' } },
       { count: 999, avg: { sampleInterval: 1 }, dimensions: { clientRequestPath: '/media/photo.avif' } },
     ]
     const parsed = parseTopPaths(topPathsBody(groups))

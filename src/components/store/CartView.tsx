@@ -32,6 +32,43 @@ import { useCart } from './CartProvider'
 import { fetchCities, fetchQuote, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
 
+/**
+ * A line's quantity field. It keeps what is typed as a draft so it can be
+ * emptied and retyped: a valid number is committed at once, and leaving the
+ * field clamps whatever is left to 1..20.
+ */
+function QuantityInput({ value, label, onCommit }: { value: number; label: string; onCommit: (next: number) => void }) {
+  const [draft, setDraft] = useState(String(value))
+  const [seen, setSeen] = useState(value)
+  // A quantity changed from outside (the ± buttons) replaces the draft.
+  if (seen !== value) {
+    setSeen(value)
+    setDraft(String(value))
+  }
+  return (
+    <input
+      className={styles.quantityInput}
+      type="number"
+      min={1}
+      max={MAX_QUANTITY}
+      inputMode="numeric"
+      value={draft}
+      aria-label={label}
+      onChange={(event) => {
+        setDraft(event.target.value)
+        const next = Number(event.target.value)
+        if (Number.isInteger(next) && next >= 1 && next <= MAX_QUANTITY && next !== value) onCommit(next)
+      }}
+      onBlur={() => {
+        const typed = Math.trunc(Number(draft))
+        const next = draft !== '' && Number.isFinite(typed) ? Math.min(MAX_QUANTITY, Math.max(1, typed)) : value
+        setDraft(String(next))
+        if (next !== value) onCommit(next)
+      }}
+    />
+  )
+}
+
 export function CartView() {
   const cartState = useCart()
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -121,7 +158,7 @@ export function CartView() {
           السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.
         </p>
       )}
-      {quoteFailed && <p className={styles.warning} role="note">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>}
+      {quoteFailed && <p className={styles.warning} role="alert">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>}
 
       <div className={styles.withSummary}>
         <div>
@@ -129,19 +166,21 @@ export function CartView() {
             {cart.lines.map((line) => {
               const quoteLine = quote?.lines.find((l) => l.variantId === line.variantId) ?? null
               const lineErrors = errors.filter((error) => error.variantId === line.variantId)
+              // The line's name for its controls: never empty, even when the quote refused the line.
+              const name = quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : 'منتج في السلة'
               return (
                 <li key={line.variantId} className={styles.lineCard}>
                   <div className={styles.lineHead}>
                     <p className={styles.lineTitle}>
                       {/* A line the quote refused carries no title; its error below says why. */}
-                      {quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : quote === null ? '…' : 'منتج في السلة'}
+                      {quote === null ? '…' : name}
                     </p>
                     <p className={styles.linePrice}>
                       {quoteLine ? `${formatMoney(quoteLine.unitPrice)} × ${quoteLine.quantity}` : '…'}
                     </p>
                   </div>
                   {lineErrors.length > 0 && (
-                    <ul className={styles.lineErrors}>
+                    <ul className={styles.lineErrors} role="alert">
                       {lineErrors.map((error, i) => (
                         <li key={i}>{quoteErrorMessage(error)}</li>
                       ))}
@@ -152,31 +191,21 @@ export function CartView() {
                       <button
                         type="button"
                         className={styles.stepButton}
-                        aria-label="إنقاص الكمية"
+                        aria-label={`إنقاص الكمية: ${name}`}
                         onClick={() => update(setQuantity(cart, line.variantId, line.quantity - 1))}
                         disabled={line.quantity <= 1}
                       >
                         −
                       </button>
-                      <input
-                        className={styles.quantityInput}
-                        type="number"
-                        min={1}
-                        max={MAX_QUANTITY}
-                        inputMode="numeric"
+                      <QuantityInput
                         value={line.quantity}
-                        aria-label="الكمية"
-                        onChange={(event) => {
-                          const next = Number(event.target.value)
-                          if (Number.isFinite(next) && next >= 1 && next <= MAX_QUANTITY) {
-                            update(setQuantity(cart, line.variantId, next))
-                          }
-                        }}
+                        label={`الكمية: ${name}`}
+                        onCommit={(next) => update(setQuantity(cart, line.variantId, next))}
                       />
                       <button
                         type="button"
                         className={styles.stepButton}
-                        aria-label="زيادة الكمية"
+                        aria-label={`زيادة الكمية: ${name}`}
                         onClick={() => update(setQuantity(cart, line.variantId, line.quantity + 1))}
                         disabled={line.quantity >= MAX_QUANTITY}
                       >
@@ -184,11 +213,16 @@ export function CartView() {
                       </button>
                     </div>
                     {quoteLine && <p className={styles.lineTotal}>{formatMoney(quoteLine.total)}</p>}
-                    <button type="button" className={styles.textButton} onClick={() => update(removeLine(cart, line.variantId))}>
+                    <button
+                      type="button"
+                      className={styles.textButton}
+                      aria-label={`حذف ${name}`}
+                      onClick={() => update(removeLine(cart, line.variantId))}
+                    >
                       حذف
                     </button>
                   </div>
-                  {quoteLine?.fulfillment === 'signed' && (
+                  {(quoteLine?.fulfillment === 'signed' || line.dedication !== undefined) && (
                     <label className={styles.dedication}>
                       نص الإهداء
                       <input
@@ -249,7 +283,7 @@ export function CartView() {
             </ActionButton>
           </div>
           {couponErrors.length > 0 && (
-            <ul className={styles.lineErrors}>
+            <ul className={styles.lineErrors} role="alert">
               {couponErrors.map((error, i) => (
                 <li key={i}>{quoteErrorMessage(error)}</li>
               ))}
@@ -257,12 +291,17 @@ export function CartView() {
           )}
 
           {otherErrors.length > 0 && (
-            <ul className={styles.lineErrors}>
+            <ul className={styles.lineErrors} role="alert">
               {otherErrors.map((error, i) => (
                 <li key={i}>{quoteErrorMessage(error)}</li>
               ))}
             </ul>
           )}
+
+          {/* Always mounted: a new total after a coupon, a city or a quantity change is announced. */}
+          <p role="status" className="visually-hidden">
+            {quote ? `الإجمالي ${formatMoney(quote.total)}` : ''}
+          </p>
 
           {quote && (
             <dl className={styles.totals}>
@@ -273,7 +312,7 @@ export function CartView() {
               {quote.discount > 0 && (
                 <div>
                   <dt>الخصم</dt>
-                  <dd>−{formatMoney(quote.discount)}</dd>
+                  <dd>{'\u200E−'}{formatMoney(quote.discount)}</dd>
                 </div>
               )}
               {quote.city !== null && (

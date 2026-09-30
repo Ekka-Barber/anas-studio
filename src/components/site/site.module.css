@@ -95,6 +95,19 @@
     display: none;
   }
 }
+/* The menu opens in script; without it the rooms show inline at every width. */
+@media (scripting: none) {
+  .bar {
+    flex-wrap: wrap;
+  }
+  .inline {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .menuButton {
+    display: none;
+  }
+}
 
 /* ---- Menu: a full-screen stack of woven bands ------------------------------ */
 .menu {

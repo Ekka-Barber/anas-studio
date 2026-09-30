@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useId, useRef } from 'react'
 
 import { MediaBrowser, type MediaRow } from './MediaLibrary'
 import styles from './admin.module.css'
@@ -20,6 +20,7 @@ export function MediaPicker({
   onChoose: (id: string) => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
 
   useEffect(() => {
     const dialog = dialogRef.current
@@ -34,9 +35,10 @@ export function MediaPicker({
   }
 
   return (
-    <dialog ref={dialogRef} className={`${styles.dialog} ${styles.dialogWide}`} onClose={onClose}>
-      <h2>اختيار من المكتبة</h2>
-      <MediaBrowser folder={null} reloadToken={0} onSelect={choose} />
+    <dialog ref={dialogRef} className={`${styles.dialog} ${styles.dialogWide}`} aria-labelledby={titleId} onClose={onClose}>
+      <h2 id={titleId}>اختيار من المكتبة</h2>
+      {/* Mounted only while open: a closed picker must not query the library, and reopening shows fresh rows. */}
+      {open && <MediaBrowser folder={null} reloadToken={0} onSelect={choose} />}
       <div className={styles.row}>
         <button type="button" className={styles.buttonSecondary} onClick={onClose}>
           إغلاق

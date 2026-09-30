@@ -29,11 +29,13 @@ interface AttentionRow {
 }
 
 const KIND_LABEL: Record<string, string> = { receipt: 'إيصال', contact_notice: 'إشعار رسالة', availability: 'إشعار توفر' }
-const STATUS_LABEL: Record<string, string> = { exhausted: 'مستنفد', uncertain: 'غير مؤكد', suppressed: 'محظور' }
+// `sent`: a bounce or complaint arrives on a row that was sent (delivery is set, status is not).
+const STATUS_LABEL: Record<string, string> = { exhausted: 'مستنفد', uncertain: 'غير مؤكد', suppressed: 'محظور', sent: 'أُرسلت' }
 const DELIVERY_LABEL: Record<string, string> = { bounced: 'ارتد', complained: 'شكوى', failed: 'فشل' }
 /** An empty cell says so in words (a screen reader reads a bare dash as punctuation). */
 const NONE = 'لا يوجد'
 const SUPPRESSED_MESSAGE = 'المستلم محظور بعد ارتداد أو شكوى؛ لا يمكن الإرسال إليه.'
+const INACTIVE_MESSAGE = 'المستلم لم يعد عضوًا نشطًا في فريق المالك أو العمليات؛ لا يمكن الإرسال إليه.'
 /** `outbox_replay()` refuses anything but exhausted/uncertain rows (the
  * suppressed are hard-blocked), so the replay button only appears for them. */
 const REPLAYABLE_STATUSES = new Set(['exhausted', 'uncertain'])
@@ -80,7 +82,9 @@ export function EmailView() {
     const { error } = await supabase.rpc('outbox_replay', { p_id: id, p_accept_duplicate_risk: acceptDuplicateRisk })
     setBusyId(null)
     if (error) {
-      setRowError({ id, message: error.code === '23514' ? SUPPRESSED_MESSAGE : 'تعذّرت إعادة الإرسال.' })
+      const message =
+        error.code === '23514' ? SUPPRESSED_MESSAGE : error.code === '22023' ? INACTIVE_MESSAGE : 'تعذّرت إعادة الإرسال.'
+      setRowError({ id, message })
       return
     }
     await load()
@@ -205,7 +209,11 @@ export function EmailView() {
                     ) : (
                       NONE
                     )}
-                    {rowError?.id === row.id && <p className={styles.error}>{rowError.message}</p>}
+                    {rowError?.id === row.id && (
+                      <p role="alert" className={styles.error}>
+                        {rowError.message}
+                      </p>
+                    )}
                   </td>
                 </tr>
               ))}

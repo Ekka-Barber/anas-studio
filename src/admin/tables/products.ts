@@ -2,9 +2,14 @@ import type { TableConfig, TableField } from './index'
 
 /** The catalog's products: granted columns are exactly `toRow`'s output. */
 const fields: readonly TableField[] = [
-  { name: 'slug', label: 'المعرّف', type: 'slug' },
-  { name: 'title', label: 'العنوان', type: 'text' },
-  { name: 'summary', label: 'الملخص', type: 'textarea' },
+  {
+    name: 'slug',
+    label: 'المعرّف',
+    type: 'slug',
+    pattern: { regex: /^[a-z0-9][a-z0-9-]{0,79}$/, message: 'حروف لاتينية صغيرة وأرقام وشرطات، حتى 80، ولا يبدأ بشرطة.' },
+  },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true, maxLength: 200 },
+  { name: 'summary', label: 'الملخص', type: 'textarea', maxLength: 500 },
   { name: 'body', label: 'الوصف', type: 'richtext' },
   { name: 'cover_image', label: 'صورة الغلاف', type: 'image', nullable: true },
   {

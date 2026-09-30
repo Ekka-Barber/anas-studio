@@ -80,7 +80,7 @@ export function StoryFigure({
       <span className={styles.captionLink}>
         <span>{note.caption}</span>
         <Link href={note.link.href} prefetch={false}>
-          {note.link.label} ←
+          {note.link.label} <span aria-hidden="true">←</span>
         </Link>
       </span>
     ) : (

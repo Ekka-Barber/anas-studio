@@ -22,7 +22,7 @@ Cloudflare Email Routing forwards to it.
 
 1. **البريد** — the `outbox_attention()` rows that need a person
    (`/admin/email`). «إعادة الإرسال» replays an exhausted row. An uncertain
-   row past the 23-hour idempotency window opens a confirmation dialog,
+   or exhausted row past the 23-hour idempotency window opens a confirmation dialog,
    because it may already have been delivered. A suppressed recipient is
    refused — «المستلم محظور بعد ارتداد أو شكوى» — and only a deliberate
    manual database action re-allows it. Remember: provider acceptance is not
@@ -90,8 +90,9 @@ deliberate manual-database-action standard as un-suppressing a recipient.
 
 ## The outbox
 
-One row per message (`finance.email_outbox`). Priorities: **0** sign-in
-codes and receipts, **1** staff notices, **2** availability notices (P07).
+One row per message (`finance.email_outbox`). Priorities: **0** receipts,
+**1** staff notices, **2** availability notices (P07). Sign-in codes never
+enter the outbox (Supabase Auth SMTP, I28).
 
 ```
 pending ──claim──▶ sending ──accepted──▶ sent ──webhook──▶ delivered
@@ -125,14 +126,17 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   idempotency-keys), so a retry within that window cannot send twice. After
   23 hours (one hour of margin) the row waits for a person.
 - **Replay** (`outbox_replay`, owner or operations): queues an `exhausted`
-  or `uncertain` row again. A suppressed recipient is refused. An uncertain
-  row whose key has expired may already have been delivered, so replaying it
-  requires `accept_duplicate_risk` and rotates the idempotency key (the
-  dedupe key — the business identity — never changes). The action is
-  written to `audit_events` as `email.replay`.
+  or `uncertain` row again. A suppressed recipient is refused, and so is a
+  contact notice whose recipient is no longer an active owner or operations
+  member (such a notice is exhausted with `RECIPIENT_INACTIVE` when it is
+  claimed, and cannot be replayed). An `uncertain` or `exhausted` row whose
+  first attempt was more than 23 hours ago may already have been delivered,
+  so replaying it requires `accept_duplicate_risk` and rotates the
+  idempotency key (the dedupe key — the business identity — never changes).
+  The action is written to `audit_events` as `email.replay`.
 - **Attention** (`outbox_attention`, owner or operations): rows that need a
   person — `exhausted`, `uncertain`, `suppressed`, or a terminal delivery
-  event — with `replay_needs_confirmation` set for uncertain rows past the
+  event — with `replay_needs_confirmation` set for uncertain or exhausted rows past the
   23-hour window.
 
 ### Quota
@@ -150,21 +154,33 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   the day and the month, so one run can never overshoot either cap. When a
   cap is hit the run stops cleanly — rows never claimed simply stay
   `pending` for the next run.
-- Once 80 sends (quota − reserve) are used today, priority 2 (availability
-  notices) waits so sign-in codes, receipts and staff notices still go; at
-  100 nothing is claimed until midnight UTC.
+- Once 80 sends (quota − reserve) are used today, only priority 0 (receipts)
+  still goes: contact notices (priority 1, which anyone can trigger through
+  the form) and availability notices (priority 2) wait so receipts still go;
+  at 100 nothing is claimed until midnight UTC. Held-back priority 1 rows
+  stay due in `finance.outbox_due_since()`, so `outbox_kick()` calls the
+  function every minute until 00:00 UTC (an I35 residual: each call finds
+  nothing to claim).
 
-**Sign-in codes are not covered by the reserve (residual risk):** sign-in
-emails travel through Supabase Auth's SMTP (I28), not through the outbox, but
-the same Resend account absorbs them — and the outbox's sent-today count sees
-only outbox rows. The 20-send reserve must therefore absorb auth traffic too:
-keep sign-in volume low, and raise `RESERVE` in `supabase/functions/_shared/outbox.ts` if auth
-traffic grows. If Supabase Auth ever changes its sending path (a different
-provider or subaccount), this shared-limit assumption breaks silently —
-re-check I28's mail routing then.
+**Sign-in codes share the account but are not counted (residual risk):**
+sign-in emails travel through Supabase Auth's SMTP (I28), never through the
+outbox, but the same Resend account absorbs them — and the outbox's
+sent-today count sees only outbox rows. The 20-send reserve is what keeps
+room for them (the outbox holds it back from everything but receipts), so it
+must absorb auth traffic too: keep sign-in volume low, and raise `RESERVE` in
+`supabase/functions/_shared/outbox.ts` if auth traffic grows. If Supabase
+Auth ever changes its sending path (a different provider or subaccount),
+this shared-limit assumption breaks silently — re-check I28's mail routing
+then.
 
-Exceeding a quota at the provider returns 429, which the dispatcher
-classifies as `retry`.
+A 429 from Resend for its daily or monthly quota (`daily_quota_exceeded`,
+`monthly_quota_exceeded`) is a `QUOTA` retry: it does not use an attempt, it
+stops the run, and the row waits until the next 00:00 UTC (a monthly quota is
+probed once a day), so a quota outage does not use up the retry budget. If an
+earlier attempt may have reached Resend and that wait would outlast the
+23-hour idempotency window, the row becomes `uncertain` instead, so a person
+confirms the duplicate risk before a replay. Any other 429 is an ordinary
+`retry` with backoff.
 
 ### Suppression
 
@@ -236,7 +252,8 @@ wakes the function. The minute cadence is deliberate — the outbox's own
 `next_at` backoff and quota checks decide whether anything is actually sent,
 so the frequent check only keeps dispatch latency small. Each run is recorded
 in `finance.job_runs` (visible to owner/operations through
-`job_runs_latest`, purged after 30 days). With `JOBS_SECRET` unset the
+`job_runs_latest`, purged after 30 days except each job's newest run, so the
+backup warning and the `site_build` and `media_sweep` status survive). With `JOBS_SECRET` unset the
 function answers 404; with the Vault values unset (the local stack)
 `outbox_kick()` does nothing.
 
@@ -278,7 +295,18 @@ expire after five minutes). Storage refuses direct deletes from
 `storage.objects`, and one would orphan the stored bytes, so the removal
 never runs in SQL. The run is recorded as `media_sweep`; the owner home
 flags it when the last run is over 26 hours old. Public derivatives that
-outlive a deleted media row (I34's residual) are not swept yet.
+outlive a deleted media row (I34's residual) are not swept yet, and neither
+is an orphaned original under `media-private/originals/`.
+
+### Scheduled publishing
+
+`publish_due()` (pg_cron, every minute) publishes each due scheduled version
+in its own subtransaction, so one failing document (for example a post slug
+that is already taken) does not stop the others. A document that fails loses
+its schedule and is written to `audit_events` as `content.publish_due_failed`,
+so the owner can see it. A stale admin tab cannot publish or schedule a
+version older than the latest: the Data API answers 409 and the editor keeps
+its text.
 
 ### Uncertain-send reconciliation, in one paragraph
 
@@ -301,6 +329,9 @@ is `cache-control: no-store` and carries no PII).
 - **Visits and top pages** come from the Cloudflare GraphQL Analytics API
   (`httpRequestsAdaptiveGroups`, `sum.visits` and path counts, filtered to
   `requestSource: "eyeball"` and the production host, a 7-day UTC window).
+  The top pages count only 2xx answers; the HTML content-type filter is not
+  applied yet: at E11 confirm `edgeResponseContentTypeName` on the live schema
+  and add it to `TOP_PATHS_QUERY`.
   A sampled answer (`avg.sampleInterval` above 1) is refused, not estimated.
   It needs the function secrets `ANALYTICS_TOKEN` and `CLOUDFLARE_ZONE_ID`; with either missing the screen says
   «غير متاح — غير مُعدّة بعد», never 0. **The live account proof is gate
@@ -318,9 +349,9 @@ is `cache-control: no-store` and carries no PII).
 seller's legal name, address and freelance-certificate registration, the
 currency (SAR, fixed, read-only) and the approved policy revisions
 (read-only; «لم تُعتمد بعد» until P07 records them). `checkout_enabled`
-is `false` behind a check constraint the migration owns: P08 lifts it with
-the verified payment gateway, and until then the screen says payment is
-closed. There is no tax field anywhere (D34): prices are what the buyer
+stays `false`: P07 lifted the old check constraint, but no API path sets it
+(only the demo seed and the tests do); P08 adds the owner's switch behind the
+verified payment gateway, and until then the screen says payment is closed. There is no tax field anywhere (D34): prices are what the buyer
 pays.
 
 Reading goes through `commerce_settings_get()` (granted to `authenticated`;
@@ -353,14 +384,26 @@ holds behind Turnstile, and a `cancel` releases them. The SQL contract is
 - **Expiry:** availability ignores an expired hold the moment it expires, so
   the stock counts again before any job runs; the minute pg_cron job
   `checkout-expire` (`finance.checkout_expire()`) then marks the order
-  expired and releases its reservation rows in bounded batches.
+  expired and releases its reservation rows in bounded batches. Each expired
+  order writes one `order.expired` audit row (the order's id and number).
+- **Buyer retention (D42):** the daily pg_cron job `buyer-retention`
+  (03:53 UTC, `finance.buyer_retention_purge()`) deletes every expired or
+  cancelled order, with its items, reservations and coupon use, 90 days
+  after it ended, then every customer profile left with no order and
+  unchanged for 90 days. It writes one `privacy.buyer_retention` audit row
+  with the two counts. Open holds are never touched, and paid orders (P08)
+  keep the accounting retention E08 sets.
 - **A buyer cancels** with the order number and the access token the create
   replied with (`{"action":"cancel"}`): the holds release at once, and a
   wrong token answers 404, revealing nothing about the order.
 - **Residual risk (accepted):** many emails from many addresses can still
   hold scarce stock for 20 minutes at a time; the throttles bound, not stop,
   that. Turnstile runs before every create, and nothing is charged while a
-  hold is open (P08 adds payment).
+  hold is open (P08 adds payment). The store-wide 500-per-day create budget
+  is spent by refused requests as well as by real orders from many emails, so
+  a flood can close checkout for the rest of the UTC day; that is accepted
+  for now, and whether to keep it, raise it or replace it with an alert is a
+  P08 decision.
 - **Checkout stays off until P08.** The check that pinned `checkout_enabled`
   to false is lifted, but no API path sets it — only the local demo seed
   (`pnpm db:demo-catalog`) and the tests turn it on; P08 adds the owner's
@@ -387,7 +430,8 @@ order keeps its own contact snapshot.
 reference rows. A product is retired with `الحالة = مؤرشف`, a variant, rate
 or coupon with its enabled flag off. Every price, stock, fee, coupon term
 and status change is written to `audit_events` by the catalog's own
-triggers, with old and new values for the financial columns.
+triggers, with old and new values for the financial columns. A coupon's
+scope (`product_ids`), kind and code are audited with from/to too.
 
 **Stale saves.** Every catalog row carries a `version` the database bumps on
 each update; a save sends the version it read, so when another session
@@ -414,25 +458,35 @@ writes one audit row. Unpublished required policies answer «انشر سياسا
 المتجر والتوصيل والاسترجاع أولًا.», and a version changed in another
 session answers 409 like the seller save. The checkout compares the buyer's
 accepted revisions with the approved ones and refuses a mismatch. Buying
-itself opens only after the payment gateway is linked (P08).
+itself opens only after the payment gateway is linked (P08). Publishing a new
+seq of an approved policy, or removing it, resets the approval (audit
+`commerce.policies_reset`) and closes checkout (`POLICIES_NOT_CONFIGURED`)
+until the owner approves again; republishing the approved seq, or publishing
+a policy document that is not in the approved revisions (for example a privacy
+policy published after the approval), does not. A new seq of the privacy
+policy that was approved does reset it, like any other approved policy.
 
 ## Public store (P07)
 
 The public pages are `/store` (the list), `/store/<slug>` (one product),
 `/cart`, `/checkout` and `/policies/<store|delivery|refund|privacy>`, built
-at build time from the published catalog and the `policies` collection (D32,
-D38: plain on the current tokens until a v2 design direction is accepted).
+at build time from the published catalog and the `policies` collection (D32;
+styled in direction B, D39, with the calm treatment of DESIGN.md's "serious
+pages").
 
-- **The browser cart** stores only variant ids, quantities and dedications
-  (`localStorage['anasaq:cart:v1']`, at most 50 lines, quantity 1–20,
-  duplicate variants merged). No price, total, name or address is ever
+- **The browser cart** stores only variant ids, quantities and the schema
+  version (`localStorage['anasaq:cart:v1']`, at most 50 lines, quantity 1–20,
+  duplicate variants merged). Dedications live in
+  `sessionStorage['anasaq:dedications']` and go with the tab. No price, total, name or address is ever
   stored; every shown price comes from a live `quote` call to the `checkout`
   function, debounced ~300 ms. The city and coupon live in sessionStorage.
   When the browser blocks storage, the cart lives in memory for the tab and
   the page says «السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.»
 - **Checkout** sends `create` with one `checkoutSession` per tab and an
   `idempotencyKey` reused only for an identical retried request; the buyer
-  consents to exactly the policy revisions the quote carried. While
+  consents to exactly the policy revisions the quote carried. The create
+  idempotency key and a 53-bit digest of the request are kept in
+  `sessionStorage['anasaq:idempotency']`, with no buyer data. While
   `checkout_enabled` is false, the cart and checkout pages say «الشراء غير
   متاح حاليًا، ويفتح قريبًا.» and no order can be created (D34). A created
   hold shows its order number and «حُجز طلبك لمدة 20 دقيقة…», keeps the cart
@@ -492,7 +546,9 @@ running during `pnpm backup`: the CLI runs `pg_dump` in a container.
 
 - `pnpm backup` — the five dumps of the linked project plus both buckets'
   objects, written to `~/ANASAQ-backups/anasaq-backup-<UTC yyyymmdd-hhmmss>.enc`
-  (created if missing). `--local` backs up the development stack instead;
+  (created if missing). `--linked`, the default, needs `supabase link` first
+  (or `SUPABASE_PROJECT_ID`) and stops before writing anything without it.
+  `--local` backs up the development stack instead;
   `--out <dir>` picks another directory (never inside the repository). The
   passphrase is typed twice, hidden (minimum 12 characters), or read from
   `ANASAQ_BACKUP_PASSPHRASE` for unattended runs. Each run is recorded in
@@ -506,12 +562,13 @@ running during `pnpm backup`: the CLI runs `pg_dump` in a container.
   invocation, re-uploads every object with its original content type, then
   compares every table's row count and every object's sha256 and prints the
   elapsed time. `--extract <dir>` only decrypts the files for a manual
-  restore.
+  restore. The files are unencrypted, so it refuses a directory inside the
+  repository: use a folder outside the project.
 
 ### A real restore into a new hosted project
 
-1. `pnpm restore-check <file> --extract <empty dir>` on any machine with the
-   file and the passphrase (this yields the five dump files).
+1. `pnpm restore-check <file> --extract <empty dir outside the project>` on any
+   machine with the file and the passphrase (this yields the five dump files).
 2. Create the new Supabase project, then run the guide's psql restore
    (PostgreSQL's `psql` client) against the new project's connection string: `psql --single-transaction --variable
    ON_ERROR_STOP=1 --file roles.sql --file schema.sql --command 'SET
@@ -524,12 +581,21 @@ running during `pnpm backup`: the CLI runs `pg_dump` in a container.
    (docs/operations.md, "The outbox schedule").
 4. Re-set the Edge Function secrets with `supabase secrets set`
    (`JOBS_SECRET`, `RESEND_WEBHOOK_SECRET`, and the rest).
-5. Re-apply the Auth settings (I28): SMTP for Resend, redirect URLs and the
-   Arabic email templates.
+5. Re-apply the Auth settings (I28): SMTP for Resend, redirect URLs, the
+   Arabic email templates, the Custom Access Token hook
+   (`public.deny_password_tokens`) and `secure_password_change = true`;
+   re-check with a password grant, which must return 403.
 6. Upload the objects from `storage/<bucket>/...` back to their buckets with
    their original content types (read from
    `storage.objects.metadata->>'mimetype'` in the restored data) — exactly
    what `pnpm restore-check` does in its rehearsal.
+7. Reapply the deletion ledger before the site reopens
+   (docs/privacy-data-map.md, "The deletion ledger and restores"): first
+   re-revoke in the team screen every member a `revoke` line lists, then
+   re-run every erase line. A restored older backup brings revoked members
+   back active and erased contacts and staff data back.
+8. Once the restore is verified, delete the extracted directory. It is
+   unencrypted and holds every personal record and the Auth secrets.
 
 ### Accepted risks (D35)
 

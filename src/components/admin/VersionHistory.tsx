@@ -88,7 +88,11 @@ export function VersionHistory({ collection, docId, liveSeq, latestSeq, onRestor
   return (
     <div className={styles.field}>
       <h2>سجل النسخ</h2>
-      {error && <p className={styles.error}>{error}</p>}
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>

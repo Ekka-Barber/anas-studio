@@ -217,11 +217,11 @@ describe('RLS through real JWTs', () => {
     const docId = randomUUID()
     await postgres.query(
       "insert into public.content_versions (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
-      [docId, JSON.stringify({ cover: ticket })],
+      [docId, JSON.stringify({ cover: ticket, visible: true })],
       )
       await postgres.query(
       "insert into public.published_documents (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
-      [docId, JSON.stringify({ cover: ticket })],
+      [docId, JSON.stringify({ cover: ticket, visible: true })],
       )
 
     const visible = await anon.from('media').select('id,derivatives').eq('id', ticket)

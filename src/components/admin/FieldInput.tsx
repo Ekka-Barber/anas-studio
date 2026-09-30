@@ -11,7 +11,7 @@
  * library id shows a small preview of its 360 derivative instead of the raw
  * UUID. Videos are unchanged (manifest ids only).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { type Field } from '@/admin/fields'
 import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIso } from '../../lib/money-input'
@@ -27,6 +27,20 @@ import { RichTextEditor } from './RichTextEditor'
 
 const imageIds = Object.keys(imageManifestRaw as Record<string, unknown>)
 const videoIds = Object.keys((mediaManifestRaw as { videos: Record<string, unknown> }).videos)
+
+interface ManifestFile {
+  width: number
+  height: number
+  file: string
+}
+const imageEntries = imageManifestRaw as unknown as Record<string, { derivatives?: ManifestFile[]; poster?: ManifestFile }>
+
+/** The smallest committed file of a manifest id (its poster for a film still), or null when the id is not one. */
+function manifestThumb(id: unknown): ManifestFile | null {
+  if (typeof id !== 'string' || !imageIds.includes(id)) return null
+  const entry = imageEntries[id]
+  return entry?.derivatives?.[0] ?? entry?.poster ?? null
+}
 
 interface ImagePreview {
   name: string
@@ -57,6 +71,12 @@ function ImageFieldInput({
   const emptyValue = field.nullable ? null : undefined
   const isId = typeof value === 'string' && isMediaId(value)
   const current = isId && fetched?.id === value ? fetched : null
+  const changeRef = useRef<HTMLButtonElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // Set when the picker hands an image back. The opener unmounts while the new
+  // value loads, so focus goes to the «تغيير» button (or the raw input) once
+  // one of them shows again, instead of falling to <body>.
+  const justPicked = useRef(false)
 
   useEffect(() => {
     if (!isId) return
@@ -85,47 +105,102 @@ function ImageFieldInput({
     }
   }, [value, isId])
 
-  if (clearable && (value === null || value === undefined)) {
-    return (
-      <div className={styles.field}>
-        <span className={styles.label}>{field.label}</span>
-        <button type="button" className={styles.buttonSecondary} onClick={() => onChange('')}>
-          إضافة صورة
-        </button>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!justPicked.current) return
+    const target = changeRef.current ?? inputRef.current
+    if (!target) return
+    justPicked.current = false
+    target.focus()
+  })
 
-  // A library id shows a short loading state, then its preview — the raw
-  // UUID input only appears if the row cannot be read at all.
-  if (isId && current === null) {
-    return (
-      <div className={styles.field}>
-        <span className={styles.label}>{field.label}</span>
-        <p className={styles.message}>يحمّل...</p>
-      </div>
-    )
-  }
+  function fieldBody() {
+    if (clearable && (value === null || value === undefined)) {
+      return (
+        <div className={styles.field}>
+          <span className={styles.label}>{field.label}</span>
+          <button type="button" className={styles.buttonSecondary} onClick={() => onChange('')}>
+            إضافة صورة
+          </button>
+        </div>
+      )
+    }
 
-  if (isId && current?.preview) {
+    // A library id shows a short loading state, then its preview — the raw
+    // UUID input only appears if the row cannot be read at all.
+    if (isId && current === null) {
+      return (
+        <div className={styles.field}>
+          <span className={styles.label}>{field.label}</span>
+          <p className={styles.message}>يحمّل...</p>
+        </div>
+      )
+    }
+
+    if (isId && current?.preview) {
+      return (
+        <div className={styles.field}>
+          <span className={styles.label}>{field.label}</span>
+          <div className={styles.previewRow}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32) */}
+            <img
+              className={styles.previewImg}
+              src={current.preview.src}
+              alt={current.preview.alt}
+              width={current.preview.width}
+              height={current.preview.height}
+              loading="lazy"
+            />
+            <span>{current.preview.name}</span>
+          </div>
+          <div className={styles.row}>
+            <button ref={changeRef} type="button" className={styles.buttonSecondary} onClick={() => setPickerOpen(true)}>
+              تغيير
+            </button>
+            {clearable && (
+              <button type="button" className={styles.buttonSecondary} onClick={() => onChange(emptyValue)}>
+                إزالة
+              </button>
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    const thumb = manifestThumb(value)
     return (
       <div className={styles.field}>
-        <span className={styles.label}>{field.label}</span>
-        <div className={styles.previewRow}>
-          {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32) */}
+        <label className={styles.label} htmlFor={id}>
+          {field.label}
+        </label>
+        {thumb && (
+          // eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32)
           <img
             className={styles.previewImg}
-            src={current.preview.src}
-            alt={current.preview.alt}
-            width={current.preview.width}
-            height={current.preview.height}
+            src={`/${thumb.file}`}
+            alt=""
+            width={thumb.width}
+            height={thumb.height}
             loading="lazy"
           />
-          <span>{current.preview.name}</span>
-        </div>
+        )}
+        <input
+          ref={inputRef}
+          id={id}
+          className={styles.input}
+          list={`${id}-list`}
+          type="text"
+          dir="auto"
+          value={typeof value === 'string' ? value : ''}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <datalist id={`${id}-list`}>
+          {imageIds.map((optionId) => (
+            <option key={optionId} value={optionId} />
+          ))}
+        </datalist>
         <div className={styles.row}>
           <button type="button" className={styles.buttonSecondary} onClick={() => setPickerOpen(true)}>
-            تغيير
+            اختر من المكتبة
           </button>
           {clearable && (
             <button type="button" className={styles.buttonSecondary} onClick={() => onChange(emptyValue)}>
@@ -133,42 +208,24 @@ function ImageFieldInput({
             </button>
           )}
         </div>
-        <MediaPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onChoose={onChange} />
       </div>
     )
   }
 
+  // One picker for every state above, so choosing an image never unmounts the
+  // open dialog while the field swaps between its loading and preview views.
   return (
-    <div className={styles.field}>
-      <label className={styles.label} htmlFor={id}>
-        {field.label}
-      </label>
-      <input
-        id={id}
-        className={styles.input}
-        list={`${id}-list`}
-        type="text"
-        dir="auto"
-        value={typeof value === 'string' ? value : ''}
-        onChange={(event) => onChange(event.target.value)}
+    <>
+      {fieldBody()}
+      <MediaPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onChoose={(mediaId) => {
+          justPicked.current = true
+          onChange(mediaId)
+        }}
       />
-      <datalist id={`${id}-list`}>
-        {imageIds.map((optionId) => (
-          <option key={optionId} value={optionId} />
-        ))}
-      </datalist>
-      <div className={styles.row}>
-        <button type="button" className={styles.buttonSecondary} onClick={() => setPickerOpen(true)}>
-          اختر من المكتبة
-        </button>
-        {clearable && (
-          <button type="button" className={styles.buttonSecondary} onClick={() => onChange(emptyValue)}>
-            إزالة
-          </button>
-        )}
-      </div>
-      <MediaPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onChoose={onChange} />
-    </div>
+    </>
   )
 }
 
@@ -180,6 +237,8 @@ export interface Taxonomy {
 export interface TaxonomiesByKind {
   category: Taxonomy[]
   tag: Taxonomy[]
+  /** The taxonomy query failed; an empty list must not read as «none published». */
+  failed?: boolean
 }
 
 /** A field list's empty starting value, computed from the config itself. */
@@ -199,7 +258,6 @@ function defaultForField(field: Field): unknown {
     case 'text':
     case 'textarea':
     case 'slug':
-    case 'date':
     case 'image':
     case 'video':
       return ''
@@ -234,6 +292,18 @@ function move<T>(items: readonly T[], from: number, to: number): T[] {
   return next
 }
 
+/**
+ * Moves one item and keeps keyboard focus on it. Rows are keyed by index, so
+ * without this the focused button would stay at the old index, on the item that
+ * took its place. A disabled end button cannot take focus, so the item's other
+ * arrow is used there.
+ */
+function reorder(id: string, items: readonly unknown[], from: number, to: number, onChange: (value: unknown) => void) {
+  onChange(move(items, from, to))
+  const direction = to < from ? (to === 0 ? 'down' : 'up') : to === items.length - 1 ? 'up' : 'down'
+  requestAnimationFrame(() => document.getElementById(`${id}-${to}-move-${direction}`)?.focus())
+}
+
 interface FieldInputProps {
   field: Field
   value: unknown
@@ -245,16 +315,33 @@ interface FieldInputProps {
 type MoneyField = Extract<Field, { type: 'money' }>
 
 /**
+ * What a money field reports to the form for the text typed: the integer
+ * halalas, `null` for empty text where the column is nullable, else NaN
+ * (invalid text, or empty text in a non-nullable field) so the schema rejects
+ * it and the old amount cannot be saved.
+ */
+export function moneyChange(text: string, nullable: boolean): number | null {
+  const parsed = parseRiyals(text)
+  if (parsed === 'invalid') return Number.NaN
+  if (parsed === null) return nullable ? null : Number.NaN
+  return parsed
+}
+
+/**
  * A `money` field (P07 round 2, D06): the owner types riyals (a percentage
  * for a coupon, `unit: 'percent'`), the stored value stays integer halalas
- * (basis points). Invalid text shows the Arabic message and leaves the
- * stored value untouched; an empty nullable field stores null, with the
+ * (basis points). Invalid text shows the Arabic message and reports NaN to
+ * the form, which its schema rejects, so Save cannot write an amount other
+ * than the one typed; an empty nullable field stores null, with the
  * config's `nullHint` explaining what that means.
  */
 function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; value: unknown; onChange: (value: unknown) => void; id: string }) {
   const isPercent = field.unit === 'percent'
-  const [text, setText] = useState(() => (value === null || value === undefined ? '' : formatRiyalsInput(value as number)))
-  const [invalid, setInvalid] = useState(false)
+  // NaN is this field's own "the text is invalid" report (a hidden field
+  // remounts with it), so it opens as empty text with the message showing.
+  const startsInvalid = typeof value === 'number' && Number.isNaN(value)
+  const [text, setText] = useState(() => (value === null || value === undefined || startsInvalid ? '' : formatRiyalsInput(value as number)))
+  const [invalid, setInvalid] = useState(startsInvalid)
 
   useEffect(() => {
     // The stored value changed elsewhere (a reload); text that already
@@ -264,6 +351,8 @@ function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; va
     let active = true
     void Promise.resolve().then(() => {
       if (!active) return
+      // NaN is this field's own "the text is invalid" report; keep the text.
+      if (typeof value === 'number' && Number.isNaN(value)) return
       const parsed = parseRiyals(text)
       if ((typeof parsed === 'number' && parsed === value) || (parsed === null && (value === null || value === undefined))) return
       setText(value === null || value === undefined ? '' : formatRiyalsInput(value as number))
@@ -277,19 +366,9 @@ function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; va
 
   function update(next: string) {
     setText(next)
-    const parsed = parseRiyals(next)
-    if (parsed === 'invalid') {
-      setInvalid(true)
-      return
-    }
-    setInvalid(false)
-    if (parsed === null) {
-      // Empty becomes null only where the column allows it.
-      if (field.nullable) onChange(null)
-      else setInvalid(true)
-      return
-    }
-    onChange(parsed)
+    const change = moneyChange(next, !!field.nullable)
+    setInvalid(typeof change === 'number' && Number.isNaN(change))
+    onChange(change)
   }
 
   const empty = value === null || value === undefined
@@ -306,12 +385,14 @@ function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; va
           inputMode="decimal"
           dir="ltr"
           value={text}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? `${id}-error` : undefined}
           onChange={(event) => update(event.target.value)}
         />
         <span>{isPercent ? '٪' : 'ر.س'}</span>
       </div>
       {invalid && (
-        <p className={styles.error}>
+        <p id={`${id}-error`} role="alert" className={styles.error}>
           {isPercent ? 'أدخل نسبة صحيحة، مثل 10 أو 12.5.' : 'أدخل مبلغًا صحيحًا بالريال، مثل 69 أو 69.50.'}
         </p>
       )}
@@ -352,21 +433,6 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
             className={styles.input}
             rows={4}
             value={typeof value === 'string' ? value : ''}
-            onChange={(event) => onChange(event.target.value)}
-          />
-        </div>
-      )
-    case 'date':
-      return (
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor={id}>
-            {field.label}
-          </label>
-          <input
-            id={id}
-            className={styles.input}
-            type="date"
-            value={typeof value === 'string' ? value.slice(0, 10) : ''}
             onChange={(event) => onChange(event.target.value)}
           />
         </div>
@@ -499,12 +565,18 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
     }
     case 'relation': {
       const kind = field.name === 'tags' ? 'tag' : 'category'
-      const options = taxonomies?.[kind] ?? []
       const selected = Array.isArray(value) ? (value as string[]) : []
+      const published = taxonomies?.[kind] ?? []
+      // A chosen slug that is no longer published (archived) still shows, so it can be unticked.
+      const options = [
+        ...published,
+        ...selected.filter((slug) => !published.some((option) => option.slug === slug)).map((slug) => ({ slug, label: slug })),
+      ]
       return (
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>{field.label}</legend>
-          {options.length === 0 && <p className={styles.message}>لا توجد عناصر منشورة بعد.</p>}
+          {taxonomies?.failed && <p className={styles.error}>تعذّر تحميل التصنيفات.</p>}
+          {!taxonomies?.failed && options.length === 0 && <p className={styles.message}>لا توجد عناصر منشورة بعد.</p>}
           {options.map((option) => (
             <div key={option.slug} className={styles.row}>
               <input
@@ -576,18 +648,20 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
               />
               <div className={styles.row}>
                 <button
+                  id={`${id}-${index}-move-up`}
                   type="button"
                   className={styles.buttonSecondary}
                   disabled={index === 0}
-                  onClick={() => onChange(move(items, index, index - 1))}
+                  onClick={() => reorder(id, items, index, index - 1, onChange)}
                 >
                   أعلى
                 </button>
                 <button
+                  id={`${id}-${index}-move-down`}
                   type="button"
                   className={styles.buttonSecondary}
                   disabled={index === items.length - 1}
-                  onClick={() => onChange(move(items, index, index + 1))}
+                  onClick={() => reorder(id, items, index, index + 1, onChange)}
                 >
                   أسفل
                 </button>
@@ -645,18 +719,20 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
               )}
               <div className={styles.row}>
                 <button
+                  id={`${id}-${index}-move-up`}
                   type="button"
                   className={styles.buttonSecondary}
                   disabled={index === 0}
-                  onClick={() => onChange(move(items, index, index - 1))}
+                  onClick={() => reorder(id, items, index, index - 1, onChange)}
                 >
                   أعلى
                 </button>
                 <button
+                  id={`${id}-${index}-move-down`}
                   type="button"
                   className={styles.buttonSecondary}
                   disabled={index === items.length - 1}
-                  onClick={() => onChange(move(items, index, index + 1))}
+                  onClick={() => reorder(id, items, index, index + 1, onChange)}
                 >
                   أسفل
                 </button>

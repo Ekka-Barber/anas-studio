@@ -1052,46 +1052,6 @@
       "file": "images/started/45-animated-pottery-signature-poster.webp"
     }
   },
-  "46-kid-picnic-jam-poster": {
-    "room": "started",
-    "poster": {
-      "width": 576,
-      "height": 1024,
-      "file": "images/started/46-kid-picnic-jam-poster.webp"
-    }
-  },
-  "47-kid-bisht-honey-jar-poster": {
-    "room": "started",
-    "poster": {
-      "width": 480,
-      "height": 848,
-      "file": "images/started/47-kid-bisht-honey-jar-poster.webp"
-    }
-  },
-  "48-kid-supermarket-tomato-pesto-poster": {
-    "room": "started",
-    "poster": {
-      "width": 576,
-      "height": 1024,
-      "file": "images/started/48-kid-supermarket-tomato-pesto-poster.webp"
-    }
-  },
-  "49-kid-hotel-breakfast-poster": {
-    "room": "started",
-    "poster": {
-      "width": 576,
-      "height": 1024,
-      "file": "images/started/49-kid-hotel-breakfast-poster.webp"
-    }
-  },
-  "50-kid-cafe-croissant-jam-poster": {
-    "room": "started",
-    "poster": {
-      "width": 576,
-      "height": 1024,
-      "file": "images/started/50-kid-cafe-croissant-jam-poster.webp"
-    }
-  },
   "raha-reel-community-poster": {
     "room": "built",
     "poster": {

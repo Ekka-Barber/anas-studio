@@ -61,9 +61,6 @@
     text-decoration: underline;
   }
 }
-.boutiqueLine {
-  line-height: 1.15;
-}
 .boutiqueName {
   display: flex;
   flex-direction: column;

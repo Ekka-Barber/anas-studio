@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDate, formatNumber, formatRiyadh, formatYear, normalizeSaudiMobile, whatsappLink } from '../../src/lib/format'
+import { formatDate, formatNumber, formatRiyadh, normalizeSaudiMobile, whatsappLink } from '../../src/lib/format'
 
 describe('format', () => {
   it('formats numbers with Latin digits, never Arabic-Indic', () => {
@@ -8,15 +8,15 @@ describe('format', () => {
     expect(formatNumber(7)).not.toMatch(/[٠-٩۰-۹]/)
   })
 
-  it('formats a bare year with Latin digits and no grouping', () => {
-    expect(formatYear(2013)).toBe('2013')
-    expect(formatYear(2020)).toBe('2020')
-  })
-
   it('formats dates with Latin digits', () => {
     const formatted = formatDate('2026-09-23')
     expect(formatted).not.toMatch(/[٠-٩۰-۹]/)
     expect(formatted).toMatch(/2026/)
+  })
+
+  it('shows the Riyadh calendar day, not the UTC one', () => {
+    // 22:30 UTC on the 23rd is 01:30 on the 24th in Riyadh.
+    expect(formatDate('2026-09-23T22:30:00Z')).toMatch(/24/)
   })
 })
 

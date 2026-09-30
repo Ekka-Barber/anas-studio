@@ -100,11 +100,10 @@ export function VideoTile({
           </span>
         </button>
       )}
-      {state === 'failed' && (
-        <p role="status" className={styles.status}>
-          تعذّر تشغيل المقطع. حاول مرة أخرى.
-        </p>
-      )}
+      {/* Always mounted: a status inserted already filled is often missed by screen readers. */}
+      <p role="status" className={state === 'failed' ? styles.status : 'visually-hidden'}>
+        {state === 'failed' ? 'تعذّر تشغيل المقطع. حاول مرة أخرى.' : ''}
+      </p>
     </div>
   )
 }

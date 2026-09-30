@@ -15,6 +15,9 @@
  *   (adaptive sampling; `avg.sampleInterval` is the sample interval in
  *   seconds — 1 means unsampled, anything above 1 means the numbers are
  *   estimates)
+ * - https://developers.cloudflare.com/llms-full.txt, fetched 2026-09-30 (the
+ *   "Get top crawled paths" example: `httpRequestsAdaptiveGroups` filtered by
+ *   `edgeResponseStatus_geq` / `edgeResponseStatus_lt`)
  * The node's field/dimension names live in the GraphQL schema itself (the
  * docs point at schema introspection, not a static reference page); the live
  * schema check happens with the real account at gate E11 (P11). Until then
@@ -70,13 +73,14 @@ export const VISITS_QUERY = /* GraphQL */ `query OwnerVisits($zoneTag: string, $
   }
 }`
 
+// Only 2xx answers: scanner probes (404), redirects and blocked requests are not pages people read.
 export const TOP_PATHS_QUERY = /* GraphQL */ `query OwnerTopPaths($zoneTag: string, $start: Time, $end: Time, $host: string) {
   viewer {
     zones(filter: { zoneTag: $zoneTag }) {
       httpRequestsAdaptiveGroups(
         limit: ${TOP_PATHS_QUERY_LIMIT}
         orderBy: [count_DESC]
-        filter: { datetime_geq: $start, datetime_lt: $end, requestSource: "eyeball", clientRequestHTTPHost: $host }
+        filter: { datetime_geq: $start, datetime_lt: $end, requestSource: "eyeball", clientRequestHTTPHost: $host, edgeResponseStatus_geq: 200, edgeResponseStatus_lt: 300 }
       ) {
         count
         avg { sampleInterval }
@@ -101,9 +105,9 @@ export function analyticsVariables(now: Date, zoneTag: string, host: string) {
 
 /**
  * Path prefixes and file extensions that are not pages people read: the
- * admin, the APIs, Next's assets, and static files.
+ * admin, the APIs, Next's assets, Cloudflare's own `/cdn-cgi` endpoints, and static files.
  */
-const EXCLUDED_PREFIXES = ['/admin', '/api', '/_next']
+const EXCLUDED_PREFIXES = ['/admin', '/api', '/_next', '/cdn-cgi']
 const EXCLUDED_EXTENSIONS = new Set([
   'css', 'js', 'mjs', 'map', 'json', 'xml', 'txt', 'ico', 'png', 'jpg', 'jpeg', 'webp', 'avif',
   'svg', 'gif', 'woff', 'woff2', 'ttf', 'otf', 'eot', 'mp4', 'webm', 'mov', 'pdf', 'zip', 'wasm',

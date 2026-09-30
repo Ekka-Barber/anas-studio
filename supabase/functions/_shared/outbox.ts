@@ -25,12 +25,13 @@ export const DAILY_QUOTA = 100
 export const MONTHLY_QUOTA = 3_000
 
 /**
- * Sends held back at the top of the priority order: once the day has used
- * `DAILY_QUOTA - RESERVE` outbox sends, priority 2 (availability notices)
- * waits while 0 (receipts) and 1 (staff notices) still go. Sign-in codes do
+ * Sends held back for what must never wait: once the day has used
+ * `DAILY_QUOTA - RESERVE` outbox sends, only priority 0 (receipts) still
+ * goes; staff notices (1, which anyone can trigger through the contact form)
+ * and availability notices (2) wait for the next UTC day. Sign-in codes do
  * not travel through the outbox — Supabase Auth sends them over its own SMTP
- * connection (I28) — so the reserve only bounds outbox volume against the
- * Resend daily limit those codes share.
+ * connection (I28) — so the reserve keeps the last sends of the Resend daily
+ * limit free for them.
  */
 export const RESERVE = 20
 
@@ -172,6 +173,10 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
         p_provider_id: outcome.outcome === 'accepted' ? outcome.providerId : null,
         p_error: outcome.outcome === 'accepted' ? null : outcome.error,
       })
+      // The provider's quota is spent, so every further claim would be
+      // refused too: stop. The row waits for the reset without using up an
+      // attempt (outbox_result).
+      if (outcome.outcome === 'retry' && outcome.error === 'QUOTA') break
     }
     summary.status =
       summary.claimed === 0 || summary.accepted === summary.claimed ? 'ok' : summary.accepted > 0 ? 'partial' : 'failed'

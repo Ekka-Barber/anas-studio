@@ -157,6 +157,12 @@ body {
   font-size: inherit;
   line-height: inherit;
 }
+/* Arabic has no italic face: «مائل» would be a browser-slanted oblique that
+   distorts the joins. Emphasis keeps the upright display face instead. */
+:where([data-surface='site']) em {
+  font-style: normal;
+  font-family: var(--font-display);
+}
 
 img,
 video,

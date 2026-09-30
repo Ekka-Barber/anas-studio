@@ -21,7 +21,7 @@
  * 3. else `EmailNotConfiguredError` — unconfigured means unavailable.
  */
 
-import { isHostedSite, LOCAL_HOSTS, optionalEnv, requireEnv } from './env.ts'
+import { isHostedSite, LOCAL_HOSTS, optionalEnv, requireEnv, secretsMatch } from './env.ts'
 
 const RESEND_SEND_URL = 'https://api.resend.com/emails'
 const RESEND_TIMEOUT_MS = 10_000
@@ -52,15 +52,20 @@ export type SendOutcome =
  * - 409 `resource_locked` "Retry the request after a short delay" → retry;
  * - 409 `invalid_idempotent_request` "Change your idempotency key or payload"
  *   → permanent (retrying the same key and payload is useless);
- * - 429 (`daily_quota_exceeded`, `monthly_quota_exceeded`,
- *   `rate_limit_exceeded`) → retry (quota resets at midnight UTC / the next
- *   window; resend.com/docs/api-reference/rate-limit);
+ * - 429 `daily_quota_exceeded` / `monthly_quota_exceeded` → retry as `QUOTA`
+ *   (the daily quota resets at midnight UTC; the outbox gives the attempt
+ *   back and waits for the reset instead of counting it), and
+ *   `rate_limit_exceeded` → retry as `RATE_LIMIT` (a short backoff;
+ *   resend.com/docs/api-reference/errors, fetched 2026-09-30);
  * - other 4xx (400 `validation_error`, 401, 403 unverified domain or
  *   suspended key, 404, 405, 422 …) → permanent;
  * - 5xx (`application_error` 500, `service_unavailable` 503) "Try the request
  *   again later" → retry. */
 function classifyResendFailure(status: number, name: string | undefined): { outcome: 'retry' | 'permanent'; error: string } {
-  if (status === 429) return { outcome: 'retry', error: 'RATE_LIMIT' }
+  if (status === 429) {
+    const quota = name === 'daily_quota_exceeded' || name === 'monthly_quota_exceeded'
+    return { outcome: 'retry', error: quota ? 'QUOTA' : 'RATE_LIMIT' }
+  }
   if (status === 409) {
     if (name === 'concurrent_idempotent_requests') return { outcome: 'retry', error: 'CONCURRENT_IDEMPOTENT' }
     if (name === 'resource_locked') return { outcome: 'retry', error: 'RESOURCE_LOCKED' }
@@ -233,10 +238,12 @@ export interface ContactNoticeData {
  */
 export function renderContactNotice(data: ContactNoticeData): { subject: string; text: string } {
   const message = data.message.slice(0, NOTICE_MESSAGE_LIMIT)
+  // The name is one line: a line break in it would forge the lines below.
+  const name = data.name.replace(/[\r\n\u0085\u2028\u2029]+/gu, ' ')
   const lines = [
     'رسالة جديدة من نموذج التواصل',
     '',
-    `الاسم: ${isolated(data.name)}`,
+    `الاسم: ${isolated(name)}`,
     `البريد: ${isolated(data.email)}`,
     `الوقت: ${data.createdAt}`,
     '',
@@ -258,15 +265,6 @@ export function renderContactNotice(data: ContactNoticeData): { subject: string;
 // space-separated list of `v1,<sig>` entries and any one match accepts.
 
 const SVIX_TOLERANCE_MS = 5 * 60 * 1000
-
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  const length = Math.max(a.length, b.length)
-  let diff = a.length ^ b.length
-  for (let i = 0; i < length; i += 1) {
-    diff |= (a[i] ?? 0) ^ (b[i] ?? 0)
-  }
-  return diff === 0
-}
 
 function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
   const binary = atob(base64)
@@ -317,13 +315,10 @@ export async function verifySvixSignature(params: {
     return false
   }
 
+  // Svix's own libraries compare the base64 signature strings the same way.
+  const expectedSignature = bytesToBase64(expected)
   for (const entry of params.signatureHeader.split(' ')) {
-    if (!entry.startsWith('v1,')) continue
-    try {
-      if (timingSafeEqual(base64ToBytes(entry.slice('v1,'.length)), expected)) return true
-    } catch {
-      // Not valid base64: not a match.
-    }
+    if (entry.startsWith('v1,') && secretsMatch(entry.slice('v1,'.length), expectedSignature)) return true
   }
   return false
 }

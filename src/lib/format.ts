@@ -16,12 +16,19 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat(LOCALE).format(value)
 }
 
-/** Formats a Gregorian date with Arabic month names and Latin digits. */
+/**
+ * Formats a Gregorian date with Arabic month names and Latin digits, on the
+ * Riyadh calendar day: a build running in UTC must not show the day before
+ * for a post published between 00:00 and 03:00 Riyadh time.
+ */
 export function formatDate(value: Date | string): string {
   const date = typeof value === 'string' ? new Date(value) : value
-  return new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }).format(
-    date,
-  )
+  return new Intl.DateTimeFormat(LOCALE, {
+    timeZone: 'Asia/Riyadh',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date)
 }
 
 /**
@@ -44,11 +51,6 @@ export function formatRiyadh(iso: string): string {
  */
 export function typeset(text: string): string {
   return text.replace(/([،؛])(?=[\p{L}\p{N}])/gu, '$1 ').replace(/ (?=[.،؛:؟!…»)·])/gu, ' ')
-}
-
-/** A bare year label ("2013"), always Latin digits regardless of caller locale. */
-export function formatYear(year: number): string {
-  return new Intl.NumberFormat(LOCALE, { useGrouping: false }).format(year)
 }
 
 /**

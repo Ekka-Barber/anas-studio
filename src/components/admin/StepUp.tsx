@@ -56,7 +56,7 @@ export function StepUp({
   }
 
   return (
-    <dialog ref={dialogRef} className={styles.dialog} onClose={onClose}>
+    <dialog ref={dialogRef} className={styles.dialog} aria-label="التحقق بتطبيق المصادقة" onClose={onClose}>
       <form className={styles.form} onSubmit={submit}>
         <p>يلزم رمز تطبيق المصادقة لإكمال هذا الإجراء.</p>
         <div className={styles.field}>
@@ -82,7 +82,11 @@ export function StepUp({
             إلغاء
           </button>
         </div>
-        {error && <p className={styles.error}>{error}</p>}
+        {error && (
+          <p role="alert" className={styles.error}>
+            {error}
+          </p>
+        )}
       </form>
     </dialog>
   )

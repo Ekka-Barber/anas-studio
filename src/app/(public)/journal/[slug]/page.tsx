@@ -1,15 +1,9 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 
-import styles from '@/components/public/journal/journal.module.css'
-import { Picture } from '@/components/public/Picture'
-import { Band } from '@/components/weave/Band'
-import { Edge } from '@/components/weave/Edge'
-import { enter } from '@/components/weave/motion'
+import { PostView } from '@/components/public/journal/PostView'
 import { RoomNav } from '@/components/weave/RoomNav'
-import { Signature } from '@/components/weave/Signature'
-import { getPosts, readingTime, wordCount } from '@/lib/journal'
-import { RichText } from '@/lib/richtext'
+import { getJournalName } from '@/lib/content'
+import { getPosts } from '@/lib/journal'
 
 import NotFound from '../../not-found'
 
@@ -37,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const posts = await getPosts()
+  const [posts, journalName] = await Promise.all([getPosts(), getJournalName()])
   const index = posts.findIndex((entry) => entry.slug === slug)
   const post = posts[index]
   if (!post) return <NotFound />
@@ -46,46 +40,9 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
 
   return (
     <>
-      <div aria-hidden="true" className={styles.progress} />
-      <main id="main">
-        <article aria-labelledby="post-title">
-          <Band as="header" tone="saffron" edge="crenel" pad="hero" padEnd="l">
-            <nav aria-label="مسار" className={styles.crumbs} {...enter(40)}>
-              <Link href="/journal" prefetch={false}>
-                → المجلس
-              </Link>
-              {post.categories[0] && (
-                <span data-tone="aub" className={styles.cardTag}>
-                  {post.categories[0]}
-                </span>
-              )}
-            </nav>
-            <h1 id="post-title" className={`t-title ${styles.postTitle}`} {...enter(140, 'band')}>
-              {post.title}
-            </h1>
-            <p className={styles.meta} {...enter(420)}>
-              {post.author && <span>{post.author}</span>}
-              <span>{readingTime(wordCount(post.body))}</span>
-            </p>
-          </Band>
-          {post.cover && (
-            <Band tone="paper" pad="m">
-              <figure className={styles.postCover} {...enter(520, 'media')}>
-                <Picture id={post.cover} alt="" sizes="(min-width: 1100px) 1000px, 100vw" loading="eager" />
-              </figure>
-            </Band>
-          )}
-          <Edge kind="weave" />
-          <Band tone="sand" pad="l" padEnd="xl">
-            <div className={styles.prose}>
-              <RichText document={post.body} />
-            </div>
-            <Signature width={210} className={styles.postSign} />
-          </Band>
-        </article>
-      </main>
+      <PostView post={post} journalName={journalName} />
       <RoomNav
-        back={older ? { href: `/journal/${older.slug}`, label: older.title } : { href: '/journal', label: 'المجلس' }}
+        back={older ? { href: `/journal/${older.slug}`, label: older.title } : { href: '/journal', label: journalName }}
         backLabel={older ? 'تدوينة سابقة' : 'العودة'}
         next={newer ? { href: `/journal/${newer.slug}`, label: newer.title } : undefined}
         nextLabel="تدوينة أحدث"

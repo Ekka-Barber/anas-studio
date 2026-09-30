@@ -8,10 +8,15 @@ import { RoomHero } from '@/components/public/RoomHero'
 import { Band } from '@/components/weave/Band'
 import { enter } from '@/components/weave/motion'
 import { RoomNav } from '@/components/weave/RoomNav'
+import { getJournalName } from '@/lib/content'
+import { formatDate } from '@/lib/format'
 import { imageSources } from '@/lib/images'
 import { getPosts } from '@/lib/journal'
 
-export const metadata: Metadata = { title: 'المجلس' }
+/** The journal's name is Anas's to change (D11), so the title waits for the menu. */
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: await getJournalName() }
+}
 
 /**
  * المجلس (D11, D39): the journal. Built from the published posts at build
@@ -19,19 +24,21 @@ export const metadata: Metadata = { title: 'المجلس' }
  * majlis from his Street No. 4 photos, and points back to the rooms.
  */
 export default async function JournalPage() {
-  const posts = await getPosts()
+  const [posts, journalName] = await Promise.all([getPosts(), getJournalName()])
   const cards: JournalCard[] = posts.map((post) => ({
     slug: post.slug,
     title: post.title,
     excerpt: post.excerpt,
     categories: post.categories,
     cover: post.cover ? imageSources(post.cover) : null,
+    publishedAt: post.publishedAt,
+    date: formatDate(post.publishedAt),
   }))
 
   return (
     <>
       <main id="main">
-        <RoomHero tone="aub" title="المجلس" />
+        <RoomHero tone="aub" title={journalName} />
         {cards.length > 0 ? (
           <Band tone="sand" pad="m" padEnd="xl" aria-label="التدوينات">
             <JournalList posts={cards} />
@@ -52,7 +59,7 @@ export default async function JournalPage() {
                 لم تُنشر أول تدوينة بعد.
               </p>
               <Link href="/#rooms" prefetch={false} className="t-label" {...enter(700)}>
-                إلى الغرف ←
+                إلى الغرف <span aria-hidden="true">←</span>
               </Link>
             </div>
           </section>

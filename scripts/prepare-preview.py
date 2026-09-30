@@ -54,6 +54,16 @@ SOURCES = [
     {"file": "BOOK_ASSETS/ (9).pdf", "label": "من فصل «صورة الروضة»"},
 ]
 
+# The owner's approval of exactly the pages in SOURCES, copied into the
+# manifest. New or changed pages need a new approval: update this first, and
+# record it in PLANS/. main() refuses to write while the inputs differ from the
+# manifest and this is unchanged.
+APPROVAL = {
+    "by": "owner",
+    "date": "2026-09-28",
+    "words": "ANAS provide two or three PDF texts !! we only want to let users see these then had to buy the whole book to read",
+}
+
 # The only page-dictionary keys a rendered page needs.
 PAGE_KEYS = {"/Type", "/Parent", "/Resources", "/MediaBox", "/CropBox", "/Contents", "/Rotate", "/Group"}
 FORBIDDEN = [b"/JavaScript", b"/JS", b"/OpenAction", b"/AA", b"/EmbeddedFile", b"/Launch", b"/URI", b"/Annots", b"/Metadata"]
@@ -113,6 +123,17 @@ def verify(data: bytes, pages: list[dict]) -> None:
         assert normalized(page.extract_text()) == normalized(source.extract_text()), f"page {entry['page']} text differs from its source"
 
 
+def refuse_unapproved_inputs(inputs: list[dict]) -> None:
+    """The recorded approval covers the recorded inputs, nothing else."""
+    if not MANIFEST.exists():
+        return
+    recorded = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    keys = ("file", "sha256", "pages")
+    same = [{k: i[k] for k in keys} for i in recorded["inputs"]] == [{k: i[k] for k in keys} for i in inputs]
+    if not same and recorded["approval"] == APPROVAL:
+        sys.exit("The inputs differ from the ones the owner approved. Update APPROVAL in this script first, and record it in PLANS/.")
+
+
 def fixture(pages: int) -> bytes:
     """A4 pages with a frame and a Latin label, drawn in a standard font."""
     writer = PdfWriter()
@@ -143,15 +164,12 @@ def main() -> int:
         write_fixtures()
     data, inputs, pages = build()
     verify(data, pages)
+    refuse_unapproved_inputs(inputs)
     OUT_PDF.parent.mkdir(parents=True, exist_ok=True)
     OUT_PDF.write_bytes(data)
     manifest = {
         "note": "Written by scripts/prepare-preview.py. The public preview of «خوص»: only these pages are published (E04 range, owner 2026-09-28).",
-        "approval": {
-            "by": "owner",
-            "date": "2026-09-28",
-            "words": "ANAS provide two or three PDF texts !! we only want to let users see these then had to buy the whole book to read",
-        },
+        "approval": APPROVAL,
         "tool": f"pypdf {pypdf.__version__}",
         "inputs": inputs,
         "output": {

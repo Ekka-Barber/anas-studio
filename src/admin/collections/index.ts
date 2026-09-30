@@ -51,8 +51,9 @@ export const ROOM_DOC_LABELS: Record<RoomSlug, string> = {
   shelf: 'على الرف',
 }
 
-function isRoomSlug(docId: string): docId is RoomSlug {
-  return docId in roomSchemas
+/** Own keys only: `in` would accept `constructor` and `toString`. */
+export function isRoomSlug(docId: string): docId is RoomSlug {
+  return Object.hasOwn(roomSchemas, docId)
 }
 
 function isPolicyDocId(docId: string): docId is PolicyDocId {
@@ -65,7 +66,7 @@ export function documentTitle(collection: Collection, docId: string, data: Recor
     const fallback = isRoomSlug(docId) ? ROOM_DOC_LABELS[docId] : docId
     const label = typeof data?.roomLabel === 'string' ? data.roomLabel : null
     const title = typeof data?.title === 'string' ? data.title : null
-    return label && title ? `${label}: ${title}` : (title ?? fallback)
+    return label && title ? `${label}: ${title}` : (title || fallback)
   }
   if (collection === 'site_settings' || collection === 'scenes') return COLLECTION_LABELS[collection]
   if (collection === 'posts') {

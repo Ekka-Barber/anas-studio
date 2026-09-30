@@ -56,16 +56,8 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  // The spec's own order (cancelled, but its rows still reference the fixtures).
-  if (orderId) {
-    await db.query('delete from finance.order_items where order_id = $1', [orderId])
-    await db.query('delete from finance.inventory_reservations where order_id = $1', [orderId])
-    await db.query('delete from finance.orders where id = $1', [orderId])
-  }
-  await db.query('delete from public.customers where email = $1', [buyerEmail])
-  await db.query('delete from public.product_variants where product_id = $1', [productId])
-  await db.query('delete from public.products where id = $1', [productId])
-  await db.query('delete from public.shipping_rates where city_key = $1', [cityKey])
+  // Restore the settings first: a later cleanup step that throws must never
+  // leave checkout on with the test seller (cart-checkout.spec.ts does the same).
   await db.query(
     `update finance.commerce_settings set checkout_enabled = $1, seller_legal_name = $2, seller_address = $3,
        seller_registration = $4, policy_revisions = $5::jsonb, version = $6, configured_at = $7, approved_by = $8
@@ -81,6 +73,16 @@ test.afterAll(async () => {
       saved.approved_by,
     ],
   )
+  // The spec's own order (cancelled, but its rows still reference the fixtures).
+  if (orderId) {
+    await db.query('delete from finance.order_items where order_id = $1', [orderId])
+    await db.query('delete from finance.inventory_reservations where order_id = $1', [orderId])
+    await db.query('delete from finance.orders where id = $1', [orderId])
+  }
+  await db.query('delete from public.customers where email = $1', [buyerEmail])
+  await db.query('delete from public.product_variants where product_id = $1', [productId])
+  await db.query('delete from public.products where id = $1', [productId])
+  await db.query('delete from public.shipping_rates where city_key = $1', [cityKey])
   await db.end()
 })
 
@@ -150,12 +152,13 @@ test('with checkout on: create, repeat and cancel', async ({ request }) => {
   }
 
   const created = await post(request, body)
-  expect(created.status()).toBe(201)
   const createdBody = (await created.json()) as { ok: boolean; data: { order: { id: string; orderNumber: string; status: string }; accessToken: string } }
+  // Before any assertion: afterAll must find the order even when one fails.
+  orderId = createdBody.data?.order?.id ?? null
+  expect(created.status()).toBe(201)
   expect(createdBody.ok).toBe(true)
   expect(createdBody.data.order.status).toBe('pending_payment')
   expect(createdBody.data.accessToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
-  orderId = createdBody.data.order.id
 
   const repeated = await post(request, { ...body, turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX' })
   expect(repeated.status()).toBe(200)

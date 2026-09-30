@@ -1,16 +1,30 @@
 # Handoff
 
+## AUDIT-1, 2026-09-30
+
+**State.** The deep audit and its fixes are built and audited on `agent/design-b`, **uncommitted**, together with the owner's D41 change. `.anasaq-execution.lock` is held for AUDIT-1 until the owner decides on the commit. What was found, fixed and left open: `artifacts/acceptance/AUDIT-1/REPORT.md` (and `APPENDIX-findings.md`); the state: `PLANS/EXECUTION-STATUS.md` "AUDIT-1"; open items: `PLANS/ISSUES.md` I42 to I47.
+
+**Local stack.** Reset from zero on 2026-09-30 (every migration through `20260930120000_audit_fixes.sql`), then `pnpm db:import` and `pnpm db:demo-catalog`. The Auth config now has the password-refusing hook: after any change to `supabase/config.toml`, restart with plain `supabase stop` and `supabase start` (never `--no-backup`), then `docker start supabase_edge_runtime_ANASAQ.ME`. The integration and e2e suites add test staff on every run; past about 1,000 staff rows, the team screen (PostgREST `max_rows`) no longer shows a new invite, and `auth.spec` fails. A reset plus the two imports clears that.
+
+**How this session ran.** Two background Workflows, and no `/compact` while either ran: a read-only audit (224 agents), then a sequential fix workflow (11 rounds, one writer at a time, each round audited). Workflow agents do not get the Sonnet model that `.claude/settings.json` forces, so set `model` on every `agent()` call to keep D41.
+
+**Next.**
+1. The owner reviews AUDIT-1, decides the commit (D41 plus AUDIT-1) and the push, and decides I42 (the WhatsApp export in Git history) and I43 to I45.
+2. P08 under D38 (below).
+
+---
+
 ## CLEANUP-1 + PLAN-GAPS, 2026-09-29
 
 **State.** Committed on `agent/design-b` on the owner's word (2026-09-29: "I authorize the commits"), in two commits (code and docs, then evidence), not pushed; the lock is released. What changed, the gates and what is open: `PLANS/EXECUTION-STATUS.md` "CLEANUP-1 + PLAN-GAPS"; the proof map: `artifacts/acceptance/CLEANUP-1/commands.txt`.
 
 **Local stack.** Every migration applied through `20260929120000_scenes_collection.sql`; the content imported (the live settings, gallery and rooms equal `content/initial-content.json`); the demo catalog seeded. If the functions answer 503, the edge runtime container has exited: `docker start supabase_edge_runtime_ANASAQ.ME` (it had, this session). Never `supabase db reset` or `supabase stop --no-backup` without re-running `pnpm db:import` and `pnpm db:demo-catalog`.
 
-**How this session ran, and why.** The first orchestrator session died twice when `/compact` was sent while a background Workflow ran; Claude Code never answered it. This one used foreground Agent dispatches only (one `opus-worker` or `auditor` at a time, a fresh one per round) and background shell commands with one completion notification. Keep it that way, and write the state into the lock notes before a session gets long instead of compacting.
+**How this session ran, and why.** The first orchestrator session died twice when `/compact` was sent while a background Workflow ran; Claude Code never answered it. This one used foreground Agent dispatches only (one worker or `auditor` at a time, a fresh one per round; the dispatches are now `sonnet-worker` and `auditor` under D41) and background shell commands with one completion notification. Keep it that way, and write the state into the lock notes before a session gets long instead of compacting.
 
 **Next.**
 1. The owner reviews the package and decides on the push.
-2. P08 under D38 (the list in the 2026-09-27 section below, step 4).
+2. P08 under D38 (the 2026-09-27 section below, «Next work, in order», step 4; its steps 1 to 3 are done).
 3. When Anas answers: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40, C19), the services in the CMS.
 4. P11: I40's launch steps and I41 (the hosted content bootstrap needs the social links and the gallery).
 
@@ -23,7 +37,7 @@ Anas picked direction B «أنساق» (cover B, standing mockup B). The orchest
 **State.**
 - DESIGN-B is committed on branch `agent/design-b` (owner, 2026-09-28): `1ffb8a1` and `7ac94e8`, not pushed. Its lock was released.
 - P02 (the book preview reader), with the audit-2 fixes, is committed on top on the owner's word (2026-09-28: "once all fixes done commit"), not pushed; its lock was released. Evidence: `artifacts/acceptance/P02/commands.txt` and `audit-2/FINDINGS.md`; how it works: `docs/book-preview.md`.
-- From audit-2 on, the owner allows Opus 5.5 sub-agents (`opus-worker`, effort xhigh) for easier bounded work, one writer at a time, audited by the orchestrator. There is still no GLM for design.
+- From audit-2 on, the owner allows Opus 5.5 sub-agents (`opus-worker`, effort xhigh) for easier bounded work, one writer at a time, audited by the orchestrator. There is still no GLM for design. (Superseded by D41, 2026-09-30: every sub-agent is `sonnet-worker` or `auditor` on Sonnet 5.5; `opus-worker` is removed.)
 - Serious pages (the cart, the checkout, the policies, and P08's payment and order screens) stay calm and official: no reveals, only the title's short fade (DESIGN.md §4 and §6).
 - Evidence: `artifacts/acceptance/DESIGN-B/commands.txt`. The design reference is `DESIGN.md`; the product brief is `PRODUCT.md`.
 
@@ -45,6 +59,8 @@ Anas picked direction B «أنساق» (cover B, standing mockup B). The orchest
 ---
 
 # Handoff: orchestrator session of 2026-09-27 (second) to the next session
+
+History. Superseded: the working branch is `agent/design-b` (top section); do not run the Start block below; workers follow D41 (`sonnet-worker`, `auditor`), not glm-worker; commit and push only on the owner's word.
 
 The repository is the source of truth. Read this, then `PLANS/EXECUTION-STATUS.md`, `PLANS/ISSUES.md` (I38, I39) and `artifacts/acceptance/P07/commands.txt`.
 
@@ -132,6 +148,5 @@ E08 privacy policy wording (D35 backups, D36 90-day retention); the R2 note (D32
 - **Secrets and frozen sources:** never read or print `.env`; never edit `deploy/design/`; never inspect `_archive/`.
 - **Never invent:** prices, payments or E-gate closures.
 - **Runs:** Playwright on `http://localhost:3000`. After every e2e run, restore the screenshots the task did not change and `next-env.d.ts`.
-- **glm-worker:** its launcher cannot run `git checkout`. Check `permission_denials` in its JSON, and prove no process of its own is still running before you audit.
 - **Editing files with scripts:** a replacement containing `$` followed by a backtick, `'` or `&` is a `String.replace` pattern. Use the Edit tool or a replacer function.
 - **Escapes:** the command transport turns `\u` escapes into real characters, so write escapes with the Edit tool.

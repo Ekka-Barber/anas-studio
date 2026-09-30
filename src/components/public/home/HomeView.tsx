@@ -106,7 +106,9 @@ export function HomeView({ home, doors }: { home: HomeContent; doors: HomeDoor[]
                     )}
                     <span className={`t-label ${styles.doorFoot}`}>
                       {door.meta && <span className={door.tone === 'coral' || door.tone === 'saffron' ? undefined : 't-muted'}>{door.meta}</span>}
-                      <span className={styles.enter}>{door.cta ?? 'ادخل'} ←</span>
+                      <span className={styles.enter}>
+                        {door.cta ?? 'ادخل'} <span aria-hidden="true">←</span>
+                      </span>
                     </span>
                   </span>
                 </Link>

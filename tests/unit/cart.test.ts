@@ -4,14 +4,20 @@
 // when the idempotency key is reused.
 import { randomUUID } from 'node:crypto'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   addLine,
   cartCount,
   cartArea,
+  CART_EVENT,
   CART_STORAGE_KEY,
+  clearIdempotency,
+  DEDICATIONS_KEY,
+  digestText,
   EMPTY_CART,
+  readIdempotency,
+  writeIdempotency,
   fingerprintCreate,
   MAX_LINES,
   MAX_QUANTITY,
@@ -168,6 +174,69 @@ describe('storage', () => {
   })
 })
 
+describe('audit fixes: dedications, stale storage, the kept key', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('keeps the dedication when the same variant is added again', () => {
+    const typed = setDedication(addLine(EMPTY_CART, { variantId: VARIANT_A, quantity: 1 }), VARIANT_A, 'إلى أمي')
+    expect(addLine(typed, { variantId: VARIANT_A, quantity: 1 }).lines).toEqual([
+      { variantId: VARIANT_A, quantity: 2, dedication: 'إلى أمي' },
+    ])
+    expect(addLine(typed, { variantId: VARIANT_A, quantity: 1, dedication: 'جديد' }).lines[0]!.dedication).toBe('جديد')
+  })
+
+  it('turns pasted control characters into spaces', () => {
+    const base = addLine(EMPTY_CART, { variantId: VARIANT_A, quantity: 1 })
+    expect(setDedication(base, VARIANT_A, 'إلى\tأمي\nمع الحب').lines[0]!.dedication).toBe('إلى أمي مع الحب')
+  })
+
+  it('reads the memory cart while a write has failed on a readable storage, until a write succeeds', () => {
+    const stored = memoryArea()
+    let full = true
+    const flaky: CartArea = {
+      getItem: (key) => stored.getItem(key),
+      setItem: (key, value) => {
+        if (full) throw new Error('quota')
+        stored.setItem(key, value)
+      },
+      removeItem: (key) => stored.removeItem(key),
+    }
+    writeCart(cart([VARIANT_A]), stored)
+    expect(writeCart(cart([VARIANT_A, VARIANT_B]), flaky)).toBe(false)
+    expect(readCart(flaky)).toEqual({ cart: cart([VARIANT_A, VARIANT_B]), persistent: false })
+    full = false
+    expect(writeCart(cart([VARIANT_B]), flaky)).toBe(true)
+    expect(readCart(flaky)).toEqual({ cart: cart([VARIANT_B]), persistent: true })
+  })
+
+  it('keeps the dedication out of localStorage, restores it from sessionStorage, and announces the write', () => {
+    const local = memoryArea()
+    const session = memoryArea()
+    const fired: string[] = []
+    vi.stubGlobal('window', { sessionStorage: session, dispatchEvent: (event: Event) => fired.push(event.type) })
+    const typed = setDedication(addLine(EMPTY_CART, { variantId: VARIANT_A, quantity: 1 }), VARIANT_A, 'إلى سارة')
+    writeCart(typed, local)
+    expect(local.store.get(CART_STORAGE_KEY)).not.toContain('dedication')
+    expect(local.store.get(CART_STORAGE_KEY)).not.toContain('إلى سارة')
+    expect(readCart(local).cart).toEqual(typed)
+    expect(fired).toEqual([CART_EVENT])
+    writeCart(setDedication(typed, VARIANT_A, ''), local)
+    expect(session.store.get(DEDICATIONS_KEY)).toBe('{}')
+  })
+
+  it('keeps the idempotency key and a digest of the request, never the request', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    expect(digestText('buyer@example.com')).toMatch(/^[0-9a-f]{16}$/)
+    expect(digestText('a')).toBe(digestText('a'))
+    expect(digestText('a')).not.toBe(digestText('b'))
+    writeIdempotency({ digest: digestText('a'), key: VARIANT_A })
+    expect(readIdempotency()).toEqual({ digest: digestText('a'), key: VARIANT_A })
+    clearIdempotency()
+    expect(readIdempotency()).toBeNull()
+  })
+})
+
 describe('fingerprintCreate', () => {
   const core = {
     lines: [{ variantId: VARIANT_A, quantity: 2 }],
@@ -219,10 +288,12 @@ describe('fingerprintCreate', () => {
   })
 
   it('never includes the Turnstile token or the keys', () => {
-    const fingerprint = fingerprintCreate(core)
-    expect(fingerprint).not.toContain('XXXX')
-    expect(fingerprint).not.toContain('turnstile')
-    expect(fingerprint).not.toContain('idempotency')
-    expect(fingerprint.length).toBeGreaterThan(0)
+    // The extra per-attempt fields are passed in: the fingerprint must not move.
+    const withExtras = fingerprintCreate({ ...core, turnstileToken: 'XXXX.T', idempotencyKey: 'k' } as never)
+    expect(withExtras).toBe(fingerprintCreate(core))
+    expect(withExtras).not.toContain('XXXX')
+    expect(withExtras).not.toContain('turnstile')
+    expect(withExtras).not.toContain('idempotency')
+    expect(withExtras.length).toBeGreaterThan(0)
   })
 })

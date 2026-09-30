@@ -10,6 +10,7 @@ import { parseEnv } from 'node:util'
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { Client } from 'pg'
 
 type Status = {
   API_URL: string
@@ -83,6 +84,44 @@ export async function createOwner(displayName: string): Promise<string> {
     .insert({ user_id: data.user.id, display_name: displayName, role: 'owner' })
   if (staffError) throw new Error(`createOwner: ${staffError.message}`)
   return email
+}
+
+/**
+ * Puts a content document back as it was, through SQL: appends a copy of
+ * version `seq` (the one live when the test started) as the newest version and
+ * makes it live. It does nothing when the live copy and the newest draft
+ * already equal that version, so it is safe after a test that restored through
+ * the UI. Tests call it from an afterEach: a failed test then never leaves its
+ * edit published, or saved as the draft the next run opens.
+ */
+export async function restoreLive(collection: string, docId: string, seq: number): Promise<void> {
+  const db = new Client({ connectionString: status.DB_URL })
+  await db.connect()
+  try {
+    const { rows } = await db.query<{ clean: boolean }>(
+      `select (select data from public.published_documents where collection = $1::public.content_collection and doc_id = $2) is not distinct from o.data
+          and (select data from public.content_versions where collection = $1::public.content_collection and doc_id = $2 order by seq desc limit 1) is not distinct from o.data as clean
+       from public.content_versions o
+       where o.collection = $1::public.content_collection and o.doc_id = $2 and o.seq = $3::integer`,
+      [collection, docId, seq],
+    )
+    if (rows.length === 0 || rows[0]!.clean) return
+    const next = (
+      await db.query<{ seq: number }>(
+        'select coalesce(max(seq), 0) + 1 as seq from public.content_versions where collection = $1::public.content_collection and doc_id = $2',
+        [collection, docId],
+      )
+    ).rows[0]!.seq
+    await db.query(
+      `insert into public.content_versions (collection, doc_id, seq, data)
+       select collection, doc_id, $3::integer, data from public.content_versions
+       where collection = $1::public.content_collection and doc_id = $2 and seq = $4::integer`,
+      [collection, docId, next, seq],
+    )
+    await db.query('select public.content_go_live($1::public.content_collection, $2, $3::integer)', [collection, docId, next])
+  } finally {
+    await db.end()
+  }
 }
 
 /** Creates a staff member directly with the local service key (P05 media spec). */

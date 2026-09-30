@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
 import { isHostedSite, optionalEnv } from './env.ts'
-import { corsHeaders } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, ok, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { normalizeSaudiMobile } from './saudi-mobile.ts'
 import { verifyTurnstile, type TurnstileResult } from './turnstile.ts'
@@ -26,21 +26,7 @@ import { verifyTurnstile, type TurnstileResult } from './turnstile.ts'
  */
 
 const MAX_BODY_BYTES = 65_536
-/** Requests that declare more than this via content-length are refused before the body is read. */
-const MAX_DECLARED_BODY_BYTES = 65_536
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const NO_STORE = { 'cache-control': 'no-store' }
-
-/** The site origin the checkout pages live on; null when `SITE_URL` is unset or invalid. */
-function siteOrigin(): string | null {
-  const siteUrl = optionalEnv('SITE_URL')
-  if (!siteUrl) return null
-  try {
-    return new URL(siteUrl).origin
-  } catch {
-    return null
-  }
-}
 
 const dedicationField = z.string().max(200).nullable().optional()
 // A variant id may arrive in either case; both actions lower-case it before the
@@ -75,7 +61,8 @@ const createSchema = z.strictObject({
   checkoutSession: z.string().regex(UUID),
   lines: linesField,
   cityKey: z.string().max(80).optional(),
-  address: z.string().max(2000).optional(),
+  // The database bounds the folded address at 500 (checkout_create); a longer one is refused here, with the field named.
+  address: z.string().max(500).optional(),
   couponCode: z.string().max(64).optional(),
   email: emailField,
   name: z.string().trim().min(1).max(120),
@@ -220,12 +207,8 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
   const allowed = siteOrigin()
   const cors = allowed ? corsHeaders(allowed) : {}
   const fail = (status: number, code: string, message: string, fields?: unknown): Response =>
-    Response.json(
-      { ok: false, error: { code, message, ...(fields ? { fields } : {}) }, requestId: crypto.randomUUID() },
-      { status, headers: { ...NO_STORE, ...cors } },
-    )
-  const okReply = (data: unknown, status = 200): Response =>
-    Response.json({ ok: true, data }, { status, headers: { ...NO_STORE, ...cors } })
+    failWith(status, code, message, fields, cors)
+  const okReply = (data: unknown, status = 200): Response => ok(data, status, cors)
 
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors })
   if (request.method !== 'POST') return fail(405, 'METHOD_NOT_ALLOWED', 'طلب غير مسموح.')
@@ -239,17 +222,9 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
     return fail(415, 'UNSUPPORTED_MEDIA_TYPE', 'أرسل الطلب بصيغة JSON.')
   }
 
-  // Refuse an oversized request before reading the body; the post-read check
-  // below stays as the backstop when content-length is absent or understates.
-  const declaredLength = Number(request.headers.get('content-length'))
-  if (declaredLength > MAX_DECLARED_BODY_BYTES) {
-    return fail(413, 'TOO_LARGE', 'الطلب أطول من المسموح.')
-  }
-
-  const text = await request.text()
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return fail(413, 'TOO_LARGE', 'الطلب أطول من المسموح.')
-  }
+  // The bounded read refuses an oversized body, declared or streamed, without buffering it.
+  const text = await boundedText(request, MAX_BODY_BYTES)
+  if (text === null) return fail(413, 'TOO_LARGE', 'الطلب أطول من المسموح.')
   let body: unknown
   try {
     body = JSON.parse(text)

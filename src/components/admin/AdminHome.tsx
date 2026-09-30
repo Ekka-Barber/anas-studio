@@ -15,11 +15,10 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 
 import styles from './admin.module.css'
+import { ROLE_LABEL, type StaffRole } from './TableList'
 
-type StaffRole = 'owner' | 'editor' | 'operations'
-type Count = { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: number }
+type Count = { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: number; capped?: boolean }
 
-const ROLE_LABEL: Record<StaffRole, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل' }
 const JOB_LABEL: Record<string, string> = {
   email_outbox: 'إرسال البريد',
   site_build: 'بناء الموقع',
@@ -50,8 +49,8 @@ const JOB_STALE_TEXT: Partial<Record<string, string>> = {
 const JOB_NEVER_TEXT: Partial<Record<string, string>> = {
   backup: 'لا توجد نسخة بعد.',
 }
-/** `outbox_attention()` caps its result at 200 rows (its SQL limit), so once
- * the count reaches the cap it renders «200+» instead of a silent 200 (L6). */
+/** `outbox_attention()` caps its result at 200 rows (its SQL limit), so a
+ * result at the cap renders its count followed by «+», not a silent total (L6). */
 const ATTENTION_CAP = 200
 
 const LOADING: Count = { state: 'loading' }
@@ -60,6 +59,14 @@ interface JobRun {
   job: string
   status: string
   finished_at: string
+}
+
+/** The `outbox_attention()` rows a person can still act on: the replayable
+ * ones, the same rule as EmailView's «تحتاج تدخل». Suppressed recipients and
+ * sent rows with a bounce never clear, so counting them left a number the
+ * owner could not bring back to zero. */
+export function replayableCount(rows: readonly { status: string }[]): number {
+  return rows.filter((row) => row.status === 'exhausted' || row.status === 'uncertain').length
 }
 
 function countText(count: Count): string {
@@ -92,6 +99,7 @@ function emailWaiting(run: JobRun | undefined, dueSince: string | null): boolean
 
 export function AdminHome() {
   const [own, setOwn] = useState<{ display_name: string; role: StaffRole } | null>(null)
+  const [ownError, setOwnError] = useState(false)
   const [emailProblems, setEmailProblems] = useState<Count>(LOADING)
   const [jobRuns, setJobRuns] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: string | null }
@@ -113,7 +121,10 @@ export function AdminHome() {
       const supabase = getSupabaseBrowserClient()
       const { data, error } = await supabase.rpc('outbox_attention')
       if (!active) return
-      setEmailProblems(error ? { state: 'error' } : { state: 'ok', value: (data as unknown[])?.length ?? 0 })
+      const rows = (data as { status: string }[] | null) ?? []
+      setEmailProblems(
+        error ? { state: 'error' } : { state: 'ok', value: replayableCount(rows), capped: rows.length >= ATTENTION_CAP },
+      )
     }
 
     async function loadJobs() {
@@ -157,11 +168,20 @@ export function AdminHome() {
 
     void (async () => {
       const supabase = getSupabaseBrowserClient()
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) return
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (!active) return
+      if (userError || !userData.user) {
+        setOwnError(true)
+        return
+      }
       const { data: sessionData } = await supabase.auth.getSession()
-      const { data } = await supabase.from('staff').select('display_name, role').eq('user_id', userData.user.id).maybeSingle()
-      if (!active || !data) return
+      const { data, error: staffError } = await supabase.from('staff').select('display_name, role').eq('user_id', userData.user.id).maybeSingle()
+      if (!active) return
+      // D21: a failed lookup is shown as one, not as an empty page.
+      if (staffError || !data) {
+        setOwnError(true)
+        return
+      }
       const role = data.role as StaffRole
       setOwn({ display_name: data.display_name, role })
 
@@ -179,6 +199,11 @@ export function AdminHome() {
   return (
     <div>
       <h1>لوحة أنس</h1>
+      {ownError && (
+        <p role="alert" className={styles.error}>
+          تعذّر التحميل
+        </p>
+      )}
       {own && (
         <p>
           مرحبًا <bdi>{own.display_name}</bdi> ({ROLE_LABEL[own.role] ?? own.role})
@@ -190,9 +215,11 @@ export function AdminHome() {
           <h2>البريد</h2>
           <p>
             مشكلات تحتاج انتباهًا:{' '}
-            {emailProblems.state === 'ok' && emailProblems.value >= ATTENTION_CAP
-              ? `${ATTENTION_CAP}+`
-              : countText(emailProblems)}
+            {emailProblems.state === 'ok' && emailProblems.capped ? (
+              <span dir="ltr">{countText(emailProblems)}+</span>
+            ) : (
+              countText(emailProblems)
+            )}
           </p>
           <Link href="/admin/email">فتح البريد</Link>
         </section>
@@ -241,7 +268,13 @@ export function AdminHome() {
           {store.state === 'not-configured' && <p className={styles.message}>المتجر غير مُهيأ بعد. تظهر أرقامه عند افتتاحه.</p>}
           <p>
             زيارات آخر 7 أيام:{' '}
-            {visits.state === 'ok' ? formatNumber(visits.value) : visits.state === 'loading' ? 'يحمّل...' : 'غير متاحة'}
+            {visits.state === 'ok'
+              ? formatNumber(visits.value)
+              : visits.state === 'loading'
+                ? 'يحمّل...'
+                : visits.state === 'error'
+                  ? 'تعذّر التحميل'
+                  : 'غير متاحة'}
           </p>
           <Link href="/admin/stats">فتح الإحصاءات</Link>
         </section>

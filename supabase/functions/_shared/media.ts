@@ -112,14 +112,6 @@ export function publicKey(id: string, width: number): string {
   return `m/${id}/${width}.webp`
 }
 
-/** The upload ticket's parts list, as the API replies with it. */
-export function declaredParts(declared: TicketRequest): Array<{ part: string; bytes: number }> {
-  return [
-    { part: 'original', bytes: declared.original.bytes },
-    ...declared.derivatives.map((d) => ({ part: `w${d.width}`, bytes: d.bytes })),
-  ]
-}
-
 /**
  * Maps a PostgreSQL SQLSTATE raised by the media functions to its HTTP reply.
  * Anything else returns null and the route answers 500 FAILED.
@@ -135,7 +127,7 @@ export function sqlErrorToHttp(code: string | undefined): { status: number; code
     case '54000':
       return { status: 429, code: 'RATE_LIMITED', message: 'لديك رفعات مفتوحة كثيرة؛ أكملها ثم تابع.' }
     case '23503':
-      return { status: 409, code: 'IN_USE', message: 'الصورة مستخدمة في مستندات.' }
+      return { status: 409, code: 'IN_USE', message: 'الصورة مستخدمة في مستندات أو منتجات.' }
     case '23514':
     case '22P02':
     case '22023':

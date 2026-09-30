@@ -81,7 +81,7 @@ export function SceneGallery({ items, categories }: { items: SceneItem[]; catego
         ))}
         </div>
         <p role="status" className="visually-hidden">
-          {category === ALL ? '' : `${category}: ${photoCount(shown.length)}`}
+          {`${category}: ${photoCount(shown.length)}`}
         </p>
       </Band>
       <Edge kind="weave" />
@@ -99,13 +99,23 @@ export function SceneGallery({ items, categories }: { items: SceneItem[]; catego
               data-reveal=""
               data-delay={(i % 4) * 70}
             >
-              <button
-                type="button"
+              {/* A link to the photograph itself, so without script it still opens the picture;
+                  with script it is the lightbox's button (Space too, which a link does not answer). */}
+              <a
+                href={item.sources.src}
+                role="button"
                 className={styles.open}
                 aria-label={`تكبير: ${item.caption}`}
-                onClick={() => {
+                onClick={(event) => {
+                  event.preventDefault()
                   setDirection(0)
                   setIndex(i)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === ' ') {
+                    event.preventDefault()
+                    event.currentTarget.click()
+                  }
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15); the srcset comes from the manifest */}
@@ -120,7 +130,7 @@ export function SceneGallery({ items, categories }: { items: SceneItem[]; catego
                   loading={i < 5 ? 'eager' : 'lazy'}
                   decoding="async"
                 />
-              </button>
+              </a>
               <span aria-hidden="true" className={styles.tileTag}>
                 {item.category}
               </span>

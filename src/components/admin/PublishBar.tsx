@@ -14,12 +14,9 @@ import type { Collection } from '@/admin/collections'
 import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument } from '@/lib/admin-publish'
 import { formatRiyadh } from '@/lib/format'
 
-import styles from './admin.module.css'
+import { riyadhLocalToIso } from '../../lib/money-input'
 
-/** `<input type="datetime-local">`'s value, read as Riyadh wall-clock time. */
-function riyadhLocalToIso(localValue: string): string {
-  return new Date(`${localValue}:00+03:00`).toISOString()
-}
+import styles from './admin.module.css'
 
 interface PublishBarProps {
   collection: Collection
@@ -129,7 +126,9 @@ export function PublishBar({
       </div>
       {liveSeq !== null && <p className={styles.message}>منشور حاليًا: نسخة {liveSeq}.</p>}
       {scheduledAt && <p className={styles.message}>مجدول في {formatRiyadh(scheduledAt)}.</p>}
-      {message && <p className={styles.message}>{message}</p>}
+      <p role="status" className={styles.message}>
+        {message}
+      </p>
     </div>
   )
 }

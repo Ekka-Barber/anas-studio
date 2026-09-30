@@ -6,7 +6,7 @@
       "command": [
         "npx",
         "-y",
-        "@nanonets/graft",
+        "@nanonets/graft@0.21.1",
         "mcp"
       ],
       "enabled": true

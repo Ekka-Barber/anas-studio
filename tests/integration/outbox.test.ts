@@ -52,7 +52,9 @@ async function insertRow(
      returning id, idempotency_key`,
     [
       dedupeKey,
-      overrides.kind ?? 'contact_notice',
+      // A contact notice is only sent to an active owner or operations member
+      // (S03.5), so fixtures default to a kind with no recipient rule.
+      overrides.kind ?? 'receipt',
       overrides.priority ?? 1,
       overrides.recipient ?? `${dedupeKey}@example.com`,
       overrides.status ?? 'pending',
@@ -220,6 +222,36 @@ describe('claiming', () => {
     expect(claimed.find((r) => r.id === row.id)).toBeUndefined()
     expect((await rowState(row.id)).status).toBe('suppressed')
   })
+
+  it('a contact notice for a member who is no longer an active owner or operations is exhausted, never sent (S03.5)', async () => {
+    await parkOthers()
+    // The last-owner guard refuses any staff update while no owner is active,
+    // so a fresh database needs one before a member is revoked or demoted.
+    await createStaff('owner')
+    const kept = await createStaff('operations')
+    const revoked = await createStaff('operations')
+    const demoted = await createStaff('operations')
+    const keptRow = await insertRow({ label: 'notice-kept', kind: 'contact_notice', recipient: kept.email })
+    const revokedRow = await insertRow({ label: 'notice-revoked', kind: 'contact_notice', recipient: revoked.email })
+    const demotedRow = await insertRow({ label: 'notice-demoted', kind: 'contact_notice', recipient: demoted.email })
+    await postgres.query('update public.staff set active = false where user_id = $1', [revoked.userId])
+    await postgres.query("update public.staff set role = 'editor' where user_id = $1", [demoted.userId])
+
+    const claimed = await claim(10)
+    const ids = claimed.map((r) => r.id)
+    expect(ids).toContain(keptRow.id)
+    expect(ids).not.toContain(revokedRow.id)
+    expect(ids).not.toContain(demotedRow.id)
+    for (const gone of [revokedRow, demotedRow]) {
+      expect(await rowState(gone.id)).toMatchObject({ status: 'exhausted', last_error: 'RECIPIENT_INACTIVE' })
+      const audit = await postgres.query(
+        "select 1 from public.audit_events where action = 'email.exhausted' and entity = 'email_outbox' and entity_id = $1",
+        [gone.id],
+      )
+      expect(audit.rowCount).toBe(1)
+    }
+    for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
+  })
 })
 
 describe('outbox_result', () => {
@@ -280,8 +312,84 @@ describe('outbox_result', () => {
   })
 })
 
+describe('outbox_result: quota and early delivery events', () => {
+  it('a QUOTA retry gives the attempt back and waits for the next UTC midnight; it never exhausts the row (S04.2)', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'quota-retry' })
+    // More rejections than max_attempts: an ordinary retry would be exhausted by now.
+    for (let i = 0; i < 10; i += 1) {
+      await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+      const claimed = await claim(1)
+      expect(claimed.map((r) => r.id)).toEqual([row.id])
+      expect(await result(row.id, claimed[0]!.lease_id, 'retry', null, 'QUOTA')).toBe(true)
+    }
+    expect(await rowState(row.id)).toMatchObject({ status: 'pending', attempts: 0, last_error: 'QUOTA' })
+    const wait = await postgres.query<{ ok: boolean }>(
+      "select next_at = date_trunc('day', now(), 'UTC') + interval '1 day' as ok from finance.email_outbox where id = $1",
+      [row.id],
+    )
+    expect(wait.rows[0]!.ok).toBe(true)
+  })
+
+  // The fixture is anchored to the next UTC midnight (the QUOTA wait), not to now(),
+  // so the outcome does not depend on the time of day the suite runs.
+  it.each([
+    ['becomes uncertain when the wait outlasts the idempotency window', '23 hours 30 minutes', 'uncertain'],
+    ['stays pending when the wait ends inside the idempotency window', '22 hours 30 minutes', 'pending'],
+  ])('a QUOTA retry of a row whose earlier attempt may have been sent %s', async (_name, age, status) => {
+    await parkOthers()
+    const row = await insertRow({ label: `quota-${status}` })
+    const first = await claim(1)
+    expect(await result(row.id, first[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+    const second = await claim(1)
+    expect(second.map((r) => r.id)).toEqual([row.id])
+    await postgres.query(
+      "update finance.email_outbox set first_attempt_at = date_trunc('day', now(), 'UTC') + interval '1 day' - $2::interval where id = $1",
+      [row.id, age],
+    )
+    expect(await result(row.id, second[0]!.lease_id, 'retry', null, 'QUOTA')).toBe(true)
+    expect(await rowState(row.id)).toMatchObject({ status, attempts: 1 })
+  })
+
+  it('a delivery or bounce event that beat the reply is applied when the send is accepted, by the webhook precedence (S04.4)', async () => {
+    await parkOthers()
+    const bounced = await insertRow({ label: 'early-bounce' })
+    const delivered = await insertRow({ label: 'early-delivered' })
+    const bouncedId = uniqueKey('msg-bounce')
+    const deliveredId = uniqueKey('msg-delivered')
+    try {
+      // Newest last: a late 'delayed' must not shadow 'delivered', and a
+      // bounce beats a delivery.
+      await postgres.query(
+        `insert into finance.email_delivery_events (provider_event_id, provider_message_id, type, received_at) values
+           ($1, $2, 'email.delivered', now() - interval '3 seconds'),
+           ($3, $2, 'email.bounced', now() - interval '2 seconds'),
+           ($4, $2, 'email.delivery_delayed', now() - interval '1 second'),
+           ($5, $6, 'email.delivered', now() - interval '3 seconds'),
+           ($7, $6, 'email.delivery_delayed', now() - interval '1 second')`,
+        [uniqueKey('e1'), bouncedId, uniqueKey('e2'), uniqueKey('e3'), uniqueKey('e4'), deliveredId, uniqueKey('e5')],
+      )
+      const claimed = await claim(2)
+      expect(claimed.map((r) => r.id).sort()).toEqual([bounced.id, delivered.id].sort())
+      for (const row of claimed) {
+        expect(await result(row.id, row.lease_id, 'accepted', row.id === bounced.id ? bouncedId : deliveredId)).toBe(true)
+      }
+      const rows = await postgres.query<{ id: string; delivery: string | null }>(
+        'select id, delivery from finance.email_outbox where id = any($1)',
+        [[bounced.id, delivered.id]],
+      )
+      const byId = new Map(rows.rows.map((r) => [String(r.id), r.delivery]))
+      expect(byId.get(String(bounced.id))).toBe('bounced')
+      expect(byId.get(String(delivered.id))).toBe('delivered')
+    } finally {
+      await postgres.query('delete from finance.email_delivery_events where provider_message_id = any($1)', [[bouncedId, deliveredId]])
+    }
+  })
+})
+
 describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts sources)', () => {
-  it('at quota − reserve priority 2 waits while 0 and 1 still go; at the quota nothing is claimed', async () => {
+  it('at quota − reserve only priority 0 (receipts) still goes, so sign-in codes keep the reserve; at the quota nothing is claimed', async () => {
     await parkOthers()
     const todayCount = async () =>
       (await postgres.query('select count(*)::int as n from finance.email_outbox where sent_at >= date_trunc(\'day\', now())')).rows[0]!.n
@@ -303,8 +411,9 @@ describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts source
     let claimed = await claim(10)
     const ids = claimed.map((r) => r.id)
     expect(ids).toContain(high.id)
-    expect(ids).toContain(mid.id)
+    expect(ids).not.toContain(mid.id)
     expect(ids).not.toContain(low.id)
+    expect((await rowState(mid.id)).status).toBe('pending')
     expect((await rowState(low.id)).status).toBe('pending')
     for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
 
@@ -378,6 +487,41 @@ describe('operations views through real JWTs', () => {
     const stored = (await postgres.query<{ dedupe_key: string }>('select dedupe_key from finance.email_outbox where id = $1', [row.id]))
       .rows[0]!
     expect(stored.dedupe_key).toContain('replay')
+  })
+
+  it('an exhausted row that may have been sent needs the duplicate-risk confirmation after 23 hours, and gets a new key (X1.3)', async () => {
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    const old = await insertRow({ label: 'exhausted-old', status: 'exhausted' })
+    await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '24 hours' where id = $1", [old.id])
+    const recent = await insertRow({ label: 'exhausted-recent', status: 'exhausted' })
+    await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '1 hour' where id = $1", [recent.id])
+
+    const attention = await client.rpc('outbox_attention')
+    const rows = attention.data as Array<{ id: number; replay_needs_confirmation: boolean }>
+    expect(rows.find((r) => r.id === Number(old.id))?.replay_needs_confirmation).toBe(true)
+    expect(rows.find((r) => r.id === Number(recent.id))?.replay_needs_confirmation).toBe(false)
+
+    const refused = await client.rpc('outbox_replay', { p_id: Number(old.id), p_accept_duplicate_risk: false })
+    expect(refused.error?.code).toBe('55000')
+    expect((await client.rpc('outbox_replay', { p_id: Number(old.id), p_accept_duplicate_risk: true })).error).toBeNull()
+    const state = await rowState(old.id)
+    expect(state.status).toBe('pending')
+    expect(state.idempotency_key).not.toBe(old.idempotency_key)
+
+    // Inside the window the same key is reused and no confirmation is asked.
+    expect((await client.rpc('outbox_replay', { p_id: Number(recent.id), p_accept_duplicate_risk: false })).error).toBeNull()
+    expect((await rowState(recent.id)).idempotency_key).toBe(recent.idempotency_key)
+  })
+
+  it('replay of a contact notice for a member who is no longer an active owner or operations is refused (S03.5)', async () => {
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    const gone = await createStaff('operations', { active: false })
+    const row = await insertRow({ label: 'replay-inactive', kind: 'contact_notice', recipient: gone.email, status: 'exhausted' })
+    const { error } = await client.rpc('outbox_replay', { p_id: Number(row.id), p_accept_duplicate_risk: true })
+    expect(error?.code).toBe('22023')
+    expect((await rowState(row.id)).status).toBe('exhausted')
   })
 
   it('replay of a suppressed recipient is refused', async () => {

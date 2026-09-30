@@ -49,7 +49,6 @@
   "exclude": [
     "node_modules",
     "supabase/functions",
-    ".next",
     "out",
     "artifacts",
     "_archive",

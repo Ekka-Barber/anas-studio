@@ -4,13 +4,15 @@
 // coupon through the database like checkout-api.spec.ts, saves
 // finance.commerce_settings in beforeAll and restores it in afterAll, and
 // each test that depends on the store switch sets it itself. Screenshots land
-// in artifacts/acceptance/P07/screenshots/store-*.png at 360 and 1440.
+// in store-*.png at 360 and 1440 under shotsDir('P07'): the accepted evidence
+// folder only for an ACCEPTANCE_PACKAGE=P07 run, test-results/ otherwise.
 import { mkdirSync } from 'node:fs'
 
 import { Client } from 'pg'
 import { expect, test, type Page } from '@playwright/test'
 
 import { readStatus, SITE_ORIGIN } from './helpers'
+import { shotsDir } from './shots'
 
 const status = readStatus()
 const marker = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
@@ -19,7 +21,7 @@ const couponCode = `E2ESTORE${marker}`.toUpperCase().replace(/[^A-Z0-9]/g, '').s
 const cityKey = `e2ecity${marker}`.toLowerCase().replace(/[^a-z0-9-]/g, '')
 const buyers = `buyer-${marker}-%`
 const TITLE = 'كتاب الاختبار للمتجر'
-const SHOTS = 'artifacts/acceptance/P07/screenshots'
+const SHOTS = shotsDir('P07')
 
 // Prices no demo product or rate uses (D37's demo catalog sells at 15.00,
 // 35.00, 45.00, 69.00 and 99.00 and delivers for 25.00 to 35.00), and every
@@ -34,6 +36,8 @@ let db: Client
 let saved: Record<string, unknown>
 let productId: string
 let paperId: string
+/** Policies checkoutOn() published because none were live; afterAll removes them again. */
+const publishedPolicies: string[] = []
 
 /** One row of the quote's totals: «المجموع الفرعي», «الخصم», «التوصيل» or «الإجمالي». */
 function totalRow(page: Page, label: string) {
@@ -150,6 +154,12 @@ test.afterAll(async () => {
   await db.query('delete from public.products where id = $1', [productId])
   await db.query('delete from public.shipping_rates where city_key = $1', [cityKey])
   await db.query('delete from public.coupons where code = $1', [couponCode])
+  // archive_document refuses `policies` (and needs a publisher's JWT), so the
+  // test policies are removed with SQL, live copy and versions both.
+  if (publishedPolicies.length > 0) {
+    await db.query("delete from public.published_documents where collection = 'policies' and doc_id = any($1::text[])", [publishedPolicies])
+    await db.query("delete from public.content_versions where collection = 'policies' and doc_id = any($1::text[])", [publishedPolicies])
+  }
   await db.end()
 })
 
@@ -176,7 +186,8 @@ async function checkoutOn() {
         `insert into public.content_versions (collection, doc_id, seq, data) values ('policies', $1, $2, $3::jsonb)`,
         [id, seq, JSON.stringify({ title: id, body: { root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: 'نص سياسة الاختبار.', version: 1 }], version: 1 }] } } })],
       )
-      await db.query('select public.content_go_live($1, $2)', ['policies', id])
+      await db.query('select public.content_go_live($1, $2, $3)', ['policies', id, seq])
+      publishedPolicies.push(id)
     }
     revisionsText = (
       await db.query<{ revisions: string }>(
@@ -234,8 +245,9 @@ test('the cart persists across reload, follows the live quote and removes a line
   await expect(totalRow(page, 'الإجمالي')).toContainText('59.60 ر.س')
 
   await page.reload()
-  await expect(paper.getByLabel('الكمية', { exact: true })).toHaveValue('2')
-  await expect(ebook.getByLabel('الكمية', { exact: true })).toHaveValue('1')
+  // The quantity field is named after its line («الكمية: <product>: <variant>», X3.11).
+  await expect(paper.getByLabel(/^الكمية/)).toHaveValue('2')
+  await expect(ebook.getByLabel(/^الكمية/)).toHaveValue('1')
 
   // A physical line needs a city; choosing one adds its fee.
   await expect(page.getByText('اختر مدينة التوصيل.')).toBeVisible()

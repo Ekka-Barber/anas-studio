@@ -34,8 +34,8 @@ The rendered pages are pixel-identical to the sources, checked with PyMuPDF on 2
 
 When Anas approves other pages, or sends the final book's pages:
 1. Put the PDFs in `BOOK_ASSETS/` and list them, in order and with their labels, in `SOURCES` in `scripts/prepare-preview.py`.
-2. Run `python scripts/prepare-preview.py`, then `pnpm test` (the manifest test checks the labels and page count) and `tests/e2e/reader.spec.ts`.
-3. Record the approval in the manifest (`approval`) and in `PLANS/`.
+2. Update `APPROVAL` in `scripts/prepare-preview.py` (and the date asserted in `tests/unit/reader-mapping.test.ts`) before running, and record the approval in `PLANS/`. The script refuses to write when the inputs differ from the manifest and `APPROVAL` is unchanged.
+3. Run `python scripts/prepare-preview.py` (it writes `APPROVAL` into the manifest as `approval`), then `pnpm test` (the manifest test checks the labels and page count) and `tests/e2e/reader.spec.ts`.
 
 Never put the whole book in `public/`. A preview is a separate, smaller file.
 
@@ -56,6 +56,7 @@ The design is in `DESIGN.md` ("The book reader"). The owner's audit of the first
   - Where the frame runs past the A4 sheet, pdf.js fills the canvas with the paper colour, so the sheet continues seamlessly.
 - **Nothing loads until the book is opened.**
   - «افتح الكتاب», or a part under «ابدأ من», imports the reader's chunk, pdf.js (`pdfjs-dist` 6.3.289) and page-flip 2.0.7. Both are pinned (D10). The worker comes from the same package.
+  - page-flip 2.0.7 carries a pnpm patch (`patches/page-flip@2.0.7.patch`, registered under `patchedDependencies` in `package.json`) that stops its animation-frame loop when the book is destroyed. Re-check the patch whenever page-flip is upgraded.
   - Without JavaScript the button and the parts are links to the preview PDF, at their page (`#page=`).
 - **One stage.** The closed book, the loading state and the open book share one box, sized from `--stage-h`. Opening never moves the page; the e2e test keeps the section's height within 2px.
 - **A physical Arabic hardcover.**
@@ -65,7 +66,7 @@ The design is in `DESIGN.md` ("The book reader"). The owner's audit of the first
   - page-flip rewrites each leaf's inline style, so anything a leaf needs from JavaScript (the linen of the back cover) is set on the book's root. Loading also pins the root's minimum width to `minWidth`, so the reader resets it after `loadFromHTML`.
 - **Canvases.**
   - Only the leaves on screen and one spread either side hold a canvas: at most six, at 1.5× device pixels in the book and 2× in the reading view.
-  - Pages are drawn at the book's page width even while page-flip hides them, so a turning page is never blank. A stale render is cancelled.
+  - Pages are drawn at the book's page width even while page-flip hides them, so a turning page is never blank: in portrait, `renderWindow` counts the skipped empty leaves (blanks and endpapers), so the window reaches past them to the leaf the turn lands on. A stale render is cancelled.
   - The text layers are hidden while a page turns. With a GPU (Intel Iris Xe) a turn at 1440 runs at about 60fps.
 - **Motion.**
   - With motion allowed, a page turns in 900ms and a hard board swings.

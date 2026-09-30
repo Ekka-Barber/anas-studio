@@ -14,9 +14,9 @@ import styles from './site.module.css'
 // The menu's links are woven bands, cycling through four of B's surfaces.
 const MENU_TONES: Tone[] = ['coral', 'saffron', 'paper', 'night']
 
-function Brand({ className }: { className?: string }) {
+function Brand({ className, onClick }: { className?: string; onClick?: () => void }) {
   return (
-    <Link href="/" prefetch={false} aria-label="أنس، الرئيسية" className={`${styles.brand} ${className ?? ''}`}>
+    <Link href="/" prefetch={false} aria-label="أنس، الرئيسية" className={`${styles.brand} ${className ?? ''}`} onClick={onClick}>
       <Mark />
       <span className={styles.brandName}>أنس</span>
       <span dir="ltr" className={styles.brandDomain}>
@@ -136,7 +136,7 @@ export function SiteHeader({ items }: { items: NavItem[] }) {
         onClose={() => setOpen(false)}
       >
         <div className={styles.menuBar}>
-          <Brand />
+          <Brand onClick={() => setOpen(false)} />
           <button type="button" data-tone="paper" className={styles.closeButton} onClick={() => setOpen(false)}>
             إغلاق
           </button>

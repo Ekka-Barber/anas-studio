@@ -11,7 +11,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 import { collections, COLLECTION_LABELS, documentTitle, schemaFor, type Collection } from '@/admin/collections'
-import type { Field } from '@/admin/fields'
+import { equalData, type Field } from '@/admin/fields'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { defaultsForFields, FieldInput, type TaxonomiesByKind } from './FieldInput'
@@ -33,9 +33,10 @@ function fieldsFor(collection: Collection, docId: string): readonly Field[] {
   return collections[collection].fields as readonly Field[]
 }
 
-/** The admin preview of a room's draft (D32); rooms without a built page have none. */
+/** The admin preview of a room's or a post's draft (D32); rooms without a built page have none. */
 function previewPathFor(collection: Collection, docId: string): string | null {
   if (collection === 'rooms' && PREVIEW_ROOMS.has(docId)) return `/admin/preview?id=${docId}`
+  if (collection === 'posts') return `/admin/preview?collection=posts&id=${docId}`
   return null
 }
 
@@ -58,10 +59,6 @@ function readStoredDraft(collection: Collection, docId: string): StoredDraft | n
   }
 }
 
-function equalData(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b)
-}
-
 export function CollectionForm({ collection, docId }: { collection: Collection; docId: string }) {
   const fields = fieldsFor(collection, docId)
   const schema = schemaFor(collection, docId)
@@ -76,11 +73,12 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   const [initialData, setInitialData] = useState<Record<string, unknown>>({})
   const [data, setData] = useState<Record<string, unknown>>({})
   const [localOffer, setLocalOffer] = useState<Record<string, unknown> | null>(null)
+  // The version the offered copy was made from, when a newer one is saved now.
+  const [staleBase, setStaleBase] = useState<number | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [taxonomies, setTaxonomies] = useState<TaxonomiesByKind>({ category: [], tag: [] })
   const [loadGeneration, setLoadGeneration] = useState(0)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hydratedRef = useRef(false)
   const loadedOnceRef = useRef(false)
 
@@ -99,7 +97,11 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     if (!needsTaxonomies) return
     void (async () => {
       const supabase = getSupabaseBrowserClient()
-      const { data: rows } = await supabase.from('published_documents').select('doc_id, data').eq('collection', 'taxonomies')
+      const { data: rows, error } = await supabase.from('published_documents').select('doc_id, data').eq('collection', 'taxonomies')
+      if (error) {
+        setTaxonomies({ category: [], tag: [], failed: true })
+        return
+      }
       const category: TaxonomiesByKind['category'] = []
       const tag: TaxonomiesByKind['tag'] = []
       for (const row of (rows as { doc_id: string; data: { kind?: string; label?: string } }[]) ?? []) {
@@ -141,6 +143,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
 
     const stored = readStoredDraft(collection, docId)
     setLocalOffer(stored && !equalData(stored.data, loadedData) ? (stored.data as Record<string, unknown>) : null)
+    setStaleBase(stored && stored.baseSeq < loadedSeq ? stored.baseSeq : null)
 
     setLoading(false)
     loadedOnceRef.current = true
@@ -157,24 +160,24 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collection, docId])
 
-  // Autosave: debounce 1s into localStorage, skipped until hydrated. A form
-  // equal to its saved version keeps no copy: the copy a save removed would
-  // otherwise come back a second later and, once a restore or another
-  // session changed the document, be offered as unsaved work. A copy still
-  // on offer stays until the user answers it.
+  // Autosave into localStorage on every change, skipped until hydrated. It is
+  // not on a timer: a timer is dropped by an unmount, a reload of the
+  // document or a closed tab, and the text typed in that second is lost. A
+  // form equal to its saved version keeps no copy: the copy a save removed
+  // would otherwise come back and, once a restore or another session changed
+  // the document, be offered as unsaved work. A copy still on offer stays
+  // untouched until the user answers it, or the form would overwrite it.
   useEffect(() => {
-    if (!hydratedRef.current) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (equalData(data, initialData)) {
-      if (!localOffer) window.localStorage.removeItem(draftKey(collection, docId))
-      return
-    }
-    debounceRef.current = setTimeout(() => {
-      const draft: StoredDraft = { baseSeq, data, savedAt: Date.now() }
-      window.localStorage.setItem(draftKey(collection, docId), JSON.stringify(draft))
-    }, 1000)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!hydratedRef.current || localOffer) return
+    try {
+      if (equalData(data, initialData)) {
+        window.localStorage.removeItem(draftKey(collection, docId))
+      } else {
+        const draft: StoredDraft = { baseSeq, data, savedAt: Date.now() }
+        window.localStorage.setItem(draftKey(collection, docId), JSON.stringify(draft))
+      }
+    } catch {
+      // Storage full or blocked: the form still works, only the local copy is lost.
     }
   }, [data, initialData, localOffer, baseSeq, collection, docId])
 
@@ -228,7 +231,11 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
       <h1>{documentTitle(collection, docId, initialData)}</h1>
       {localOffer && (
         <div className={styles.row}>
-          <p className={styles.message}>يوجد تعديل غير محفوظ محليًا لهذا المستند.</p>
+          <p className={styles.message}>
+            يوجد تعديل غير محفوظ محليًا لهذا المستند.
+            {staleBase !== null &&
+              ` هذه النسخة المحلية مبنية على النسخة ${staleBase}، والأحدث الآن ${baseSeq}؛ استعادتها تستبدل ما حُفظ بعدها.`}
+          </p>
           <button type="button" className={styles.buttonSecondary} onClick={acceptLocalOffer}>
             استعادة النسخة غير المحفوظة
           </button>
@@ -257,7 +264,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
           <ul>
             {parsed.error.issues.map((issue, index) => (
               <li key={index} className={styles.error}>
-                {issue.path.join('.')}: {issue.message}
+                {fields.find((field) => field.name === issue.path[0])?.label ?? issue.path.join('.')}: {issue.message}
               </li>
             ))}
           </ul>
@@ -268,7 +275,9 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
         <button type="button" className={styles.button} disabled={saving} onClick={() => void save()}>
           حفظ
         </button>
-        {saveMessage && <p className={styles.message}>{saveMessage}</p>}
+        <p role="status" className={styles.message}>
+          {saveMessage}
+        </p>
       </div>
 
       {accessToken && baseSeq > 0 && (

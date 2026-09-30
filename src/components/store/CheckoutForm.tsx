@@ -14,39 +14,48 @@
  * the first invalid field takes focus.
  *
  * `create` sends one `checkoutSession` per tab and an `idempotencyKey` reused
- * only when retrying the identical request (fingerprint in component state)
- * after a network failure. Success keeps `{orderNumber, accessToken}` in
+ * only when retrying the identical request (a digest of it, kept with the key
+ * in sessionStorage so a reload keeps the retry) after a network failure.
+ * Success keeps `{orderNumber, accessToken}` in
  * sessionStorage only, never clears the cart (DATA step 5: nothing settles
  * before payment verification, P08) and offers «إلغاء الطلب».
  */
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import {
   checkoutSession,
+  clearIdempotency,
   clearPendingOrder,
   CITY_KEY,
   COUPON_KEY,
+  digestText,
   fingerprintCreate,
+  readIdempotency,
   readPendingOrder,
   readSessionValue,
   toApiLines,
+  writeIdempotency,
   writePendingOrder,
   writeSessionValue,
+  type CartLine,
   type CreateRequestCore,
   type PendingOrder,
 } from '@/lib/cart'
 import { ActionButton } from '@/components/weave/Action'
 import { formatMoney, normalizeSaudiMobile } from '@/lib/format'
-import { loadTurnstile, TURNSTILE_LOOK, turnstileApi } from '@/lib/turnstile'
+import { useTurnstile } from '@/lib/turnstile'
 
 import { useCart } from './CartProvider'
 import { fetchCities, fetchQuote, orderSchema, postCheckout, priceSchema, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
 
 type Field = 'email' | 'name' | 'phone' | 'city' | 'address' | 'consent'
+
+/** What a quote is for: the lines, city and coupon it priced. A quote with another key than the current one is stale. */
+const quoteKeyOf = (lines: CartLine[], city: string, coupon: string) => JSON.stringify([toApiLines(lines), city, coupon])
 
 const POLICY_LABELS: Record<string, string> = {
   store: 'سياسة المتجر',
@@ -58,6 +67,7 @@ const POLICY_LABELS: Record<string, string> = {
 export function CheckoutForm() {
   const cartState = useCart()
   const [quote, setQuote] = useState<Quote | null>(null)
+  const [quoteKey, setQuoteKey] = useState('')
   const [quoteFailed, setQuoteFailed] = useState(false)
   const [cities, setCities] = useState<CityRate[]>([])
   const [city, setCity] = useState('')
@@ -68,8 +78,6 @@ export function CheckoutForm() {
   const [couponDraft, setCouponDraft] = useState('')
   const [coupon, setCoupon] = useState('')
   const [consent, setConsent] = useState(false)
-  const [token, setToken] = useState('')
-  const [turnstileFailed, setTurnstileFailed] = useState(false)
   const [pending, setPending] = useState<PendingOrder | null>(null)
   const [orderTotal, setOrderTotal] = useState<number | null>(null)
   const [closed, setClosed] = useState<'cancelled' | 'expired' | null>(null)
@@ -78,19 +86,32 @@ export function CheckoutForm() {
   const [submitting, setSubmitting] = useState(false)
   const [awaitingToken, setAwaitingToken] = useState(false)
 
-  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
-  const widgetId = useRef<string | null>(null)
+  const {
+    box: turnstileBox,
+    token,
+    failed: turnstileFailed,
+    reset: resetTurnstile,
+    available: turnstileAvailable,
+  } = useTurnstile('checkout')
   const quoteRun = useRef(0)
   const sessionRef = useRef<string | null>(null)
   const idempotencyRef = useRef<string | null>(null)
   const fingerprintRef = useRef<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  const orderBoxRef = useRef<HTMLDivElement>(null)
+  const focusOrderBox = useRef(false)
 
   useEffect(() => {
     // Deferred to a microtask so the setStates are not synchronous within the
     // effect body (react-hooks/set-state-in-effect, like CollectionForm).
     void Promise.resolve().then(() => {
       setPending(readPendingOrder())
+      // A reload keeps the retry of a request whose reply was lost.
+      const kept = readIdempotency()
+      if (kept !== null) {
+        idempotencyRef.current = kept.key
+        fingerprintRef.current = kept.digest
+      }
       const savedCity = readSessionValue(CITY_KEY)
       if (savedCity) setCity(savedCity)
       const savedCoupon = readSessionValue(COUPON_KEY)
@@ -105,6 +126,10 @@ export function CheckoutForm() {
   // The live quote, debounced like the cart's.
   const cart = cartState?.cart
   const ready = cartState?.ready ?? false
+  const currentKey = cart ? quoteKeyOf(cart.lines, city, coupon) : ''
+  // Stale: the buyer changed the cart, city or coupon and the new quote is not in yet.
+  const stale = quote !== null && !quoteFailed && quoteKey !== currentKey
+  const waiting = awaitingToken && !turnstileFailed
   useEffect(() => {
     if (!ready || !cart) return
     if (cart.lines.length === 0) {
@@ -113,11 +138,13 @@ export function CheckoutForm() {
       return
     }
     const run = ++quoteRun.current
+    const key = quoteKeyOf(cart.lines, city, coupon)
     const timer = setTimeout(() => {
       fetchQuote({ lines: toApiLines(cart.lines), cityKey: city || undefined, couponCode: coupon || undefined })
         .then((fresh) => {
           if (quoteRun.current !== run) return
           setQuote(fresh)
+          setQuoteKey(key)
           setQuoteFailed(false)
         })
         .catch(() => {
@@ -128,48 +155,18 @@ export function CheckoutForm() {
     return () => clearTimeout(timer)
   }, [ready, cart, city, coupon])
 
-  // The Turnstile widget, rendered explicitly into its box when the box
-  // mounts. The form (and the box) appears only after the cart and the quote
-  // load, and can unmount and return, so the widget follows the box's own
-  // lifetime; React 19 runs the returned cleanup when the box goes.
-  const turnstileBox = useCallback(
-    (box: HTMLDivElement | null) => {
-      if (box === null || !siteKey) return
-      let gone = false
-      loadTurnstile()
-        .then(() => {
-          if (gone) return
-          widgetId.current = turnstileApi()!.render(box, {
-            sitekey: siteKey,
-            action: 'checkout',
-            ...TURNSTILE_LOOK,
-            callback: (value: string) => {
-              setToken(value)
-              setTurnstileFailed(false)
-            },
-            'expired-callback': () => setToken(''),
-            'error-callback': () => {
-              setToken('')
-              setTurnstileFailed(true)
-              setAwaitingToken(false)
-            },
-          })
-        })
-        .catch(() => setTurnstileFailed(true))
-      return () => {
-        gone = true
-        if (widgetId.current !== null) turnstileApi()?.remove(widgetId.current)
-        widgetId.current = null
-        setToken('')
-      }
-    },
-    [siteKey],
-  )
-
   // A press made before the check finished goes through once its token arrives.
   useEffect(() => {
     if (awaitingToken && token !== '') formRef.current?.requestSubmit()
   }, [awaitingToken, token])
+
+  // Focus follows the buyer's own action (create, cancel) into the order box,
+  // which replaces the form and the button that had it. Not on a page load.
+  useEffect(() => {
+    if (!focusOrderBox.current) return
+    focusOrderBox.current = false
+    orderBoxRef.current?.focus()
+  }, [pending, closed])
 
   // In the store's own order (store, delivery, refund, privacy), not the
   // stored JSON's key order.
@@ -186,11 +183,18 @@ export function CheckoutForm() {
       const fresh = await fetchQuote({ lines: toApiLines(cart.lines), cityKey: city || undefined, couponCode: coupon || undefined })
       if (quoteRun.current === run) {
         setQuote(fresh)
+        setQuoteKey(currentKey)
         setQuoteFailed(false)
       }
     } catch {
       setQuoteFailed(true)
     }
+  }
+
+  function applyCoupon() {
+    const applied = couponDraft.trim().toUpperCase()
+    setCoupon(applied)
+    writeSessionValue(COUPON_KEY, applied)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -199,7 +203,7 @@ export function CheckoutForm() {
     // In the fields' own order, so the first one found is the first on screen.
     const found: Partial<Record<Field, string>> = {}
     const trimmedEmail = email.trim()
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmedEmail)) found.email = 'أدخل بريدًا إلكترونيًا صحيحًا.'
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(trimmedEmail)) found.email = 'أدخل بريدًا إلكترونيًا صحيحًا.'
     if (!name.trim()) found.name = 'أدخل الاسم.'
     if (quote.physical) {
       if (normalizeSaudiMobile(phone) === null) found.phone = 'أدخل رقم جوال سعوديًا صحيحًا.'
@@ -213,6 +217,12 @@ export function CheckoutForm() {
       setAwaitingToken(false)
       setSubmitError('')
       document.getElementById(`checkout-${first}`)?.focus()
+      return
+    }
+    if (stale || !quote.ok) {
+      // The summary already says why; a create now would only spend an attempt.
+      setAwaitingToken(false)
+      setSubmitError('راجع ملخص الطلب أولًا.')
       return
     }
     if (token === '') {
@@ -239,10 +249,12 @@ export function CheckoutForm() {
     }
     // Reuse the idempotency key only for the identical request (a retry after
     // a network failure); any change to the request mints a new key.
-    const fingerprint = fingerprintCreate(core)
+    const fingerprint = digestText(fingerprintCreate(core))
     if (fingerprint !== fingerprintRef.current) {
-      idempotencyRef.current = crypto.randomUUID()
+      const key = crypto.randomUUID()
+      idempotencyRef.current = key
       fingerprintRef.current = fingerprint
+      writeIdempotency({ digest: fingerprint, key })
     }
     sessionRef.current ??= checkoutSession()
 
@@ -259,9 +271,21 @@ export function CheckoutForm() {
       if (reply.ok && reply.data !== undefined) {
         const order = orderSchema.parse(reply.data.order)
         setOrderTotal(order.total)
+        if (order.status === 'expired' || order.status === 'cancelled') {
+          // A duplicate reply for an order that already ended is no live hold:
+          // show it closed, keep its token out of storage, mint a new key next time.
+          clearIdempotency()
+          idempotencyRef.current = null
+          fingerprintRef.current = null
+          focusOrderBox.current = true
+          setPending({ orderNumber: order.orderNumber, accessToken: reply.data.accessToken ?? '' })
+          setClosed(order.status)
+          return
+        }
         if (reply.data.accessToken) {
           const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: reply.data.accessToken }
           writePendingOrder(saved)
+          focusOrderBox.current = true
           setPending(saved)
         }
         return
@@ -281,9 +305,25 @@ export function CheckoutForm() {
         setSubmitError(error.message)
         return
       }
+      if (error?.code === 'INVALID') {
+        // The function names the fields it refused: show them under their inputs.
+        const fieldErrors = (error.fields?.fieldErrors ?? {}) as Record<string, unknown>
+        const mapped: Partial<Record<Field, string>> = {}
+        for (const field of ['email', 'name', 'phone', 'address'] as const) {
+          const messages = fieldErrors[field]
+          if (Array.isArray(messages) && typeof messages[0] === 'string') mapped[field] = messages[0]
+        }
+        const firstInvalid = Object.keys(mapped)[0]
+        if (firstInvalid !== undefined) {
+          setErrors(mapped)
+          document.getElementById(`checkout-${firstInvalid}`)?.focus()
+          return
+        }
+      }
       if (error?.code === 'ACTIVE_HOLD') {
         const mine = readPendingOrder()
         if (mine) {
+          focusOrderBox.current = true
           setPending(mine)
           setSubmitError('')
           return
@@ -298,8 +338,7 @@ export function CheckoutForm() {
       // Siteverify accepts a token once, whatever the answer was, so the next
       // attempt (a retry with the same key included) needs a fresh one
       // (developers.cloudflare.com/turnstile/get-started/server-side-validation).
-      setToken('')
-      if (widgetId.current !== null) turnstileApi()?.reset(widgetId.current)
+      resetTurnstile()
     }
   }
 
@@ -317,6 +356,11 @@ export function CheckoutForm() {
       const status = reply.data?.status
       if (reply.ok && (status === 'cancelled' || status === 'expired')) {
         clearPendingOrder()
+        // The order has ended: its key must not be reused for a new one.
+        clearIdempotency()
+        idempotencyRef.current = null
+        fingerprintRef.current = null
+        focusOrderBox.current = true
         setClosed(status)
         setSubmitError('')
       } else {
@@ -336,8 +380,8 @@ export function CheckoutForm() {
   // A pending order this tab created: the hold view, with its cancel.
   if (pending !== null) {
     return (
-      <div className={styles.orderBox}>
-        <p className={styles.orderNumber}>
+      <div ref={orderBoxRef} tabIndex={-1} role="group" aria-labelledby="checkout-order-number" className={styles.orderBox}>
+        <p id="checkout-order-number" className={styles.orderNumber}>
           رقم الطلب: <span dir="ltr">{pending.orderNumber}</span>
         </p>
         {orderTotal !== null && <p>الإجمالي: {formatMoney(orderTotal)}</p>}
@@ -358,7 +402,7 @@ export function CheckoutForm() {
             </ActionButton>
           </>
         )}
-        {submitError !== '' && <p className={styles.warning} role="note">{submitError}</p>}
+        {submitError !== '' && <p className={styles.warning} role="alert">{submitError}</p>}
       </div>
     )
   }
@@ -374,8 +418,15 @@ export function CheckoutForm() {
     )
   }
 
-  if (quoteFailed) {
-    return <p className={styles.warning} role="note">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>
+  if (quoteFailed && quote === null) {
+    return (
+      <div>
+        <p className={styles.warning} role="alert">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>
+        <ActionButton variant="outline" onClick={() => void refreshQuote()}>
+          أعد المحاولة
+        </ActionButton>
+      </div>
+    )
   }
   if (quote === null) {
     return <p className={styles.note}>جارٍ تسعير السلة…</p>
@@ -400,8 +451,10 @@ export function CheckoutForm() {
       {consentPolicies.map((id, index) => (
         <span key={id}>
           {index > 0 ? ' و' : ''}
-          <Link href={`/policies/${id}`} prefetch={false}>
+          {/* A new tab: the typed details live only in this page's state. */}
+          <Link href={`/policies/${id}`} prefetch={false} target="_blank" rel="noopener">
             {POLICY_LABELS[id] ?? id}
+            <span className="visually-hidden"> (تفتح في نافذة جديدة)</span>
           </Link>
         </span>
       ))}{' '}
@@ -425,16 +478,21 @@ export function CheckoutForm() {
         <div className={styles.coupon}>
           <label className={styles.field}>
             كود الخصم
-            <input type="text" dir="ltr" value={couponDraft} onChange={(e) => setCouponDraft(e.target.value)} />
+            <input
+              type="text"
+              dir="ltr"
+              value={couponDraft}
+              onChange={(e) => setCouponDraft(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter applies the code; it must not submit the order.
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  applyCoupon()
+                }
+              }}
+            />
           </label>
-          <ActionButton
-            variant="outline"
-            onClick={() => {
-              const applied = couponDraft.trim().toUpperCase()
-              setCoupon(applied)
-              writeSessionValue(COUPON_KEY, applied)
-            }}
-          >
+          <ActionButton variant="outline" onClick={applyCoupon}>
             تطبيق
           </ActionButton>
         </div>
@@ -446,7 +504,7 @@ export function CheckoutForm() {
           {quote.discount > 0 && (
             <div>
               <dt>الخصم</dt>
-              <dd>−{formatMoney(quote.discount)}</dd>
+              <dd>{'\u200E−'}{formatMoney(quote.discount)}</dd>
             </div>
           )}
           {quote.city !== null && (
@@ -461,7 +519,7 @@ export function CheckoutForm() {
           </div>
         </dl>
         {!quote.ok && (
-          <ul className={styles.lineErrors}>
+          <ul className={styles.lineErrors} role="alert">
             {quote.errors.map((error, i) => (
               <li key={i}>{quoteErrorMessage(error)}</li>
             ))}
@@ -499,6 +557,7 @@ export function CheckoutForm() {
               type="text"
               dir="auto"
               autoComplete="name"
+              maxLength={120}
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
@@ -557,12 +616,13 @@ export function CheckoutForm() {
                   id="checkout-address"
                   rows={3}
                   dir="auto"
+                  autoComplete="shipping street-address"
                   value={address}
                   onChange={(e) => {
                     setAddress(e.target.value)
                     clear('address')
                   }}
-                  maxLength={2000}
+                  maxLength={500}
                   required
                   {...described('address')}
                 />
@@ -589,7 +649,7 @@ export function CheckoutForm() {
         </div>
 
         <div className={styles.turnstileBox} ref={turnstileBox} />
-        {!siteKey && (
+        {!turnstileAvailable && (
           <p className={styles.warning} role="note">
             التحقق غير متاح حاليًا.
           </p>
@@ -600,13 +660,18 @@ export function CheckoutForm() {
           </p>
         )}
 
+        {quoteFailed && (
+          <p className={styles.warning} role="alert">
+            تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.
+          </p>
+        )}
         {submitError !== '' && (
           <p className={styles.warning} role="alert">
             {submitError}
           </p>
         )}
-        <ActionButton type="submit" className={styles.submit} disabled={!siteKey || submitting || awaitingToken}>
-          {submitting || awaitingToken ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
+        <ActionButton type="submit" className={styles.submit} disabled={!turnstileAvailable || submitting || waiting || stale}>
+          {submitting || waiting ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
         </ActionButton>
       </div>
     </form>

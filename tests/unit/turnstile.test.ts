@@ -88,8 +88,8 @@ describe('verifyTurnstile', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('a test secret outside production skips hostname and action checks (its reply has neither of ours)', async () => {
-    vi.stubEnv('NODE_ENV', 'development')
+  it('a test secret for a local SITE_URL skips hostname and action checks (its reply has neither of ours)', async () => {
+    vi.stubEnv('SITE_URL', 'http://localhost:3000')
     reply({ success: true, hostname: 'example.com' })
     expect(await verifyTurnstile({ ...base, secret: PASS_SECRET })).toEqual({ ok: true })
   })

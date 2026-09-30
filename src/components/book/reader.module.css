@@ -541,6 +541,7 @@
 }
 .sheet {
   position: relative;
+  overflow: clip;
   aspect-ratio: 4 / 5;
   background: var(--paper-page);
   box-shadow: 0 18px 40px -22px rgb(0 0 0 / 0.7);

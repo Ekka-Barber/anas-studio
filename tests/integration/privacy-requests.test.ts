@@ -266,7 +266,8 @@ describe('privacy_erase_contacts', () => {
 
       const audit = (
         await postgres.query<{ entity_id: string; summary: { count: number } }>(
-          "select entity_id, summary from public.audit_events where action = 'privacy.erase_contacts' and entity = 'contacts'",
+          // `at = now()`: only this transaction's rows, not a runbook run left behind on the local stack.
+          "select entity_id, summary from public.audit_events where action = 'privacy.erase_contacts' and entity = 'contacts' and at = now()",
         )
       ).rows
       expect(audit).toEqual([{ entity_id: '2', summary: { count: 2 } }])
@@ -277,7 +278,7 @@ describe('privacy_erase_contacts', () => {
       // The no-op call wrote no second audit row.
       expect(
         (await postgres.query<{ n: number }>(
-          "select count(*)::int as n from public.audit_events where action = 'privacy.erase_contacts'",
+          "select count(*)::int as n from public.audit_events where action = 'privacy.erase_contacts' and at = now()",
         )).rows[0]!.n,
       ).toBe(1)
     })

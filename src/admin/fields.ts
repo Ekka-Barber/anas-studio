@@ -24,7 +24,6 @@ export type FieldType =
   | 'video'
   | 'group'
   | 'list'
-  | 'date'
   | 'slug'
   | 'relation'
   | 'richtext'
@@ -44,8 +43,19 @@ interface FieldBase {
 
 export type Field =
   | (FieldBase & {
-      type: 'text' | 'textarea' | 'paragraphs' | 'boolean' | 'image' | 'video' | 'date' | 'slug' | 'relation' | 'richtext' | 'datetime'
+      type: 'paragraphs' | 'boolean' | 'image' | 'video' | 'relation' | 'richtext'
     })
+  // AUDIT-1 S11.3: the rules a catalog table's own checks put on a string, so the
+  // form refuses what the database would. `pattern` replaces a slug's default
+  // rule; `nonBlank` is `btrim(x) <> ''`; `after` names an earlier datetime
+  // field this one must follow (a coupon's `ends_at`).
+  | (FieldBase & {
+      type: 'text' | 'textarea' | 'slug'
+      nonBlank?: boolean
+      maxLength?: number
+      pattern?: { regex: RegExp; message: string }
+    })
+  | (FieldBase & { type: 'datetime'; after?: string })
   // `optionLabels` gives the Arabic text shown for each stored option value.
   | (FieldBase & { type: 'select'; options: readonly string[]; optionLabels?: Readonly<Record<string, string>> })
   | (FieldBase & { type: 'group'; fields: readonly Field[] })
@@ -68,7 +78,7 @@ export type Field =
  */
 // prettier-ignore
 type BaseValue<F extends Field> =
-  F extends { type: 'text' | 'textarea' | 'slug' | 'date' | 'image' | 'video' | 'datetime' } ? string :
+  F extends { type: 'text' | 'textarea' | 'slug' | 'image' | 'video' | 'datetime' } ? string :
   F extends { type: 'paragraphs' | 'relation' } ? string[] :
   F extends { type: 'number' | 'money' } ? number :
   F extends { type: 'boolean' } ? boolean :
@@ -91,6 +101,19 @@ export type ShapeValue<Fields extends readonly Field[]> = {
   [Name in OptionalFieldNames<Fields>]?: FieldValue<Extract<Fields[number], { name: Name }>>
 }
 
+/**
+ * Whether two documents hold the same data, whatever their key order: jsonb
+ * reorders keys and Lexical writes them in its own order, so a plain
+ * `JSON.stringify` calls an untouched document changed.
+ */
+export function equalData(a: unknown, b: unknown): boolean {
+  const sorted = (_key: string, value: unknown) =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)))
+      : value
+  return JSON.stringify(a, sorted) === JSON.stringify(b, sorted)
+}
+
 const imageManifest = imageManifestRaw as unknown as Record<string, unknown>
 const videoManifest = (mediaManifestRaw as unknown as { videos: Record<string, unknown> }).videos
 
@@ -110,7 +133,12 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
   switch (field.type) {
     case 'text':
     case 'textarea':
-      return z.string()
+    case 'slug': {
+      let schema = field.type === 'slug' && !field.pattern ? slugSchema : z.string()
+      if (field.pattern) schema = schema.regex(field.pattern.regex, { message: field.pattern.message })
+      if (field.maxLength !== undefined) schema = schema.max(field.maxLength, `الحد الأقصى ${field.maxLength} حرفًا.`)
+      return field.nonBlank ? schema.refine((value) => value.trim() !== '', { message: 'لا يمكن أن يكون فارغًا.' }) : schema
+    }
     case 'paragraphs':
       return z.array(z.string())
     case 'select':
@@ -121,12 +149,8 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
       return imageIdSchema
     case 'video':
       return videoIdSchema
-    case 'slug':
-      return slugSchema
     case 'relation':
       return z.array(slugSchema)
-    case 'date':
-      return isoDateSchema
     case 'datetime':
       return isoDateSchema
     case 'number': {
@@ -174,5 +198,20 @@ export function schemaFromFields<const F extends readonly Field[]>(fields: F): z
   for (const field of fields) {
     shape[field.name] = fieldSchema(field)
   }
-  return z.object(shape) as unknown as z.ZodType<ShapeValue<F>>
+  let schema: z.ZodTypeAny = z.object(shape)
+  for (const field of fields) {
+    if (field.type !== 'datetime' || !field.after) continue
+    const earlier = field.after
+    const label = fields.find((candidate) => candidate.name === earlier)?.label ?? earlier
+    schema = schema.refine(
+      (value) => {
+        const data = value as Record<string, unknown>
+        const start = data[earlier]
+        const end = data[field.name]
+        return !(typeof start === 'string' && typeof end === 'string' && Date.parse(end) <= Date.parse(start))
+      },
+      { path: [field.name], message: `يجب أن يكون بعد «${label}».` },
+    )
+  }
+  return schema as unknown as z.ZodType<ShapeValue<F>>
 }

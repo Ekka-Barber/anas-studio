@@ -86,6 +86,33 @@ describe('contact route email grammar', () => {
   })
 })
 
+describe('contact Turnstile action and hostname (a live secret checks both)', () => {
+  // The always-pass test secret skips both checks, so a live-shaped one is used
+  // here with siteverify stubbed; the widget renders action 'contact'.
+  const siteverify = (body: Record<string, unknown>) =>
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ success: true, 'error-codes': [], ...body })))
+
+  beforeEach(() => {
+    vi.stubEnv('TURNSTILE_SECRET_KEY', '0x4AAAAAAA_live_shaped_secret')
+  })
+
+  it('accepts the contact action on the site hostname', async () => {
+    siteverify({ action: 'contact', hostname: 'localhost' })
+    expect((await contactPost(contactRequest('guest@example.com'))).status).toBe(201)
+  })
+
+  it.each([
+    ['another action', { action: 'checkout', hostname: 'localhost' }],
+    ['another hostname', { action: 'contact', hostname: 'evil.test' }],
+  ])('refuses %s with 400 before anything is stored', async (_label, reply) => {
+    siteverify(reply)
+    const response = await contactPost(contactRequest('guest@example.com'))
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('TURNSTILE')
+    expect(recorded.params).toHaveLength(0)
+  })
+})
+
 describe('contact function origin (D32: the form posts cross-origin)', () => {
   it('answers the CORS preflight for the site origin only', async () => {
     const response = await contactPost(

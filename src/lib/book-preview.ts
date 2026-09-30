@@ -70,16 +70,27 @@ export function visibleLeaves(index: number, total: number, portrait: boolean): 
   return [right, right + 1]
 }
 
+/** A leaf with nothing on it: one page at a time, the book never stops there. */
+export const empty = (leaf: Leaf | undefined) => leaf?.kind === 'blank' || leaf?.kind === 'endpaper'
+
 /**
  * The leaves worth a canvas: what is on screen and the spread on either side,
- * so a turn never shows a blank page. At most six (two per spread).
+ * so a turn never shows a blank page. At most six (two per spread). One page
+ * at a time a turn skips the empty leaves (given `leaves`), so the window
+ * reaches past them to the leaf the turn lands on.
  */
-export function renderWindow(index: number, total: number, portrait: boolean): number[] {
+export function renderWindow(index: number, total: number, portrait: boolean, leaves?: readonly Leaf[]): number[] {
   const shown = visibleLeaves(index, total, portrait)
   const first = shown[0] ?? 0
   const last = shown[shown.length - 1] ?? first
+  let before = first - 1
+  let after = last + 1
+  if (portrait && leaves) {
+    while (before > 0 && empty(leaves[before])) before--
+    while (after < total - 1 && empty(leaves[after])) after++
+  }
   const wanted = new Set<number>()
-  for (const around of [first - 1, first, last + 1]) {
+  for (const around of [before, first, after]) {
     if (around < 0 || around >= total) continue
     for (const leaf of visibleLeaves(around, total, portrait)) wanted.add(leaf)
   }

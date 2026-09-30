@@ -4,7 +4,10 @@
  * keeps the room order the design needs beside them.
  */
 
-/** The rooms in Anas's order (his message of 21/09/2026), for the room doors. */
+/**
+ * The rooms in Anas's order (his message of 21/09/2026), for the list on the
+ * 404 and error page (Lost.tsx); the home doors are ROOM_DOORS in home.ts.
+ */
 export const ROOM_ORDER = [
   { href: '/started', label: 'بدأتُ من هنا' },
   { href: '/built', label: 'بنيتُ هنا' },

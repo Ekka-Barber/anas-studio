@@ -3,9 +3,10 @@
  * logic with no React, unit-tested in tests/unit/cart.test.ts.
  *
  * localStorage holds `anasaq:cart:v1` and nothing else:
- * `{ "version": 1, "lines": [{ "variantId": uuid, "quantity": 1..20,
- * "dedication"?: string }] }` — never a price, a total, a name or an address;
- * prices come from the live `quote` only. A malformed value or another
+ * `{ "version": 1, "lines": [{ "variantId": uuid, "quantity": 1..20 }] }` —
+ * never a price, a total, a name, an address or a dedication (free text lives
+ * in sessionStorage as `anasaq:dedications` and goes with the tab); prices
+ * come from the live `quote` only. A malformed value or another
  * version is discarded. Duplicate variant lines merge with the quantity
  * capped at 20, and a cart holds at most 50 lines. When localStorage throws,
  * the cart lives in memory for the tab and the UI shows the honest note.
@@ -15,6 +16,10 @@ export const CHECKOUT_SESSION_KEY = 'anasaq:checkout-session'
 export const PENDING_ORDER_KEY = 'anasaq:pending-order'
 export const CITY_KEY = 'anasaq:city'
 export const COUPON_KEY = 'anasaq:coupon'
+export const DEDICATIONS_KEY = 'anasaq:dedications'
+export const IDEMPOTENCY_KEY = 'anasaq:idempotency'
+/** Fired on `window` after every cart write, so the «السلة (n)» link can refresh. */
+export const CART_EVENT = 'anasaq:cart'
 
 export const MAX_LINES = 50
 export const MAX_QUANTITY = 20
@@ -69,7 +74,8 @@ export function parseCart(value: unknown): CartV1 | null {
 }
 
 export function serializeCart(cart: CartV1): string {
-  return JSON.stringify({ version: 1, lines: cart.lines })
+  // The dedication is free text: writeCart keeps it in sessionStorage, never here.
+  return JSON.stringify({ version: 1, lines: cart.lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })) })
 }
 
 // ---------------------------------------------------------------------------
@@ -93,7 +99,7 @@ export function addLine(cart: CartV1, line: CartLine): CartV1 {
       lines: cart.lines.map((l) =>
         l.variantId === variantId
           ? {
-              variantId,
+              ...l,
               quantity: Math.min(MAX_QUANTITY, l.quantity + quantity),
               ...(dedication !== undefined ? { dedication } : {}),
             }
@@ -114,12 +120,13 @@ export function setQuantity(cart: CartV1, variantId: string, quantity: number): 
   }
 }
 
+/** Control characters (a pasted tab or line break) become spaces, so the text stays valid for the function. */
 export function setDedication(cart: CartV1, variantId: string, dedication: string): CartV1 {
   const id = variantId.toLowerCase()
   return {
     version: 1,
     lines: cart.lines.map((l) =>
-      l.variantId === id ? { ...l, dedication: dedication.slice(0, MAX_DEDICATION) } : l,
+      l.variantId === id ? { ...l, dedication: dedication.replace(/\p{Cc}/gu, ' ').slice(0, MAX_DEDICATION) } : l,
     ),
   }
 }
@@ -219,6 +226,9 @@ export type CartArea = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | nul
 /** The tab's memory cart while storage is denied; one per loaded page. */
 let memoryCart: CartV1 = EMPTY_CART
 
+/** True after a setItem failed: storage still reads but is stale, so reads use the memory cart until a write succeeds. */
+let writeFailed = false
+
 /** localStorage when it works, null when it throws (private mode, blocked, no window). */
 export function cartArea(): CartArea {
   if (typeof window === 'undefined') return null
@@ -229,8 +239,30 @@ export function cartArea(): CartArea {
   }
 }
 
+/** The dedications typed in this tab, by variant id (sessionStorage only: free text stays out of localStorage). */
+function readDedications(): Record<string, string> {
+  try {
+    const parsed: unknown = JSON.parse(readSessionValue(DEDICATIONS_KEY) ?? 'null')
+    if (parsed === null || typeof parsed !== 'object') return {}
+    return Object.fromEntries(Object.entries(parsed).filter(([, text]) => typeof text === 'string'))
+  } catch {
+    return {}
+  }
+}
+
+function withDedications(cart: CartV1): CartV1 {
+  const saved = readDedications()
+  return {
+    version: 1,
+    lines: cart.lines.map((l) => {
+      const text = saved[l.variantId]
+      return l.dedication === undefined && text !== undefined ? { ...l, dedication: text } : l
+    }),
+  }
+}
+
 export function readCart(area: CartArea = cartArea()): { cart: CartV1; persistent: boolean } {
-  if (area === null) return { cart: memoryCart, persistent: false }
+  if (area === null || writeFailed) return { cart: withDedications(memoryCart), persistent: false }
   try {
     const raw = area.getItem(CART_STORAGE_KEY)
     if (raw === null) return { cart: EMPTY_CART, persistent: true }
@@ -244,25 +276,29 @@ export function readCart(area: CartArea = cartArea()): { cart: CartV1; persisten
       }
       return { cart: EMPTY_CART, persistent: true }
     }
-    return { cart: parsed, persistent: true }
+    return { cart: withDedications(parsed), persistent: true }
   } catch {
-    return { cart: memoryCart, persistent: false }
+    return { cart: withDedications(memoryCart), persistent: false }
   }
 }
 
 /** Persists the cart; false means it only lives in memory for this tab. */
 export function writeCart(cart: CartV1, area: CartArea = cartArea()): boolean {
-  if (area === null) {
-    memoryCart = cart
-    return false
+  const dedications = cart.lines.flatMap((l): Array<[string, string]> => (l.dedication ? [[l.variantId, l.dedication]] : []))
+  writeSessionValue(DEDICATIONS_KEY, JSON.stringify(Object.fromEntries(dedications)))
+  let saved = false
+  if (area !== null) {
+    try {
+      area.setItem(CART_STORAGE_KEY, serializeCart(cart))
+      saved = true
+    } catch {
+      // Falls through to the memory cart below.
+    }
   }
-  try {
-    area.setItem(CART_STORAGE_KEY, serializeCart(cart))
-    return true
-  } catch {
-    memoryCart = cart
-    return false
-  }
+  if (!saved) memoryCart = cart
+  writeFailed = area !== null && !saved
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(CART_EVENT))
+  return saved
 }
 
 // ---------------------------------------------------------------------------
@@ -341,6 +377,54 @@ export function clearPendingOrder(): void {
   if (area === null) return
   try {
     area.removeItem(PENDING_ORDER_KEY)
+  } catch {
+    // Nothing to clean.
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The idempotency key of the last create request, kept across a reload
+// ---------------------------------------------------------------------------
+
+/**
+ * A short digest of a string (cyrb53, 53 bits, not cryptographic). The
+ * checkout keeps the digest of the confirmed request, never the request: that
+ * holds the buyer's email, name, phone and address, which stay out of storage.
+ */
+export function digestText(text: string): string {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text.charCodeAt(i)
+    h1 = Math.imul(h1 ^ ch, 2654435761)
+    h2 = Math.imul(h2 ^ ch, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
+}
+
+/** The key and the request digest of the last `create` this tab sent (sessionStorage only), or null. */
+export function readIdempotency(): { digest: string; key: string } | null {
+  try {
+    const parsed = JSON.parse(readSessionValue(IDEMPOTENCY_KEY) ?? 'null') as { digest?: unknown; key?: unknown } | null
+    if (typeof parsed?.digest === 'string' && typeof parsed.key === 'string' && UUID.test(parsed.key)) {
+      return { digest: parsed.digest, key: parsed.key }
+    }
+  } catch {
+    // An unreadable value is no key.
+  }
+  return null
+}
+
+export function writeIdempotency(value: { digest: string; key: string }): void {
+  writeSessionValue(IDEMPOTENCY_KEY, JSON.stringify(value))
+}
+
+/** Forgets the key once its order has ended, so the same cart can be ordered again. */
+export function clearIdempotency(): void {
+  try {
+    sessionArea()?.removeItem(IDEMPOTENCY_KEY)
   } catch {
     // Nothing to clean.
   }

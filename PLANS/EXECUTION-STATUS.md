@@ -2,24 +2,19 @@
 
 What has actually been run and accepted, not what is planned. Orchestrator per D28; one writer at a time under `.anasaq-execution.lock`. Preparation, account existence and passing structural checks never close a runtime, payment, rights, launch, training or support gate. Earlier detail (P00 measurements, the Oracle VM episode, audits) is in Git history before 2026-09-24.
 
-## Current state (2026-09-26)
+## Current state (2026-09-30)
 
 | Field | Value |
 |---|---|
-| Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |
-| Last product commit | `00586ea` (cloud audit of `3c4347c`): the rate-limit key takes Cloudflare's `cf-connecting-ip` first and the last `x-forwarded-for` hop only as fallback; signed upload URLs without upsert (closes the I34 TOCTOU); the visitor budget covers nested pages. Before it `3c4347c`, the audit-fix pass on top of D32 (2026-09-27, local): rate-limit caller key takes the last gateway-appended x-forwarded-for hop (was forgeable), pg_net created explicitly, budget/export checks widened (admin shell excluded from the visitor budget), callFunction shape-validated, verify_jwt pinned for the staff functions, new unit coverage (rate-limit, MISSING_PART, admin shell negatives). Before it `fcad3fd` on `claude/keen-mayer-iuyfz0`: D32 (static export on Pages, server work in Supabase Edge Functions and Storage, no tax, launch before payments; see "Owner decisions, 2026-09-26: D32–D34"), after `b284451` (D33, Thmanyah only). Before them `4e0684d`: D31, no admin inbox (`738801c` contact notices with Reply-To to the owner's mailbox, server-only `contacts`, inbox screen removed; `4e0684d` the Email Routing settings step). Before it `87ebd1c`: phone-card labels no longer glued to Latin values (D18, cloud verification of `ed1bc36`); `0086cff`: timezone-independent webhook timestamps + local verification of the cloud pass (db 93, unit 215, e2e 22/22, screenshots reviewed); `bc3b915`…`2325466`: the cloud audit of `efa0e45` (see the process note); `efa0e45` audit fix pass 2; `a324577` fix pass 1. Last audited commit `79d8cf6` (P05). `d5c7ceb` moved the worker to GLM-5.3 (D30). |
-| P00 | Public runtime proven on hosted Workers Free, then replaced by D32: the site is a static export on Cloudflare Pages and the Worker is gone (I21 moot). D29 swap committed (`6f09321`). D32 replatform committed (`fcad3fd`); its database, functions and e2e runs are pending local verification. |
-| P03 | Committed (`4322ccc`). |
-| P04 | Complete: part 1 `ff67889`, part 2 `4ffc78f`. |
-| P05 | Committed (`79d8cf6`). |
-| P06 | Rounds 1 and 2 committed in `9b6d1e5`; audit fix pass 1 `a324577`; fix pass 2 `efa0e45`; cloud audit of `efa0e45` with 14 fixes in `2325466`…`f5fe74d` (desktop tables, calendar, email filter, webhook timestamps and outage handling, IDN delimiters, quota index, race test, dates in RTL, WhatsApp spellings, evidence). Local verification of those fixes is done (details at the end of `artifacts/acceptance/P06/commands.txt`): `db:reset`/`db:import`, `test:db` 93, `pnpm test` 215, Playwright 22/22, screenshots re-captured and reviewed. One timezone-dependent timestamp test surfaced and was fixed on both sides (route treats zone-naive ISO as UTC; test asserts shape for `Date.parse('1')`). The cloud verification of `ed1bc36` found the re-captured 360 cards still glue labels to Latin values (D13's `:dir(ltr)` is compiled away by Next); fixed in `87ebd1c` and locally verified (owner-operations 17/17 via `localhost:3000`, screenshots re-captured, every card label's computed `::before` serves the isolated label plus trailing space — details at the end of `artifacts/acceptance/P06/commands.txt`). Round 2 is closed (I30 is moot with D32). D31 (owner, 2026-09-26) then removed the admin inbox: `738801c`, `4e0684d`; D32 moved the contact, webhook, jobs and stats endpoints into Edge Functions. D31+D32 are locally verified on the full stack (2026-09-27, `artifacts/acceptance/P06/commands.txt`): test:db 115/115 including the 9 Auth-dependent files, check 216/216 unit after an independent 4-agent audit and its fix pass (forgeable rate-limit IP key fixed to the last x-forwarded-for hop, pg_net created, checks widened, MISSING_PART/shell negatives tested; residuals recorded as I34), build + export + budgets green, e2e 67/67 with the functions reaching Mailpit and the visitor IP passing the gateway, room screenshots in `artifacts/acceptance/P01/screenshots/` showing Thmanyah Serif Display titles. Round 3 not started; its notify routes moved to P08. |
-| P01 | Part 1 committed (`c98b091`). D39 (2026-09-28): direction B accepted; every public page ported in DESIGN-B (below), uncommitted on `agent/design-b` until the owner reviews. |
-| Lock | The CLI orchestrator's `.anasaq-execution.lock` (P06 round 2) is on the owner's machine and unknown from the repo. The cloud writer of `2325466`…`f5fe74d`, `87ebd1c` and the D31 commits wrote only while the local session was idle or waiting on its verdict, by owner authorization, and holds nothing after its push. |
+| Branch | `agent/design-b` (from `788cbbe`). `origin/agent/design-b` is at `0f2d87a` (DESIGN-B and P02, pushed 2026-09-29); the CLEANUP-1 commits `5d85654` and `181245f` are local only. `sync/local-2026-09-26` (`788cbbe`) and `agent/p00-runtime-spike` are behind and are not the working line. |
+| Last commit | `181245f` (CLEANUP-1 evidence); last product commit `5d85654`. Uncommitted in the working tree: D41 (sonnet-worker, auditor, settings) and AUDIT-1 (below), both waiting for the owner. |
+| Packages | P00 (D29 `6f09321`; D32 `fcad3fd`, locally verified on the full stack 2026-09-27), P01 part 1 `c98b091` with DESIGN-B `1ffb8a1`/`7ac94e8`, P02 `976176f`/`0f2d87a`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (built and audited 2026-09-30, not committed): see the package ledger. P08–P12 not started. |
+| Lock | `.anasaq-execution.lock` is held by the orchestrator for AUDIT-1 (base `181245f`) until the owner decides on the commit. |
 | Hosted resources | Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). Unused since D32 and the owner's to delete once the Pages site works (irreversible, his own action): Worker `anas-studio` (test), R2 `anas-studio-media-test`, Hyperdrive `anasaq-cms`, D1 `anas-studio-tag-cache`. No deploys until P11 (local-first). |
 
 ## DESIGN-B: direction B in the product (D39, orchestrator, 2026-09-28)
 
-**Scope.** Anas picked direction B «أنساق», with cover B and standing mockup B. The owner assigned the design work to the orchestrator alone (no sub-agents, no GLM). The work is on branch `agent/design-b` from `788cbbe`, under the lock, and is uncommitted until the owner reviews it.
+**Scope.** Anas picked direction B «أنساق», with cover B and standing mockup B. The owner assigned the design work to the orchestrator alone (no sub-agents, no GLM). The work is on branch `agent/design-b` from `788cbbe`, under the lock; committed on the owner's word (`1ffb8a1`, `7ac94e8`, 2026-09-28) and pushed with P02 (`origin/agent/design-b` at `0f2d87a`, 2026-09-29).
 
 **What was built.**
 - **Design system:**
@@ -40,7 +35,7 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
   - words not yet in the CMS live in `src/content/`.
 - **Truthful states:**
   - nothing is a placeholder;
-  - the availability sign-ups (P08), booking (P09) and the reader (P02) are not shown;
+  - the availability sign-ups (P08), booking (P09) and the reader (P02) were not shown (the reader shipped in P02 the same day);
   - the five films with children stay hidden until guardians consent.
 - **Docs:** `DESIGN.md` (the system and its recipes), `PRODUCT.md`, D39, the DESIGN-AUDIT recheck.
 
@@ -62,7 +57,7 @@ Round 2 re-proved check, build, export, budgets, e2e (public, cart-checkout, aut
 - The paper edition's details and prices.
 - The book's characters.
 - The 2013 photo.
-- Session booking (P09) and the reader (P02).
+- Session booking (P09). (The reader shipped in P02.)
 - The services moving into the CMS if Anas wants to edit them. (The social links moved into `site_settings.social` in CLEANUP-1, C09.)
 - Room versions saved before D39 lack the new fields: restoring one needs its colour and line filled before it can be published.
 
@@ -260,6 +255,49 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 - The owner and Anas: a per-photo rights or credit field for the scenes (C05 names "rights"; the brief defined image, category and caption only); a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40, C19).
 - P11: I41 (the hosted content bootstrap needs the social links and the gallery) and I40's launch steps.
 
+## AUDIT-1: deep audit of everything built, and the fixes (orchestrator, 2026-09-30)
+
+**Scope.** The owner (2026-09-30): "deep audit everything been built so far, find all issues, fix them all before proceeding … combine all findings in one full report, update all stale docs". Everything through `181245f` plus the uncommitted D41 change was audited. The full report is `artifacts/acceptance/AUDIT-1/REPORT.md`, and every finding with its outcome is in `APPENDIX-findings.md`.
+
+**Audit.** A read-only workflow (`wf_0902627f-f2d`) ran 29 specialist auditors (file slices plus security, concurrency, accessibility and RTL, visual design, plan coverage, dead code and performance lenses), a completeness critic, 5 gap auditors, deduplication and adversarial verification (three independent verifiers per critical or high finding). 324 raw findings became 258 unique and **253 confirmed**: 0 critical, 2 high (G4.2: the five films with children shipped in every export; S08.2: autosave erased the unsaved copy it offered), 62 medium, 172 low, 17 info. The verifiers refuted 5.
+
+**Fixes.** Under the lock, one writer at a time: the orchestrator fixed G4.2 first, then a fix workflow (`wf_c80bdd18-a3a`) ran 11 sequential rounds of a fresh `sonnet-worker` plus an independent `auditor` (D41, model set explicitly), and the orchestrator closed what the rounds left. **241 fixed**, 7 wait for the owner (ISSUES I42–I45), 5 are recorded as open (I44, I46, I47, docs). The main changes:
+- One forward migration, `20260930120000_audit_fixes.sql`, with these parts:
+  - a Custom Access Token hook that refuses password sign-in (D08);
+  - hidden posts no longer public through RLS;
+  - a changed approved policy clears the approval;
+  - publishing refuses a stale version under a per-document lock;
+  - `publish_due` isolates each row;
+  - the job-run purge keeps each job's newest run;
+  - the outbox keeps a reserve for sign-in codes;
+  - Resend quota answers wait for the next UTC day;
+  - exhausted rows follow the replay rule;
+  - notices to revoked staff are dropped;
+  - early webhook events are applied;
+  - the audit trail is complete;
+  - a published product's cover is guarded;
+  - functions are deny-by-default for future migrations too.
+- The editor no longer loses text. Posts have a draft preview. Pasted content fits the allowlist. The media library covers products, renames and paging. Admin messages reach screen readers. The team, store and money forms follow the database rules.
+- The public site:
+  - the journal has an editable name (D11), dates and a tested list, filter and article;
+  - the contact form cannot leak fields without JavaScript;
+  - the store fixes cover the cart, coupon Enter, quote failures, consent links and dedications;
+  - the reader's text layer is aligned, page-flip is patched for its loop leak, and focus is kept.
+- Backups: the linked project is found, an empty last entry is readable, and `--extract` refuses the repository.
+- Checks now fail when they should: `--passWithNoTests` removed, check:export's list widened, check:copy scans the content, budgets refuse an empty build.
+- Tests that could not fail were fixed, and cleanup now runs in `finally`.
+- 44 stale document statements were corrected.
+
+**Evidence** (`artifacts/acceptance/AUDIT-1/commands.txt`):
+- check: unit **486/486** (432 before), lint and typecheck 0;
+- deno check 6/6;
+- `supabase db reset` applies every migration from zero;
+- test:db **205/205** on a clean reset (181 before);
+- build, check:export (51 required files, no secret, no child-film file) and check:budgets (largest 147.0 KiB);
+- e2e **168/168** on the reset database (the first run, 161/168, surfaced stale selectors and test-data pollution, both fixed).
+
+**Open.** The owner's decisions I42 to I45: the WhatsApp export in Git history, buyer-data retention and the privacy link, preorder and policy-approval scope, and the Anas inputs. Nothing hosted was changed: I28 now also lists the password hook and "Secure password change" for P11.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -272,15 +310,16 @@ the cloud's own D13 fix and fixed it in `87ebd1c` (D18, same file).
 | P03 | accepted, committed `4322ccc` | `artifacts/acceptance/P03/` |
 | P04 | accepted, committed `ff67889` and `4ffc78f` | `artifacts/acceptance/P04/` |
 | P05 | accepted, committed `79d8cf6` | `artifacts/acceptance/P05/` |
-| P06 | accepted by the owner (2026-09-27, "yes commit changes"): acceptance battery green at `556e910` (2026-09-27: test:db 141, unit 237, e2e 71/71, build, export, budgets, Linux CI), round 3 done, phase 2 walk-through done (`556e910`); earlier: rounds 1–2 in `9b6d1e5` (round 1 audited by the orchestrator); fix passes `a324577`/`efa0e45`; cloud audit fixes `2325466`…`f5fe74d` locally verified (db 93, unit 215, e2e 22/22, screenshots reviewed; one TZ-dependent test fixed on top); card-label fix `87ebd1c` locally verified (17/17, computed-content probe, screenshots re-captured); round 2 closed except the Linux build items; D31 no-inbox change `738801c`/`4e0684d` and the D32 replatform pending local verification; round 3 not started | `artifacts/acceptance/P06/` |
+| P06 | accepted by the owner (2026-09-27, "yes commit changes"): acceptance battery green at `556e910` (2026-09-27: test:db 141, unit 237, e2e 71/71, build, export, budgets, Linux CI), round 3 done, phase 2 walk-through done (`556e910`); earlier: rounds 1–2 in `9b6d1e5` (round 1 audited by the orchestrator); fix passes `a324577`/`efa0e45`; cloud audit fixes `2325466`…`f5fe74d` locally verified (db 93, unit 215, e2e 22/22, screenshots reviewed; one TZ-dependent test fixed on top); card-label fix `87ebd1c` locally verified (17/17, computed-content probe, screenshots re-captured); round 2 closed except the Linux build items; D31 no-inbox change `738801c`/`4e0684d` and the D32 replatform locally verified 2026-09-27 | `artifacts/acceptance/P06/` |
 | P07 | accepted by the owner (2026-09-28: "I accept p07 for now"); acceptance record at `c3dc19e`; C20 closes only after P08, and E02/E03 stay open (D37, D38). History: round 1 done (2026-09-27): the orchestrator's catalog and checkout migration (`87015fc`), then glm-worker's `checkout` function, demo catalog seed (D37) and tests, audited with six fixes (unit 327, test:db 172, e2e 24/24); round 2 done (2026-09-27): the store admin (products with variants, delivery, coupons, customers) and owner-approved policies, built by glm-worker, audited with five fixes (unit 356, test:db 177, e2e 16/16); round 3 built by glm-worker (store, product, cart, checkout, policy pages), audited in two sessions (budget, lint, em dashes, the empty-catalog build, I39 with the owner's approval; then `d10dd1d`: eight fixes, among them the spent Turnstile token that failed every retry, cart-checkout e2e 11/11, I38's cause found); acceptance battery green: at `d10dd1d` every step (build empty and seeded, test:db 178, unit 375, export, budgets), and the e2e, cut short there by a memory crash, rerun to completion on 2026-09-28 at `45dbfa6`: 95/95; one test-isolation fix on top (P06's owner-operations spec now restores the settings row, 20/20); proof map in `commands.txt` | `artifacts/acceptance/P07/` |
+| AUDIT-1 | built and audited on `agent/design-b` (2026-09-30): the deep audit (253 confirmed findings) and 241 fixes, independently audited round by round; acceptance battery in `commands.txt`; not committed, waiting for the owner; the lock is held | `artifacts/acceptance/AUDIT-1/` |
 | P08–P12 | not_started | — |
 
 ## Next work, in order
 
-**Now (2026-09-29, after CLEANUP-1).**
-1. The owner reviews CLEANUP-1 and decides on the push of `agent/design-b` (nothing is pushed).
-2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox.
+**Now (2026-09-30, after AUDIT-1).**
+1. The owner reviews AUDIT-1 (`artifacts/acceptance/AUDIT-1/REPORT.md`) and decides on the commit of D41 and AUDIT-1, and on the push of `agent/design-b` (`origin` is at `0f2d87a`; CLEANUP-1 is local only). The owner also decides I42 (the WhatsApp export in Git history) and I43 to I45.
+2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox. With it: the buyer-data retention job once the owner sets the period (I43), and preorder if the owner keeps it in scope (I44).
 3. Owner and Anas inputs that reopen small admin work when they arrive: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40), the services in the CMS.
 4. P11 when the owner authorizes hosting: I40's launch steps and I41's content bootstrap join the list below.
 

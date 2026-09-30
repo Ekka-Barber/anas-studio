@@ -10,13 +10,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { cartCount, readCart, writeCart, type CartV1 } from '@/lib/cart'
+import { readCart, writeCart, type CartV1 } from '@/lib/cart'
 
 interface CartState {
   ready: boolean
   cart: CartV1
   persistent: boolean
-  count: number
   update: (next: CartV1) => void
 }
 
@@ -32,7 +31,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const update = useCallback((next: CartV1) => {
-    setState((previous) => ({ cart: next, persistent: (previous?.persistent ?? true) && writeCart(next) }))
+    // Written outside the updater (a side effect) and on every change, so a
+    // denied storage still keeps the memory cart current; `persistent` only falls.
+    const saved = writeCart(next)
+    setState((previous) => ({ cart: next, persistent: (previous?.persistent ?? true) && saved }))
   }, [])
 
   const value = useMemo<CartState>(
@@ -40,7 +42,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       ready: state !== null,
       cart: state?.cart ?? { version: 1, lines: [] },
       persistent: state?.persistent ?? true,
-      count: state ? cartCount(state.cart) : 0,
       update,
     }),
     [state, update],

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
-import { corsHeaders } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, NO_STORE, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { verifyTurnstile } from './turnstile.ts'
 
@@ -26,25 +26,11 @@ import { verifyTurnstile } from './turnstile.ts'
  * The contact body limit (ARCHITECTURE: "contact to 8 KiB"). Arabic is two
  * bytes a character in UTF-8, so a message stops fitting near 4,000 Arabic
  * characters — before the schema's 5,000-character bound; the P01 form
- * should cap its textarea accordingly. Only the message can push a body past
- * the limit, so the 413 copy names it.
+ * checks the message's bytes before it spends a Turnstile token. Only the
+ * message can push a body past the limit, so the 413 copy names it.
  */
 const MAX_BODY_BYTES = 8_192
-/** Requests that declare more than this via content-length are refused before the body is read. */
-const MAX_DECLARED_BODY_BYTES = 32_768
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-const NO_STORE = { 'cache-control': 'no-store' }
-
-/** The site origin the form lives on; null when `SITE_URL` is unset or invalid. */
-function siteOrigin(): string | null {
-  const siteUrl = optionalEnv('SITE_URL')
-  if (!siteUrl) return null
-  try {
-    return new URL(siteUrl).origin
-  } catch {
-    return null
-  }
-}
 
 /**
  * The email grammar, shared verbatim with the database's own check: a local
@@ -101,10 +87,7 @@ export async function handleContact(request: Request, rpc: Rpc = serviceRpc()): 
   const allowed = siteOrigin()
   const cors = allowed ? corsHeaders(allowed) : {}
   const fail = (status: number, code: string, message: string, fields?: unknown): Response =>
-    Response.json(
-      { ok: false, error: { code, message, ...(fields ? { fields } : {}) }, requestId: crypto.randomUUID() },
-      { status, headers: { ...NO_STORE, ...cors } },
-    )
+    failWith(status, code, message, fields, cors)
   const received = (): Response =>
     Response.json({ ok: true, data: { received: true } }, { status: 201, headers: { ...NO_STORE, ...cors } })
 
@@ -119,17 +102,9 @@ export async function handleContact(request: Request, rpc: Rpc = serviceRpc()): 
     return fail(415, 'UNSUPPORTED_MEDIA_TYPE', 'أرسل الطلب بصيغة JSON.')
   }
 
-  // Refuse an oversized request before reading the body; the post-read check
-  // below stays as the backstop when content-length is absent or understates.
-  const declaredLength = Number(request.headers.get('content-length'))
-  if (declaredLength > MAX_DECLARED_BODY_BYTES) {
-    return fail(413, 'TOO_LARGE', 'رسالتك أطول من المسموح؛ اختصرها وأرسلها من جديد.')
-  }
-
-  const text = await request.text()
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return fail(413, 'TOO_LARGE', 'رسالتك أطول من المسموح؛ اختصرها وأرسلها من جديد.')
-  }
+  // The bounded read refuses an oversized body, declared or streamed, without buffering it.
+  const text = await boundedText(request, MAX_BODY_BYTES)
+  if (text === null) return fail(413, 'TOO_LARGE', 'رسالتك أطول من المسموح؛ اختصرها وأرسلها من جديد.')
   let body: unknown
   try {
     body = JSON.parse(text)

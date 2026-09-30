@@ -5,9 +5,7 @@
  * guard below is only for `pnpm test:db`.
  */
 export { MissingEnvError, optionalEnv, requireEnv, secretsMatch } from '../../supabase/functions/_shared/env.ts'
-
-/** Hosts that are accepted as a disposable local database. */
-const LOCAL_DB_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'host.docker.internal'])
+import { LOCAL_HOSTS } from '../../supabase/functions/_shared/env.ts'
 
 /**
  * True only for a PostgreSQL URL that points at a loopback host.
@@ -23,7 +21,11 @@ export function isLocalDatabaseUrl(url: string): boolean {
   if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
     return false
   }
-  return LOCAL_DB_HOSTS.has(parsed.hostname)
+  // `pg` takes the host from a `?host=` parameter over the URL's own host.
+  if (parsed.searchParams.has('host')) {
+    return false
+  }
+  return LOCAL_HOSTS.has(parsed.hostname)
 }
 
 /**

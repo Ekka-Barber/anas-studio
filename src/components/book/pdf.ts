@@ -37,7 +37,13 @@ export function loadPdfjs(): Promise<Pdfjs> {
 export async function openPreview(url: string): Promise<{ pdfjs: Pdfjs; doc: PDFDocumentProxy; frame: Frame }> {
   const pdfjs = await loadPdfjs()
   const doc = await pdfjs.getDocument({ url, enableXfa: false, disableFontFace: true, verbosity: pdfjs.VerbosityLevel.ERRORS }).promise
-  return { pdfjs, doc, frame: await measureFrame(doc) }
+  try {
+    return { pdfjs, doc, frame: await measureFrame(doc) }
+  } catch (error) {
+    // A document nobody receives would keep its worker.
+    void doc.loadingTask.destroy()
+    throw error
+  }
 }
 
 /** The part of every page a leaf shows, in PDF points from the page's top left. */
@@ -167,6 +173,9 @@ export class PageSurface {
     this.text.style.setProperty('--total-scale-factor', String(scale))
     this.text.style.setProperty('--scale-round-x', '1px')
     this.text.style.setProperty('--scale-round-y', '1px')
+    // pdf.js's text layer ignores a viewport's offset and lays the words out on
+    // the whole page: the layer itself moves by the frame instead.
+    Object.assign(this.text.style, { left: `${-frame.x * scale}px`, top: `${-frame.y * scale}px`, right: 'auto', bottom: 'auto' })
     const content = await page.getTextContent()
     const reference = this.reference
     if (reference) {
@@ -178,7 +187,7 @@ export class PageSurface {
         items[i]!.str = str
       })
     }
-    this.layer = new pdfjs.TextLayer({ textContentSource: content, container: this.text, viewport: at(scale) })
+    this.layer = new pdfjs.TextLayer({ textContentSource: content, container: this.text, viewport: page.getViewport({ scale }) })
     await this.layer.render().catch(() => {})
   }
 

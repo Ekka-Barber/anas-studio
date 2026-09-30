@@ -41,7 +41,6 @@
     "poem": [
       "بعض المشاريع بدأت هنا،وبعضها بُني هنا، وبعضها مرّ من هنا،أما الحكايات…فما زالت تُكتب."
     ],
-    "signature": "أنس",
     "domain": "anas.studio"
   },
   "home": {
@@ -82,9 +81,6 @@
       "title": "بدأتُ من هنا",
       "tagline": "ليست كل الأفكار تبحث عن مستثمر…بعضها يبحث فقط عن فرصة لتولد.",
       "jewel": "coral",
-      "vignette": {
-        "id": "01-started-mothers-kitchen"
-      },
       "heroLine": "قبل أن أبني للآخرين،كنت أبني أشياء صغيرة تخصّني.",
       "movements": [
         {
@@ -165,31 +161,6 @@
           {
             "id": "45-animated-pottery-signature",
             "alt": "مقطع متحرك لتوقيع أنس على قطعة فخارية"
-          },
-          {
-            "id": "46-kid-picnic-jam",
-            "alt": "طفل يقدّم مربى في نزهة خارجية",
-            "hidden": true
-          },
-          {
-            "id": "47-kid-bisht-honey-jar",
-            "alt": "طفل يحمل مرطبان عسل بجانب بشت",
-            "hidden": true
-          },
-          {
-            "id": "48-kid-supermarket-tomato-pesto",
-            "alt": "طفل في متجر يحمل صلصة طماطم وبيستو",
-            "hidden": true
-          },
-          {
-            "id": "49-kid-hotel-breakfast",
-            "alt": "طفل على مائدة إفطار فندقية",
-            "hidden": true
-          },
-          {
-            "id": "50-kid-cafe-croissant-jam",
-            "alt": "طفل في مقهى مع كرواسون ومربى",
-            "hidden": true
           }
         ]
       },
@@ -203,9 +174,6 @@
       "title": "بنيتُ هنا",
       "tagline": "بعض الأماكن لا تحمل اسمك…لكنها تحمل شيئاً مني أفخر به .",
       "jewel": "aub",
-      "vignette": {
-        "id": "02-built-raha-millstone"
-      },
       "heroLine": "لم أصل إلى رحى صدفه",
       "intro": {
         "vignette": "raha-poster-orange",
@@ -305,11 +273,7 @@
       "title": "مررتُ من هنا",
       "tagline": "ليست كل البصمات تحتاج إلى توقيع",
       "jewel": "aub",
-      "vignette": {
-        "id": "03-passed-street-of-shops"
-      },
       "heroLine": "قبل أن أمرّ بالمشاريع…كنت أمرّ على البيوت بصندوق حلى",
-      "heroVignette": "03b-passed-doorstep-delivery",
       "paragraphs": [
         "في 2013، ما كان عندي مشروع بالمعنى الحقيقي كان عندي مطبخ أمي ، وهواية، ووقت أستمتع فيه وأنا أسوي كوكيز، ميني تشيزكيك وسان سباستيان.",
         "أبيع، أجهّز، أرد على الطلبات، وأوصلها بنفسي وأحيانًا اوقف الطلبات حتى ألعب مع الأصدقاء .",
@@ -453,9 +417,6 @@
       "title": "على الرف",
       "tagline": "ليست كل الأفكار تحتاج أن ترى النور فوراً ، بعضها يحتاج فقط إلى الوقت المناسب.",
       "jewel": "paper",
-      "vignette": {
-        "id": "04-shelf-moonlit-shelf"
-      },
       "items": {
         "thura": {
           "name": "ذرى",
@@ -515,8 +476,6 @@
           "inspirers": "كتاب ميثاق الملك سلمان العمراني (الدافع الأكبر)، كتاب أهل العوجا، المهندس راسم بدران، المهندس نواف النصار، الباحثة ريم البسام.",
           "slogan": "«من هالأرض لهالأرض».",
           "comingSoonLine": "منتج على الرف ليرى النور بين أيديكم في مكانٍ ما قريباً 2027",
-          "vignette": "04b-shelf-thura-najdi-triangles",
-          "divider": "90-divider-najdi-triangles",
           "photos": [
             {
               "id": "thura-67",
@@ -547,7 +506,6 @@
               "alt": "قطع ذرى ببتلات الورد"
             }
           ],
-          "posterId": "thura-film_1080p",
           "status": "قريباً 2027"
         },
         "moonlightCup": {
@@ -562,7 +520,6 @@
             "لأن بعض الأحلام الصغيرة تبقى مضيئة حتى بعد أن نستيقظ."
           ],
           "status": "قيد التصنيع",
-          "vignette": "04c-shelf-moonlight-shop-dream",
           "images": [
             {
               "id": "render-83",
@@ -599,7 +556,6 @@
             "بوتيك أنس القرني\nمكانٌ يروي نفسه\nوقصص من مرّوا به."
           ],
           "closingLine": "أما بقية الحكاية،فسأتركها هنا على الرف،إلى أن يحين وقتها.",
-          "vignette": "04d-shelf-boutique-open-book",
           "bandLines": [
             "بوتيك أنس القرني\nمكانٌ يروي نفسه\nوقصص من مرّوا به."
           ],

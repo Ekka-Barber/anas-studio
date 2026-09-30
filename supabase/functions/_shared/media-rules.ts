@@ -20,12 +20,13 @@ export function derivativeHeight(width: number, crop: { width: number; height: n
 
 /**
  * Folder path rules shared by the SQL check, `ticketRequestSchema` and the
- * admin form: at most 120 characters, no control characters, and a clean
+ * admin form: at most 120 characters, no control characters (C0, DEL and
+ * C1, like the SQL `[[:cntrl:]]` check), and a clean
  * `/`-separated path (no leading/trailing/double slash). The empty string is
  * the root folder and is valid.
  */
 export function folderIsInvalid(folder: string): boolean {
-  return folder.length > 120 || /[\u0000-\u001F\u007F]/.test(folder) || /(^\/|\/$|\/\/)/.test(folder)
+  return folder.length > 120 || /[\u0000-\u001F\u007F-\u009F]/.test(folder) || /(^\/|\/$|\/\/)/.test(folder)
 }
 
 const MEDIA_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

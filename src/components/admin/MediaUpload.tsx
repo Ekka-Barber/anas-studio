@@ -9,7 +9,7 @@
  * and fields. If the browser cannot encode WebP the upload stops with an
  * actionable message; the original is never published as a fallback.
  */
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import Cropper from 'react-easy-crop'
 
 import { mediaFields, mediaMetaSchema, type MediaMeta } from '@/admin/collections/media'
@@ -20,8 +20,8 @@ import { callFunction } from '@/lib/supabase/functions'
 import { FieldInput } from './FieldInput'
 import styles from './admin.module.css'
 
-// Mirrors the server's limits in src/lib/media.ts (importing that module
-// here would pull server-only code into the client bundle).
+// Mirrors the server's limits in supabase/functions/_shared/media.ts (a Deno
+// Edge Function module, which the Next client bundle cannot import).
 const ACCEPTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
 const MAX_ORIGINAL_BYTES = 15_728_640
 const MAX_PIXELS = 40_000_000
@@ -33,7 +33,7 @@ const PIXELS_ERROR = 'حجم الصورة بالبكسل أكبر من المس�
 const DECODE_ERROR = 'تعذّرت قراءة الصورة.'
 const CANVAS_ERROR = 'تعذّر تجهيز أداة الرسم في هذا المتصفح.'
 const WEBP_ERROR =
-  'هذا المتصفح لا يستطيع إنشاء صور WebP. استخدم نسخة حديثة من Chrome أو Edge أو Firefox أو Safari.'
+  'هذا المتصفح لا يستطيع إنشاء صور WebP. استخدم نسخة حديثة من Chrome أو Edge أو Firefox.'
 const DERIVATIVE_SIZE_ERROR = 'حجم أحد المقاسات بعد التحويل أكبر من 4 ميغابايت؛ جرّب اقتصاصًا أصغر أو صورة أبسط.'
 
 // react-easy-crop needs one fixed aspect, so «الأصل» offers the image's own
@@ -125,6 +125,7 @@ export function MediaUpload({
   onUploaded: (id: string) => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const titleId = useId()
   const [file, setFile] = useState<File | null>(null)
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -304,12 +305,13 @@ export function MediaUpload({
     <dialog
       ref={dialogRef}
       className={`${styles.dialog} ${styles.dialogWide}`}
+      aria-labelledby={titleId}
       onCancel={(event) => {
         if (busy) event.preventDefault()
       }}
       onClose={onClose}
     >
-      <h2>رفع صورة إلى المكتبة</h2>
+      <h2 id={titleId}>رفع صورة إلى المكتبة</h2>
       {!file || !bitmap || !imageUrl ? (
         <div className={styles.field}>
           <label className={styles.label} htmlFor="media-upload-file">
@@ -323,7 +325,11 @@ export function MediaUpload({
             onChange={(event) => void chooseFile(event)}
           />
           <p className={styles.message}>JPEG أو PNG أو WebP أو AVIF، حتى 15 ميغابايت و40 مليون بكسل.</p>
-          {fileError && <p className={styles.error}>{fileError}</p>}
+          {fileError && (
+            <p role="alert" className={styles.error}>
+              {fileError}
+            </p>
+          )}
         </div>
       ) : (
         <>
@@ -392,7 +398,11 @@ export function MediaUpload({
                 }
                 id={`media-upload-${field.name}`}
               />
-              {fieldErrors[field.name] && <p className={styles.error}>{fieldErrors[field.name]}</p>}
+              {fieldErrors[field.name] && (
+                <p role="alert" className={styles.error}>
+                  {fieldErrors[field.name]}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -404,7 +414,9 @@ export function MediaUpload({
       )}
       {failure && (
         <div className={styles.row}>
-          <p className={styles.error}>{failure}</p>
+          <p role="alert" className={styles.error}>
+            {failure}
+          </p>
           <button type="button" className={styles.buttonSecondary} disabled={busy !== null} onClick={() => void submit()}>
             إعادة المحاولة
           </button>

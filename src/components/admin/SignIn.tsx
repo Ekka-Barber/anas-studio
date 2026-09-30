@@ -118,12 +118,27 @@ export function SignIn() {
               autoComplete="one-time-code"
               maxLength={6}
               required
+              autoFocus
               value={code}
               onChange={(event) => setCode(event.target.value)}
             />
           </div>
           <button type="submit" className={styles.button} disabled={busy}>
             تحقق
+          </button>
+          {/* The code lasts 10 minutes and the address may be mistyped: a way back to step 1. */}
+          <button
+            type="button"
+            className={styles.buttonSecondary}
+            onClick={() => {
+              setStep('email')
+              setCode('')
+              setError(null)
+              setMessage(null)
+              requestAnimationFrame(() => document.getElementById('email')?.focus())
+            }}
+          >
+            تغيير البريد أو طلب رمز جديد
           </button>
           {error && (
             <p role="alert" className={styles.error}>
