@@ -1,0 +1,369 @@
+{
+ "files": [
+  "PLANS/WORK-PACKAGES.md",
+  "content/initial-content.json",
+  "docs/development.md",
+  "playwright.config.ts",
+  "tests/e2e/cart-checkout.spec.ts",
+  "tests/e2e/checkout-api.spec.ts",
+  "tests/e2e/cms.spec.ts",
+  "tests/e2e/media.spec.ts",
+  "tests/e2e/motion.spec.ts",
+  "tests/e2e/owner-operations.spec.ts",
+  "tests/e2e/public.spec.ts",
+  "tests/e2e/store-admin.spec.ts",
+  "tests/e2e/visual.spec.ts",
+  "tests/integration/privacy-requests.test.ts",
+  "tests/integration/staff-admin.test.ts",
+  "tests/integration/staff.test.ts",
+  "tests/integration/static-site.test.ts",
+  "tests/unit/backup-format.test.ts",
+  "tests/unit/cart.test.ts",
+  "tests/unit/checkout.test.ts",
+  "tests/unit/contact-route.test.ts",
+  "tests/unit/email.test.ts",
+  "tests/unit/media.test.ts",
+  "tests/unit/reader-mapping.test.ts",
+  "tests/unit/richtext.test.ts"
+ ],
+ "findings": [
+  {
+   "id": "X5.4",
+   "severity": "medium",
+   "category": "tests",
+   "title": "Journal list, category filter and article page are never exercised by any suite (P01 proof, C16 'working public filters')",
+   "file": "tests/e2e/public.spec.ts",
+   "line": 10,
+   "otherLocations": [
+    "tests/e2e/cms.spec.ts:65",
+    "tests/e2e/visual.spec.ts:17",
+    "content/initial-content.json:1"
+   ],
+   "evidence": "const ROUTES = ['/', '/started', '/built', '/passed', '/shelf', '/book', '/journal', '/scenes', '/contact', '/store']",
+   "failureScenario": "content/initial-content.json has no posts (its keys are nav, footer, home, social, rooms, scenes). The cms post-lifecycle test archives its post and checks only the anon Data API. So every public, visual and cms run sees /journal in its empty state, and no test ever loads /journal/<slug>. Any of these regressions would pass public 26/26, visual 50/50 and cms 5/5: getPosts' category-label join, JournalList's filter (rendered only with two or more categories), or the public RichText article. The P01 proof 'every route, menu/tab/filter/lightbox real clicks' is unmet for the journal.",
+   "suggestedFix": "Extend the cms.spec post lifecycle, or add a public.spec block: publish two posts in two categories, load /journal, check the lead card, click a category toggle (aria-pressed, list narrowed), open an article and assert title, body text, author and category, then archive both.",
+   "verifierCorrections": [
+    "Extend the existing cms.spec post lifecycle rather than adding a separate block. After the publish step and before the archive, publish a second post in a second category. Then load /journal and assert the lead card, click a category toggle (aria-pressed=true, list narrowed), open /journal/e2e-post-<stamp> and assert the title, the bold word, the author and the category label. Archive both posts in the same test (use try/finally) so no stray published post breaks the build-time journal check noted in media-security.test.ts:26."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.1",
+   "severity": "low",
+   "category": "tests",
+   "title": "Routine e2e runs overwrite committed acceptance screenshots, which breaks the documented H2 guarantee",
+   "file": "tests/e2e/cart-checkout.spec.ts",
+   "line": 22,
+   "otherLocations": [
+    "tests/e2e/media.spec.ts:285",
+    "tests/e2e/media.spec.ts:511",
+    "tests/e2e/owner-operations.spec.ts:727",
+    "tests/e2e/store-admin.spec.ts:316",
+    "tests/e2e/visual.spec.ts:24",
+    "docs/development.md:292",
+    "playwright.config.ts:12"
+   ],
+   "evidence": "const SHOTS = 'artifacts/acceptance/P07/screenshots'\n...\nawait page.screenshot({ path: `${SHOTS}/store-list-${width}.png`, fullPage: true })",
+   "failureScenario": "A developer runs plain `pnpm test:e2e` with no ACCEPTANCE_PACKAGE, as the briefs and docs/development.md tell them to. Five specs write screenshots straight into tracked evidence folders: P07 (cart-checkout, store-admin), P05 (media), P06 (owner-operations) and DESIGN-B (visual, 50 files). media.spec also appends a line to the tracked P05 overflow.txt on every run. Only the Playwright report goes to test-results/. Every routine run, and every other package's acceptance run (the CLEANUP-1 run with visual 50/50, for example), replaces the accepted P05/P06/P07/DESIGN-B evidence with new captures. docs/development.md:292 says «Accepted reports of other packages are never touched», and playwright.config.ts:12-13 says the same.",
+   "suggestedFix": "Derive the screenshot folder from ACCEPTANCE_PACKAGE the way playwright.config.ts derives runDir, e.g. `const SHOTS = process.env.ACCEPTANCE_PACKAGE ? 'artifacts/acceptance/P07/screenshots' : 'test-results/screenshots/P07'`. Apply it in cart-checkout.spec.ts:22, store-admin.spec.ts:316, owner-operations.spec.ts:727, media.spec.ts:285 and visual.spec.ts:24. A simpler option is to write under testInfo.outputPath() and copy files only at acceptance.",
+   "verifierCorrections": [
+    "Put the root at one place: export `const shotsDir = (pkg: string) => process.env.ACCEPTANCE_PACKAGE === pkg ? `artifacts/acceptance/${pkg}/screenshots` : `test-results/screenshots/${pkg}`` from tests/e2e/helpers.ts, and use it in the five specs, including the overflow.txt append in media.spec.ts:511/561. Gate on ACCEPTANCE_PACKAGE equal to the spec's own package, not merely set, so a CLEANUP-1 acceptance run does not overwrite P05/P06/P07/DESIGN-B evidence either."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.7",
+   "severity": "low",
+   "category": "tests",
+   "title": "checkoutOn() publishes test policies into the local DB and never removes them",
+   "file": "tests/e2e/cart-checkout.spec.ts",
+   "line": 166,
+   "otherLocations": [],
+   "evidence": "if (revisionsText === '{}') {\n  // No published policies yet: publish the three minimal ones like the demo seed.\n  for (const id of ['store', 'delivery', 'refund']) {\n    ...\n    await db.query('select public.content_go_live($1, $2)', ['policies', id])",
+   "failureScenario": "On a local DB with no published policies (after db:reset and before the demo seed), the spec publishes three policies titled 'store', 'delivery' and 'refund' with body «نص سياسة الاختبار.». afterAll restores commerce_settings.policy_revisions but leaves those documents live. /policies/store, /policies/delivery and /policies/refund then show test text in every later dev session and local build.",
+   "suggestedFix": "In cart-checkout.spec.ts, record the ids published here and archive them in afterAll (`select public.archive_document('policies', id)` or the SQL equivalent the admin uses). Alternatively, fail with a clear message asking for the demo seed instead of publishing.",
+   "verifierCorrections": [
+    "The suggested archive_document fix does not work: public.archive_document(collection, doc_id) (20260927090000_static_site_and_functions.sql:118-130) requires auth.uid() to be a publisher and refuses every collection except posts/taxonomies, so it raises for 'policies' from the pg test client. Record the ids published in checkoutOn and in afterAll run `delete from public.published_documents where collection = 'policies' and doc_id = any($1)` and `delete from public.content_versions where collection = 'policies' and doc_id = any($1)`. Or, simpler, throw with 'run pnpm db:demo-catalog first' in place of publishing."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.4",
+   "severity": "low",
+   "category": "tests",
+   "title": "checkout-api afterAll can throw before it restores commerce_settings, which leaves checkout enabled with test seller data",
+   "file": "tests/e2e/checkout-api.spec.ts",
+   "line": 158,
+   "otherLocations": [
+    "tests/e2e/checkout-api.spec.ts:65",
+    "tests/e2e/store-admin.spec.ts:196"
+   ],
+   "evidence": "  expect(createdBody.data.order.status).toBe('pending_payment')\n  expect(createdBody.data.accessToken).toMatch(/^[A-Za-z0-9_-]{43}$/)\n  orderId = createdBody.data.order.id",
+   "failureScenario": "The create returns 201 and the order is persisted, then an assertion at L155-157 fails (for example a changed access-token format). orderId stays null, so afterAll skips the order delete. `delete from public.customers where email = $1` (L65) then fails on the FK finance.orders.customer_id -> public.customers(id). afterAll throws before the products, variants and rates are cleaned and before the commerce_settings restore at L69, which runs last. The local DB keeps checkout_enabled = true, seller 'بائع الاختبار' and policy_revisions {1,1,1}. The next spec to snapshot `saved` (cart-checkout, store-admin, owner-operations) takes that as the baseline. store-admin.spec.ts:196 has the same late assignment and leaves a pending order holding a stock reservation.",
+   "suggestedFix": "In checkout-api.spec.ts, set `orderId = createdBody.data?.order?.id ?? null` immediately after `created.json()`, before the expects. Move the commerce_settings restore to the top of afterAll, as cart-checkout.spec.ts:127 does. Alternatively, delete orders by customer_email the way cart-checkout does. Apply the same early assignment in store-admin.spec.ts.",
+   "verifierCorrections": [
+    "Root cause: in checkout-api.spec.ts, move the commerce_settings restore to the top of afterAll (as cart-checkout.spec.ts:127 does), and assign `orderId = createdBody.data?.order?.id ?? null` right after `created.json()`, before the expects. In store-admin.spec.ts only the early orderId assignment is needed, to avoid leaking the order and reservation; that file has no restore-ordering bug."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.2",
+   "severity": "low",
+   "category": "tests",
+   "title": "A failed CMS test leaves test content published and breaks every later run: the restore is not in finally",
+   "file": "tests/e2e/cms.spec.ts",
+   "line": 335,
+   "otherLocations": [
+    "tests/e2e/cms.spec.ts:241",
+    "tests/e2e/cms.spec.ts:422",
+    "tests/e2e/cms.spec.ts:151",
+    "tests/e2e/media.spec.ts:459",
+    "tests/e2e/owner-operations.spec.ts:597"
+   ],
+   "evidence": "  // Restore the version that was live at the start and publish it: the\n  // database is left as found.\n  await page\n    .locator('table tbody tr')\n    .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })",
+   "failureScenario": "In the social-links test, suppose an assertion fails after save and publish, for example a footer check at L328-330. The restore at L335-343 never runs. The live site_settings keeps `@e2e.<stamp>` and a fifth YouTube tile, so the local /contact and footer show test data. CollectionForm loads `latest_data`, so the next run's editor shows 5 items and `expect(items).toHaveCount(4)` at L281 fails on every rerun until someone restores the document by hand. The same pattern applies elsewhere. Scenes: `toHaveCount(19)` at L379 fails after a 20-item draft. Room: `original` is read from the polluted draft, so `getByText(originalOnPage)` at L213 fails. media round 2 leaves /built publishing a test image. owner-operations settings leaves the SEO title and WhatsApp number live. `liveAtStart` then records the polluted version as the new baseline.",
+   "suggestedFix": "Wrap each edit-and-publish section in try/finally. In finally, restore through the pg client the way cart-checkout.spec.ts:175-179 does: insert a new content_versions row that copies the data of originalSeq, then `select public.content_go_live($1,$2)`. This leaves the database as found whether or not the test passes.",
+   "verifierCorrections": [
+    "The fix is right but should reuse one helper. Add a small `restoreLive(collection, docId, seq)` helper next to createOwner/status that does two things with pg: insert into public.content_versions a copy of the data at `seq`, at max(seq)+1, then `select public.content_go_live($1,$2)`. Each edit test calls it from a `finally`, and the UI restore steps stay as assertions in the try block. Media round 2 and owner-operations settings get the same wrap only where they publish, and each should be checked individually. An acceptable alternative: document `pnpm db:import --force` as the recovery step in the test header."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.3",
+   "severity": "low",
+   "category": "tests",
+   "title": "The P05 overflow check is recorded but never asserted, so overflow cannot fail the test",
+   "file": "tests/e2e/media.spec.ts",
+   "line": 559,
+   "otherLocations": [],
+   "evidence": "const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)\nappendFileSync(\n  path.join(SHOT_DIR, 'overflow.txt'),\n  `${label}px: scrollWidth - innerWidth = ${overflow} ${overflow <= 0 ? 'OK' : 'OVERFLOW'}\\n`,\n)",
+   "failureScenario": "The test is titled «screenshots at 360 and 1440, and horizontal overflow». If a change makes the media library, the details panel or the upload dialog overflow at 360px, the test still passes. It measures overflow only on the last (picker) page and only writes «OVERFLOW» into a text file. P05's no-overflow evidence can therefore be green while the admin screen scrolls sideways. owner-operations.spec.ts and store-admin.spec.ts do the same check with expect() on every page.",
+   "suggestedFix": "In media.spec.ts, replace the append with `expect(overflow, `${label}: horizontal overflow`).toBeLessThanOrEqual(0)`. Run the same measure-and-assert after each of the library, details and upload screenshots, not only the picker.",
+   "verifierCorrections": [
+    "Add a small local helper, `const assertNoOverflow = async (p, where) => expect(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${label} ${where}: horizontal overflow`).toBeLessThanOrEqual(0)`, and call it after each of the four screenshots. Keep the overflow.txt append if the acceptance evidence cites it."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.5",
+   "severity": "low",
+   "category": "tests",
+   "title": "Media step 7 clicks «نشر» before the restore has reloaded the form, so it can republish the test version",
+   "file": "tests/e2e/media.spec.ts",
+   "line": 462,
+   "otherLocations": [],
+   "evidence": "await historyTable\n  .locator('tbody tr')\n  .filter({ has: page.locator('td:first-child', { hasText: new RegExp(`^${originalSeq}$`) }) })\n  .getByRole('button', { name: 'استعادة' })\n  .click()\nawait page.getByRole('button', { name: 'نشر' }).click()",
+   "failureScenario": "VersionHistory.restoreVersion does a select, then an insert, then onRestored() reloads the form. PublishBar calls publishDocument(collection, docId, seq) with the seq it already holds. The «نشر» click follows the restore click within milliseconds, and nothing waits for the reload. When the publish wins the race, it republishes the test's version, which is the one holding the library image. The assertion at L470 then fails, and /built is left publishing the test image. owner-operations.spec.ts:605-607 documents exactly this hazard («publishing before that would publish this test's edit again») and waits for the form to reload. cms.spec.ts:247 also waits.",
+   "suggestedFix": "After the restore click in media.spec.ts, wait for the reloaded form before publishing, e.g. `await expect(page.getByRole('group', { name: 'المقدمة' }).getByRole('img', { name: 'وصف صورة الاختبار' })).toHaveCount(0)`, or wait for the history row count to grow by one.",
+   "verifierCorrections": [
+    "Between the restore click and the publish click, wait until the reload is visible. The robust option is the history table gaining a row: count the rows before restoring, then `await expect(historyTable.locator('tbody tr')).toHaveCount(before + 1)`. The row wait works regardless of what originalSeq held, which the image-absent check does not guarantee, because an earlier run may have left a library image in that version."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.6",
+   "severity": "low",
+   "category": "tests",
+   "title": "The stats screenshot waits on the nav link «المتجر», not on the data, so it can capture the loading state",
+   "file": "tests/e2e/owner-operations.spec.ts",
+   "line": 686,
+   "otherLocations": [],
+   "evidence": "{ name: 'stats', path: '/admin/stats', wait: 'المتجر' },\n...\nconst ready = typeof target.wait === 'string' ? page.getByText(target.wait, { exact: false }).first() : target.wait",
+   "failureScenario": "AdminShell renders `<Link href=\"/admin/store\">المتجر</Link>` for an owner in a nav that is always visible and comes before the page in the DOM. `.first()` therefore resolves on the nav link at once. The overflow assertions and the stats-360/1440 screenshots run while StatsView still shows «يحمّل...», or even its error state. This contradicts the spec's own rule at L671 («Every target waits for the DATA, not the chrome»). An overflow in the loaded stats sections would go unnoticed.",
+   "suggestedFix": "In owner-operations.spec.ts, use a data-only wait target, e.g. `wait: page.getByText('وقت التوليد:')`. StatsView renders that only after the stats answer arrives.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S19.3",
+   "severity": "low",
+   "category": "tests",
+   "title": "The privacy_erase_contacts audit assertions count every erase_contacts row in the database",
+   "file": "tests/integration/privacy-requests.test.ts",
+   "line": 269,
+   "otherLocations": [],
+   "evidence": "\"select entity_id, summary from public.audit_events where action = 'privacy.erase_contacts' and entity = 'contacts'\",\n...\nexpect(audit).toEqual([{ entity_id: '2', summary: { count: 2 } }])\n...\n\"select count(*)::int as n from public.audit_events where action = 'privacy.erase_contacts'\",\n...).toBe(1)",
+   "failureScenario": "The runbook step in docs/privacy-data-map.md, line 34, is `select public.privacy_erase_contacts(...)`, which commits an audit row. If the owner rehearses that step on the local stack, one such row stays in public.audit_events. Every later run of this test then fails: the first query returns two rows, not one, and the no-op check counts 2, not 1. The code under test did nothing wrong. The audit table is append-only, so the leftover row cannot be removed.",
+   "suggestedFix": "In tests/integration/privacy-requests.test.ts, scope both queries to this transaction's rows. Read `select coalesce(max(id), 0) from public.audit_events` before the call, then add `and id > $1` to the two audit queries.",
+   "verifierCorrections": [
+    "A smaller fix needs no extra query. The audit rows take `at default now()` (20260927140000 inserts no `at`; 20260925090000:11), and now() is fixed for the whole transaction, so add `and at = now()` to both audit queries inside rolledBack(). The max(id) snapshot that was suggested also works."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S19.2",
+   "severity": "low",
+   "category": "tests",
+   "title": "The last-owner test deactivates every other active owner for good, including the bootstrapped local owner",
+   "file": "tests/integration/staff-admin.test.ts",
+   "line": 115,
+   "otherLocations": [],
+   "evidence": "const others = await serviceClient\n  .from('staff').select('user_id').eq('role', 'owner').eq('active', true).neq('user_id', owner.userId)\nfor (const row of others.data ?? []) {\n  await serviceClient.from('staff').update({ active: false }).eq('user_id', row.user_id)\n}",
+   "failureScenario": "docs/development.md, lines 85-106, has the developer run `pnpm bootstrap:owner` and then `pnpm test:db` against the same local stack. This test sets active = false on the bootstrapped owner and on every other owner, and nothing restores them. Afterwards the developer's own owner has no active role and cannot use /admin. `bootstrap:owner` also refuses to run again because staff rows exist (docs/development.md, line 97). The only way back is a manual SQL update, and neither the docs nor the test mentions it.",
+   "suggestedFix": "In tests/integration/staff-admin.test.ts, save the ids from `others.data` and wrap the call and its assertions in try/finally. In the finally block, set active = true again for those ids with serviceClient, the way policy-approval.test.ts restores the settings row.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X5.15",
+   "severity": "low",
+   "category": "tests",
+   "title": "P03 proof names the operations role and a revoked member, but the staff and audit Data API tests cover only anon, editor and owner",
+   "file": "tests/integration/staff.test.ts",
+   "line": 21,
+   "otherLocations": [
+    "tests/integration/staff-admin.test.ts:15",
+    "PLANS/WORK-PACKAGES.md:47"
+   ],
+   "evidence": "describe('editor', () => {\n  it('sees only its own staff row, cannot write staff, sees no audit rows, and staff_directory fails', async () => {",
+   "failureScenario": "The P03 proof requires real-JWT checks 'for anon, editor, operations, owner and a revoked member: no self-promotion, no staff writes, no audit reads'. staff.test.ts has no operations case, and the revoked member is checked only through current_staff_role and sign-in (staff-admin.test.ts:95-97). Suppose a later policy grants audit reads with `current_staff_role() in ('owner','operations')`, or lets operations update its own role. test:db would still pass 181/181.",
+   "suggestedFix": "In staff.test.ts, add an operations case that mirrors the editor case (own row only, update/insert/delete refused, audit empty, staff_directory refused). Add a revoked-member case: after deactivation, the staff select returns no rows and the audit select returns none.",
+   "verifierCorrections": [
+    "Parametrize the existing editor case over ['editor','operations'] (for...of, like commerce-settings.test.ts:83) instead of copying it. For the revoked member, use createStaff(role, { active: false }), which forms.test.ts:187 already uses, and sign in before deactivating (or reuse the current_staff_role test's client after deactivation). Then assert that audit_events returns [] and staff_directory errors. staff_read still returns the member's own row (user_id = auth.uid()), so do not assert that the staff select is empty. Instead, assert that the update to role 'owner' errors."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S19.1",
+   "severity": "low",
+   "category": "tests",
+   "title": "The scheduled-publish test only checks the case where nothing is due; publish_due never has a due version to publish",
+   "file": "tests/integration/static-site.test.ts",
+   "line": 231,
+   "otherLocations": [],
+   "evidence": "it('scheduled publishing asks for a rebuild only when something went live', async () => {\n  await rolledBack(async () => {\n    await postgres.query(\"update public.content_versions set publish_at = now() + interval '1 day' where publish_at is not null\")\n    await postgres.query('update finance.site_builds set requested_at = null')\n    expect(await scalar<number>('public.publish_due()')).toBe(0)",
+   "failureScenario": "D32 rewrote publish_due with a create or replace in 20260927090000_static_site_and_functions.sql, line 143. No integration, unit or e2e test calls it with a due version. grep finds publish_due only in this negative case, and cms.spec.ts schedules for tomorrow and then cancels. Suppose a regression means content_go_live stops being called, publish_at is not cleared, or site_build_request is skipped. This test still passes. If publish_at is not cleared, the every-minute cron would republish and request a rebuild each minute. WORK-PACKAGES P04 requires as proof that 'publish_due() publishes a due version and queues exactly one' request. artifacts/acceptance/P06/commands.txt says this test proves 'publish_due requesting a rebuild only when something went live'. Only the pre-D32 function was ever checked for that, in the P04 migration-checks.sql script.",
+   "suggestedFix": "Add the missing half inside the same rolledBack block in tests/integration/static-site.test.ts. Insert a taxonomies content_versions row with publish_at = now() - interval '1 minute'. Assert that publish_due() returns 1, that published_documents holds that seq, that the version's publish_at is now null, that finance.site_builds.requested_at is not null, and that a second publish_due() returns 0.",
+   "verifierCorrections": [
+    "The suggested fix is correct. Put it in the same rolledBack block after the existing negative assertions. Insert a row with columns (collection, doc_id, seq, data, publish_at) = ('taxonomies', a fresh doc_id matching ^[a-z0-9][a-z0-9-]{0,79}$, 1, '{}'::jsonb or a minimal valid object, now() - interval '1 minute'). The pattern to follow is tests/integration/media-security.test.ts:318. Then assert: publish_due() = 1; published_documents holds that seq; publish_at is now null; site_builds.requested_at is not null; an audit_events row with action 'content.publish_due' exists; a second publish_due() = 0."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.4",
+   "severity": "low",
+   "category": "tests",
+   "title": "The 'writer deletes the partial file' test fails before any partial file is created",
+   "file": "tests/unit/backup-format.test.ts",
+   "line": 168,
+   "otherLocations": [],
+   "evidence": "const broken = [{ path: 'gone.txt', file: join(root, 'does-not-exist.txt') }]\nawait expect(writeBackup(outFile, broken, key)).rejects.toThrow()\nexpect(existsSync(`${outFile}.partial`)).toBe(false)\n// backup-format.mjs:130  const info = await stat(entry.file)   (digest pass, before createWriteStream at :151)",
+   "failureScenario": "writeBackup stats and hashes every entry before it opens `${outFile}.partial`. A missing file throws at `stat` in that first pass, so the catch block at lines 168-171 (destroy the streams, rm the partial) never runs. The assertion holds trivially. If that cleanup were deleted, a failure mid-write would leave an orphaned encrypted `.partial` file next to the backups, and no test would notice.",
+   "suggestedFix": "In tests/unit/backup-format.test.ts, make the entry disappear between the two passes, for example `let reads = 0; const broken = [{ path: 'gone.txt', get file() { return reads++ === 0 ? ENTRIES[0]!.file : join(root, 'does-not-exist.txt') } }]`. Keep the existing assertions.",
+   "verifierCorrections": [
+    "Let the first two reads (stat and the digest read) see the real file, and point only the third read, at writeEntryFile (:161/:185), at the missing file. Example: `let reads = 0; const broken = [{ path: 'gone.txt', get file() { return reads++ < 2 ? ENTRIES[0]!.file : join(root, 'does-not-exist.txt') } }]`. Keep the existing rejects and `.partial`-absent assertions. Optionally also assert `reads === 3` so the test proves it got past createWriteStream."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.7",
+   "severity": "low",
+   "category": "tests",
+   "title": "The fingerprint 'never includes the Turnstile token' test passes no token, so it cannot fail",
+   "file": "tests/unit/cart.test.ts",
+   "line": 221,
+   "otherLocations": [],
+   "evidence": "const fingerprint = fingerprintCreate(core)\nexpect(fingerprint).not.toContain('XXXX')\nexpect(fingerprint).not.toContain('turnstile')\nexpect(fingerprint).not.toContain('idempotency')",
+   "failureScenario": "`core` has no Turnstile token and no idempotency key, so the fingerprint cannot contain them whatever fingerprintCreate does. The risk the test names is a fingerprint built from the whole create body, including the per-attempt token. That would give every retry a new fingerprint, so CheckoutForm would mint a new idempotency key on a network retry. This test would not catch it.",
+   "suggestedFix": "In tests/unit/cart.test.ts, pass the extra fields and compare: `expect(fingerprintCreate({ ...core, turnstileToken: 'XXXX.T', idempotencyKey: 'k' } as never)).toBe(fingerprintCreate(core))`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.6",
+   "severity": "low",
+   "category": "tests",
+   "title": "No test checks the Turnstile action and hostname the checkout and contact handlers pass to siteverify",
+   "file": "tests/unit/checkout.test.ts",
+   "line": 26,
+   "otherLocations": [
+    "tests/unit/contact-route.test.ts:27"
+   ],
+   "evidence": "const verifyOk = async () => ({ ok: true }) as TurnstileResult\nconst checkoutPost = (request: Request) => handleCheckout(request, { rpc: recorderRpc, verify: verifyOk })\n// checkout.ts:346  expectedAction: 'checkout',  expectedHostname: new URL(siteUrl).hostname,",
+   "failureScenario": "The injected verifier ignores its arguments. contact-route.test.ts and the e2e runs use the always-pass test secret, and verifyTurnstile skips the action and hostname checks for that secret. So nothing anywhere asserts expectedAction or expectedHostname. If the server value drifts from the widget's action (CheckoutForm.tsx renders action 'checkout'), or the hostname is taken from the wrong variable, every local test stays green. Every real production checkout then fails with 400 TURNSTILE, and the first sign is at launch.",
+   "suggestedFix": "In tests/unit/checkout.test.ts, add one test with `const verify = vi.fn(verifyOk)`. After a create, assert `expect(verify).toHaveBeenCalledWith(expect.objectContaining({ expectedAction: 'checkout', expectedHostname: 'localhost', secret: '1x0000000000000000000000000000000AA' }))`.",
+   "verifierCorrections": [
+    "Same approach as suggested, but take the hostname from the test's SITE constant: `expectedHostname: new URL(SITE).hostname`. For contact, one assertion is enough: parse the stubbed fetch call and check the handler gets there, or refactor handleContact so the verifier can be injected. Otherwise the checkout-only test leaves contact uncovered. The smallest version asserts the verify args in checkout.test.ts only and accepts that contact stays uncovered."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.20",
+   "severity": "low",
+   "category": "tests",
+   "title": "Tests stub NODE_ENV, which no code reads since D32",
+   "file": "tests/unit/email.test.ts",
+   "line": 41,
+   "otherLocations": [],
+   "evidence": "/** Resend is chosen only by a production build with a non-local SITE_URL. */\nfunction productionResendEnv() {\n  vi.stubEnv('NODE_ENV', 'production')\n-- also email.test.ts:221 ('a production build ... (a local Worker preview)') and tests/unit/turnstile.test.ts:92 (stubEnv NODE_ENV 'development'). grep NODE_ENV in supabase/functions: only comments. email/turnstile use isHostedSite(), i.e. SITE_URL alone (env.ts 'replaces the old NODE_ENV test').",
+   "failureScenario": "The stubs are dead setup, and the test names describe a production/Worker gate that no longer exists. A reader could believe NODE_ENV still guards real email.",
+   "suggestedFix": "Delete the three `vi.stubEnv('NODE_ENV', …)` lines. Reword the doc/test titles to 'hosted SITE_URL' / 'local SITE_URL' (email.test.ts:39-41, 220-221; turnstile.test.ts:91-92).",
+   "verifierCorrections": [
+    "As suggested, plus the other stale wording in the same file: reword the describe title at email.test.ts:189 ('real email only from a hosted production build' -> 'real email only for a hosted SITE_URL'), the titles at :196 and :212 ('outside production' -> 'with no hosted SITE_URL'), and the header comment at :1, which still names `src/lib/email.ts` instead of `supabase/functions/_shared/email.ts`."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.2",
+   "severity": "low",
+   "category": "tests",
+   "title": "Four media ticket rejection tests fail for another reason, so they pass even if the guard they name is removed",
+   "file": "tests/unit/media.test.ts",
+   "line": 73,
+   "otherLocations": [
+    "tests/unit/media.test.ts:84",
+    "tests/unit/media.test.ts:118",
+    "tests/unit/media.test.ts:133"
+   ],
+   "evidence": "original: { mime: 'image/jpeg', bytes: 1000, width: 8000, height: 5001 },\ncrop: { x: 0, y: 0, width: 8000, height: 5001 },\nderivatives: [{ width: 1800, height: 1125, bytes: 100 }],",
+   "failureScenario": "The ticket schema's superRefine refuses any derivative width set other than derivativeWidths(crop.width) = [360,720,1200,1800]. This fixture declares only [1800], so the test still passes with the MAX_PIXELS refine deleted. Three more tests have the same problem. (1) 'rejects a crop outside the original' (line 84): with the crop-bounds check deleted, it still fails because round(1800*1500/2001) = 1349, not the declared 1350. (2) 'rejects an SVG MIME type' (line 118): with 'image/svg+xml' added to ORIGINAL_MIME_TYPES, it still fails because the base crop of 2000x1500 exceeds the 100x100 original. (3) The nested unknown-key case (line 133): with strictObject relaxed on `original`, it still fails because the 2000x1500 crop exceeds the 2x2 original. As a result, the 40 MP decompression cap, the crop bounds check, the SVG MIME refusal and nested strictness have no effective unit test. No integration or e2e test covers them either. SQL has a backstop only for the pixel count.",
+   "suggestedFix": "In tests/unit/media.test.ts, make each fixture valid apart from the one property under test. 40 MP: derivatives [{360,225},{720,450},{1200,750},{1800,1125}]. Crop outside: use crop {x:1, y:0, width:2000, height:1500} and keep the base derivatives. SVG: original {mime:'image/svg+xml', bytes:100, width:2000, height:1500}. Nested extra: keep the base width 2000 and height 1500 and add only `extra: 1`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.5",
+   "severity": "low",
+   "category": "tests",
+   "title": "The real-PDF ligature check never looks for the reversed «الإ», and its length assertion is always true",
+   "file": "tests/unit/reader-mapping.test.ts",
+   "line": 171,
+   "otherLocations": [],
+   "evidence": "expect(fixed).not.toMatch(/األ|اآل/)\nexpect(fixed.length).toBe(raw.length)",
+   "failureScenario": "book-preview.ts documents that pdf.js turns «الإهداء» into «اإلهداء». The reference text has «الإ» on pages 1, 2 and 5 (5 occurrences), yet the negative regex checks only the reversed «الأ» and «الآ». If fixLigatures stopped repairing the hamza-below case on the real PDF (for example because the pypdf reference punctuation drifted), the reader would show «اإلهداء» and this test would still pass. `fixed.length === raw.length` holds by construction, because fixLigatures only swaps characters in place.",
+   "suggestedFix": "In tests/unit/reader-mapping.test.ts:171, use /األ|اإل|اآل/ (alef followed by alef-with-hamza never occurs in Arabic) and drop the tautological length assertion.",
+   "verifierCorrections": [
+    "Keep the /األ|اآل/ check and drop the tautological length assertion. Add a targeted positive check for the hamza-below case instead of a blanket /اإل/ ban, e.g. `if (n === 1) { expect(raw).toMatch(/اإلهداء/); expect(fixed).toContain('الإهداء'); expect(fixed).not.toContain('اإلهداء') }`, or a lookahead that excludes «إلى», such as /اإل(?!ى)/."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.3",
+   "severity": "low",
+   "category": "tests",
+   "title": "The 'non-https link' test puts the link where no link is allowed, so it never exercises the URL check",
+   "file": "tests/unit/richtext.test.ts",
+   "line": 40,
+   "otherLocations": [],
+   "evidence": "root: {\n  type: 'root',\n  children: [{ type: 'link', url: 'javascript:alert(1)', children: [] }],\n},\n// src/admin/richtext.ts:53  children: z.array(z.union([paragraph, heading, quote, list])).max(1000),",
+   "failureScenario": "The schema's root children accept only paragraph, heading, quote and list, so a `link` node at the root fails the union whatever its URL is. If `z.url({ protocol: /^https$/ })` on the link node is loosened or removed, the test still passes. Publishing would then accept a stored `javascript:` link (D14). The renderer's own startsWith('https://') check is the only remaining guard.",
+   "suggestedFix": "In tests/unit/richtext.test.ts, wrap the link in a paragraph: children: [{ type: 'paragraph', children: [{ type: 'link', url: 'javascript:alert(1)', children: [] }] }].",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S21.8",
+   "severity": "info",
+   "category": "tests",
+   "title": "motion.spec skips a story page that returns 404 instead of failing",
+   "file": "tests/e2e/motion.spec.ts",
+   "line": 108,
+   "otherLocations": [],
+   "evidence": "const missing = response?.status() === 404 || (await page.locator('main h1').first().textContent())?.includes('هذا الطريق')\ntest.skip(Boolean(missing), `${path} is not in this build (the local seed's demo product)`)",
+   "failureScenario": "The skip is meant only for /store/demo-khous, but it applies to every STORY route. The header comment says this spec also runs against the static export (PLAYWRIGHT_BASE_URL=http://localhost:4010). If that export drops /book, /scenes or /contact (it answers the woven 404, whose h1 is «هذا الطريق لم يُبنَ بعد»), the test is reported as skipped, not failed, and the missing page ships unnoticed.",
+   "suggestedFix": "In motion.spec.ts, limit the skip to the seed-only route: `test.skip(path === '/store/demo-khous' && Boolean(missing), ...)`. Every other route should fail on 404.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}

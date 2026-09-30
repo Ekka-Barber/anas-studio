@@ -1,0 +1,407 @@
+{
+ "files": [
+  "PLANS/DATA-AND-SECURITY.md",
+  "PLANS/DECISIONS.md",
+  "PLANS/EXECUTION-STATUS.md",
+  "docs/costs.md",
+  "docs/operations.md",
+  "src/app/(public)/policies/[slug]/page.tsx",
+  "src/components/admin/AdminHome.tsx",
+  "src/components/admin/CollectionForm.tsx",
+  "src/components/admin/CommerceSettingsForm.tsx",
+  "src/components/admin/EmailView.tsx",
+  "src/components/admin/TableForm.tsx",
+  "src/components/store/CheckoutForm.tsx",
+  "src/lib/admin-publish.ts",
+  "src/lib/journal.ts",
+  "supabase/config.toml",
+  "supabase/functions/_shared/admin.ts",
+  "supabase/functions/_shared/email.ts",
+  "supabase/functions/_shared/outbox.ts",
+  "supabase/functions/staff-admin/index.ts",
+  "supabase/migrations/20260924130000_staff_and_app_server.sql",
+  "supabase/migrations/20260925120000_content_versions_and_publishing.sql",
+  "supabase/migrations/20260926090000_media_library.sql",
+  "supabase/migrations/20260926120000_contacts_and_email.sql",
+  "supabase/migrations/20260927090000_static_site_and_functions.sql",
+  "supabase/migrations/20260927140000_privacy_requests.sql",
+  "supabase/migrations/20260927160000_catalog_and_checkout.sql",
+  "supabase/migrations/20260927170000_policy_approval.sql",
+  "supabase/migrations/20260927180000_store_media.sql",
+  "tests/e2e/owner-operations.spec.ts"
+ ],
+ "findings": [
+  {
+   "id": "S01.4",
+   "severity": "medium",
+   "category": "security",
+   "title": "Password sign-in is still possible for staff, although D08 says there are no passwords",
+   "file": "supabase/config.toml",
+   "line": 226,
+   "otherLocations": [
+    "supabase/config.toml:233",
+    "supabase/config.toml:184",
+    "PLANS/DECISIONS.md:16"
+   ],
+   "evidence": "minimum_password_length = 6          (line 184)\npassword_requirements = \"\"           (line 187)\nenable_signup = true                 (line 226, [auth.email]: enables the whole email provider, including the password grant)\nsecure_password_change = false       (line 233)",
+   "failureScenario": "Anyone holding a staff session (a stolen refresh token, a shared laptop) calls supabase.auth.updateUser({ password: 'abcdef' }). No reauthentication is asked because secure_password_change is false, and a 6-character password with no requirements is accepted. From then on they can signInWithPassword (the email provider is on) and get an aal1 staff session without the staff mailbox. This survives signing out the stolen session and lasts until the member is revoked. D08 and ARCHITECTURE say staff sign-in is passwordless.",
+   "suggestedFix": "Enable a Custom Access Token hook, which is available on all plans. Add a small SQL function, e.g. public.deny_password_tokens(event jsonb), that returns {error:{http_code:403,...}} when event->>'authentication_method' = 'password' and otherwise returns {claims: event->'claims'}. Grant it to supabase_auth_admin and revoke it from public, anon and authenticated. Wire it in config.toml under [auth.hook.custom_access_token] and on the hosted project, and add it to the I28 list. Also set secure_password_change = true. Functional impact: none on email-code, Google or TOTP sign-in, and token refresh passes through unchanged.",
+   "verifierCorrections": [
+    "The hook approach is right, with two additions. (1) The hook function also needs `grant usage on schema public to supabase_auth_admin`, and supabase_auth_admin needs execute on it. Make it `stable` and non-security-definer, and return {claims: event->'claims'} unchanged for every authentication_method except 'password' (token_refresh, otp, magiclink, oauth and totp pass through). (2) Add the hosted hook toggle and secure_password_change to the I28 checklist, and add one SQL or integration check: a password grant for a seeded staff user must return 403. Setting secure_password_change = true on its own does not close the gap, because a fresh session is still allowed to set a password."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S04.2",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "A Resend daily or monthly quota 429 counts as a bounded retry, so notices are exhausted about 4 hours later, long before the quota resets",
+   "file": "supabase/functions/_shared/email.ts",
+   "line": 63,
+   "otherLocations": [
+    "supabase/migrations/20260926120000_contacts_and_email.sql:351",
+    "supabase/functions/_shared/outbox.ts:147"
+   ],
+   "evidence": "  if (status === 429) return { outcome: 'retry', error: 'RATE_LIMIT' }",
+   "failureScenario": "The comment above this line (56-57) says a quota resets 'at midnight UTC / the next window'. But outbox_result (migration 20260926120000 lines 351-364) gives a retry a backoff of 2^attempts minutes: 2+4+...+128, about 254 minutes in total. The 8th claim then marks the row exhausted. The outbox counts only its own sent rows, while Resend also counts sign-in codes sent over SMTP. So Resend's daily_quota_exceeded or monthly_quota_exceeded can arrive while the outbox's own count is still under its cap. Example: Resend's day fills at 12:00 UTC. Every notice claimed after that gets 429 and is exhausted by about 16:15 UTC, with an email.exhausted audit row. runOutbox also keeps claiming up to 10 rows per run, so each waiting row burns attempts. The notices never go out unless someone replays each row from البريد. With the monthly quota, every notice until the month ends is exhausted.",
+   "suggestedFix": "In email.ts, return error 'QUOTA' when the 429 body name is daily_quota_exceeded or monthly_quota_exceeded, and keep 'RATE_LIMIT' for rate_limit_exceeded. In a new migration, `create or replace public.outbox_result` so that when p_outcome='retry' and p_error='QUOTA' the row goes back to status 'pending' with `attempts = o.attempts - 1` and `next_at = date_trunc('day', now(), 'UTC') + interval '1 day'`. In outbox.ts runOutbox, `break` out of the claim loop after a QUOTA outcome. Functional impact: notices blocked by the quota wait for the reset and do not use up their retry budget.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X1.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Publishing a policy after the owner's approval silently replaces the text buyers see and \"accept\"; approval is never invalidated",
+   "file": "supabase/migrations/20260925120000_content_versions_and_publishing.sql",
+   "line": 147,
+   "otherLocations": [
+    "src/app/(public)/policies/[slug]/page.tsx:34",
+    "supabase/migrations/20260927160000_catalog_and_checkout.sql:862",
+    "supabase/migrations/20260927090000_static_site_and_functions.sql:51",
+    "docs/operations.md:406",
+    "supabase/migrations/20260927090000_static_site_and_functions.sql:60",
+    "src/app/(public)/policies/[slug]/page.tsx:35",
+    "src/components/store/CheckoutForm.tsx:403",
+    "supabase/migrations/20260927170000_policy_approval.sql:42",
+    "supabase/migrations/20260927160000_catalog_and_checkout.sql:859",
+    "src/components/admin/CommerceSettingsForm.tsx:144"
+   ],
+   "evidence": "  insert into public.published_documents (collection, doc_id, seq, data)\n  values (p_collection, p_doc_id, p_seq, v_data)\n  on conflict (collection, doc_id) do update\n    set seq = excluded.seq, data = excluded.data, updated_at = now();\n(content_go_live: no check for collection = 'policies'; src/app/(public)/policies/[slug]/page.tsx:34 renders the latest published_documents row, and checkout_create at 20260927160000_catalog_and_checkout.sql:862 compares only against the stored approval)",
+   "failureScenario": "Owner approves policies (commerce_policies_approve snapshots {store: 3, delivery: 2, refund: 2}). Later an editor (content_assert_publisher allows owner or editor for any collection) publishes policies/store seq 4 with different terms; publish_version (or publish_due) calls content_go_live and requests a rebuild. /policies/store now shows seq 4, the checkout consent sentence links to that page, the quote still carries policyRevisions {store: 3}, checkout_create accepts it (equal to the stored approval) and snapshots {store: 3} into finance.orders. Result: buyers read and agree to unapproved text while the order records consent to revision 3. This breaks docs/operations.md:406-407 (\"it becomes the store's checkout policy only when the owner approves it\") and DATA-AND-SECURITY's immutable approved policy revision.",
+   "suggestedFix": "New migration: `create or replace function public.content_go_live(...)` (same signature, keeps grants) and, after the upsert, `if p_collection = 'policies' then update finance.commerce_settings set policy_revisions = '{}'::jsonb, version = version + 1 where id = 1 and policy_revisions ? p_doc_id; end if;`. Checkout then answers POLICIES_NOT_CONFIGURED until the owner approves again. This covers publish_version and publish_due. Functional impact: any policy publish closes checkout until the owner re-approves, which is the documented rule. seed-demo-catalog.mjs still works because it writes policy_revisions after its content_go_live calls. Optionally add an audit row for the reset.",
+   "verifierCorrections": [
+    "The suggested fix only patches content_go_live. unpublish_version (20260927090000:131) also deletes a policies row from published_documents, which would leave the approval pointing at a page that no longer exists. Smallest root-cause fix: one new migration that adds an AFTER INSERT OR UPDATE OR DELETE trigger on public.published_documents. When collection = 'policies' and finance.commerce_settings.policy_revisions ? doc_id, the trigger sets policy_revisions = '{}'::jsonb and version = version + 1 (optionally with an audit row). A trigger covers publish_version, publish_due and unpublish in one place. The seed and the tests/integration/policy-approval, checkout and e2e specs must approve after publishing; seed-demo-catalog.mjs already does.",
+    "The suggested fix is right, with two changes. In the new create-or-replace of content_go_live, clear the approval only when the seq actually changes: `if p_collection = 'policies' and (select policy_revisions ->> p_doc_id from finance.commerce_settings where id = 1) is distinct from p_seq::text then update finance.commerce_settings set policy_revisions = '{}'::jsonb, version = version + 1 where id = 1; end if;`. That way republishing the approved seq does not close checkout. Also clear it when an unapproved optional doc is published, such as privacy published after approval: that doc is not a key in policy_revisions, so the `?` guard in the suggested fix would skip it, and the checkout consent sentence could link to the new privacy page while the stored approval omits it. Add an audit_events row ('commerce.policies_reset') so the owner can see why checkout closed.",
+    "Same approach, but reset only when the approved revision actually changes, so republishing the approved seq does not close checkout: in a new migration, `create or replace function public.content_go_live(...)` (privileges are kept) and add after the upsert `if p_collection = 'policies' then update finance.commerce_settings set policy_revisions = '{}'::jsonb, version = version + 1 where id = 1 and policy_revisions ? p_doc_id and (policy_revisions->>p_doc_id)::int is distinct from p_seq; end if;`. Add one audit_events row ('commerce.policies.reset') and a test:db case that covers both publish_version and publish_due. Update docs/operations.md to say that publishing a new policy revision closes checkout until the owner approves again. Check that seed-demo-catalog.mjs:223-245 still writes policy_revisions after its content_go_live calls (it does)."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S01.1",
+   "severity": "medium",
+   "category": "security",
+   "title": "Anon RLS on published_documents ignores the D20 'visible' predicate, so hidden posts are publicly readable",
+   "file": "supabase/migrations/20260925120000_content_versions_and_publishing.sql",
+   "line": 88,
+   "otherLocations": [
+    "src/lib/journal.ts:66",
+    "PLANS/DECISIONS.md:28",
+    "supabase/migrations/20260926090000_media_library.sql:83"
+   ],
+   "evidence": "create policy published_documents_read on public.published_documents\n  for select to anon, authenticated\n  using (true);\n\nD20 (PLANS/DECISIONS.md:28) requires: \"Published-only RLS (published, visible, `published_at <= now()`, not archived) behind the publishable key.\" The only visibility filter is client-side at build time: src/lib/journal.ts:66 `const visible = posts.filter(({ post }) => post.visible)`. No later migration changes this policy.",
+   "failureScenario": "An editor publishes a post with «ظاهر» off (new posts default to false), or turns it off on a live post and republishes it. The journal drops the post, but anyone can call GET <supabase>/rest/v1/published_documents?collection=eq.posts&select=doc_id,data with the publishable key that ships in the static export, and gets the hidden post's full title, excerpt, body, author and cover id. media_is_published also still treats that cover as published, so its derivatives stay readable.",
+   "suggestedFix": "Add a new migration. Keep staff reads unchanged: `alter policy published_documents_read on public.published_documents to authenticated;`. Then add an anon-only policy: `create policy published_documents_public_read on public.published_documents for select to anon using (collection <> 'posts' or (data ->> 'visible')::boolean is true);`. Functional impact: public pages are unchanged because the journal already drops hidden posts, and the admin's content_documents view (authenticated) still sees every row. What remains: hidden list items inside room and scene documents sit inside a row that must stay public, so row-level RLS cannot filter them. media_is_published could take the same predicate if hidden covers must be private.",
+   "verifierCorrections": [
+    "New migration. Replace the policy instead of splitting it, and do not rely on the `authenticated` role for hidden rows, because authenticated can later include non-staff sign-ins (customer codes). `drop policy published_documents_read on public.published_documents; create policy published_documents_read on public.published_documents for select to anon, authenticated using (collection <> 'posts' or coalesce((data ->> 'visible')::boolean, false) or exists (select 1 from public.staff s where s.user_id = (select auth.uid()) and s.active));` Admin reads (CollectionForm.tsx:102 taxonomies, SettingsView.tsx:50) are unaffected. Optionally add the same post-visibility predicate inside media_is_published so hidden covers stop being anon-readable.",
+    "New migration: `alter policy published_documents_read on public.published_documents to authenticated;` plus `create policy published_documents_public_read on public.published_documents for select to anon using (collection <> 'posts' or data -> 'visible' = 'true'::jsonb);` (jsonb comparison instead of a ::boolean cast, so a malformed value hides the row rather than erroring every anon read). For consistency also recreate public.media_is_published (20260926090000_media_library.sql:76, and check the 20260927180000_store_media.sql variant, which may be the later definition that wins) with the same `and (p.collection <> 'posts' or p.data -> 'visible' = 'true'::jsonb)` predicate so hidden post covers stop being anon-readable.",
+    "The suggested migration is correct and minimal: `alter policy published_documents_read on public.published_documents to authenticated;` plus an anon-only policy `using (collection <> 'posts' or (data ->> 'visible')::boolean is true)`. The build loaders and journal.ts:66 already drop hidden posts, and admin reads (CollectionForm.tsx:102, SettingsView.tsx:50) run as authenticated. Also make `media_is_published` (20260926090000_media_library.sql:83) skip hidden posts, so a hidden post's cover is not exposed. Row-level RLS cannot hide items inside rooms/scenes documents, and that includes the reels with children held back until guardians consent (PLANS/EXECUTION-STATUS.md:44). Record that residual in ISSUES.md, or strip hidden items when publishing public copies."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S17.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "The 30-day job_runs purge deletes the last backup row at the moment D35's 30-day flag should appear, so the owner home shows «لا توجد نسخة بعد.» instead of the warning",
+   "file": "supabase/migrations/20260926120000_contacts_and_email.sql",
+   "line": 166,
+   "otherLocations": [
+    "src/components/admin/AdminHome.tsx:211",
+    "src/components/admin/AdminHome.tsx:220",
+    "docs/operations.md:500",
+    "supabase/migrations/20260926120000_contacts_and_email.sql:164",
+    "src/components/admin/AdminHome.tsx:38",
+    "tests/e2e/owner-operations.spec.ts:377",
+    "PLANS/DECISIONS.md:42",
+    "src/components/admin/AdminHome.tsx:40",
+    "src/components/admin/AdminHome.tsx:219",
+    "docs/operations.md:238-239",
+    "docs/operations.md:500-501"
+   ],
+   "evidence": "select cron.schedule(\n  'job-runs-purge', '23 3 * * *',\n  $$delete from finance.job_runs where finished_at < now() - interval '30 days'$$\n);\n-- AdminHome.tsx:40  backup: 30 * 24 * 60 * 60 * 1000,\n-- AdminHome.tsx:211 ... : run !== undefined && isStaleRun(run)",
+   "failureScenario": "Anas runs `pnpm backup` on 1 Oct at 10:00, which writes one 'backup' row. From 31 Oct 10:00, isStaleRun is true and the home shows the red «آخر نسخة احتياطية أقدم من 30 يومًا.». At 03:23 on 1 Nov, the daily purge deletes that row because finished_at < now() - 30 days. After that, job_runs_latest() returns no backup row, `run` is undefined, and the line renders JOB_NEVER_TEXT «لا توجد نسخة بعد.» as plain text instead of the error style. The warning is visible for less than 24 hours, and then the home says no backup exists at all. D35 ('The owner home shows the last backup and flags it after 30 days') and docs/operations.md:500 are not kept. The e2e test (owner-operations.spec.ts:377) sets finished_at to 31 days ago and never runs the purge, so it passes.",
+   "suggestedFix": "Add a new migration that re-schedules the same job name (cron.schedule with an existing name replaces its command) so that each job's newest row is kept: `delete from finance.job_runs j where j.finished_at < now() - interval '30 days' and exists (select 1 from finance.job_runs n where n.job = j.job and n.finished_at > j.finished_at)`. AdminHome.tsx needs no change.",
+   "verifierCorrections": [
+    "Right approach. In a new migration, call cron.schedule('job-runs-purge', '23 3 * * *', $$delete from finance.job_runs j where j.finished_at < now() - interval '30 days' and exists (select 1 from finance.job_runs n where n.job = j.job and n.finished_at > j.finished_at)$$). pg_cron updates a job that has the same name. This also stops site_build/media_sweep from falling back to «لم يعمل بعد» after 30 quiet days. Update docs/operations.md:238-239 to say each job's newest row is kept. Optionally, make the e2e test at owner-operations.spec.ts:377 run the purge statement before it asserts.",
+    "The suggested fix is correct and the smallest root-cause fix. Add a new migration that calls cron.schedule('job-runs-purge', '23 3 * * *', $$delete from finance.job_runs j where j.finished_at < now() - interval '30 days' and exists (select 1 from finance.job_runs n where n.job = j.job and n.finished_at > j.finished_at)$$). This keeps each job's newest row, which also stops site_build from falling back to «لم يعمل بعد» after 30 days with no publish. Update the 'purged after 30 days' wording at docs/operations.md:238-239 to 'except each job's latest run'. Optionally extend the e2e at owner-operations.spec.ts:377 to run the purge statement and assert the warning survives.",
+    "The suggested fix is correct and is the root-cause fix. Add a new migration that re-schedules `job-runs-purge` (a cron.schedule call with the same name replaces the command). The new command keeps the newest row per job: `delete from finance.job_runs j where j.finished_at < now() - interval '30 days' and exists (select 1 from finance.job_runs n where n.job = j.job and n.finished_at > j.finished_at)`. The same fix also covers media_sweep, which currently goes from its 26-hour stale warning to «لم يعمل بعد» once its last row is purged. Optionally, add one e2e step that runs the purge command after backdating the row to 31 days and asserts the warning is still shown."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S04.1",
+   "severity": "medium",
+   "category": "security",
+   "title": "Staff contact notices can use the whole Resend daily quota, so a contact-form flood locks the owner out of sign-in codes",
+   "file": "supabase/migrations/20260926120000_contacts_and_email.sql",
+   "line": 291,
+   "otherLocations": [
+    "docs/operations.md:153",
+    "docs/operations.md:160",
+    "docs/costs.md:13",
+    "supabase/functions/_shared/outbox.ts:27",
+    "PLANS/DATA-AND-SECURITY.md:91",
+    "supabase/migrations/20260926120000_contacts_and_email.sql:196",
+    "supabase/functions/_shared/outbox.ts:22",
+    "supabase/functions/_shared/outbox.ts:35",
+    "docs/operations.md:157"
+   ],
+   "evidence": "      and (o.priority < 2 or v_sent_today < p_daily_quota - p_reserve)\n      and v_sent_today < p_daily_quota\n      and v_sent_month < p_monthly_quota",
+   "failureScenario": "The reserve holds back only priority 2 (availability rows, which do not exist yet). Priority 1 contact notices, which anyone can trigger through the public form, go right up to DAILY_QUOTA=100. Supabase Auth sign-in codes use the same Resend account over SMTP (I28, docs/operations.md:157). Scenario: one IP sends 5 messages per hour (the contact:ip limit), or a few IPs rotate sender emails. That is 100 Turnstile-passing submissions in one UTC day, or 50 when the owner and one operations member are both active. That makes 100 notices, and the outbox sends every one. Resend then returns 429 for the rest of the UTC day. The owner's email OTP fails, so /admin cannot be reached until midnight UTC. PLANS/DATA-AND-SECURITY.md:91 requires 'Reserve capacity for authentication and receipts'. docs/operations.md:160 says 'The 20-send reserve must therefore absorb auth traffic too', which is false: priority 1 spends those 20. docs/costs.md:13 says 'The outbox reserves the last 20 of each day', also false. The accepted residual risk in docs/operations.md:80 covers only the locked form and says 'nothing is lost'. It does not cover the sign-in lockout.",
+   "suggestedFix": "Add a new migration that does `create or replace function public.outbox_claim` with the body unchanged except line 291, which becomes `and (o.priority = 0 or v_sent_today < p_daily_quota - p_reserve)`. Staff notices and availability notices then stop at 80 per day, and the last 20 stay free for sign-in codes and receipts. Functional impact: on a day past 80 outbox sends, contact notices wait until 00:00 UTC. The messages are already stored, so nothing is lost. Update docs/operations.md:97-98 and 153-161, docs/costs.md:13, and the RESERVE comment in supabase/functions/_shared/outbox.ts:27-35 to match.",
+   "verifierCorrections": [
+    "Keep the proposed predicate `(o.priority = 0 or v_sent_today < p_daily_quota - p_reserve)` in a new create-or-replace migration that keeps the same signature, so the existing grants survive. Also update the function's header comment (migration lines 232-234) and docs/operations.md:97 and 153-161. One side effect should be noted in docs/operations.md: priority-1 rows held back this way stay due in finance.outbox_due_since(), so outbox_kick keeps firing every minute until 00:00 UTC. PLANS/ISSUES.md already accepts this for quota holds (the I35 residual), so no code change is needed for it.",
+    "The suggested one-line change is right: a new migration with `create or replace function public.outbox_claim` (same signature, so the service_role grant from 20260927090000 stays), where line 291 becomes `and (o.priority = 0 or v_sent_today < p_daily_quota - p_reserve)`. Also update the SQL header comment (:231-233) and the RESERVE docstring (outbox.ts:27-35), and correct docs/operations.md:97-98, where priority 0 wrongly lists 'sign-in codes' (they never go through the outbox), along with :153-161 and docs/costs.md:13.",
+    "Same one-line predicate change in a new create-or-replace migration: `(o.priority = 0 or v_sent_today < p_daily_quota - p_reserve)`. Keep the signature, security definer, search_path and the service_role grant, and re-assert the revoke from app_server. Also fix docs/operations.md:97. It lists sign-in codes as priority 0, but outbox.ts:30-31 says they never go through the outbox. Update the migration's header comment (lines ~233-235) and the RESERVE docstring in outbox.ts along with operations.md 153-161 and costs.md:13."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X1.3",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Replay treats only 'uncertain' rows as ambiguous; an 'exhausted' row that ended on an uncertain send replays after 24h with its expired idempotency key and no confirmation",
+   "file": "supabase/migrations/20260926120000_contacts_and_email.sql",
+   "line": 521,
+   "otherLocations": [
+    "supabase/migrations/20260926120000_contacts_and_email.sql:253",
+    "supabase/migrations/20260926120000_contacts_and_email.sql:337",
+    "supabase/migrations/20260926120000_contacts_and_email.sql:486",
+    "docs/operations.md:127",
+    "src/components/admin/EmailView.tsx:91",
+    "PLANS/DATA-AND-SECURITY.md:91",
+    "supabase/migrations/20260926120000_contacts_and_email.sql:351",
+    "docs/operations.md:23"
+   ],
+   "evidence": "  if o.status = 'uncertain' and o.first_attempt_at <= now() - interval '23 hours' and not p_accept_duplicate_risk then\n...\n      idempotency_key = case when o.status = 'uncertain' and o.first_attempt_at <= now() - interval '23 hours'",
+   "failureScenario": "A send times out (NETWORK/MALFORMED_REPLY, so outcome 'uncertain'), or its lease expires while it is 'sending'. At attempts >= max_attempts, outbox_result (line 337-344) and outbox_claim (line 253) set status 'exhausted', not 'uncertain', even though Resend may have delivered it. More than a day later an owner or operations member presses replay in /admin/email. outbox_attention (line 486) reports replay_needs_confirmation=false, outbox_replay asks for no confirmation and keeps the old idempotency_key, and outbox_claim sends the 'pending' row with no 23-hour check. Resend no longer dedupes that key, so the recipient gets the email twice. This breaks DATA-AND-SECURITY: \"An ambiguous send outside that lifetime needs reconciliation before retry\". With P08 it would be a duplicate customer receipt.",
+   "suggestedFix": "In a new migration, redefine public.outbox_replay and public.outbox_attention so the ambiguity test reads `o.status in ('uncertain', 'exhausted') and o.first_attempt_at <= now() - interval '23 hours'` at lines 486, 521, 526 and 528. Functional impact: replaying any exhausted row older than 23 hours needs the existing duplicate-risk confirmation (EmailView already shows it) and gets a fresh key. Rows the provider refused outright only pay an extra confirmation click.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S01.2",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "publish_due() stops all scheduled publishing when one scheduled post hits the post-slug unique index",
+   "file": "supabase/migrations/20260927090000_static_site_and_functions.sql",
+   "line": 159,
+   "otherLocations": [
+    "supabase/migrations/20260925120000_content_versions_and_publishing.sql:82",
+    "supabase/migrations/20260927090000_static_site_and_functions.sql:68",
+    "src/lib/admin-publish.ts:27",
+    "src/lib/admin-publish.ts:38",
+    "src/lib/admin-publish.ts:46"
+   ],
+   "evidence": "    select v.collection, v.doc_id, v.seq\n    from public.content_versions v\n    where v.publish_at is not null and v.publish_at <= now()\n    for update skip locked\n  loop\n    perform public.content_go_live(r.collection, r.doc_id, r.seq);\n\nThe index at 20260925120000:82 is `create unique index published_documents_post_slug on public.published_documents ((data ->> 'slug')) where collection = 'posts';`. Neither schedule_version (20260927090000:68-96) nor validateVersion in src/lib/admin-publish.ts checks slug uniqueness.",
+   "failureScenario": "Live post A has slug \"ramadan\". An editor schedules post B with the same slug for 09:00 (or schedules B first and later publishes A with that slug by hand). At 09:00, content_go_live's insert raises 23505 on published_documents_post_slug. Nothing handles the exception, so it aborts the whole publish_due transaction and rolls back every other schedule due in that run, such as a room update also due at 09:00. pg_cron hits the same failure every minute after that, so no scheduled document ever publishes again. B keeps showing as scheduled with a past time. There is no audit row, no job_runs entry and no signal on the owner home: the error only appears in cron.job_run_details.",
+   "suggestedFix": "Add a new migration with `create or replace function public.publish_due()` that wraps each loop iteration in `begin perform public.content_go_live(...); insert ... 'content.publish_due' ...; published := published + 1; exception when unique_violation then update public.content_versions set publish_at = null where collection = r.collection and doc_id = r.doc_id and seq = r.seq; insert into public.audit_events (action, entity, entity_id, summary) values ('content.publish_due_failed', r.collection::text, r.doc_id, jsonb_build_object('seq', r.seq, 'reason', 'slug')); end;`. In schedule_version, refuse a posts version whose data->>'slug' is already live on another doc_id, so the editor learns about it when scheduling. Functional impact: a colliding schedule is dropped and audited instead of blocking every other schedule.",
+   "verifierCorrections": [
+    "The suggested fix is right. Use `begin ... exception when unique_violation then ... end` around go_live, the audit insert and the counter. The handler must set publish_at = null itself, because the savepoint rollback also undoes content_go_live's own publish_at clear. Keep the check in schedule_version, but only as a hint for the editor: a manual publish of a different post can still take the slug after scheduling (a TOCTOU gap), so the exception handler is the real fix. publish_version should also check for a slug already live, or sqlErrorResult should map 23505 to a message, since a manual publish that collides currently shows the generic 'FAILED' error.",
+    "Put a per-row subtransaction in publish_due: `begin perform content_go_live(...); insert audit 'content.publish_due'; published := published + 1; exception when others then update content_versions set publish_at = null where collection=r.collection and doc_id=r.doc_id and seq=r.seq; insert audit 'content.publish_due_failed' with jsonb_build_object('seq', r.seq, 'sqlstate', SQLSTATE); end;`. Catch `others` rather than only unique_violation, so no other per-row error can block the queue either. The pre-check in schedule_version (posts slug already live on another doc_id) is optional editor feedback, since a later manual publish can still collide, so the subtransaction is the actual fix. Separately, sqlErrorResult in admin-publish.ts could map 23505 to a slug-in-use message for manual publish.",
+    "The root fix is isolating each row in publish_due (new migration, `create or replace function public.publish_due()`): wrap the go_live, audit insert and counter in `begin ... exception when others then update public.content_versions set publish_at = null where collection = r.collection and doc_id = r.doc_id and seq = r.seq; insert into public.audit_events (action, entity, entity_id, summary) values ('content.publish_due_failed', r.collection::text, r.doc_id, jsonb_build_object('seq', r.seq, 'sqlstate', sqlstate)); end;`. Catch `others`, not only unique_violation, so any failure on one row cannot block the others. A slug check in schedule_version is optional: it cannot catch a manual publish of the colliding post after scheduling, so the loop guard carries the fix. As an optional extra, map 23505 in sqlErrorResult (src/lib/admin-publish.ts:27) to a clear 'slug already in use' message for the manual publish path."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S01.5",
+   "severity": "low",
+   "category": "security",
+   "title": "The default-privilege revoke of EXECUTE from PUBLIC does nothing, so functions are not deny-by-default",
+   "file": "supabase/migrations/20260924130000_staff_and_app_server.sql",
+   "line": 11,
+   "otherLocations": [
+    "PLANS/DATA-AND-SECURITY.md:49",
+    "PLANS/EXECUTION-STATUS.md:139"
+   ],
+   "evidence": "alter default privileges for role postgres in schema public\n  revoke execute on functions from public, anon, authenticated;",
+   "failureScenario": "Postgres cannot revoke per schema a privilege that is granted globally: the built-in EXECUTE-to-PUBLIC default is global. PUBLIC therefore keeps EXECUTE on every new function, and anon and authenticated inherit it through PUBLIC. If a future migration adds `create function public.x() ... security definer` without its own `revoke ... from public`, anon can call it at /rest/v1/rpc/x (has_function_privilege('anon','public.x()','execute') = true). That contradicts the file's comment \"Deny by default ... each object is granted explicitly\" and DATA-AND-SECURITY's \"Revoke PUBLIC function execution\". Nothing is exposed today: every current function revokes from public explicitly (checked across all 14 migrations).",
+   "suggestedFix": "Add a new migration with `alter default privileges for role postgres revoke execute on functions from public;` (global, with no `in schema`), which also covers `finance`. Functional impact: none, because every existing function already grants its callers explicitly.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S02.4",
+   "severity": "low",
+   "category": "performance",
+   "title": "Anonymous media reads run media_is_published once per row, a full JSON-path scan of every published document each time (unthrottled amplification)",
+   "file": "supabase/migrations/20260926090000_media_library.sql",
+   "line": 94,
+   "otherLocations": [
+    "supabase/migrations/20260927180000_store_media.sql:10"
+   ],
+   "evidence": "media_library.sql:94-96:\ncreate policy media_public_read on public.media\n  for select to anon\n  using (public.media_is_published(id));\nstore_media.sql:17-24 (final definition):\n  select 1 from public.published_documents p\n  where jsonb_path_exists(p.data, 'strict $.** ? (@ == $id)', ...)\n  or exists (select 1 from public.products pr where pr.status = 'published' and pr.cover_image = p_id::text)",
+   "failureScenario": "The publishable key is baked into the static export, so anyone can send GET <supabase>/rest/v1/media?select=id with no id filter. The RLS predicate is a per-row call to a SECURITY DEFINER function. For every media row, Postgres detoasts and walks every published_documents row (each up to 256 KB) with a recursive .** JSON path, then scans products, which has no index on cover_image. Cost grows as media rows × published JSON size. Repeated anonymous requests, with no throttle in front of PostgREST, burn the shared database CPU up to the anon statement timeout each time. The build's own query filters by id and is unaffected.",
+   "suggestedFix": "Evaluate the published set once per statement. Add public.media_published_ids() returning setof uuid: every UUID-shaped string in published_documents.data (jsonb_path_query with a like_regex on strings) union the published products' cover_image. Recreate the policy as using (id in (select public.media_published_ids())), so Postgres runs it as a single hashed subplan. Grant execute to anon. media_is_published and the rest of the media functions stay as they are.",
+   "verifierCorrections": [
+    "The direction is right, but the new function has to keep the old semantics. Add `public.media_published_ids()` returns setof uuid, language sql stable security definer set search_path='': select (s #>> '{}')::uuid from public.published_documents p, jsonb_path_query(p.data, 'strict $.** ? (@.type() == \"string\" && @ like_regex \"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$\")') s union select pr.cover_image::uuid from public.products pr where pr.status='published' and pr.cover_image ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'. The regex must be lowercase-only, because the original `@ == $id` matches only the canonical lowercase text; a case-insensitive match followed by a cast would widen what is public. The products branch needs the same guard, because cover_image is free text up to 120 chars and a bad ::uuid cast would make every anon media read fail. Then revoke from public/anon/authenticated, grant execute to anon, and drop and recreate media_public_read as `using (id in (select public.media_published_ids()))`. Leave media_is_published in place."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S03.5",
+   "severity": "low",
+   "category": "privacy",
+   "title": "Contact notices queued for a revoked staff member are still sent, and can be replayed, after revocation",
+   "file": "supabase/migrations/20260926120000_contacts_and_email.sql",
+   "line": 283,
+   "otherLocations": [
+    "supabase/migrations/20260926120000_contacts_and_email.sql:499",
+    "supabase/functions/staff-admin/index.ts:114"
+   ],
+   "evidence": "  with due as (\n    select o.id from finance.email_outbox o\n    where o.next_at <= now()\n      and o.attempts < o.max_attempts\n      and (\n        o.status = 'pending'",
+   "failureScenario": "An operations member is revoked (staff-admin set_active false) during a Resend outage, while contact notices addressed to them are pending or uncertain. contact_submit checks `s.active` only when it queues the notice. Neither outbox_claim nor outbox_replay rechecks it, and staff-admin does not touch the outbox. When Resend recovers, the claim sends the visitor's name, email and full message to the ex-member's mailbox (uncertain rows are retried for up to 23 hours). Their exhausted rows also stay replayable from البريد. This goes against D31: 'its notice goes to the active owner/operations sign-in addresses'.",
+   "suggestedFix": "In a new migration, add a step to outbox_claim, next to the suppression step, that marks kind = 'contact_notice' rows in pending or uncertain as 'exhausted' with last_error 'RECIPIENT_INACTIVE' when no active owner or operations member has lower(auth.users.email) = recipient. Make outbox_replay refuse such rows with the same predicate.",
+   "verifierCorrections": [
+    "Put the check in outbox_claim, next to the suppression step, so it covers every path, including a set_role demotion away from owner/operations: exhaust contact_notice rows in pending/uncertain whose recipient matches no active owner/operations staff (join public.staff with auth.users on lower(email)), with an email.exhausted audit row. Make outbox_replay refuse the same predicate with a clear error."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S04.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A delivery or bounce webhook that arrives before the row's provider_id is stored is never applied to that row",
+   "file": "supabase/migrations/20260926120000_contacts_and_email.sql",
+   "line": 332,
+   "otherLocations": [
+    "supabase/migrations/20260926120000_contacts_and_email.sql:433",
+    "supabase/migrations/20260927140000_privacy_requests.sql:207"
+   ],
+   "evidence": "  if p_outcome = 'accepted' then\n    update finance.email_outbox\n    set status = 'sent', sent_at = now(), provider_id = p_provider_id, last_error = null,",
+   "failureScenario": "email_event_record (lines 433-441) sets `delivery` only for a row whose provider_id is already stored. The event is then deduplicated by svix-id, so it is never applied again. Scenario: a send times out at 10 s (outcome 'uncertain'), but Resend had accepted it. Resend's email.bounced webhook arrives seconds later, while provider_id is still null, and matches no row. Two minutes later the same-key retry returns the cached id, and the row becomes 'sent' with delivery null for good. The row never shows in outbox_attention, so the owner is not told that this message's notice bounced. finance.contacts_purge (20260927140000:207) treats `delivery is null` as delivered and deletes the message after 90 days, although it never reached a mailbox.",
+   "suggestedFix": "In a new migration, `create or replace public.outbox_result`. In the accepted branch, after setting provider_id, also set delivery from events already recorded: `delivery = (select case e.type when 'email.complained' then 'complained' when 'email.bounced' then 'bounced' when 'email.failed' then 'failed' when 'email.suppressed' then 'failed' when 'email.delivered' then 'delivered' when 'email.delivery_delayed' then 'delayed' end from finance.email_delivery_events e where e.provider_message_id = p_provider_id and e.type <> 'email.sent' order by (e.type in ('email.bounced','email.complained')) desc, e.received_at desc limit 1)`. Functional impact: none on the normal path.",
+   "verifierCorrections": [
+    "The backfill in the outbox_result accepted branch is right, but rank by fixed precedence and not by received_at, to match email_event_record's rules: order by case type when 'email.complained' then 1 when 'email.bounced' then 2 when 'email.failed' then 3 when 'email.suppressed' then 3 when 'email.delivered' then 4 when 'email.delivery_delayed' then 5 end, received_at desc, and exclude other types. Otherwise an out-of-order delivery_delayed event could shadow a 'delivered'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X2.3",
+   "severity": "low",
+   "category": "concurrency",
+   "title": "publish_version/schedule_version accept a stale seq, so an out-of-date admin tab silently reverts newer live content",
+   "file": "supabase/migrations/20260927090000_static_site_and_functions.sql",
+   "line": 61,
+   "otherLocations": [
+    "supabase/migrations/20260927090000_static_site_and_functions.sql:84",
+    "supabase/migrations/20260927090000_static_site_and_functions.sql:108",
+    "src/lib/admin-publish.ts:27",
+    "src/components/admin/CollectionForm.tsx:278",
+    "src/lib/admin-publish.ts:92"
+   ],
+   "evidence": "create function public.publish_version(p_collection public.content_collection, p_doc_id text, p_seq integer)\n...\n  perform public.content_assert_publisher(v_actor);\n  perform public.content_go_live(p_collection, p_doc_id, p_seq);",
+   "failureScenario": "Saves are conflict-checked (content_versions_next_seq), but publishing is not. PublishBar publishes `seq={baseSeq}`, the latest seq when CollectionForm loaded, and restore always inserts a new seq, so the UI only means to publish the latest version. Step by step: (1) the owner opens post P (latest 5, live 4) and leaves the tab open with no unsaved changes, so canPublish is true. (2) An editor saves seq 6 and publishes it (live 6). (3) The owner clicks «نشر». validateVersion(seq 5) passes and publish_version(seq 5) runs, so live reverts to 5 on the next build. The owner sees «تم بنجاح», and the editor's changes vanish from the public site. schedule_version has the same gap: a stale tab schedules seq 5, which fires later and reverts 6. cancel_schedule in a stale tab removes a newer schedule it never showed. Two simultaneous schedule_version calls for different seqs do not serialize, because the first `update ... where publish_at is not null` cannot see the other's uncommitted row. Both commit, leaving two pending schedules; content_documents shows only the earliest, and when it fires content_go_live silently clears the other.",
+   "suggestedFix": "In a new migration (create or replace), make publish_version, schedule_version and cancel_schedule first take `pg_advisory_xact_lock(hashtext('content:' || p_collection::text || ':' || p_doc_id))`, the same key content_versions_next_seq uses. Make publish_version and schedule_version raise errcode 'unique_violation' when p_seq <> (select max(seq) from public.content_versions where collection = p_collection and doc_id = p_doc_id). In src/lib/admin-publish.ts sqlErrorResult, map 23505 to the existing reload/conflict message.",
+   "verifierCorrections": [
+    "The SQL part is correct as proposed. Add pg_advisory_xact_lock(hashtext('content:' || p_collection::text || ':' || p_doc_id)) first in publish_version, schedule_version and cancel_schedule; this is the same key content_versions_next_seq uses, and it also serializes the concurrent double-schedule under READ COMMITTED. Then have publish_version and schedule_version raise when p_seq <> max(seq). On the client, sqlErrorResult cannot reuse an existing code: PublishActionError.code has no conflict member. Add 'CONFLICT' to the union and map 23505 to the reload message, reusing the CONFLICT_MESSAGE text CollectionForm uses for save. cancel_schedule stays only lock-protected: a stale tab can still cancel a schedule it never saw. That is acceptable, or pass the expected scheduled seq if the owner wants it airtight."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S05.3",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Hold expiry releases stock and coupon uses without recording which orders in the audit trail",
+   "file": "supabase/migrations/20260927160000_catalog_and_checkout.sql",
+   "line": 1087,
+   "otherLocations": [],
+   "evidence": "  insert into public.audit_events (action, entity, summary)\n  values ('order.expired', 'order', jsonb_build_object('count', cardinality(v_ids)));",
+   "failureScenario": "DATA-AND-SECURITY requires recording all financial and stock changes in audit, not only the last status. Order O1 is created (audited as 'order.created' with entity_id O1). Its 20-minute hold lapses, and checkout_expire flips it to 'expired' and releases its stock holds and coupon hold. The only audit row says {count: 37}, with a null entity_id. An order history built from audit_events by entity_id, or an investigation into why a coupon use or a unit came back, cannot tie that release to O1. Buyer cancels are audited per order, with entity_id and orderNumber.",
+   "suggestedFix": "Record the ids in the batch row: `jsonb_build_object('count', cardinality(v_ids), 'orders', to_jsonb(v_ids))`. Or insert one row per order with `select 'order.expired', 'order', id::text, '{}' from unnest(v_ids) id`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S05.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A coupon's product scope change is audited only as 'changed', not with its old and new values",
+   "file": "supabase/migrations/20260927160000_catalog_and_checkout.sql",
+   "line": 73,
+   "otherLocations": [],
+   "evidence": "          when v_key in (\n            'price_halalas', 'stock', 'enabled', 'status', 'fee_halalas', 'percent_bp', 'amount_halalas',\n            'usage_limit', 'min_subtotal_halalas', 'starts_at', 'ends_at'\n          ) then jsonb_build_object('from', v_old -> v_key, 'to', v_new -> v_key)\n          else 'true'::jsonb",
+   "failureScenario": "The function header (lines 50-52) promises that coupon terms are recorded with their old and new values. An owner widens a coupon from one product to every product by setting product_ids = '{}', or narrows it. That decides which lines get discounted, which is a financial change. The coupons_audit row stores only {\"product_ids\": true}, so after a disputed discount the trail cannot show what the coupon's scope was before or after the edit.",
+   "suggestedFix": "Add 'product_ids' (and 'kind') to the from/to key list in public.catalog_audit, in supabase/migrations/20260927160000_catalog_and_checkout.sql, through a new forward migration that uses create or replace.",
+   "verifierCorrections": [
+    "Write a forward migration with `create or replace function public.catalog_audit()` that adds 'product_ids', 'kind' and 'code' to the from/to list; code is a coupon term too. The existing triggers pick up the new body automatically."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.4",
+   "severity": "low",
+   "category": "security",
+   "title": "Store-wide 500/day checkout throttle is spent by refused requests, so it can be exhausted without creating any order",
+   "file": "supabase/migrations/20260927160000_catalog_and_checkout.sql",
+   "line": 881,
+   "otherLocations": [],
+   "evidence": "if not finance.rate_limit_take('checkout:ip', p_ip_hash, 10, interval '1 hour')\n    or not finance.rate_limit_take('checkout:email', v_email_hash, 5, interval '1 hour')\n    or not finance.rate_limit_take('checkout:all', repeat('0', 64), 500, interval '1 day')\n  then\n    raise exception 'Too many checkouts; try again later.' using errcode = 'program_limit_exceeded';",
+   "failureScenario": "An attacker farms 500 Turnstile tokens (action 'checkout') and spreads them over about 50 IPs at 10 per hour each. Each `create` carries a random well-formed email, a real variant id and a random 64-hex quoteHash. Every request passes steps 1 to 4 and takes a hit in 'checkout:all'. Step 6 then returns QUOTE_CHANGED, which writes nothing except the throttle rows. After 500 such requests every genuine buyer's `create` raises 54000, which checkout.ts maps to 429 'أرسلت طلبات كثيرة؛ حاول لاحقًا.', until the UTC-day window resets. No order or hold is ever created. The recorded residual risk covers stock held by many emails, not a store-wide lockout from refusals.",
+   "suggestedFix": "In a new migration, `create or replace function public.checkout_create` and move only the 'checkout:all' take to just before the order insert (after the QUOTE_CHANGED, ADDRESS_REQUIRED and PHONE_REQUIRED returns). The daily cap then counts orders actually written. Keep the per-IP and per-email takes where they are. Thresholds are unchanged.",
+   "verifierCorrections": [
+    "Moving the take alone does not fix this. Record the store-wide daily-cap lockout as an accepted residual (or a P08 decision) in docs/operations.md and PLANS/ISSUES.md. In P08, the owner decides whether to keep the 500/day circuit breaker, raise it, or replace it with an alert. Moving the take after the refusal returns is optional hygiene."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X2.4",
+   "severity": "low",
+   "category": "concurrency",
+   "title": "Policy approval approves whatever is published at click time, not what the owner reviewed",
+   "file": "supabase/migrations/20260927170000_policy_approval.sql",
+   "line": 42,
+   "otherLocations": [
+    "src/components/admin/CommerceSettingsForm.tsx:223",
+    "supabase/functions/_shared/admin.ts:371"
+   ],
+   "evidence": "  select seq into v_store from public.published_documents where collection = 'policies' and doc_id = 'store';\n  select seq into v_delivery from public.published_documents where collection = 'policies' and doc_id = 'delivery';\n  select seq into v_refund from public.published_documents where collection = 'policies' and doc_id = 'refund';",
+   "failureScenario": "The only concurrency guard is p_expected_version on commerce_settings, which covers the settings row and not the policy revisions being approved. The UI button sends only `expectedVersion: row.version` and does not show which published seqs will be pinned. Step by step: (1) the owner reads store policy seq 3 on /admin/content/policies. (2) An editor publishes store seq 4, for example with a changed refund window. (3) The owner clicks «اعتماد السياسات المنشورة», and the function pins {store:4,...}. From then on every order's policy_revisions snapshot and the buyer's POLICY_CHANGED check use text the owner never reviewed. The migration header says the buyer accepts 'the revision the OWNER approved'.",
+   "suggestedFix": "Add `p_expected_revisions jsonb` to commerce_policies_approve and raise 40001 when the computed v_revisions differs. Have CommerceSettingsForm read and display the published policy seqs (published_documents where collection = 'policies') next to the button and send them. Pass the value through in admin.ts commercePoliciesApprove and add it to commercePoliciesApproveSchema.",
+   "verifierCorrections": [
+    "The suggested fix is right and minimal. Add `p_expected_revisions jsonb` (drop and recreate the function, and redo the revoke/grant for the new signature in a new migration) and raise 40001 when it `is distinct from` v_revisions. In CommerceSettingsForm, read the published policy seqs, show them beside the button, and send them. In admin.ts, add the field to commercePoliciesApproveSchema and pass it through. Update tests/unit/admin-function.test.ts:404 and tests/integration/policy-approval.test.ts for the new parameter."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X2.6",
+   "severity": "low",
+   "category": "concurrency",
+   "title": "A product can be saved with a library cover that was deleted while its form was open",
+   "file": "supabase/migrations/20260927180000_store_media.sql",
+   "line": 66,
+   "otherLocations": [
+    "src/components/admin/TableForm.tsx:190",
+    "supabase/migrations/20260927160000_catalog_and_checkout.sql:120"
+   ],
+   "evidence": "  if exists (select 1 from public.media_usage(p_id))\n    or exists (select 1 from public.products pr where pr.cover_image = p_id::text)\n  then\n    raise exception 'Media is in use.' using errcode = 'foreign_key_violation';",
+   "failureScenario": "media_delete sees only saved product covers, and products.cover_image is free text with no existence check. TableForm saves straight to the live row, and unlike content there is no publish check. Step by step: (1) the owner opens a published product's form and picks library image M as the cover without saving yet. (2) An editor deletes M in the media library; media_delete finds no product using M, deletes the row and its objects. (3) The owner clicks حفظ, and the update commits cover_image = M. The next build's resolveCovers cannot find M, and imageSources returns null, so the published product renders with no cover. M is gone from the library, so no «used in» list reveals the dangling id. The media_delete ponytail note relies on 'the publish check', which products do not have.",
+   "suggestedFix": "Add a BEFORE INSERT OR UPDATE OF cover_image trigger on public.products (new migration). When cover_image is uuid-shaped, it runs `perform 1 from public.media where id = new.cover_image::uuid for key share` and raises errcode 'foreign_key_violation' if nothing is found. FOR KEY SHARE conflicts with media_delete's FOR UPDATE, so the two serialize, and either the save or the delete is refused.",
+   "verifierCorrections": [
+    "Use the trigger approach, with three details. (1) Make the trigger function SECURITY DEFINER with `set search_path = ''`. It runs as `authenticated`, which is subject to media RLS, and FOR KEY SHARE also needs UPDATE privilege on media. (2) Match the uuid shape with the same rule `isMediaId` uses, so manifest ids pass. Then run `perform 1 from public.media where id = new.cover_image::uuid for key share; if not found then raise ... using errcode = 'foreign_key_violation'`. (3) Fire it on BEFORE INSERT OR UPDATE OF cover_image on public.products. Under read committed, whichever side locks second either sees the product (and the delete is refused) or finds no row (and the save is refused). Optionally map 23503 in TableForm to a clear message, for example that the cover image was deleted."
+   ],
+   "needsOwnerDecision": false
+  }
+ ]
+}

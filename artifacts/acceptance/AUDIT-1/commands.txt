@@ -1,0 +1,69 @@
+AUDIT-1 — commands, results and evidence (orchestrator, 2026-09-30)
+Branch agent/design-b, base 181245f, working tree with the owner's uncommitted D41 change.
+Lock: .anasaq-execution.lock (package AUDIT-1), created with fs.openSync('wx'), held throughout.
+
+== Baseline, before any change ==
+pnpm check                                  exit 0  (lint 0, typecheck, frozen 50 files, copy 166 files, unit 432/432)
+deno 2.9.6 check of admin, checkout, contact, outbox, resend-webhook, staff-admin   6 x exit 0
+Docker Desktop was stopped; started it, then `supabase start` (volumes kept) and `docker start supabase_edge_runtime_ANASAQ.ME`.
+
+== Audit (read-only workflow wf_0902627f-f2d, 224 agents, ~67 min) ==
+29 specialist auditors + completeness critic + 5 gap auditors -> 324 raw -> dedup 258 -> adversarial verification:
+253 confirmed (0 critical, 2 high, 62 medium, 172 low, 17 info), 5 refuted.
+Evidence: audit-result.json (every finding with evidence, scenario, fix and verifier reasons), findings/<ROUND>.json (the per-round briefs).
+
+== Fixes ==
+Orchestrator, G4.2: git rm public/images/started/{46..50}-kid-*-poster.webp; rm public/media/{46..50}-kid-*.mp4 (generated,
+  git-ignored; sources stay in the git-excluded BOOK_ASSETS/SORTED_2026-09-21); removed their keys from both manifests and the
+  five reels from content/initial-content.json; prepare-media.mjs leaves them out; `node scripts/import-content.mjs --force`
+  (local) -> no published document or latest version contains "-kid-".
+Fix workflow wf_c80bdd18-a3a (38 agents, ~4.9 h): 11 sequential rounds, each one fresh sonnet-worker (model sonnet, effort xhigh)
+  plus one independent auditor, up to two re-fix workers. Final audits: DB pass (1 re-fix), FN pass, ADMIN_EDIT pass,
+  ADMIN_FIELDS audit_failed (CRLF rewrite of FieldInput.tsx, fixed by the orchestrator), ADMIN_OPS pass, STORE pass (1 re-fix),
+  PUBLIC audit_failed (4 items in PostView.tsx outside its allowlist + a false "not run" check line; items fixed by the
+  orchestrator, checks re-run below), BOOK pass, SCRIPTS pass, TESTS pass, DOCS pass (2 re-fixes).
+Orchestrator follow-ups: FieldInput.tsx back to LF; PostView (journal name, aria-hidden arrow, post date); coupons list reads
+  amount_halalas (ListColumn.extra); products/customers form rules; unused `date` field type, ListColumn.nullText and
+  roomVignette exports removed; admin editor <em> upright; media.ts IN_USE names products; `pnpm remove -D esbuild`;
+  source-manifest AGENTS.md hash refreshed for D41; collections.test.ts expects no child films; reader/cart/cms spec
+  selectors updated for the accessibility changes; outbox.test.ts S03.5 creates its own active owner.
+Result: 241 fixed, 7 owner decisions (ISSUES I42-I45), 5 recorded open (I44, I46, I47, docs). APPENDIX-findings.md lists all 253.
+
+== Acceptance battery ==
+pnpm check                                  exit 0  (unit 486/486)
+deno check x6                               exit 0
+pnpm test:db (TEST_ENV=local)               exit 0  205/205   (run on the stack after the fixes)
+pnpm build                                  exit 0
+pnpm check:export                           exit 0  (51 required files present; 320 text files scanned, no secrets; demo guard: loopback build)
+pnpm check:budgets                          exit 0  (largest initial JS gzip 147.0 KiB, budget 150.0)
+out/ scan for "-kid-"                       0 files, 0 matches
+free RAM before e2e                         13.0 GB
+ACCEPTANCE_PACKAGE=AUDIT-1 pnpm test:e2e    exit 1  161/168 (first run)
+  - reader x3, cart-checkout x1, cms x1: selectors made stale by X3.15 (aria-hidden arrows), X3.11 (named quantity
+    fields), X3.21 (Arabic validation paths) -> specs updated
+  - reader drag x1: passes alone (reader.spec 18/18) and in the final run -> load timing
+  - auth.spec x1: 1,730 test staff from repeated runs; staff_directory() oldest-first is cut at PostgREST max_rows 1000,
+    so the new invite never showed (every local staff row was @example.com or @erased.invalid test data)
+supabase db reset                           exit 0  (all 15 migrations from zero, 20260930120000_audit_fixes.sql included)
+pnpm db:import ; pnpm db:demo-catalog       exit 0 ; exit 0
+pnpm test:db                                exit 1  197/205: outbox.test.ts S03.5 needed an active owner only a polluted DB had
+  -> the test creates its owner; outbox.test.ts 24/24; pnpm test:db 205/205
+supabase db reset ; db:import ; db:demo-catalog   exit 0 (clean again)
+pnpm test:db                                exit 0  205/205 (clean database)
+free RAM                                    12.2 GB
+ACCEPTANCE_PACKAGE=AUDIT-1 pnpm test:e2e    exit 0  168/168 (9.7 min)
+Committed screenshots rewritten by the runs: none (routine screenshots now go to test-results/screenshots/<pkg>).
+next-env.d.ts restored with `git checkout -- next-env.d.ts` after the runs.
+Dev-server spot checks (pnpm dev): /journal empty state at 360; /contact submit disabled in the static HTML and enabled
+  after hydration, <noscript> notice present, 0 px overflow at 360; /started at 1440 shows only the two animated films,
+  no "-kid-" in the page, 0 console errors; /book hero <source> sizes corrected; admin home (360) and store home (1440)
+  screenshots from the final run reviewed.
+pnpm lint ; pnpm typecheck ; pnpm test      exit 0 ; exit 0 ; exit 0 (486/486) after the last edits
+powershell -File PLANS/verify-plan.ps1      every check passes; the last step (git diff --check) flags only the CR bytes
+  of the CRLF PLANS/evidence/source-manifest.json edit while uncommitted;
+  `git -c core.whitespace=cr-at-eol diff --check` exit 0 (same as after 068fd6a).
+
+== Not done (and why) ==
+- Nothing hosted (no authority; P11): the password hook, "Secure password change", the migration and _headers need I28/I32.
+- G4.1/G4.4 (WhatsApp export in Git history): needs a history rewrite and force push, which only the owner can authorize (I42).
+- No commit, no push: waiting for the owner.

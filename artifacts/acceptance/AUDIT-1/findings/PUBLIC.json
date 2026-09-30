@@ -1,0 +1,530 @@
+{
+ "files": [
+  "PLANS/ARCHITECTURE.md",
+  "PLANS/COVERAGE.md",
+  "PLANS/DECISIONS.md",
+  "PLANS/WORK-PACKAGES.md",
+  "src/admin/collections/site-settings.ts",
+  "src/app/(public)/book/page.tsx",
+  "src/app/(public)/journal/[slug]/page.tsx",
+  "src/app/(public)/journal/page.tsx",
+  "src/app/(public)/store/[slug]/page.tsx",
+  "src/app/(public)/store/page.tsx",
+  "src/components/book/PdfBookReader.tsx",
+  "src/components/public/book/BookView.tsx",
+  "src/components/public/contact/ContactForm.tsx",
+  "src/components/public/home/HomeView.tsx",
+  "src/components/public/home/home.module.css",
+  "src/components/public/journal/JournalList.tsx",
+  "src/components/public/rooms/BuiltRoomView.tsx",
+  "src/components/public/rooms/StartedRoomView.tsx",
+  "src/components/public/rooms/built.module.css",
+  "src/components/public/rooms/rooms.module.css",
+  "src/components/public/scenes/SceneGallery.tsx",
+  "src/components/public/scenes/scenes.module.css",
+  "src/components/public/story/Story.tsx",
+  "src/components/site/SiteHeader.tsx",
+  "src/components/site/site.module.css",
+  "src/components/weave/VideoTile.tsx",
+  "src/content/home.ts",
+  "src/content/site.ts",
+  "src/lib/content.ts",
+  "src/lib/format.ts",
+  "src/lib/journal.ts",
+  "src/lib/store.ts"
+ ],
+ "findings": [
+  {
+   "id": "G3.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "D11/C08 'editable name' for the journal is not implemented: المجلس is hard-coded on every surface except the menu",
+   "file": "src/app/(public)/journal/page.tsx",
+   "line": 34,
+   "otherLocations": [
+    "src/app/(public)/journal/page.tsx:14",
+    "src/app/(public)/journal/[slug]/page.tsx:55",
+    "src/app/(public)/journal/[slug]/page.tsx:88",
+    "src/content/home.ts:32",
+    "src/components/public/book/BookView.tsx:212",
+    "src/content/site.ts:14",
+    "src/admin/collections/site-settings.ts:79",
+    "PLANS/DECISIONS.md:19",
+    "PLANS/COVERAGE.md:14"
+   ],
+   "evidence": "export const metadata: Metadata = { title: 'المجلس' }   (line 14)\n...\n        <RoomHero tone=\"aub\" title=\"المجلس\" />   (line 34)\n\nsite_settings has no journal-name field (src/admin/collections/site-settings.ts:79-86); the only editable copy is the nav label in content/initial-content.json:27-29.",
+   "failureScenario": "D11 says «Blog defaults to المجلس at /journal; editable name», and COVERAGE C08 (owned by the accepted P04) lists the editable name. Anas renames the journal in the admin by changing the /journal nav label to «المدونة» and publishes. After the rebuild the menu says «المدونة», but the journal page heading and <title>, the home page's door (src/content/home.ts:32), the book page's next link (BookView.tsx:212), each post's breadcrumb and back link (journal/[slug]/page.tsx:55, 88) and the 404 room list (src/content/site.ts:14) still say «المجلس». There is no admin control that renames it.",
+   "suggestedFix": "Use the nav item that already carries the name, with no schema change: add `getJournalName()` to src/lib/content.ts returning `(await getNav()).find((item) => item.href === '/journal')?.label ?? 'المجلس'`. Use it in journal/page.tsx (the metadata through generateMetadata, and the RoomHero title), in journal/[slug]/page.tsx lines 55 and 88, and pass it to HomeView and BookView in place of the literals in src/content/home.ts:32 and BookView.tsx:212.",
+   "verifierCorrections": [
+    "The approach is right, with two additions. (1) Lost.tsx reads the static ROOM_ORDER, so the 404 page must also get the name: resolve it in the server not-found page and pass it as a prop, or override the /journal label from getNav() there. (2) Build the home doors in (public)/page.tsx by mapping ROOM_DOORS and replacing the /journal title with the resolved name, rather than changing home.ts. Keep the 'المجلس' fallback for when the nav item is missing, and add one unit check that a renamed nav label reaches getJournalName().",
+    "The suggested nav-label approach is right, with one detail to handle. BookView is also rendered client-side in the admin preview (src/components/admin/RoomPreview.tsx), so add an optional `journalName = 'المجلس'` prop to BookView rather than making it required. Make the same change for the 404 room list (src/content/site.ts:14, used by src/components/public/Lost.tsx) if Lost cannot await getNav().",
+    "The suggested approach is right: getJournalName() in src/lib/content.ts reads the /journal nav label and falls back to 'المجلس'. Also cover the 404 room list at src/content/site.ts:14, which the suggested fix leaves out, by passing the name to not-found or building that entry from getNav. Build the journal page title with generateMetadata, since static metadata cannot await."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X7.1",
+   "severity": "medium",
+   "category": "performance",
+   "title": "Book page hero cover (the page's LCP image) states the wrong `sizes`, so phones and tablets download the 1200w file (399 KB) when the 720w file (133 KB) is enough; it also has no fetchPriority",
+   "file": "src/components/public/book/BookView.tsx",
+   "line": 44,
+   "otherLocations": [],
+   "evidence": "<Picture id={BOOK.cover.id} alt={BOOK.cover.alt} sizes=\"(min-width: 1024px) 400px, 70vw\" loading=\"eager\" />\n\nbook.module.css:9-11\n.cover {\n  flex: 0 1 min(400px, 40%);\n  min-inline-size: 220px;",
+   "failureScenario": "The cover is laid out at max(220px, min(400px, 40% of the band's content width)), and `flex-grow: 0` keeps that width after the hero wraps. The `sizes` value says 70vw below 1024px. Worked examples: a 390px iPhone at DPR 3 renders the cover at 220px (56vw), but sizes gives 273px, i.e. 819 device px, so the browser picks khous-cover-b-1200.webp (398,806 B) instead of the 720w file (133,270 B). A 768px tablet at DPR 2 renders it at 276px (36vw), but sizes gives 538px, i.e. 1076 device px, so it again picks the 1200w file. That is roughly 265 KB extra on the image that is the largest element of /book's first screen on mobile. Unlike the home portrait and the journal empty state, the cover is also eager with no `fetchPriority=\"high\"`, so it competes at default priority with the two preloaded fonts and the CSS.",
+   "suggestedFix": "In src/components/public/book/BookView.tsx line 44, make `sizes` match the layout and prioritise the image: `sizes=\"(min-width: 1024px) 400px, (min-width: 560px) 40vw, 220px\" loading=\"eager\" fetchPriority=\"high\"`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G5.1",
+   "severity": "medium",
+   "category": "privacy",
+   "title": "With JavaScript off, or before hydration, the contact form sends the visitor's name, email and message in the URL, then silently loses the message",
+   "file": "src/components/public/contact/ContactForm.tsx",
+   "line": 118,
+   "otherLocations": [],
+   "evidence": "<form id=\"contact-form\" className={styles.form} noValidate onSubmit={submit} aria-label=\"راسلني\">\n...\n<input ref={nameRef} id=\"contact-name\" name=\"name\" ...\n...\n<ActionButton type=\"submit\" arrow disabled={!turnstileAvailable || status.kind === 'sending'}>\n  أرسل\n</ActionButton>",
+   "failureScenario": "The production build has NEXT_PUBLIC_TURNSTILE_SITE_KEY set, so the static HTML renders «أرسل» enabled (useTurnstile returns available: Boolean(siteKey)). The form has no method or action, and its fields carry name=\"name\"/\"email\"/\"message\"/\"website\". A visitor with JavaScript off fills in the form and presses «أرسل» or Enter. The browser submits natively: GET /contact?name=…&email=…&message=…&website=. Cloudflare serves contact.html, the page reloads empty, nothing is shown, and nothing reaches the contact function. The personal data and the whole message stay in the address bar and browser history, and go out in the same-origin Referer on every subresource request. The same thing happens with JavaScript on if the visitor submits before React hydrates (slow phone network). There is no <noscript> notice. The D39 evidence screenshot contact-768-nojs.png shows the enabled «أرسل», with an empty Turnstile gap above it. The JS-off e2e covers only '/', the rooms and '/book'.",
+   "suggestedFix": "In ContactForm.tsx, gate submission on hydration the way BookPreview.tsx already does: `const scripted = useSyncExternalStore(noSubscribe, () => true, () => false)`, then `disabled={!scripted || !turnstileAvailable || status.kind === 'sending'}`. A disabled default button also blocks implicit Enter submission. Add a <noscript> line inside the form: «الإرسال يحتاج JavaScript؛ راسلني عبر القنوات المجاورة.»",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S16.3",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "The journal shows no publication date anywhere, though PLANS requires a dated list",
+   "file": "src/components/public/journal/JournalList.tsx",
+   "line": 62,
+   "otherLocations": [
+    "src/app/(public)/journal/page.tsx:23",
+    "src/components/public/journal/JournalList.tsx:11",
+    "src/app/(public)/journal/[slug]/page.tsx:66",
+    "src/lib/format.ts:20",
+    "PLANS/WORK-PACKAGES.md:25",
+    "PLANS/ARCHITECTURE.md:80"
+   ],
+   "evidence": "<span className={styles.cardBody}>\n  {post.categories[0] && <span className={styles.cardTag}>{post.categories[0]}</span>}\n  <h2 ...>{post.title}</h2>\n  {post.excerpt && <span className=\"t-body\">{post.excerpt}</span>}\n  <span className=\"t-label\">اقرأ ←</span>\n(JournalCard has no date; journal.ts loads publishedAt, and nothing renders it)",
+   "failureScenario": "WORK-PACKAGES P01 asks for a \"lead story + dated readable list\", and ARCHITECTURE line 80 for \"a readable dated list\". Once posts are published, neither /journal nor /journal/<slug> says when a post was written. JournalCard has no date field, and the post meta (journal/[slug]/page.tsx:66-69) shows only the author and reading time. `publishedAt` is used only for sorting.",
+   "suggestedFix": "Add `publishedAt` to JournalCard in journal/page.tsx and render it in JournalList's cardBody and in the post's .meta paragraph as `<time dateTime={publishedAt}>`. Format it with Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { timeZone: 'Asia/Riyadh', day: 'numeric', month: 'long', year: 'numeric' }). Add timeZone to the unused formatDate in src/lib/format.ts and reuse it. Without Asia/Riyadh, a build running in UTC shows the day before for posts published between 00:00 and 03:00 Riyadh time.",
+   "verifierCorrections": [
+    "As suggested, with two notes. Adding timeZone 'Asia/Riyadh' to formatDate keeps tests/unit/format.test.ts passing, because '2026-09-23' parses as UTC midnight, which is 03:00 the same day in Riyadh. Put the <time> in the list's cardBody and in the post's .meta; the lead card and the other cards can share one element."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.8",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Journal card focus ring is drawn outside the card in the card's own ring colour (1.32–1.58:1 on its neighbours)",
+   "file": "src/components/public/journal/JournalList.tsx",
+   "line": 45,
+   "otherLocations": [],
+   "evidence": "<li key={post.slug} data-tone={CARD_TONES[posts.indexOf(post) % CARD_TONES.length]} className={i === 0 ? styles.lead : styles.card}>\n            <Link href={`/journal/${post.slug}`} prefetch={false} className={styles.cardLink}>",
+   "failureScenario": "The tone sits on the <li>, not on the link, so the tasmeem row-1 fix `[data-tone]:is(a, button) { outline-offset: -6px }` does not match. The link fills the li (.card flex, .cardLink flex:1), and the global ring is drawn 3px outside it. On an 'aub' or 'night' card the ring is saffron and lands on the neighbouring paper card (1.58:1) or the sand band (1.32:1). On a 'coral' card it is aub-900 over an adjacent aub card (1.55:1). Tabbing through /journal once posts exist gives a near-invisible focus position (WCAG 2.4.7 / 1.4.11).",
+   "suggestedFix": "In journal.module.css, add `.cardLink:focus-visible { outline-offset: -6px; }` so the ring is drawn inside the card, on the surface whose tone chose it.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S13.3",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "بدأتُ من هنا: the «تظهر المقاطع هنا» films can silently disappear, depending on the movement's first text block",
+   "file": "src/components/public/rooms/StartedRoomView.tsx",
+   "line": 95,
+   "otherLocations": [],
+   "evidence": "const withFigure = b === 0 && movement.vignette\nlet before: Para[] = block.paras\nlet after: Para[] = []\nif (b === 0 && movement.films) [before, after] = splitAfterFirstDisplay(block.paras)\n...\n{after.length > 0 && (\n  <>\n    <Films reels={room.media.reels} />",
+   "failureScenario": "Films render only when block 0 of the marked movement is text, has a pullLines paragraph, and that paragraph is not the block's last. Three owner actions break this. (1) Ticking «تظهر المقاطع هنا» on a movement with no large line. (2) Correcting a typo in the display paragraph of the 2020 movement without also editing the matching pullLines entry, which needs an exact match and is not validated; if no display line remains in block 0, the films are gone. (3) A movement whose first paragraph is a band line: block 0 is then a band, so both the films and the movement's vignette (withFigure) are dropped. In all three cases the family films vanish from /started while the admin still shows them as placed there.",
+   "suggestedFix": "In StartedRoomView.tsx Movement, key on the first text block (`const firstText = blocks.findIndex((x) => x.kind === 'text')`) instead of `b === 0`. When movement.films is set, render `<Films>` for that block even if splitAfterFirstDisplay returns an empty `after`: put it after `before` when there is no display split.",
+   "verifierCorrections": [
+    "Use `const firstText = blocks.findIndex((x) => x.kind === 'text')` for both withFigure and the films split. When movement.films is set and `after` is empty, still render <Films> right after the first text block's Band (and put the closing after the films if that block is also the last). This avoids duplicating the render path."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S13.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Tapping the «أنس» brand link inside the open menu leaves the modal menu open over the new page",
+   "file": "src/components/site/SiteHeader.tsx",
+   "line": 139,
+   "otherLocations": [],
+   "evidence": "<div className={styles.menuBar}>\n  <Brand />\n  <button type=\"button\" data-tone=\"paper\" className={styles.closeButton} onClick={() => setOpen(false)}>\n\n(every menuLink has onClick={() => setOpen(false)}, Brand has none, and nothing closes the menu when pathname changes)",
+   "failureScenario": "On a phone (<1024px) on /built, open «القائمة», then tap «أنس» (the first focusable item in the dialog). Next.js navigates client-side to /, but SiteHeader lives in the persistent layout, so `open` stays true and the modal dialog stays open over the home page, with the rest of the page inert and scrolling locked. If the user is already on /, the tap does nothing and the menu also stays open.",
+   "suggestedFix": "In src/components/site/SiteHeader.tsx, close the menu whenever the route changes: add `useEffect(() => setOpen(false), [pathname])`. This also covers back/forward navigation. The smaller alternative is to give Brand an optional onClick prop and pass `() => setOpen(false)` for the copy inside the dialog.",
+   "verifierCorrections": [
+    "Prefer the Brand onClick prop (`<Brand onClick={() => setOpen(false)} />`), mirroring the menuLinks: it also covers tapping it while already on /, where pathname does not change. A pathname-change effect alone would not close the menu in that case."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S12.6",
+   "severity": "low",
+   "category": "docs",
+   "title": "Stale code comments: the book page says the reader 'arrives with P02', and content.ts talks about runtime 500s",
+   "file": "src/app/(public)/book/page.tsx",
+   "line": 7,
+   "otherLocations": [
+    "src/lib/content.ts:151"
+   ],
+   "evidence": "`/** كتبتُ هنا (D39). The page-turning reader arrives with P02. */` P02 is accepted, and BookView already imports `BookPreview` from '@/components/book/BookPreview'.\nsrc/lib/content.ts:151-152: `// The lenient stored schema on purpose: the publish gate enforces the contact // rules, so one bad stored value cannot 500 every public page.` Under D32 there is no request-time rendering. A bad value fails the build instead.",
+   "failureScenario": "A worker or auditor reading book/page.tsx concludes the reader is still to be built and schedules work that already exists. The content.ts comment describes a failure mode (HTTP 500) the static export cannot have, which misstates why the lenient schema exists: it keeps the build from failing.",
+   "suggestedFix": "book/page.tsx: say the page renders BookView with the P02 preview reader. content.ts:151-152: say 'so one bad stored value cannot fail the whole site build'.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.15",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Arrow glyphs inside link names are read aloud («سهم لليمين المجلس»)",
+   "file": "src/app/(public)/journal/[slug]/page.tsx",
+   "line": 55,
+   "otherLocations": [
+    "src/components/public/journal/JournalList.tsx:66",
+    "src/components/public/home/HomeView.tsx:109",
+    "src/components/public/story/Story.tsx:83",
+    "src/components/public/rooms/StartedRoomView.tsx:153",
+    "src/app/(public)/journal/page.tsx:55",
+    "src/components/book/PdfBookReader.tsx:84",
+    "src/components/book/PdfBookReader.tsx:529"
+   ],
+   "evidence": "<Link href=\"/journal\" prefetch={false}>\n                → المجلس\n              </Link>",
+   "failureScenario": "Screen readers speak \"right arrow المجلس\" and \"اقرأ left arrow\". Elsewhere (ActionLink Arrow, RoomNav, ServiceRequest, contact channels) the arrows are aria-hidden, so link names are inconsistent and noisy. The same applies to «اقرأ ←», «ادخل ←», caption links, «على الرف ←», «إلى الغرف ←» and the reader's «النسخ ←».",
+   "suggestedFix": "Wrap each arrow in <span aria-hidden=\"true\">←</span>, as RoomNav.tsx does, at each listed line. In PdfBookReader's makeLeaf, append a separate aria-hidden span.",
+   "verifierCorrections": [
+    "For the JSX sites, wrap the glyph in <span aria-hidden=\"true\">←</span> (or →), as RoomNav does. Do not add a child span in PdfBookReader's makeLeaf (line 84): the comment at lines 80-81 says page-flip only lets a click through when the target is the <a> itself, so a child span would swallow clicks on the arrow. Use link.setAttribute('aria-label', 'النسخ') and keep textContent as it is."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S16.2",
+   "severity": "low",
+   "category": "correctness",
+   "title": "When the server rejects an email the form accepted (422), the visitor gets a generic error with no field marked",
+   "file": "src/components/public/contact/ContactForm.tsx",
+   "line": 96,
+   "otherLocations": [],
+   "evidence": "const EMAIL = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/   (line 13)\n...\nsetStatus({ kind: 'failed', text: reply?.error?.message ?? 'تعذّر إرسال الرسالة؛ حاول مرة أخرى.' })   (line 96)\nServer: EMAIL_SHAPE = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,190}\\.(?:[A-Za-z]{2,63}|xn--...)$/ -> fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())",
+   "failureScenario": "A visitor types o'brien@example.com, أنس@example.com or a@b.c. Each passes the client regex, and the stricter server grammar refuses it with a 422. The status line shows only «بيانات غير صالحة.». The email field is not marked invalid and gets no focus, and the Turnstile token has been used. The visitor cannot tell which field is wrong, so they retry the same address and fail again.",
+   "suggestedFix": "In ContactForm.tsx, in the else branch at line 95: when `reply?.error?.code === 'INVALID'` and `reply.error.fields?.fieldErrors?.email` is set, call `setErrors({ email: 'تأكد من كتابة البريد بشكل صحيح.' })` and `emailRef.current?.focus()`, and do the same for the name and message. The handler already returns `fieldErrors` from `flatten()`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S16.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "«اطلب جلسة» on a second service keeps the first service's prefilled message",
+   "file": "src/components/public/contact/ContactForm.tsx",
+   "line": 41,
+   "otherLocations": [],
+   "evidence": "setValues((v) => ({ ...v, message: v.message.trim() ? v.message : `أرغب في جلسة استشارية: ${name}.\\n` }))",
+   "failureScenario": "A visitor presses «اطلب جلسة» on «بناء القائمة», and the message becomes «أرغب في جلسة استشارية: بناء القائمة.». They scroll back and press it on «تدريب الموظفين». The message is not empty, so it is left unchanged, yet focus lands in it as if it had been updated. They send a request for the wrong service.",
+   "suggestedFix": "Also replace the message when it is still only a previous prefill: `const prefill = /^أرغب في جلسة استشارية: [^\\n]*\\.\\n?$/; message: !v.message.trim() || prefill.test(v.message) ? `أرغب في جلسة استشارية: ${name}.\\n` : v.message`.",
+   "verifierCorrections": [
+    "Simpler than the regex: store the last prefill in a ref (`const prefill = useRef('')`) and replace the message when `!v.message.trim() || v.message === prefill.current`, then set `prefill.current` to the new text."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X4.1",
+   "severity": "low",
+   "category": "design",
+   "title": "Home room doors: «ادخل ←» sits one line higher on the «على الرف» door when its meta wraps (1440)",
+   "file": "src/components/public/home/home.module.css",
+   "line": 111,
+   "otherLocations": [
+    "artifacts/acceptance/DESIGN-B/screenshots/home-1440-js.png",
+    "src/content/home.ts:24"
+   ],
+   "evidence": ".doorFoot {\n  display: flex;\n  justify-content: space-between;\n  gap: 16px;\n}\n(no align-items, so the default stretch leaves each span's text at the top of the row)",
+   "failureScenario": "At 1440 each door is about 340px wide. The shelf door's meta «ذرى · كوب ضوء القمر · بوتيك أنس القرني» (src/content/home.ts:24) wraps to two lines and leaves «القرني» alone on the second. Its «ادخل ←» stays on the first line, so on the first row of doors it sits about 26px above the «ادخل ←» of the other three doors. You can see it in artifacts/acceptance/DESIGN-B/screenshots/home-1440-js.png at about y=2600. This breaks the parallel-baselines rule in PLANS/DESIGN-AUDIT.md item 44. HomeView, home.module.css and home.ts have not changed since that screenshot was taken.",
+   "suggestedFix": "In src/components/public/home/home.module.css, add `align-items: last baseline;` (or `flex-end`) to `.doorFoot`. The enter link then sits on the last line of a wrapped meta, level with the other doors.",
+   "verifierCorrections": [
+    "Add `align-items: flex-end;` to `.doorFoot` in home.module.css. Both spans use the same t-label font, so flex-end gives the same result as `last baseline` with no browser-support risk. After the change, recheck the 1440 row, and the 1024 layout wherever the meta wraps."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X7.4",
+   "severity": "low",
+   "category": "a11y",
+   "title": "The journal category filter is announced as role=\"toolbar\" but has no arrow-key roving focus, unlike the scenes filter which correctly uses role=\"group\"",
+   "file": "src/components/public/journal/JournalList.tsx",
+   "line": 35,
+   "otherLocations": [],
+   "evidence": "<div role=\"toolbar\" aria-label=\"التصنيفات\" className={styles.filters}>\n  {[ALL, ...categories].map((name) => (\n    <button key={name} type=\"button\" aria-pressed={category === name} ...",
+   "failureScenario": "Once posts use more than one category, a screen-reader user reaches «التصنيفات», which is announced as a toolbar. The toolbar pattern says arrow keys move between its buttons with a single tab stop. Here the arrow keys do nothing (in NVDA/JAWS focus mode they are captured), and every button is a separate Tab stop. SceneGallery.tsx:67 renders the same toggle-button filter as `role=\"group\"`, which is what this markup actually is.",
+   "suggestedFix": "In src/components/public/journal/JournalList.tsx line 35, change `role=\"toolbar\"` to `role=\"group\"`, matching SceneGallery.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X7.2",
+   "severity": "low",
+   "category": "performance",
+   "title": "Images that are in the first viewport and are likely the LCP element are lazy-loaded (journal lead card, store grid first cards, product cover)",
+   "file": "src/components/public/journal/JournalList.tsx",
+   "line": 57,
+   "otherLocations": [
+    "src/app/(public)/store/page.tsx:47",
+    "src/app/(public)/store/[slug]/page.tsx:67"
+   ],
+   "evidence": "<img\n  src={post.cover.src}\n  ...\n  sizes={i === 0 ? '(min-width: 1024px) 50vw, 100vw' : '(min-width: 1024px) 25vw, 100vw'}\n  ...\n  loading=\"lazy\"",
+   "failureScenario": "On /journal with published posts, the lead card (i === 0, 50vw wide) starts about 600px down at 1440x900, below the RoomHero, so it is on the first screen and is the largest element. `loading=\"lazy\"` stops the preload scanner from fetching it, so it starts only after layout and LCP is later; Lighthouse reports 'LCP image was lazily loaded'. The same happens today with the D37 demo catalog. On /store, the first product cards start around y≈420 at 360x812, and Picture's default is `loading=\"lazy\"` (src/app/(public)/store/page.tsx:47). On /store/[slug], the product cover is the first thing in the band after the saffron header (src/app/(public)/store/[slug]/page.tsx:67), also with the lazy default.",
+   "suggestedFix": "src/components/public/journal/JournalList.tsx:57: `loading={i === 0 ? 'eager' : 'lazy'}`. src/app/(public)/store/page.tsx:47: pass `loading={i < 2 ? 'eager' : 'lazy'}` to Picture. src/app/(public)/store/[slug]/page.tsx:67: pass `loading=\"eager\" fetchPriority=\"high\"` to the product cover's Picture.",
+   "verifierCorrections": [
+    "Journal lead: loading={i === 0 ? 'eager' : 'lazy'}. Store grid: loading={i < 2 ? 'eager' : 'lazy'}. Product cover: loading=\"eager\". Add fetchPriority=\"high\" only to the journal lead and the product cover, not to several grid cards."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X4.2",
+   "severity": "low",
+   "category": "design",
+   "title": "/built team films start about 40px apart because only one of them has a caption (1440)",
+   "file": "src/components/public/rooms/built.module.css",
+   "line": 72,
+   "otherLocations": [
+    "artifacts/acceptance/DESIGN-B/screenshots/built-1440-js.png",
+    "src/components/public/rooms/BuiltRoomView.tsx:135-139"
+   ],
+   "evidence": ".team {\n  display: flex;\n  flex-wrap: wrap;\n  gap: clamp(24px, 4vw, 64px);\n  align-items: flex-end;",
+   "failureScenario": "In «لم أكن وحدي في هذه الحكاية» on /built, two team films sit side by side. `.team` aligns the figures by their bottoms. One figure carries a caption («اتسعت الدار وحيّ الله الجار», via FILM_CAPTIONS at BuiltRoomView.tsx:138) and the other does not. The captioned film is therefore raised by the height of its caption, and at 1440 the two films start about 40px apart and end about 40px apart. It reads as a misaligned pair rather than a deliberate stagger. See artifacts/acceptance/DESIGN-B/screenshots/built-1440-js.png at about y=2100 to 2400. built.module.css and BuiltRoomView.tsx have not changed since that screenshot was taken.",
+   "suggestedFix": "In src/components/public/rooms/built.module.css, add `align-self: flex-start;` to `.teamFilm`. Both films then share a top edge, and the text column keeps its bottom alignment.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S13.2",
+   "severity": "low",
+   "category": "correctness",
+   "title": "بنيتُ هنا: the drone film and the intro picture depend on the number of intro band lines (0 lines drops both, 2 lines duplicates both)",
+   "file": "src/components/public/rooms/BuiltRoomView.tsx",
+   "line": 106,
+   "otherLocations": [],
+   "evidence": "if (block.kind === 'band') {\n  return (\n    <div key={i}>\n      <StatementBand text={block.text} size=\"band\" heading />\n      <figure className={built.openingFilm}>\n...\nconst afterBand = firstBand !== -1 && i > firstBand\nreturn <TextRun key={i} paras={block.paras} figure={afterBand ? room.intro.vignette : null} end=\"xs\" />",
+   "failureScenario": "The owner can edit bandLines («أسطر على شريط ملوّن») in the admin, and nothing validates it. (a) With a second intro paragraph added to bandLines, every band block renders the full-width droneFilm VideoTile, so the opening film appears twice. Every text run after the first band also gets room.intro.vignette, so the same photo repeats beside two text runs. (b) With the band line cleared, or its paragraph text edited so it no longer matches exactly, there are no band blocks and firstBand is -1. The opening drone film and the intro vignette then disappear from the page with no warning.",
+   "suggestedFix": "In BuiltRoomView.tsx, render the opening film only when `i === firstBand`, and pass the vignette only when `i === firstBand + 1`. When firstBand is -1, render the opening film (without the StatementBand) after the first text run, so the film and the picture are always drawn exactly once.",
+   "verifierCorrections": [
+    "Smallest fix is in BuiltRoomView.tsx. Render the film figure only when `i === firstBand`, so later bands show just the StatementBand. Give the vignette to one text run only: `i === firstBand + 1`, or the last text block when firstBand is -1. When firstBand === -1, render the film figure once after the intro map. Validating in the admin that bandLines match paragraphs is optional; it does not replace the render guard."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S13.6",
+   "severity": "low",
+   "category": "rtl-i18n",
+   "title": "The «وشيء لم يبدأ بعد.» display line wraps on phones at line-height 1.15, below DESIGN.md's 1.25 floor for Arabic display lines",
+   "file": "src/components/public/rooms/rooms.module.css",
+   "line": 65,
+   "otherLocations": [],
+   "evidence": ".boutiqueLine {\n  line-height: 1.15;\n}\n\n(StartedRoomView.tsx:150 <span className={`t-statement t-accent ${styles.boutiqueLine}`}>وشيء لم يبدأ بعد.</span>)",
+   "failureScenario": "DESIGN.md says a display line that can wrap keeps line-height ≥1.25; only single-word roles and the home name bands sit tighter. At 360px the boutique door's content box is about 264px (20px gutters plus 28px door padding on each side). The line is t-statement at its 36px minimum and measures about 310px in Thmanyah Serif Display Medium (advance widths read from the font file), so it wraps to two lines. At 1.15 the dots and hamza marks of the two lines crowd or touch.",
+   "suggestedFix": "In src/components/public/rooms/rooms.module.css, drop the `.boutiqueLine` override so .t-statement's 1.35 applies, or set it to `var(--leading-tight)`.",
+   "verifierCorrections": [
+    "Delete the `.boutiqueLine` rule (rooms.module.css:64-66) and remove `${styles.boutiqueLine}` from StartedRoomView.tsx:150, so `.t-statement`'s 1.35 applies. Setting it to var(--leading-tight) would also meet the floor, but deleting the override is the smaller change."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S13.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "بدأتُ من هنا: the room's closing (signature, closingLine, signature text) is dropped when the last movement ends on a band line",
+   "file": "src/components/public/rooms/StartedRoomView.tsx",
+   "line": 91,
+   "otherLocations": [],
+   "evidence": "const lastBlock = last && b === blocks.length - 1\nif (block.kind === 'band') return <StatementBand key={b} text={block.text} edge={false} />\n...\n<StoryText paras={before}>{lastBlock && after.length === 0 && closing}</StoryText>",
+   "failureScenario": "The `closing` fragment is attached only when the final block of the final visible movement is a text block. If the owner adds the last paragraph of «وشيء لم يبدأ بعد» to bandLines, or hides that movement so that the previous movement, ending on a band, becomes last, the final block is a band. The signature, «بدأتُ من هنا» and the room signature then never render.",
+   "suggestedFix": "In Movement (StartedRoomView.tsx), when `last` is true and the final block is a band, render `closing` after the blocks in its own `<Band tone=\"sand\" pad=\"m\"><div className={layout.text}>…</div></Band>`.",
+   "verifierCorrections": [
+    "Also cover `blocks.length === 0`. Render `closing` in its own `<Band tone=\"sand\" pad=\"m\"><div className={layout.text}>…</div></Band>` after the blocks.map whenever `last` is true and the final block is not text, or there are no blocks at all."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S16.7",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Switching the scenes filter back to «الكل» announces nothing",
+   "file": "src/components/public/scenes/SceneGallery.tsx",
+   "line": 84,
+   "otherLocations": [],
+   "evidence": "<p role=\"status\" className=\"visually-hidden\">\n  {category === ALL ? '' : `${category}: ${photoCount(shown.length)}`}\n</p>",
+   "failureScenario": "A screen-reader user filters to «رحلات» and hears «رحلات: 3 صور». They press «الكل», the grid grows back to all photos, and the live region is emptied, so nothing is announced. The component's own doc says the filter announces how many photos it left.",
+   "suggestedFix": "Announce the count for «الكل» too: `{`${category}: ${photoCount(shown.length)}`}`, with the empty string only on first render if the initial load should stay silent.",
+   "verifierCorrections": [
+    "Always render `${category}: ${photoCount(shown.length)}`. Screen readers don't announce the text a live region already holds when the page loads, so no first-render guard or extra state is needed."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G5.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "With JavaScript off, every scenes tile is a zoom-in button that does nothing, and captions are never visible",
+   "file": "src/components/public/scenes/SceneGallery.tsx",
+   "line": 102,
+   "otherLocations": [
+    "src/components/public/scenes/scenes.module.css:69"
+   ],
+   "evidence": "<button\n  type=\"button\"\n  className={styles.open}\n  aria-label={`تكبير: ${item.caption}`}\n  onClick={() => {\n    setDirection(0)",
+   "failureScenario": "A visitor with JavaScript off opens /scenes. Each photo is a <button> styled `cursor: zoom-in` (scenes.module.css:69), but only the React handler that calls showModal() opens the lightbox, so a click or Enter on any tile does nothing. Each caption lives only in that lightbox (and in the button's aria-label), so a sighted no-JS visitor never sees a single caption. This goes against DESIGN.md §6, 'Everything is visible … without JavaScript', and DESIGN-AUDIT 95/149 (no dead controls). The JS-off e2e never loads /scenes.",
+   "suggestedFix": "In SceneGallery.tsx, make the tile an `<a href={item.sources.src}>` whose onClick calls `event.preventDefault()` before setIndex(i), the same progressive link ServiceRequest.tsx uses. Without JavaScript it opens the full-size photo; with it, the lightbox opens as now.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G5.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "With JavaScript off, the scenes and journal category filters render as dead toggle buttons",
+   "file": "src/components/public/scenes/SceneGallery.tsx",
+   "line": 67,
+   "otherLocations": [
+    "src/components/public/journal/JournalList.tsx:35"
+   ],
+   "evidence": "<div role=\"group\" aria-label=\"تصفية المشاهد\" className={styles.filters} {...enter(360)}>\n{[ALL, ...categories].map((name) => (\n  <button key={name} type=\"button\" aria-pressed={category === name} ...\n    onClick={() => { setCategory(name); setIndex(-1) }}",
+   "failureScenario": "A visitor with JavaScript off opens /scenes (or /journal once posts span two or more categories). The static HTML shows «الكل» pressed and one button per category. Pressing any category changes nothing: the pressed state stays on «الكل» and the full list stays. The control looks working but is broken, against DESIGN-AUDIT 95/149. JournalList.tsx:35-41 has the same toolbar of onClick-only buttons.",
+   "suggestedFix": "Hide the filters when scripting is unavailable. Add `@media (scripting: none) { .filters { display: none; } }` to src/components/public/scenes/scenes.module.css and src/components/public/journal/journal.module.css. The full, unfiltered list stays.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.14",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Lightbox step arrows sit on the photo with no backing on phones",
+   "file": "src/components/public/scenes/scenes.module.css",
+   "line": 205,
+   "otherLocations": [],
+   "evidence": ".stepButton {\n  position: absolute;\n  inset-block: 0;\n  inline-size: clamp(48px, 6vw, 96px);\n  ...\n  background: transparent;\n  color: var(--sand-50);",
+   "failureScenario": "At a 360px width, .stage padding-inline is 6vw = 21.6px but the buttons are 48px wide, so the sand-50 «←/→» glyphs are drawn over the image's edge. On a light photo, e.g. a pale wall or the Raha invitation, the arrows drop to about 1:1 against the image (WCAG 1.4.11). The hover tint is only under (hover: hover), so touch users never get it.",
+   "suggestedFix": "In scenes.module.css, give .stepButton a permanent backing (`background: color-mix(in srgb, var(--aub-900) 60%, transparent)`). Alternatively, make .stage padding-inline at least the button width (clamp(48px, 6vw, 96px)).",
+   "verifierCorrections": [
+    "Smallest fix: move the color-mix(in srgb, var(--aub-900) 60%, transparent) background out of the hover-only block and make it the base .stepButton background, keeping a stronger tint on hover if wanted. The padding alternative needs .stage padding-inline to equal the button width at every size (for example clamp(48px, 6vw, 96px)), which shrinks the photo on phones, so the backing is preferred."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G5.2",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Below 1024px with JavaScript off, «القائمة» does nothing and the header shows no room links",
+   "file": "src/components/site/SiteHeader.tsx",
+   "line": 117,
+   "otherLocations": [
+    "src/components/site/site.module.css:45",
+    "src/components/site/site.module.css:90"
+   ],
+   "evidence": "<button\n  type=\"button\"\n  ...\n  aria-expanded={open}\n  onClick={() => setOpen(true)}\n>\n/* site.module.css:45 */ .inline { display: none; ... }  /* shown only @media (min-width: 1024px) */",
+   "failureScenario": "A phone or tablet visitor (360-1023px) has JavaScript off. The inline <nav> is display:none, so the header's only navigation is the «القائمة» button. Its dialog opens only through showModal() in an effect, so pressing it does nothing. From /contact, /cart, /checkout, /store or a policy page, the six rooms (/started, /built, /passed, /shelf, /book, /journal) can be reached only by going home and down to #rooms. The footer links only /scenes and /contact. The dead button appears in the D39 no-JS screenshots (e.g. contact-768-nojs.png, top left). This fails DESIGN-AUDIT 129 (working mobile nav) and 149 (broken controls are not allowed).",
+   "suggestedFix": "In src/components/site/site.module.css, add `@media (scripting: none) { .inline { display: flex; flex-wrap: wrap; } .menuButton { display: none; } }`. The room links then show inline at every width when scripts cannot run.",
+   "verifierCorrections": [
+    "Same `@media (scripting: none)` block, but also let `.bar` wrap (`.bar { flex-wrap: wrap; }`) so the brand is not squeezed at 360px by six inline links."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S13.5",
+   "severity": "low",
+   "category": "a11y",
+   "title": "The play-failure message is inserted together with its role=status region, so screen readers may not announce it",
+   "file": "src/components/weave/VideoTile.tsx",
+   "line": 103,
+   "otherLocations": [],
+   "evidence": "{state === 'failed' && (\n  <p role=\"status\" className={styles.status}>\n    تعذّر تشغيل المقاطع. حاول مرة أخرى.\n  </p>\n)}",
+   "failureScenario": "A screen-reader user activates «تشغيل: …». The play() promise rejects (network error, unsupported codec) and the state becomes 'failed'. The live region and its text enter the DOM in the same commit. NVDA, JAWS and VoiceOver generally announce only changes to a live region that already exists, so the failure is silent. Focus has meanwhile been moved to the <video>, which no longer has controls, so the user gets no feedback that playback failed.",
+   "suggestedFix": "In VideoTile.tsx, always render the status element (`<p role=\"status\" className={state === 'failed' ? styles.status : 'visually-hidden'}>`) and fill in its text only when state === 'failed'.",
+   "verifierCorrections": [
+    "In VideoTile.tsx, keep the region mounted and fill it only on failure: `<p role=\"status\" className={state === 'failed' ? styles.status : 'visually-hidden'}>{state === 'failed' && 'تعذّر تشغيل المقطع. حاول مرة أخرى.'}</p>`. The global `.visually-hidden` utility already exists in globals.css:331. Optionally, move focus back to the remounted play button when play fails, because the focused <video> loses its controls."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.5",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "Nine exported content types that nothing imports",
+   "file": "src/lib/content.ts",
+   "line": 51,
+   "otherLocations": [],
+   "evidence": "export type RoomJewel = z.infer<typeof jewelSchema>\nexport type RoomVignette = z.infer<typeof roomVignetteSchema>\nexport type ReelMedia = z.infer<typeof reelMediaSchema>\n...\nexport type BoutiqueItem = z.infer<typeof boutiqueItemSchema>\n-- word-boundary grep over src/ tests/ scripts/: RoomJewel, RoomVignette, ReelMedia, BuiltMovement, GalleryPhoto, ThuraFlavour, ThuraItem, MoonlightCupItem and BoutiqueItem each occur only at their own declaration (lines 51-64).",
+   "failureScenario": "No runtime failure; the extra types also keep 9 sub-schema imports alive at content.ts:22-44 for type use only.",
+   "suggestedFix": "Delete the nine unused type aliases and the imports they alone need (jewelSchema, roomVignetteSchema, reelMediaSchema, builtMovementSchema, galleryPhotoSchema, thuraFlavourSchema, thuraItemSchema, moonlightCupItemSchema, boutiqueItemSchema) from src/lib/content.ts.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.3",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "`formatDate` and `formatYear` are used only by their unit test",
+   "file": "src/lib/format.ts",
+   "line": 20,
+   "otherLocations": [],
+   "evidence": "export function formatDate(value: Date | string): string {\n...\nexport function formatYear(year: number): string {\n  return new Intl.NumberFormat(LOCALE, { useGrouping: false }).format(year)\n}\n-- grep 'formatDate\\|formatYear' over src/ supabase/ scripts/: only the definitions (lines 20, 50); the only callers are tests/unit/format.test.ts:12-17.",
+   "failureScenario": "No runtime failure: two production helpers exist only to be tested, so the test suite proves code that no page runs.",
+   "suggestedFix": "Delete `formatDate` and `formatYear` from src/lib/format.ts and their cases from tests/unit/format.test.ts (lines 12-17).",
+   "verifierCorrections": [
+    "Delete both functions from src/lib/format.ts. Remove their test cases (tests/unit/format.test.ts:11-18), and also drop `formatDate` and `formatYear` from the import on tests/unit/format.test.ts:3, or the test file stops compiling."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S12.5",
+   "severity": "low",
+   "category": "performance",
+   "title": "Media-id lookups put every id in one GET URL; at about 420 post covers the build fails with 414",
+   "file": "src/lib/journal.ts",
+   "line": 45,
+   "otherLocations": [
+    "src/lib/content.ts:85",
+    "src/lib/store.ts:76"
+   ],
+   "evidence": "```\nconst params = new URLSearchParams({ select: 'id,derivatives', id: `in.(${ids.join(',')})` })\nconst response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {\n```\n`ids` holds every visible post's cover (line 67), unbounded.",
+   "failureScenario": "Each UUID adds about 39 URL characters once URLSearchParams encodes the comma as %2C. At about 420 visible posts with media-library covers, the request passes the 16 KB URL limit of Cloudflare, which fronts hosted Supabase (ISSUES I32). The GET answers 414, mediaById throws 'Failed to fetch media: 414', and from then on every publish fails the site build. VERIFICATION.md:55 names 500 posts as the representative load. content.ts resolveMedia and store.ts resolveCovers repeat the same single-request pattern.",
+   "suggestedFix": "Move the lookup into one helper in src/lib/content.ts that fetches ids in chunks of about 100 and merges the maps. Use it from journal.ts mediaById and store.ts resolveCovers instead of their two copies.",
+   "verifierCorrections": [
+    "Fix together with X6.13. Export one `mediaById(ids)` from content.ts that splits the ids into chunks of about 100, runs the GETs, and merges the rows into one Map. Use it in resolveMedia, journal.ts and store.ts resolveCovers. Store's empty-derivatives filter can go, because replaceMediaIds already skips empty derivatives (content.ts:102)."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S16.10",
+   "severity": "info",
+   "category": "docs",
+   "title": "The ROOM_ORDER comment says it feeds the room doors, but it only feeds the 404 page",
+   "file": "src/content/site.ts",
+   "line": 7,
+   "otherLocations": [],
+   "evidence": "/** The rooms in Anas's order (his message of 21/09/2026), for the room doors. */\nexport const ROOM_ORDER = [",
+   "failureScenario": "The home room doors come from ROOM_DOORS in src/content/home.ts. ROOM_ORDER's only consumer is src/components/public/Lost.tsx:26, the 404 and error page's «طرق مبنية» list. Someone reordering or adding a door by editing ROOM_ORDER, as the comment directs, changes only the 404 page, and the home page stays as it was.",
+   "suggestedFix": "Change the comment to \"…, for the rooms listed on the 404 and error page (Lost.tsx); the home doors are ROOM_DOORS in home.ts.\"",
+   "verifierCorrections": [
+    "Reword the line-7 comment to: \"The rooms in Anas's order (his message of 21/09/2026), for the list on the 404 and error page (Lost.tsx); the home doors are ROOM_DOORS in home.ts.\" Optionally also reword the header's \"the room order the design needs\"."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.13",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "The build-time media lookup is written three times (content, journal, store)",
+   "file": "src/lib/journal.ts",
+   "line": 43,
+   "otherLocations": [],
+   "evidence": "async function mediaById(ids: string[]): Promise<Map<string, MediaDerivative[]>> {\n  if (ids.length === 0) return new Map()\n  const params = new URLSearchParams({ select: 'id,derivatives', id: `in.(${ids.join(',')})` })\n  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {\n-- the same fetch and map are in src/lib/content.ts:85-93 (inside resolveMedia) and src/lib/store.ts:175-193 (resolveCovers, whose comment says it is \"content.ts's resolveMedia, one column\").",
+   "failureScenario": "No bug today. A change to the media read (e.g. filtering empty derivatives, which store.ts does and journal.ts does not) lands in one loader only.",
+   "suggestedFix": "Export journal.ts's `mediaById(ids)` from src/lib/content.ts and use it inside resolveMedia, journal.ts and store.ts (resolveCovers becomes `mediaById(ids)`), deleting the other two copies.",
+   "verifierCorrections": [
+    "Do this as the same change as the S12.5 fix: one chunked `mediaById` exported from content.ts, called by resolveMedia, journal.ts and store.ts, with the other two copies deleted."
+   ],
+   "needsOwnerDecision": false
+  }
+ ]
+}

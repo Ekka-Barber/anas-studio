@@ -1,0 +1,652 @@
+{
+ "files": [
+  "BOOK_ASSETS/final/README.md",
+  "CLAUDE.md",
+  "DESIGN.md",
+  "PLANS/ARCHITECTURE.md",
+  "PLANS/COVERAGE.md",
+  "PLANS/DATA-AND-SECURITY.md",
+  "PLANS/DECISIONS.md",
+  "PLANS/DESIGN-AUDIT.md",
+  "PLANS/EXECUTION-STATUS.md",
+  "PLANS/HANDOFF.md",
+  "PLANS/ISSUES.md",
+  "PLANS/KICKOFF.md",
+  "PLANS/README.md",
+  "PLANS/SOURCE-NOTES.md",
+  "PLANS/VERIFICATION.md",
+  "PLANS/WORK-PACKAGES.md",
+  "PLANS/research-final.md",
+  "docs/development.md",
+  "docs/media-rights.md",
+  "docs/operations.md",
+  "docs/privacy-data-map.md",
+  "src/components/admin/admin.module.css",
+  "src/components/book/reader.module.css",
+  "src/components/public/contact/ContactForm.tsx",
+  "src/components/public/home/HomeView.tsx",
+  "src/components/site/site.module.css",
+  "src/components/store/store.module.css",
+  "src/content/book.ts",
+  "src/content/contact.ts",
+  "src/content/home.ts",
+  "supabase/functions/_shared/contact.ts",
+  "supabase/functions/staff-admin/index.ts",
+  "supabase/migrations/20260927140000_privacy_requests.sql",
+  "supabase/migrations/20260927160000_catalog_and_checkout.sql"
+ ],
+ "findings": [
+  {
+   "id": "S23.3",
+   "severity": "medium",
+   "category": "privacy",
+   "title": "privacy-data-map says buyers do not exist, but P07 already stores buyer name, email, phone, address and dedications",
+   "file": "docs/privacy-data-map.md",
+   "line": 3,
+   "otherLocations": [
+    "docs/privacy-data-map.md:13",
+    "docs/privacy-data-map.md:44"
+   ],
+   "evidence": "docs/privacy-data-map.md:3 \"Buyers do not exist yet: customers and orders arrive with P07 and P08\"; :13 rate_limits \"Throttling the contact form\"; :44 \"P08 and P10 add the functions and tests once the tables exist.\"\nsupabase/migrations/20260927160000_catalog_and_checkout.sql:204-213 `create table public.customers ( ... email text not null unique ... name text not null ... phone text`; :341-355 `finance.orders` with `customer_email`, `customer_name`, `customer_phone`, `city_name_ar`, `address`; :400 `dedication text`; :333-334 `customers_read_staff ... in ('owner', 'operations')`; :879-881 `checkout:ip`/`checkout:email`/`checkout:all` rate-limit buckets.",
+   "failureScenario": "A buyer who placed a held order (local now, hosted once checkout opens) asks for their data or its deletion. The runbook says buyer tables do not exist, the data map omits `public.customers` (which operations staff can read), `finance.orders`/`order_items` (address, phone, dedication text) and the checkout rate-limit hashes, and no erase path is listed. The owner answers wrongly or misses these records. The privacy policy (E08) is written from this map.",
+   "suggestedFix": "In docs/privacy-data-map.md, replace line 3's second sentence with: \"Buyers are guests (D08). P07 stores their contact and delivery details when a checkout hold is created; P08 adds payments.\" Add these rows: `public.customers` | email, name, phone | one profile per buyer email, written by checkout | owner and operations (owner may edit name and phone) | kept, no purge yet. `finance.orders`, `finance.order_items` | the order's contact snapshot (name, email, phone, city, address), items, signed-edition dedication text, a sha256 of the email | the order and its hold | no API role, `checkout` function only | kept, no purge yet; retention is set with P08/E08. Buyer browser | cart (`localStorage['anasaq:cart:v1']`: variant ids, quantities, dedications), the order access token in sessionStorage | cart and cancel | the visitor | until cleared. Extend line 13 to read \"Throttling the contact form and checkout (`checkout:*`, `checkout-quote:ip`)\". Change line 44 to \"...P08 and P10 add the buyer erase function and its tests (the tables exist since P07).\"",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G1.1",
+   "severity": "medium",
+   "category": "security",
+   "title": "A restore of an older backup brings back revoked or erased staff access, and the ledger's privacy_erase_staff line then fails instead of reapplying",
+   "file": "docs/privacy-data-map.md",
+   "line": 48,
+   "otherLocations": [
+    "supabase/migrations/20260927140000_privacy_requests.sql:33",
+    "docs/operations.md:511",
+    "supabase/functions/staff-admin/index.ts:114"
+   ],
+   "evidence": "privacy-data-map.md:48: \"After any restore, and before the site reopens, run every line again: both functions are safe to repeat.\"\nprivacy_requests.sql:33-35:\n  if exists (select 1 from public.staff s where s.user_id = p_user and s.active) then\n    raise exception 'Revoke the member in the team screen first.'\nstaff-admin/index.ts:114-120: the revoke is only staff.active=false plus an Auth ban_duration, both rows in the database.",
+   "failureScenario": "Day 1: Anas runs pnpm backup. Day 5: he revokes a departed editor (active=false, Auth ban) and erases them (privacy_erase_staff, ledger line written). Day 10: the project is lost and he restores the day-1 file. The restored staff row is active=true, auth.users has no ban and still has the real email, identities, sessions and refresh tokens. He follows the runbook and re-runs the ledger line: it raises 'Revoke the member in the team screen first.' (object_not_in_prerequisite_state), so the erasure is not reapplied. Nothing tells him to re-revoke. The runbook's revoke step is never written to the ledger, so a member who was revoked but not erased is also active again, and can sign in by email code with their old role. The restore steps in docs/operations.md (511-532) do not mention the ledger at all, so following operations.md alone reopens the site with erased contacts and staff data back.",
+   "suggestedFix": "Docs only. In docs/privacy-data-map.md, write every revoke to the deletion ledger as well as every erase. Change line 48 to say: after a restore, first revoke every member the ledger lists in the team screen, then re-run the erase lines. Add a step 7 to 'A real restore into a new hosted project' in docs/operations.md: reapply the deletion ledger (revokes first) before the site reopens. The app is unchanged. The erase function keeps its guard against erasing an active member.",
+   "verifierCorrections": [
+    "Docs only, as suggested. Also in privacy-data-map.md 'A departed staff member', add revoke as a ledger step, e.g. `update public.staff set active=false where user_id='<id>'` plus the ban (re-run through the team screen after a restore). In operations.md, the new step 7 must come before the site reopens: re-revoke every member the ledger lists, then re-run the erase lines."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X5.9",
+   "severity": "medium",
+   "category": "docs",
+   "title": "COVERAGE says every C-ID is NOT STARTED",
+   "file": "PLANS/COVERAGE.md",
+   "line": 3,
+   "otherLocations": [
+    "PLANS/COVERAGE.md:13"
+   ],
+   "evidence": "Plan coverage is complete; implementation status for every row is **NOT STARTED**.",
+   "failureScenario": "Anyone judging contract progress or C-ID closure from the coverage ledger reads 0% implemented. In fact C02, C07, C09, C16, C17, C18, C21, C27 and C33 are met in code and about 20 more are partial. The owner's progress question and the C35 phase-acceptance reasoning (four ordered phases, explicit acceptance) start from a false baseline. C07 also still says 'no new public redesign', although D39 accepted direction B.",
+   "suggestedFix": "Replace the sentence with a status column (met / partial / not_started / blocked_external, with the evidence package) on each C-ID row, using the statuses in this audit. Reword C07's proof to 'D39 identity, DESIGN.md and the visual baseline'.",
+   "verifierCorrections": [
+    "Replace the line-3 sentence with a per-row status column (met / partial / not_started / blocked_external, plus the evidence package). Take each status from the accepted evidence in EXECUTION-STATUS and artifacts/acceptance, not from this audit's unverified claims. Keep COVERAGE.md:78's rule that only the owner package closes a C-ID. C20, C19 (partial under D40) and the E-gated rows must not read 'met'. Do not put bold package IDs in the new column, because verify-plan.ps1:18-19 requires exactly one bold owner per row. Change C07's proof to 'D39 direction B, DESIGN.md, DESIGN-AUDIT and the visual baseline'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.16",
+   "severity": "medium",
+   "category": "docs",
+   "title": "Data contract describes reserved counters and a stored checkout_quotes table that P07 deliberately did not build",
+   "file": "PLANS/DATA-AND-SECURITY.md",
+   "line": 34,
+   "otherLocations": [
+    "PLANS/DATA-AND-SECURITY.md:17",
+    "PLANS/DATA-AND-SECURITY.md:18",
+    "PLANS/DATA-AND-SECURITY.md:36",
+    "PLANS/ARCHITECTURE.md:31",
+    "PLANS/VERIFICATION.md:25",
+    "PLANS/WORK-PACKAGES.md:93",
+    "PLANS/WORK-PACKAGES.md:95",
+    "supabase/migrations/20260927160000_catalog_and_checkout.sql:11"
+   ],
+   "evidence": "| checkout_quotes | request_hash, server cart/price/version/shipping/coupon snapshots, expires_at=5 minutes, optional booking hold. Revalidate at reservation. |",
+   "failureScenario": "20260927160000_catalog_and_checkout.sql: 'Availability is computed, not counted ... there is no reserved counter' and 'The quote is stateless ... ponytail: no stored checkout_quotes table'. DATA line 17 still lists `reserved_qty`, line 18 'redeemed/reserved counts', line 36 'counters changed atomically'; ARCHITECTURE line 31 and VERIFICATION line 25 test 'reserved counters'. P08/P09 builders reading the contract would add a quotes table or counter columns, and a P10 auditor would test invariants on columns that do not exist.",
+   "suggestedFix": "PLANS/DATA-AND-SECURITY.md: line 34 → '| checkout quote | Stateless (P07): `checkout_create` re-prices under the row locks and compares the hash of the quote the buyer confirmed; any change returns QUOTE_CHANGED with the new quote. P09 adds a stored quote only if a booking hold needs one. |'; line 17 drop 'reserved_qty,' and replace 'Counter columns are not updatable ...' with 'Available stock is computed as stock minus unexpired holds under the variant lock; there is no counter column.'; line 18 drop 'redeemed/reserved counts not updatable by `authenticated`' (usage is counted from `finance.coupon_redemptions`); line 36 replace 'counters changed atomically' with 'holds written under those locks'. ARCHITECTURE.md line 31 and VERIFICATION.md line 25: replace 'reserved_qty'/'reserved counters' with 'stock, holds, totals'.",
+   "verifierCorrections": [
+    "Apply the suggested edits. ARCHITECTURE.md:31 should also keep the column-privilege idea with real columns (e.g. 'authenticated cannot update stock outside the owner grants, order totals, payment or fulfillment state'). DATA:53's 'cannot change financial counters' should read 'cannot change stock holds, totals'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.18",
+   "severity": "medium",
+   "category": "docs",
+   "title": "Data contract lists a `policies` table (six types, own approval columns) but policies are a content collection with approval in commerce_settings",
+   "file": "PLANS/DATA-AND-SECURITY.md",
+   "line": 16,
+   "otherLocations": [],
+   "evidence": "| policies | type privacy/store/delivery/refund/cancellation/terms, immutable published revision, effective_at/approved_by/approved_at/body. |",
+   "failureScenario": "Line 13 of the same file and migrations 20260927160000 (adds 'policies' to content_collection) and 20260927170000 ('Policies are content ... the revision the OWNER approved into `finance.commerce_settings.policy_revisions`') implement four documents (store, delivery, refund, privacy) with approval via `commerce_policies_approve`. A P08/P09 builder snapshotting policies into orders or adding the cancellation policy would look for a table and columns that do not exist.",
+   "suggestedFix": "PLANS/DATA-AND-SECURITY.md line 16 → '| policies | Content collection (line 13): documents store, delivery, refund and privacy with drafts and versions. The owner approves the published revisions with `commerce_policies_approve` (fresh TOTP) into `finance.commerce_settings.policy_revisions`, which each order snapshots. A cancellation policy for P09 is a new document of this collection. |'",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.5",
+   "severity": "medium",
+   "category": "docs",
+   "title": "DECISIONS recorded assumption keeps contact retention at 180 days; D36 and the purge job use 90",
+   "file": "PLANS/DECISIONS.md",
+   "line": 59,
+   "otherLocations": [
+    "PLANS/DECISIONS.md:43",
+    "supabase/migrations/20260927140000_privacy_requests.sql:191",
+    "supabase/migrations/20260927140000_privacy_requests.sql:208",
+    "docs/privacy-data-map.md:9"
+   ],
+   "evidence": "- Contact retention defaults 180 days after the message is received (D31: no closure state), unsubscribed notify records 30 days; accounting orders are retained until approved legal retention.",
+   "failureScenario": "D36 (same file) settles 90 days after the notice reached a staff mailbox; migration 20260927140000_privacy_requests.sql deletes at `o.sent_at < now() - interval '90 days'` and docs/privacy-data-map.md says 90 days. Whoever drafts the E08 privacy policy from DECISIONS' assumptions list publishes a 180-day period that the system does not keep, and a different start event (received vs notice sent).",
+   "suggestedFix": "PLANS/DECISIONS.md line 59: replace 'Contact retention defaults 180 days after the message is received (D31: no closure state)' with 'Contact messages are kept 90 days after one of their notices reached a staff mailbox (D36; a message whose notice reached no one stays until one does)'.",
+   "verifierCorrections": [
+    "Also carry D36's other conditions so the line matches the job: the notice was not reported bounced, complained or failed, and no notice for the message is still pending or sending. Keep the rest of line 59 (the 30-day unsubscribed notify records and the accounting-order retention) unchanged."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.3",
+   "severity": "medium",
+   "category": "docs",
+   "title": "HANDOFF keeps glm-worker and opus-worker as current working rules after D41 removed both",
+   "file": "PLANS/HANDOFF.md",
+   "line": 135,
+   "otherLocations": [
+    "PLANS/HANDOFF.md:26",
+    "PLANS/HANDOFF.md:66",
+    "PLANS/HANDOFF.md:9"
+   ],
+   "evidence": "## Rules to keep\n...\n- **glm-worker:** its launcher cannot run `git checkout`. Check `permission_denials` in its JSON, and prove no process of its own is still running before you audit.",
+   "failureScenario": "D41 (working tree) removed glm-worker, opus-worker and scripts/glm-worker.mjs, and .claude/settings.json forces claude-sonnet-5-5 on every sub-agent. HANDOFF still lists a glm-worker rule under 'Rules to keep', line 66 says 'Working mode: glm-worker builds each round ... commits and pushes with the owner's standing go-ahead', and line 26 says 'the owner allows Opus 5.5 sub-agents (`opus-worker`, effort xhigh)'. A session following HANDOFF would try to dispatch a worker definition that no longer exists, or push without asking (CLEANUP-1 and KICKOFF step 5 require asking the owner first).",
+   "suggestedFix": "PLANS/HANDOFF.md: delete the line 135 bullet; replace line 66 with `- Working mode (then): glm-worker built each round; superseded by D41: a fresh `sonnet-worker` per round, audited by the orchestrator and an `auditor`; commit and push only on the owner's word.`; append to line 26 `(superseded by D41 on 2026-09-30: every sub-agent runs Sonnet 5.5; opus-worker is removed)`.",
+   "verifierCorrections": [
+    "Delete the :135 bullet. Append '(superseded by D41, 2026-09-30: every sub-agent is `sonnet-worker` or `auditor` on Sonnet 5.5; opus-worker is removed)' to :26, and change ':9' to say the dispatches are now `sonnet-worker`/`auditor` under D41. Cover :66 with one history banner under the 2026-09-27 heading (see S22.2) rather than rewriting it: 'superseded by D41; commit and push only on the owner's word'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X5.7",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Home door order and facts, the book page and the services are code, not CMS; C03/C12/C13/C14 promise owner edits and a 'reordered home', and only the services are tracked as open",
+   "file": "src/content/home.ts",
+   "line": 20,
+   "otherLocations": [
+    "src/content/book.ts:6",
+    "src/content/contact.ts:6",
+    "src/components/public/home/HomeView.tsx:89",
+    "PLANS/COVERAGE.md:9",
+    "PLANS/COVERAGE.md:20",
+    "PLANS/EXECUTION-STATUS.md:284",
+    "DESIGN.md:188"
+   ],
+   "evidence": "export const ROOM_DOORS: RoomDoor[] = [\n  { href: '/started', title: 'بدأتُ من هنا', tone: 'coral', room: 'started', meta: 'منذ 2013' },\n  { href: '/built', title: 'بنيتُ هنا', tone: 'aub', room: 'built', meta: 'رحى المكان' },",
+   "failureScenario": "Anas wants to hide the store door, move المجلس ahead of the rooms, change «منذ 2013», or edit the book page's summary and excerpts. No admin field exists for any of these: site_settings.home holds only the name, portrait, tagline, intro, addition and statement, HomeView's section order is fixed, and book.ts says 'The book page is not a CMS document yet; editing it is a change to this file.' Each change needs a developer and a rebuild. COVERAGE C14 still names 'reordered home' as its proof and C03 says 'owner edits all visible texts/media/order', but EXECUTION-STATUS and HANDOFF 'Next work' list only 'the services in the CMS'.",
+   "suggestedFix": "This needs an owner decision. Either amend C03/C14 to say that D39's composition is code and record book.ts, home.ts and contact.ts as open C12/C13 items in EXECUTION-STATUS, or add the fields: door lines, meta and a visible flag in site_settings.home, plus a `book` document for the book page's words.",
+   "verifierCorrections": [
+    "The owner has to decide first, so change no code yet. The smallest fix is in the docs. Change C14's proof in COVERAGE.md to 'a room section is reordered and hidden' (matching WORK-PACKAGES P04), and note under C03/C14 that D39's home composition is fixed in code. Add book.ts (the book page's words, C06/C12/C13) and home.ts (the doors' order, meta and visibility, C03/C14) to the open-inputs list in EXECUTION-STATUS.md:284 and HANDOFF.md:14, next to the services. Add CMS fields (site_settings.home doors, a book document) only if the owner asks for them."
+   ],
+   "needsOwnerDecision": true
+  },
+  {
+   "id": "S22.7",
+   "severity": "low",
+   "category": "docs",
+   "title": "'Preserve the frozen design' and other frozen-design statements contradict D39 without a marker",
+   "file": "CLAUDE.md",
+   "line": 18,
+   "otherLocations": [
+    "PLANS/README.md:7",
+    "PLANS/DECISIONS.md:25",
+    "PLANS/COVERAGE.md:13",
+    "PLANS/DESIGN-AUDIT.md:3"
+   ],
+   "evidence": "- Preserve the frozen design. Before UI work, read `PLANS/DESIGN-AUDIT.md`;\n  recheck every applicable item and exercise every changed control before handoff.",
+   "failureScenario": "D39 superseded D17's frozen public design; the reference is DESIGN.md (direction B). The Claude entry file still tells every session to preserve 'the frozen design' (deploy/design v1). README line 7 lists 'the frozen `deploy/design/` showcase' as an authority, D17 (DECISIONS line 25) has no 'Superseded by D39' marker, COVERAGE C07 (line 13) requires 'no new public redesign', and DESIGN-AUDIT line 3 says 'no new UI has been built or certified' above its own D39 recheck. A UI worker could 'restore' v1 palette or compositions as a fix.",
+   "suggestedFix": "CLAUDE.md line 18: 'Preserve the accepted design (D39: direction B «أنساق», `DESIGN.md`; `deploy/design/` is frozen v1 history). Before UI work, read `PLANS/DESIGN-AUDIT.md`;'. README.md line 7: after 'the frozen `deploy/design/` showcase' add '(v1 history; the public design is D39's direction B, `DESIGN.md`)'. DECISIONS.md line 25: prefix '**Superseded by D39 for the public design (2026-09-28).** '. COVERAGE.md line 13: replace 'no new public redesign' with 'direction B per D39 and DESIGN.md'. DESIGN-AUDIT.md line 3: replace 'Planning audit only: no new UI has been built or certified.' with 'Planning audit; the built UI is rechecked in the D39 section at the end.'",
+   "verifierCorrections": [
+    "The suggested fix works. Keep the D17 wording in line with the D02 and D24 convention: '**Superseded by D39 (2026-09-28) for the public design; `deploy/design/` stays frozen as v1 history.**' The deploy/design no-edit rule in AGENTS.md:57 stays correct and must not change."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X4.5",
+   "severity": "low",
+   "category": "docs",
+   "title": "DESIGN.md claims a single breakpoint, but the store, reader and admin have their own",
+   "file": "DESIGN.md",
+   "line": 100,
+   "otherLocations": [
+    "src/components/store/store.module.css:292",
+    "src/components/store/store.module.css:531",
+    "src/components/book/reader.module.css:28",
+    "src/components/admin/admin.module.css:167"
+   ],
+   "evidence": "- One breakpoint exists: the header shows the rooms inline from 1024px.",
+   "failureScenario": "The code has breakpoints at store.module.css:292 (`@media (min-width: 768px)`), store.module.css:531 (1024px), reader.module.css:28, 39 and 440 (`@container (width < 800px)` and `< 480px`), and admin.module.css:167 (`max-width: 480px`). DESIGN.md §4 and §6 themselves describe the 1024px order summary and the reader's 800px switch. The file states that the code is the source of truth and this file explains it. Someone who relies on §3 would miss these breakpoints when checking a width, or might remove them as drift.",
+   "suggestedFix": "In DESIGN.md §3, replace the line with: «Breakpoints: the header shows the rooms inline from 1024px; the store's order summary sits beside the form from 1024px (and the product layout changes at 768px); the book reader shows one page below an 800px container; everything else flows without breakpoints.»",
+   "verifierCorrections": [
+    "The suggested text is wrong about 768px. That breakpoint lays out the cart's line card (.lineCard) as a row, not the product layout, and the suggestion leaves out the admin breakpoint. Replace DESIGN.md:100 with: «Breakpoints: the header shows the rooms inline from 1024px; in the store, a cart line card becomes a row from 768px and the order summary sits beside the form from 1024px; the book reader shows one page below an 800px container (with tighter chrome below 480px); admin tables become stacked cards at 480px and below; everything else flows without breakpoints.»"
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S23.1",
+   "severity": "low",
+   "category": "docs",
+   "title": "Guide's db:import and db:demo-catalog steps fail: DATABASE_URL is never set by db:env and the scripts read only process.env",
+   "file": "docs/development.md",
+   "line": 128,
+   "otherLocations": [],
+   "evidence": "docs/development.md:127-129\n```sh\npnpm db:reset\npnpm db:import           # imports content/initial-content.json, skips already-published docs\n```\nscripts/import-content.mjs:20-23\n```js\nconst dbUrl = process.env.DATABASE_URL\nif (!dbUrl) {\n  console.error('Refusing: DATABASE_URL is not set.')\n```\nscripts/local-env.mjs writes only NEXT_PUBLIC_* and the function values. It writes no DATABASE_URL, and a plain `node` script loads no .env file. CI passes it by hand (ci.yml:80-81 `env: DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres`).",
+   "failureScenario": "A new developer follows the P04 block or line 79 in a fresh shell. `pnpm db:import` exits 1 with 'Refusing: DATABASE_URL is not set.', and `pnpm db:demo-catalog` does the same. Line 27 also claims `pnpm db:env` \"writes everything local development needs\", so nothing in the guide tells them where the value comes from. The later `pnpm build` then fails or exports empty pages because nothing is published.",
+   "suggestedFix": "In docs/development.md, change line 128 to `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:import`. Show the same prefix for `pnpm db:demo-catalog` at line 79. Replace line 27's \"writes everything local development needs from the running local stack\" with \"writes the values Next, the Edge Functions and the tests read from the running local stack; `DATABASE_URL` (and `TEST_ENV` for `pnpm test:db`) are passed on the command line, as in the commands below\".",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S23.7",
+   "severity": "low",
+   "category": "docs",
+   "title": "development.md names a nonexistent pin location for the Supabase CLI version",
+   "file": "docs/development.md",
+   "line": 14,
+   "otherLocations": [],
+   "evidence": "docs/development.md:14 \"| Supabase CLI | 2.106.0 | `supabase.toolVersion` (see `supabase/config.toml`) |\"\nsupabase/config.toml has no `toolVersion` key; the only pin is .github/workflows/ci.yml:64-67 `uses: supabase/setup-cli@... with: version: 2.106.0`.",
+   "failureScenario": "A developer upgrading or checking the CLI version searches supabase/config.toml, finds no such key, and cannot tell where the pinned version lives. An upgrade then updates the docs but not CI, or the reverse.",
+   "suggestedFix": "In docs/development.md line 14, replace the third cell with \"`version:` of the `supabase/setup-cli` step in `.github/workflows/ci.yml`\".",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X1.7",
+   "severity": "low",
+   "category": "docs",
+   "title": "media-rights doc says public media is served with nosniff and a sandboxing CSP; since D32 nothing sets either",
+   "file": "docs/media-rights.md",
+   "line": 47,
+   "otherLocations": [
+    "PLANS/ISSUES.md:35",
+    "docs/media-rights.md:48"
+   ],
+   "evidence": "- Only the verified WebP derivatives are published, from an isolated public\n  origin, with `nosniff` and a sandboxing content-security-policy. A visitor",
+   "failureScenario": "The sandbox CSP belonged to the retired Worker /media route. Derivatives are now written to the Supabase Storage bucket media-public by storageStore().write (supabase/functions/_shared/admin.ts:94-98), which sets only contentType and cacheControl. I32 records that nosniff on Storage responses is unverified. Staff and the owner read a security guarantee that does not exist and may skip the I32 hosted check.",
+   "suggestedFix": "Edit docs/media-rights.md:47-49 to say derivatives are served from the Supabase Storage public bucket (image/webp only), and that nosniff and any CSP on those responses are unverified until the P11 check in I32.",
+   "verifierCorrections": [
+    "Edit only docs/media-rights.md:47-49. Keep the accurate part: derivatives are served from the separate Supabase Storage origin through the `media-public` bucket, which accepts image/webp only. Replace the header claim with a line saying `nosniff` on those responses is unverified until the P11 hosted check (I32), and that no content-security-policy is set. PLANS/ISSUES.md needs no change."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S03.7",
+   "severity": "low",
+   "category": "docs",
+   "title": "operations.md states checkout is locked by a check constraint and that sign-in codes use outbox priority 0, and both are outdated",
+   "file": "docs/operations.md",
+   "line": 320,
+   "otherLocations": [
+    "docs/operations.md:93",
+    "docs/operations.md:155",
+    "docs/operations.md:310-312"
+   ],
+   "evidence": "(read-only; «لم تُعتمد بعد» until P07 records them). `checkout_enabled`\nis `false` behind a check constraint the migration owns: P08 lifts it with\nthe verified payment gateway, and until then the screen says payment is\n\ndocs/operations.md:93: One row per message (`finance.email_outbox`). Priorities: **0** sign-in\ncodes and receipts, **1** staff notices,",
+   "failureScenario": "P07's migration already dropped the constraint (20260927160000_catalog_and_checkout.sql:1096: `drop constraint commerce_settings_checkout_enabled_check`), and the same doc's line 364 says so. An operator who trusts line 320 believes the database refuses checkout_enabled = true, but any SQL update or the demo seed turns it on. Line 93 also says sign-in codes are priority-0 outbox rows. The migration (contacts_and_email.sql:83-86) and I28 say sign-in codes never enter the outbox, which misleads anyone sizing the reserve or debugging a missing code.",
+   "suggestedFix": "In docs/operations.md, rewrite 320-323 as: '`checkout_enabled` stays false: P07 lifted the old check, no API path sets it, and P08 adds the owner's switch behind the verified gateway'. Drop the «until P07 records them» note, and change line 93-94 to 'Priorities: **0** receipts, **1** staff notices, **2** availability notices (sign-in codes go through Supabase Auth SMTP, not the outbox)'.",
+   "verifierCorrections": [
+    "Rewrite only the checkout sentence at 320-322 so it matches :364-367: 'checkout_enabled stays false: P07 lifted the old check, but no API path sets it (only the demo seed and tests do); P08 adds the owner's switch behind the verified gateway'. Do not drop the «لم تُعتمد بعد» / policy-revisions note unless you have checked it. CommerceSettingsForm.tsx:157 still renders that string, and this audit did not confirm what records the revisions. Handle the line 93-94 and 154 wording under S23.5."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S23.5",
+   "severity": "low",
+   "category": "docs",
+   "title": "operations.md says sign-in codes are priority 0 outbox rows, but they never enter the outbox",
+   "file": "docs/operations.md",
+   "line": 94,
+   "otherLocations": [
+    "docs/operations.md:153-155"
+   ],
+   "evidence": "docs/operations.md:93-94 \"Priorities: **0** sign-in codes and receipts, **1** staff notices\"; :154 \"so sign-in codes, receipts and staff notices still go\"\nsupabase/migrations/20260926120000_contacts_and_email.sql:89-91 \"Priority 0 (receipts) goes before 1 (staff notices) and 2 (availability notices). Sign-in codes never enter the outbox\"; :90 `kind text not null check (kind in ('receipt', 'contact_notice', 'availability'))`",
+   "failureScenario": "An operator investigating a missing staff sign-in code looks for it on البريد or in `finance.email_outbox`, as lines 93-94 and 154 suggest, and finds nothing. The code went through Supabase Auth SMTP (I28), as the same document says at line 158. The quota paragraph also implies the reserve protects sign-in codes inside the outbox, which it does not.",
+   "suggestedFix": "In docs/operations.md, line 94: \"Priorities: **0** receipts (P08), **1** staff notices, **2** availability notices (P08). Sign-in codes never enter the outbox (Supabase Auth SMTP, I28).\" Line 154: \"...waits so receipts and staff notices still go\".",
+   "verifierCorrections": [
+    "Line 93-94: 'Priorities: **0** receipts, **1** staff notices, **2** availability notices. Sign-in codes never enter the outbox (Supabase Auth SMTP, I28).' Keep the existing phase tags as they are, without adding new ones. Line 154: '...waits so receipts and staff notices still go'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S23.9",
+   "severity": "low",
+   "category": "docs",
+   "title": "operations.md says the store pages are plain until a v2 direction is accepted; D39 accepted B and they were restyled",
+   "file": "docs/operations.md",
+   "line": 424,
+   "otherLocations": [],
+   "evidence": "docs/operations.md:423-424 \"built at build time from the published catalog and the `policies` collection (D32, D38: plain on the current tokens until a v2 design direction is accepted).\"\nPLANS/DECISIONS.md D39: \"The public site, the store pages (D38) and the admin tokens move to Anas's palette\"; PLANS/EXECUTION-STATUS.md:34 \"the store, product, cart, checkout and policy pages restyled (D38)\"; DESIGN.md:112 documents their current calm B treatment.",
+   "failureScenario": "A developer or auditor reading the runbook treats the store pages as unstyled placeholders still waiting on a design decision. They may restyle them again or file the B styling as scope creep, instead of following DESIGN.md's \"serious pages\" rules.",
+   "suggestedFix": "In docs/operations.md, replace the parenthesis at lines 423-424 with \"(D32; styled in direction B, D39, with the calm treatment of DESIGN.md's \\\"serious pages\\\")\".",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.21",
+   "severity": "low",
+   "category": "docs",
+   "title": "ARCHITECTURE lists the built `checkout` function as planned and omits it from the file map; names nonexistent files",
+   "file": "PLANS/ARCHITECTURE.md",
+   "line": 91,
+   "otherLocations": [
+    "PLANS/ARCHITECTURE.md:62",
+    "PLANS/ARCHITECTURE.md:69",
+    "PLANS/ARCHITECTURE.md:80"
+   ],
+   "evidence": "- planned: `notify` (P08: subscribe, confirm, unsubscribe), `checkout` (quote and create), `payments` (the Moyasar webhook and return verification), ...",
+   "failureScenario": "supabase/functions/checkout/index.ts and `[functions.checkout] verify_jwt = false` exist since P07. Line 62's map lists only `{contact,resend-webhook,outbox,admin}`. Line 69 names `src/lib/validation.ts` (absent; richtext is .tsx) and line 80 `src/components/site/{Navigation,MotionPreference}.tsx` (absent; Header, SiteHeader and Footer exist). A P08 planner re-plans or duplicates checkout.",
+   "suggestedFix": "PLANS/ARCHITECTURE.md: line 90 add '`checkout` (P07: quote, create and cancel; origin and Turnstile)' to 'built' and drop it from line 91; line 62 '`supabase/functions/{contact,resend-webhook,outbox,admin,checkout}/index.ts`'; line 69 '`src/lib/{content,format,env,media-ref,store,cart,journal,scenes}.ts`, `src/lib/richtext.tsx`'; line 80 '`src/components/site/{Header,SiteHeader,Footer}.tsx`'.",
+   "verifierCorrections": [
+    "Merge with S12.7 into one edit. Line 90: add `checkout` (P07: quote, create and cancel; origin and Turnstile) to built. Line 91: drop checkout from planned. Line 62: {contact,resend-webhook,outbox,admin,checkout}. Line 69: `src/lib/{content,journal,scenes,store,images,cart,format,env,media-ref,turnstile,book-preview,money-input}.ts` plus `src/lib/richtext.tsx`. Line 80: `src/components/site/{Header,SiteHeader,Footer}.tsx` and `src/components/weave/MotionLayer.tsx`."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S12.7",
+   "severity": "low",
+   "category": "docs",
+   "title": "ARCHITECTURE names public files that do not exist and leaves out the ones that do",
+   "file": "PLANS/ARCHITECTURE.md",
+   "line": 80,
+   "otherLocations": [
+    "PLANS/ARCHITECTURE.md:69"
+   ],
+   "evidence": "Line 80: \"Use `src/components/site/{Header,Footer,Navigation,MotionPreference}.tsx`\". src/components/site holds Footer.tsx, Header.tsx, SiteHeader.tsx and site.module.css; motion lives in src/components/weave/MotionLayer.\nLine 69: \"`src/lib/{content,richtext,format,validation,env,media-ref}.ts`\". There is no src/lib/validation.ts, and richtext is .tsx. The row leaves out journal.ts, scenes.ts, store.ts, images.ts, cart.ts, turnstile.ts and book-preview.ts. src/app/global-not-found.tsx (I27) is not listed anywhere.",
+   "failureScenario": "A P10 worker follows the plan of record and creates Navigation.tsx, MotionPreference.tsx or validation.ts next to the real SiteHeader and MotionLayer. Or, when enumerating exact lock paths (CLAUDE.md execution contract), it misses the real loaders journal.ts, scenes.ts and store.ts and global-not-found.tsx.",
+   "suggestedFix": "Update ARCHITECTURE.md line 69 to `src/lib/{content,journal,scenes,store,images,cart,format,env,media-ref,turnstile,book-preview}.ts` plus `richtext.tsx`. Update line 80 to `src/components/site/{Header,SiteHeader,Footer}.tsx` and `src/components/weave/MotionLayer`, and add `src/app/global-not-found.tsx` to the public routes paragraph.",
+   "verifierCorrections": [
+    "Apply it together with S22.21 as one edit. Include money-input.ts in the line 69 list, and add `src/app/global-not-found.tsx` beside `src/app/sitemap.ts` and `robots.ts` on line 78."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.20",
+   "severity": "low",
+   "category": "docs",
+   "title": "ARCHITECTURE plans the order page as a dynamic `orders/[token]` route, contradicting its own fragment rule and the static export",
+   "file": "PLANS/ARCHITECTURE.md",
+   "line": 78,
+   "otherLocations": [
+    "PLANS/ARCHITECTURE.md:82"
+   ],
+   "evidence": "... `store/[slug]/page.tsx`, `cart/page.tsx`, `checkout/page.tsx`, `orders/[token]/page.tsx`, `services/page.tsx`, ...",
+   "failureScenario": "Line 82 says token pages 'read it from the URL fragment ...: `orders#<token>`' so the token never reaches a server log, and WORK-PACKAGES P08 says 'the public order page (token in the URL fragment)'. With `output: 'export'`, `orders/[token]` needs generateStaticParams over secret tokens, which is impossible; a P08 worker following line 78 either breaks the build or puts the token in the path, where it reaches Pages logs and Referer.",
+   "suggestedFix": "PLANS/ARCHITECTURE.md line 78: replace '`orders/[token]/page.tsx`' with '`orders/page.tsx` (token in the fragment, below)'.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.17",
+   "severity": "low",
+   "category": "docs",
+   "title": "Data contract promises a NOLOGIN function-owner role that no migration creates",
+   "file": "PLANS/DATA-AND-SECURITY.md",
+   "line": 49,
+   "otherLocations": [],
+   "evidence": "Server-only functions are granted to `service_role` and revoked from `anon` and `authenticated`. A NOLOGIN function-owner role holds the narrow table rights those functions need.",
+   "failureScenario": "grep of all 14 migrations: the only `create role` is app_server (dropped by 20260927090000), there is no `owner to`, and about 57 `security definer` functions run as the migration role `postgres`. The least-privilege guarantee a P10 security audit would check is not kept; the effective model is 'postgres-owned security definer functions with search_path = ''''.",
+   "suggestedFix": "Smallest fix: PLANS/DATA-AND-SECURITY.md line 49, replace the second sentence with 'The server-only functions are `security definer`, owned by the migration role `postgres`, with `search_path = ''` and fully qualified SQL; no separate owner role exists (D32).' If least privilege is wanted instead, P10 adds a NOLOGIN owner role and `alter function ... owner to` it in a new migration.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.19",
+   "severity": "low",
+   "category": "docs",
+   "title": "Data contract's content enum and ops tables differ from the migrations (no policies/scenes, a nonexistent backup_runs)",
+   "file": "PLANS/DATA-AND-SECURITY.md",
+   "line": 11,
+   "otherLocations": [
+    "PLANS/DATA-AND-SECURITY.md:45"
+   ],
+   "evidence": "| content_versions | collection (fixed enum: site_settings, rooms, posts, taxonomies), doc_id, seq (must be the next number), ...",
+   "failureScenario": "`public.content_collection` also has 'policies' (20260927160000) and 'scenes' (20260929120000). Line 45 names a `backup_runs` table; there is none, and backups are recorded as the 'backup' job in `finance.job_runs` (AdminHome KNOWN_JOBS). A reader writing a new collection or restore check follows the wrong schema.",
+   "suggestedFix": "PLANS/DATA-AND-SECURITY.md line 11: 'collection (enum: site_settings, rooms, posts, taxonomies, policies, scenes)'. Line 45: replace 'backup_runs / job_runs / rate_limits' with 'job_runs / rate_limits' and add 'the owner-run backup (D35) records a `backup` job run'.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.6",
+   "severity": "low",
+   "category": "docs",
+   "title": "D30 row reads as current (no 'Superseded by D41'); D28 row still names Sonnet 5 and Opus sub-agents; header revision is D32-D34",
+   "file": "PLANS/DECISIONS.md",
+   "line": 37,
+   "otherLocations": [
+    "PLANS/DECISIONS.md:35",
+    "PLANS/DECISIONS.md:3"
+   ],
+   "evidence": "| D30 | Worker model moves to Z.AI GLM-5.3 (owner, 2026-09-26; amends D28). ... The builder is `glm-worker`: GLM-5.3 with 1M context ... | ... the worker runs as a separate `claude -p` process started by `node scripts/glm-worker.mjs <brief-file>` ... the key is `ZAI_API_KEY` in `.env`.",
+   "failureScenario": "Superseded rows are marked elsewhere in the table (D02 '**Superseded by D29**', D24 '**Superseded by D28.**', D01/D03/D20/D26 '**Amended by D32:**'), but D30 is not, and it instructs running scripts/glm-worker.mjs, which D41 deleted. D28 (line 35) still says '`sonnet-worker` (Sonnet 5, 1M)' and 'Opus sub-agents only on the owner's request', both contradicted by D41 and the forced CLAUDE_CODE_SUBAGENT_MODEL. Line 3 still says the authoritative revision is 2026-09-26 (D32-D34). A reader scanning the table takes D30/D28 as live routing rules.",
+   "suggestedFix": "PLANS/DECISIONS.md: line 37, prefix the Decision cell with '**Superseded by D41 (2026-09-30).** History only. '; line 35, prefix the Consequence cell with '**Amended by D41:** every sub-agent runs Claude Sonnet 5.5 (`claude-sonnet-5-5`, effort xhigh), forced in `.claude/settings.json`; no Opus sub-agents. ' and change 'Sonnet 5, 1M' to 'Sonnet 5.5 since D41'; line 3, change to 'Authoritative revision: 2026-09-30 (D41).'",
+   "verifierCorrections": [
+    "The line-3 change duplicates X5.16, so make it once. Everything else in the suggested fix stands."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X5.16",
+   "severity": "low",
+   "category": "docs",
+   "title": "DECISIONS and README revision stamps are stale (D35–D41 added through 2026-09-30)",
+   "file": "PLANS/DECISIONS.md",
+   "line": 3,
+   "otherLocations": [
+    "PLANS/README.md:3",
+    "PLANS/README.md:11"
+   ],
+   "evidence": "Authoritative revision: 2026-09-26 (D32–D34). The public site is a static export on Cloudflare Pages and every server task is a Supabase Edge Function (D32).",
+   "failureScenario": "The header of the plan of record says it was last revised on 2026-09-26, although D35–D41 (backups, retention, demo catalog, D38 order, D39 design, D40 projects, D41 workers) were added up to 2026-09-30. PLANS/README.md line 3 says 'Revised 2026-09-24 for D29' and line 11 says 'Packages run P00 to P11 in order', which D38 overrode. A reader checking whether a decision is current trusts the wrong date.",
+   "suggestedFix": "DECISIONS line 3: 'Authoritative revision: 2026-09-30 (D41)'. README line 3: add the D32/D39/D41 revisions. README line 11: note that D38 allows P07–P09 before P01/P02 finish.",
+   "verifierCorrections": [
+    "Merge the DECISIONS line-3 part with S22.6 into one edit. For README line 3, a single up-to-date stamp such as 'Revised 2026-09-30 (D41)' is enough; there is no need to list every revision."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X4.4",
+   "severity": "low",
+   "category": "docs",
+   "title": "DESIGN-AUDIT D39 recheck still says the header's 'you are here' triangle is coral and that the reader is not shown",
+   "file": "PLANS/DESIGN-AUDIT.md",
+   "line": 196,
+   "otherLocations": [
+    "PLANS/DESIGN-AUDIT.md:199",
+    "src/components/site/site.module.css:66",
+    "artifacts/acceptance/CLEANUP-1/screenshots/contact-1440.png"
+   ],
+   "evidence": "| 58, 129 | The current room is marked with `aria-current` plus B's coral triangle (the design's own \"you are here\"). ...\n| 95, 149 | ... Forms without a backend (availability, booking) and the reader are not shown. |",
+   "failureScenario": "FIXES row 14 changed the header triangle to `currentColor` (site.module.css:66-71, aubergine, 6.6:1), and DESIGN.md §1 forbids coral on sand at 2.1:1. Line 196 still certifies a coral triangle, so someone following this checklist could bring back the failing colour. Line 199 says the reader is not shown, but P02 put the book reader live on /book (BookView.tsx:131, PdfBookReader). The page's evidence record therefore no longer describes the product. Every current screenshot shows a dark ▲ in the header nav (for example artifacts/acceptance/CLEANUP-1/screenshots/contact-1440.png).",
+   "suggestedFix": "In PLANS/DESIGN-AUDIT.md, change line 196 to «…plus B's triangle in the link's own ink (aubergine, 6.6:1)…». Change line 199 to drop «and the reader» and to note that the P02 reader is shown and exercised in e2e.",
+   "verifierCorrections": [
+    "The fix is right, with one correction to the evidence: BookView.tsx:131 renders BookPreview, not PdfBookReader directly. Line 199 should name tests/e2e/reader.spec.ts as where the reader is exercised."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.2",
+   "severity": "low",
+   "category": "docs",
+   "title": "HANDOFF 2026-09-27 'Start' block checks out the stale sync branch, and the top section routes readers into it",
+   "file": "PLANS/HANDOFF.md",
+   "line": 55,
+   "otherLocations": [
+    "PLANS/HANDOFF.md:13",
+    "PLANS/HANDOFF.md:56"
+   ],
+   "evidence": "```sh\ngit fetch origin\ngit checkout sync/local-2026-09-26\ngit pull --ff-only origin sync/local-2026-09-26   # the commit that adds this file, or later\n```",
+   "failureScenario": "HANDOFF line 13 ('P08 under D38 (the list in the 2026-09-27 section below, step 4)') sends the next session into the 2026-09-27 section, whose 'Start' is written as an instruction, not history. Running it moves the worktree to 788cbbe, which lacks DESIGN-B, P02 and CLEANUP-1 (6 commits); P08 work started there would branch from pre-D39 code and conflict with every restyled store page.",
+   "suggestedFix": "In PLANS/HANDOFF.md, directly under the heading '# Handoff: orchestrator session of 2026-09-27 (second) to the next session' insert: `History. The working branch is now `agent/design-b` (see the 2026-09-29 section at the top); do not run the Start block below, and workers follow D41 (`sonnet-worker`, `auditor`), not glm-worker.` and change the Start fence lines to `git checkout agent/design-b`.",
+   "verifierCorrections": [
+    "Add one history banner directly under the :47 heading: 'History. Superseded: the working branch is `agent/design-b` (top section); do not run the Start block; workers follow D41 (`sonnet-worker`, `auditor`); commit and push only on the owner's word.' Leave the historical commands as recorded; do not change them to agent/design-b. Also fix :13 so it points to the real P08 list, which is the 2026-09-27 section's 'Next' list, and cite its actual step instead of 'step 4'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.24",
+   "severity": "low",
+   "category": "docs",
+   "title": "research-final still covers the Free-plan backup risk with an off-site P06 backup that D35 dropped",
+   "file": "PLANS/research-final.md",
+   "line": 22,
+   "otherLocations": [],
+   "evidence": "The real Free risks are pausing and the absence of backups; neither matters locally, and both are covered by E07 (Pro before live orders) and P06 (own off-site backup).",
+   "failureScenario": "D35: 'No CI workflow, no off-site destination, no separate key custodian'; backups are an owner-run local encrypted file. A reader of the limits doc (E07 cost sheet) assumes an off-site copy exists and under-states the recovery risk D35 explicitly accepts.",
+   "suggestedFix": "PLANS/research-final.md line 22: replace 'P06 (own off-site backup)' with 'D35 (the owner's local encrypted `pnpm backup`, no off-site copy; the recovery point is his cadence)'.",
+   "verifierCorrections": [
+    "PLANS/research-final.md:22: replace 'P06 (own off-site backup)' with 'D35 (the owner's local encrypted `pnpm backup`; no off-site destination, so the recovery point is his cadence)'. Also consider softening line 18's 'keep off-site copies'. That line paraphrases Supabase's docs, but it reads as this project's policy."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G4.8",
+   "severity": "low",
+   "category": "docs",
+   "title": "SOURCE-NOTES still points to the pre-D39 cover set, v1 deploy/images and self-hosted Lyon, and gives a stale frozen-source count",
+   "file": "PLANS/SOURCE-NOTES.md",
+   "line": 23,
+   "otherLocations": [
+    "PLANS/SOURCE-NOTES.md:3",
+    "PLANS/SOURCE-NOTES.md:25",
+    "BOOK_ASSETS/final/README.md:27",
+    "PLANS/SOURCE-NOTES.md:15"
+   ],
+   "evidence": "SOURCE-NOTES.md:23 says: '`BOOK_ASSETS/final/README.md` identifies four coherent web/retail cover assets. ... Use existing optimized `deploy/images/` web derivatives, not multi-megabyte source comps as hero payloads.' Line 25 says: 'Self-hosted Lyon Arabic OTF and Thmanyah WOFF2 files exist.' Line 3 says the manifest 'records SHA-256/bytes for 360 source files', but PLANS/evidence/source-manifest.json has 272 entries. BOOK_ASSETS/final/README.md (frozen at source-manifest.json:1088) describes the saffron-cloth cover and says at line 27 that the print file needs 'live vector type set in the licensed Lyon Arabic Display'. D39 replaced that cover with cover B (public/images/v2/khous-cover-b-*), and D33 removed Lyon.",
+   "failureScenario": "A worker preparing the OG image, a book asset or a print-cover brief follows SOURCE-NOTES to BOOK_ASSETS/final/ or to v1 deploy/images. The result is the superseded cover set in a font the project dropped, not D39's cover B. The '360 files' count also contradicts verify-plan's '272 frozen hashes'.",
+   "suggestedFix": "Amend PLANS/SOURCE-NOTES.md in three places. Line 3: 272 entries after D33. Line 23: BOOK_ASSETS/final/ is the pre-D39 cover set; the site's book images are cover B in public/images/v2; the README's Lyon instruction is superseded by D33. Line 25: Lyon remains only as the offer-site copy, which is due for deletion. Do not edit the frozen BOOK_ASSETS/final/README.md.",
+   "verifierCorrections": [
+    "Apply the three suggested edits and add a fourth: line 15's 'delivered Lyon/Thmanyah system' should read Thmanyah only (D33). On line 25, say the only Lyon file left is offer-site-v3/assets/fonts/LyonArabicDisplay-Medium.otf, an offer-site copy that D33's deletion did not remove. Do not assert a deletion plan unless one is recorded. Leave BOOK_ASSETS/final/README.md unchanged."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.23",
+   "severity": "low",
+   "category": "docs",
+   "title": "VERIFICATION still re-tests Worker Free CPU/size in P10 and uses an evidence path layout nobody follows",
+   "file": "PLANS/VERIFICATION.md",
+   "line": 53,
+   "otherLocations": [
+    "PLANS/VERIFICATION.md:41",
+    "PLANS/VERIFICATION.md:12"
+   ],
+   "evidence": "No silent relaxation of legacy target: measured Next baseline issue is escalated with evidence. Worker Free CPU/size limits re-tested in P10, always-on/capacity approved before real orders.",
+   "failureScenario": "D32 removed the Worker and WORK-PACKAGES P10 says 'I21's Worker CPU check is moot'; line 41 also asks P10 to repeat 'CPU and bundle size for the whole app'. Line 12 prescribes 'artifacts/acceptance/Pxx/<commit>/commands.txt, review.md' but every package writes artifacts/acceptance/Pxx/commands.txt. A P10 runner is told to measure a runtime that no longer exists and to file evidence where nobody looks.",
+   "suggestedFix": "PLANS/VERIFICATION.md line 53: replace 'Worker Free CPU/size limits re-tested in P10' with 'P10 measures Edge Function CPU/duration against Supabase limits and the Pages build count (D32)'. Line 41: replace 'CPU and bundle size for the whole app' with 'Edge Function cold/warm duration and CPU, pg_cron jobs and the public JS budget'. Line 12: 'artifacts/acceptance/Pxx/commands.txt (the proof map), audit records and redacted screenshots/traces'.",
+   "verifierCorrections": [
+    "Make the wording match WORK-PACKAGES.md:123 so the two docs cannot drift apart. :53 becomes 'P10 measures Edge Function cold starts/durations, pg_cron jobs, Pages build time/monthly count and the public page budget (D32; Worker limits moot)'. :41 becomes 'P10 repeats hosted cold/warm function requests, scheduled pg_cron execution and the public JS budget'. :12 becomes 'artifacts/acceptance/Pxx/commands.txt (proof map), audit records, redacted logs/screenshots/traces'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X5.14",
+   "severity": "low",
+   "category": "docs",
+   "title": "WORK-PACKAGES P01 still asks for 'actual built tabs' and lists v1 component files that design B does not have",
+   "file": "PLANS/WORK-PACKAGES.md",
+   "line": 25,
+   "otherLocations": [
+    "PLANS/WORK-PACKAGES.md:23",
+    "PLANS/WORK-PACKAGES.md:27"
+   ],
+   "evidence": "Implement mobile menu, actual built tabs, gallery filter/lightbox, static shelf, motion preference and JS-off readable content.\n...\nProof: every route, menu/tab/filter/lightbox real clicks;",
+   "failureScenario": "No role=tab or tablist exists in src/: direction B (D39) has no built tabs, and its menu, filter and lightbox are the ones tested. The P01 files line names Navigation, MotionPreference, RoomPage, HomeSections and BookPage, which do not exist. An auditor applying P01's proof literally records a failed 'tab' proof, or a worker builds tabs into the ported design.",
+   "suggestedFix": "Amend P01 for D39: drop 'actual built tabs' and 'tab' from the proof, and replace the files line with the design-B paths (src/components/weave/, public/rooms/*View.tsx, site/SiteHeader.tsx).",
+   "verifierCorrections": [
+    "Replace the line 23 files list with the design-B paths that actually exist: src/components/site/{Header,SiteHeader,Footer}.tsx and src/components/public/{rooms,home,book,scenes,contact,journal,story}/. In line 25, drop 'actual built tabs'. In the line 27 proof, change 'menu/tab/filter/lightbox' to 'menu/filter/lightbox'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.13",
+   "severity": "low",
+   "category": "docs",
+   "title": "P10 file list puts Sentry in Next server instrumentation, which a static export never runs",
+   "file": "PLANS/WORK-PACKAGES.md",
+   "line": 127,
+   "otherLocations": [
+    "PLANS/ARCHITECTURE.md:111",
+    "PLANS/WORK-PACKAGES.md:129"
+   ],
+   "evidence": "Files: `src/app/{sitemap,robots}.ts`, `src/lib/seo.ts`, `src/instrumentation.ts`, `sentry.server.config.ts`, `src/instrumentation-client.ts`, ...",
+   "failureScenario": "D32 made the site `output: 'export'` with no Next server; checkout, webhook and scheduler code (what D23 says Sentry must watch) runs in Supabase Edge Functions (Deno). A P10 worker following this list adds `src/instrumentation.ts`/`sentry.server.config.ts`, which never execute, and the checkout/payments/outbox functions report no errors while P10's proof 'monitor/Sentry synthetic failure received' is attempted on the wrong runtime.",
+   "suggestedFix": "PLANS/WORK-PACKAGES.md line 127: replace '`src/instrumentation.ts`, `sentry.server.config.ts`, `src/instrumentation-client.ts`' with '`supabase/functions/_shared/sentry.ts` (Deno SDK for the checkout, payments, outbox and scheduler functions, D32), `src/instrumentation-client.ts` (browser errors only)'.",
+   "verifierCorrections": [
+    "Replace '`src/instrumentation.ts`, `sentry.server.config.ts`' on line 127 with 'Sentry for the Edge Functions under `supabase/functions/_shared/` (D32)'. Keep `src/instrumentation-client.ts` for browser errors only."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.14",
+   "severity": "low",
+   "category": "docs",
+   "title": "Store/booking admin configs are planned under src/admin/collections, but P07 built them as table configs in src/admin/tables",
+   "file": "PLANS/WORK-PACKAGES.md",
+   "line": 91,
+   "otherLocations": [
+    "PLANS/WORK-PACKAGES.md:115",
+    "PLANS/WORK-PACKAGES.md:77",
+    "PLANS/ARCHITECTURE.md:26",
+    "PLANS/ARCHITECTURE.md:33"
+   ],
+   "evidence": "Files: `src/admin/collections/{products,variants,coupons,customers,shipping-rates}.ts`, commerce settings, migrations (...), `src/lib/cart.ts`, `supabase/functions/_shared/{catalog,checkout}.ts`, `supabase/functions/checkout/` (quote and create), `src/components/store/{CartProvider,CartDrawer,CheckoutForm,EditionCards}.tsx`, ...",
+   "failureScenario": "git ls-files: the catalog configs are src/admin/tables/{products,variants,coupons,customers,shipping-rates}.ts with TableForm/TableList and /admin/store/[table]; src/admin/collections/ holds only content documents (drafts, versions). _shared/catalog.ts, CartDrawer.tsx and EditionCards.tsx do not exist (CartView.tsx, AddToCart.tsx, CartLink.tsx do). P09 (line 115) repeats the pattern with `src/admin/collections/{services,availability-rules,availability-exceptions}.ts`, and P06 (line 77) names `src/admin/collections/commerce-settings.ts` and `admin/home/page.tsx` (actual: CommerceSettingsForm.tsx, admin/page.tsx). A P09 worker would build services as content documents with a publish step instead of plain rows.",
+   "suggestedFix": "PLANS/WORK-PACKAGES.md line 91: 'src/admin/tables/{products,variants,coupons,customers,shipping-rates}.ts (table configs, `TableForm`/`TableList`, /admin/store/[table])', 'supabase/functions/_shared/checkout.ts', 'src/components/store/{CartProvider,CartView,CartLink,AddToCart,CheckoutForm}.tsx'. Line 115: 'src/admin/tables/{services,availability-rules,availability-exceptions}.ts'. Line 77: '`src/components/admin/CommerceSettingsForm.tsx`, `src/app/(admin)/admin/{page,team,stats}/page.tsx`'. ARCHITECTURE.md line 33: 'Commercial tables (...) use table configs in `src/admin/tables/` and the generic table screens, without drafts.'",
+   "verifierCorrections": [
+    "Apply the suggested edits, and also: (1) ARCHITECTURE.md:66, the file-map table, add a row '`src/admin/tables/*.ts` | Commercial table configs (registry in index.ts), rendered by TableList/TableForm'. (2) In the P09 prose after WORK-PACKAGES.md:115, change 'on the generic collection form' to 'on the generic table form (src/admin/tables, /admin/store/[table])'. Do the same in the P07 prose after :91, 'Catalog, customer and coupon screens use the generic collection form', which should say 'generic table form'. Keep the P06/P07 corrections as a short 'as built' note rather than a rewrite of the historical file lists."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S03.4",
+   "severity": "low",
+   "category": "docs",
+   "title": "Contact form never records or links the privacy policy, yet the privacy runbook says it does",
+   "file": "supabase/functions/_shared/contact.ts",
+   "line": 177,
+   "otherLocations": [
+    "docs/privacy-data-map.md:22",
+    "src/components/public/contact/ContactForm.tsx:183",
+    "PLANS/DATA-AND-SECURITY.md:23"
+   ],
+   "evidence": "      p_submission_key: input.submissionKey,\n      p_policy_revision: null,\n\ndocs/privacy-data-map.md:22: The privacy policy that the contact form links to states the 90-day period (Anas approves that text, E08).",
+   "failureScenario": "A visitor submits the /contact form (ContactForm.tsx). No privacy notice or link appears anywhere on the page: the only /policies link in src is on the checkout form. Every contacts row stores policy_revision = null, although DATA-AND-SECURITY:23 lists a consent-policy for contacts and the policies collection with a 'privacy' document now exists (P07). docs/privacy-data-map.md tells the owner and E08 that the form links the policy stating the 90-day retention. Someone relying on that runbook would treat notice-at-collection as done when it is not, and no request can ever show which privacy text a visitor was shown.",
+   "suggestedFix": "Either (a) add a one-line link to /policies/privacy under the submit button in src/components/public/contact/ContactForm.tsx and pass the published privacy seq (from commerce_settings.policy_revisions->>'privacy' or the build-time published seq) as p_policy_revision in supabase/functions/_shared/contact.ts, or (b) until E08, correct docs/privacy-data-map.md:22 to say the form does not link the policy yet and policy_revision stays null, and record it as an open E08/P11 item.",
+   "verifierCorrections": [
+    "Now: change docs/privacy-data-map.md:22 to future tense ('Once E08 approves the privacy text, the contact form links it and records its revision; until then no link is shown and contacts.policy_revision stays null'). Record an ISSUES item under P11/E08 to add a /policies/privacy link under the submit button and pass the published privacy revision as p_policy_revision. Do not wire the link before Anas approves the text."
+   ],
+   "needsOwnerDecision": true
+  },
+  {
+   "id": "S15.8",
+   "severity": "info",
+   "category": "docs",
+   "title": "PLANS still require `isEvalSupported:false` / a 'patched PDF.js', which the pinned pdf.js 6 no longer has",
+   "file": "PLANS/WORK-PACKAGES.md",
+   "line": 35,
+   "otherLocations": [
+    "PLANS/DATA-AND-SECURITY.md:97"
+   ],
+   "evidence": "Lazy patched PDF.js/local matching worker, isEvalSupported:false; render actual canvases/text into direct page-flip leaves",
+   "failureScenario": "pdfjs-dist 6.3.289 has no isEvalSupported option: there are 0 occurrences in build/pdf.mjs and pdf.worker.mjs, and no eval/new Function font path. docs/book-preview.md and the pdf.ts header comment already explain this. A later auditor or worker following WORK-PACKAGES or DATA-AND-SECURITY.md:97 literally would either report a false gap or add a dead option, and 'patched PDF.js' does not describe the unpatched pinned package.",
+   "suggestedFix": "Amend PLANS/WORK-PACKAGES.md:35 and PLANS/DATA-AND-SECURITY.md:97 to say: pdfjs-dist 6.3.289 pinned, no eval path (isEvalSupported removed upstream), local version-matched worker, enableXfa:false. Reference docs/book-preview.md.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}

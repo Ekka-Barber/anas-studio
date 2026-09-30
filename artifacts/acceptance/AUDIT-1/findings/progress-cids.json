@@ -1,0 +1,403 @@
+{
+ "packages": [
+  {
+   "pkg": "P00",
+   "complexity": "high",
+   "status": "accepted: runtime spike, D29 swap (6f09321) and D32 replatform (fcad3fd) verified locally on the full stack 2026-09-27",
+   "completionPct": 100,
+   "rationale": "Every proof in the D29 swap and the D32 replatform is in the evidence: no Payload in the lockfile, pnpm check, db reset, static export with rooms, admin shells and 404, check:export free of secrets, budget, Thmanyah static smoke at 360 and 1440, deno check (all functions since CLEANUP-1 W1), migrations on a throwaway Postgres, and the ported unit, integration and e2e tests (115 db and 67 e2e at 00586ea). Hosted re-measurement belongs to P10 by the package text.",
+   "missingProofItems": []
+  },
+  {
+   "pkg": "P01",
+   "complexity": "high",
+   "status": "built on direction B (DESIGN-B 1ffb8a1/7ac94e8, CLEANUP-1); no formal acceptance line; E05 and E06 open",
+   "completionPct": 88,
+   "rationale": "Every room, the book, المجلس, scenes (now a CMS collection), contact, 404 and error are ported to D39. Covered: menu dialog and focus return, scenes filter and keyboard lightbox, JS-off pages, 0 px overflow at 360/768/1024/1440 (visual 50/50) and the motion checks. Missing: the journal's dated list, the journal name as the only hardcoded CMS-labelled room, no journal clicks in any test, and home order/visibility fixed in code. The 'built tabs' proof was superseded by D39 but the package text was never amended.",
+   "missingProofItems": [
+    "journal 'dated readable list' (no dates on list or article)",
+    "journal name editable (D11/C08)",
+    "journal list, category filter and article: real clicks untested",
+    "home section/door order and visibility not owner-editable (C03/C14)",
+    "per-scene rights or credit field (C05, open for Anas)",
+    "E05 content and rights approvals; E06 Thmanyah license register entry",
+    "WORK-PACKAGES P01 'built tabs' proof not amended for D39"
+   ]
+  },
+  {
+   "pkg": "P02",
+   "complexity": "high",
+   "status": "accepted (committed on the owner's word 2026-09-28, after audit-2)",
+   "completionPct": 95,
+   "rationale": "The approved 5-page excerpt is exported with its hashes recorded. The reader is lazy-loaded pdf.js 6.3.289 plus page-flip 2.0.7, right-bound, at most 6 canvases. It has keys, touch, fullscreen, reduced motion, resize, odd and single-page fixtures, corrupt and network failure with retry, a no-JS link, and a request log showing that only the preview PDF is fetched: 33/33 on dev and on the export. The outside-reader baseline comparison was never made, and the committed /book baseline predates the reader.",
+   "missingProofItems": [
+    "'outside reader the book visual baseline remains unchanged' (no masked comparison; stale DESIGN-B /book baselines)",
+    "E04 final manuscript and digital sale",
+    "book characters and paper-edition details (Anas inputs)"
+   ]
+  },
+  {
+   "pkg": "P03",
+   "complexity": "high",
+   "status": "accepted, committed 4322ccc",
+   "completionPct": 97,
+   "rationale": "Done: passwordless email-code sign-in through Mailpit, sign-up off, unknown email gets the identical response, TOTP step-up (stale-claim unit tests), staff-admin invite/role/revoke with the last-owner guard, a revoked member losing access and being banned, and D32 service_role-only functions. Test gaps: the operations role and the revoked member are missing from the staff and audit Data API cases. Google sign-in waits for an OAuth client; hosted Auth settings are I28 (P11).",
+   "missingProofItems": [
+    "operations and revoked-member cases in staff/audit Data API tests",
+    "Google sign-in (no OAuth client yet)",
+    "hosted Auth settings I28 (P11)"
+   ]
+  },
+  {
+   "pkg": "P04",
+   "complexity": "medium",
+   "status": "accepted, committed ff67889 and 4ffc78f (D32 amendment verified)",
+   "completionPct": 86,
+   "rationale": "Done: generic collection store, versions and conflicts (the losing session keeps its text), the Lexical allowlist, schedule/cancel/publish/archive/restore through authenticated functions with the owner/editor recheck, rebuild requests, room edit/reorder/hide/preview/publish e2e, and six collections. Missing: journal posts have no draft preview even though the journal now has a public page, the home cannot be reordered, the SEO fields are stored but unused (P10), and C19 is only partly met per D40.",
+   "missingProofItems": [
+    "post draft preview (C15)",
+    "home show/hide/reorder (C14)",
+    "per-route SEO/OG from settings (P10)",
+    "C19 remainder per D40: new built stage, new shelf idea, per-project text/status/figures"
+   ]
+  },
+  {
+   "pkg": "P05",
+   "complexity": "medium",
+   "status": "accepted, committed 79d8cf6; moved to Supabase Storage under D32 and re-verified",
+   "completionPct": 97,
+   "rationale": "Done: browser crop and WebP derivatives without upscaling, EXIF removed, spoof/size/key/expiry/cross-user refusals, private original, folders, reuse, where-used delete guard, and one-time claims with no upsert (TOCTOU closed). Nothing server-side uses Sharp. Hosted nosniff on the Storage origin is an I32 check at P11. The unsupported-encoder and corrupt-file UI path exists but has no e2e.",
+   "missingProofItems": [
+    "hosted media origin nosniff (I32, P11)",
+    "unsupported encoder / corrupt file UI path untested"
+   ]
+  },
+  {
+   "pkg": "P06",
+   "complexity": "high",
+   "status": "accepted by the owner 2026-09-27 (battery at 556e910: db 141, unit 237, e2e 71/71, Linux CI)",
+   "completionPct": 93,
+   "rationale": "Done: settings, team, owner home, stats with explicit 'unavailable', outbox, the signed webhook with dedupe and suppression, quota priority and safe replay, contact with Turnstile/honeypot/throttle and Reply-To (D31), the site-build and media-sweep jobs, privacy erase and the D36 purge, local encrypted backup with a restore drill (49 s), and the phase-2 walkthrough. The prerequisites the package itself defers are recorded explicitly.",
+   "missingProofItems": [
+    "customer privacy cases (P07/P08 relations, P10)",
+    "restore-then-reapply-deletions drill (P10/P11)",
+    "SQL paid/refund/net stats (P08)",
+    "hosted I28/I32 probes, first hosted backup, Analytics token E11 (P11)"
+   ]
+  },
+  {
+   "pkg": "P07",
+   "complexity": "high",
+   "status": "accepted 'for now' by the owner 2026-09-28 (e2e 95/95 at 45dbfa6)",
+   "completionPct": 88,
+   "rationale": "Done: catalog tables with owner column grants and audit, computed availability under row locks, largest-remainder coupons, idempotent pending orders, hold and throttle abuse limits, Turnstile, the cart with a session fallback, versioned policy consent, a non-book product reaching a pending order without code, and a truthful empty store. The preorder scope is missing and unrecorded. C20 closes only with P08, and E02/E03 stay open.",
+   "missingProofItems": [
+    "preorder flag/capacity/delivery description",
+    "C20 closure after P08 (orders/payment/shipping/alerts/emails)",
+    "E02 sandbox and E03 Anas's catalog values",
+    "unpriced-variant row on the product page (e2e)"
+   ]
+  },
+  {
+   "pkg": "P08",
+   "complexity": "high",
+   "status": "not_started",
+   "completionPct": 0,
+   "rationale": "There is no payments, orders or download function, no Moyasar emulator, no apply_verified_payment, no refunds and no notify routes. checkout_enabled has no API path yet (by design until P08).",
+   "missingProofItems": [
+    "every P08 proof (emulator flows, webhook verification, refunds, entitlements, availability notices); E02 real sandbox"
+   ]
+  },
+  {
+   "pkg": "P09",
+   "complexity": "high",
+   "status": "not_started",
+   "completionPct": 0,
+   "rationale": "There are no services, availability or booking tables, no booking functions and no ICS feed; the contact form stands in for session requests.",
+   "missingProofItems": [
+    "every P09 proof (exclusion constraint, concurrency, ICS, cancellation)"
+   ]
+  },
+  {
+   "pkg": "P10",
+   "complexity": "high",
+   "status": "not_started",
+   "completionPct": 5,
+   "rationale": "Small credit for existing structural checks: export secret scan, public JS budget, overflow and visual captures at four widths, per-route titles, reduced-motion and JS-off suites. There are no sitemap, robots, canonical, OG or JSON-LD, no Sentry or monitor, no axe or Lighthouse, and no hosted measurements.",
+   "missingProofItems": [
+    "SEO metadata/sitemap/robots/JSON-LD",
+    "Sentry and uptime monitor with alert test",
+    "axe/Lighthouse/LCP/CLS/INP",
+    "hosted function/cron/Pages measurements",
+    "full security/dependency/license audit"
+   ]
+  },
+  {
+   "pkg": "P11",
+   "complexity": "medium",
+   "status": "not_started (prerequisites prepared)",
+   "completionPct": 5,
+   "rationale": "Prepared but not done: docs/costs.md with cited prices, the owner-run backup scripts, the I40 demo guard, and the I28/I32/I33/I40/I41 launch checklists. There is no Pages project, no function deploy, no hosted migrations, and no domain, sender, training or support records.",
+   "missingProofItems": [
+    "first production deploy and live smoke",
+    "E01 domain/DNS/TLS/sender",
+    "E07 cost approval",
+    "owner training and account inventory",
+    "30-day support ledger"
+   ]
+  },
+  {
+   "pkg": "P12",
+   "complexity": "medium",
+   "status": "not_started (bonus scope)",
+   "completionPct": 0,
+   "rationale": "There are no board tables, board_move function or board screen.",
+   "missingProofItems": [
+    "every P12 proof"
+   ]
+  }
+ ],
+ "cids": [
+  {
+   "cid": "C01",
+   "owner": "P00",
+   "status": "partial",
+   "note": "Next.js+TS static export, Supabase Postgres, custom admin and Storage are done; Saudi payments wait for P08/E02."
+  },
+  {
+   "cid": "C02",
+   "owner": "P00",
+   "status": "met",
+   "note": "Versioned repo, check:frozen for the frozen sources, accepted commits per package."
+  },
+  {
+   "cid": "C03",
+   "owner": "P01",
+   "status": "partial",
+   "note": "Home name, portrait, tagline and intro are in site_settings.home. Door order, facts and section order are fixed in src/content/home.ts and HomeView."
+  },
+  {
+   "cid": "C04",
+   "owner": "P01",
+   "status": "partial",
+   "note": "The three rooms are built and editable; project detail lives in the rooms per D40. Rights (E05) and per-project figures are open."
+  },
+  {
+   "cid": "C05",
+   "owner": "P01",
+   "status": "partial",
+   "note": "The shelf ideas are edited in place. The scenes collection has category, caption, order and hide. The per-scene rights/credit field is open."
+  },
+  {
+   "cid": "C06",
+   "owner": "P02",
+   "status": "partial",
+   "note": "Cover B, standing B, excerpts and the reader of the approved range are done. Characters, paper-edition details and the final manuscript (E04) are open, and the book page text is code (src/content/book.ts)."
+  },
+  {
+   "cid": "C07",
+   "owner": "P01",
+   "status": "met",
+   "note": "D39 direction B identity with DESIGN.md and the tasmeem audit. COVERAGE's 'no new public redesign' wording is stale."
+  },
+  {
+   "cid": "C08",
+   "owner": "P04",
+   "status": "partial",
+   "note": "المجلس list/detail and the posts collection are done. No dates are shown, the name is not editable (D11), and the first posts are E05."
+  },
+  {
+   "cid": "C09",
+   "owner": "P06",
+   "status": "met",
+   "note": "Nav, footer poem and social links are editable in site_settings and read by Header, Footer and /contact."
+  },
+  {
+   "cid": "C10",
+   "owner": "P10",
+   "status": "partial",
+   "note": "RTL public pages at 360–1440 and the admin walkthrough at 360/1440 are done; the P10 full pass is not started."
+  },
+  {
+   "cid": "C11",
+   "owner": "P10",
+   "status": "partial",
+   "note": "Reduced motion, JS-off, the reader and the motion suite are done; WCAG/axe (P10) is not started."
+  },
+  {
+   "cid": "C12",
+   "owner": "P06",
+   "status": "partial",
+   "note": "The admin covers rooms, posts, media, settings and the store. The book page, services and home doors are code, and the P08/P09 screens are missing."
+  },
+  {
+   "cid": "C13",
+   "owner": "P04",
+   "status": "partial",
+   "note": "Rooms, home words and posts are editable and publish. The book and contact page text is in src/content."
+  },
+  {
+   "cid": "C14",
+   "owner": "P04",
+   "status": "partial",
+   "note": "Room sections can be hidden and reordered. The home is fixed. SEO fields are stored but unused, and there is no share image (P10)."
+  },
+  {
+   "cid": "C15",
+   "owner": "P04",
+   "status": "partial",
+   "note": "Drafts, versions, schedule, archive and restore are done; there is no draft preview for posts."
+  },
+  {
+   "cid": "C16",
+   "owner": "P04",
+   "status": "met",
+   "note": "Category, tag and author editing, plus the public category filter. The filter is untested e2e, and tags are not shown publicly."
+  },
+  {
+   "cid": "C17",
+   "owner": "P05",
+   "status": "met",
+   "note": "Library upload, folders, rename/move and paging are proven in media e2e."
+  },
+  {
+   "cid": "C18",
+   "owner": "P05",
+   "status": "met",
+   "note": "Browser crop and WebP derivatives, EXIF removal, server byte/type/dimension checks, alt/rights gates and the delete guard are done. The hosted nosniff check is I32 at P11."
+  },
+  {
+   "cid": "C19",
+   "owner": "P04",
+   "status": "partial",
+   "note": "Met in part per D40; a new built stage, a new shelf idea and per-project text/status/figures are open."
+  },
+  {
+   "cid": "C20",
+   "owner": "P07",
+   "status": "partial",
+   "note": "Catalog, stock, coupons, customers and low-stock threshold are done. Orders/payment/shipping/alerts/confirmation emails need P08, and preorder is missing."
+  },
+  {
+   "cid": "C21",
+   "owner": "P03",
+   "status": "met",
+   "note": "Invites, roles, revoke, TOTP step-up and the last-owner guard, with real-JWT tests."
+  },
+  {
+   "cid": "C22",
+   "owner": "P06",
+   "status": "partial",
+   "note": "Settings show sender/domain status and DNS steps. Canonical and sender are env values, not admin-editable. The actual domain and sender setup is P11/E01."
+  },
+  {
+   "cid": "C23",
+   "owner": "P06",
+   "status": "partial",
+   "note": "Append-only audit_events and per-document version history exist, but no admin screen shows the staff audit trail. Local encrypted backup and restore drill are done; the first hosted backup is P11."
+  },
+  {
+   "cid": "C24",
+   "owner": "P09",
+   "status": "partial",
+   "note": "The contact form reaches the mailbox with Reply-To, and store policies are done. Paid services and booking (P09) are not started."
+  },
+  {
+   "cid": "C25",
+   "owner": "P09",
+   "status": "partial",
+   "note": "The WhatsApp and social channel links are live; the ICS feed and calendar integration (P09) are not started."
+  },
+  {
+   "cid": "C26",
+   "owner": "P07",
+   "status": "partial",
+   "note": "A non-book product reaches a pending order without code; digital and signed fulfillment need P08."
+  },
+  {
+   "cid": "C27",
+   "owner": "P07",
+   "status": "met",
+   "note": "Quantity changes, a persistent cart, stock checks, coupons, city delivery and policy consent are proven in e2e and integration tests."
+  },
+  {
+   "cid": "C28",
+   "owner": "P08",
+   "status": "not_started",
+   "note": "Moyasar is not built. E02 (the real sandbox) is also an external gate."
+  },
+  {
+   "cid": "C29",
+   "owner": "P08",
+   "status": "not_started",
+   "note": "No verified-payment state machine and no order admin."
+  },
+  {
+   "cid": "C30",
+   "owner": "P08",
+   "status": "partial",
+   "note": "RLS, grant tests and server-side checkout pricing are done; payment verification and token/file security (P08) are not started."
+  },
+  {
+   "cid": "C31",
+   "owner": "P10",
+   "status": "not_started",
+   "note": "Only per-route titles exist; robots is noindex; there are no sitemap, canonical, OG or JSON-LD."
+  },
+  {
+   "cid": "C32",
+   "owner": "P01",
+   "status": "partial",
+   "note": "Local Thmanyah faces and Latin digits are done; the E06 license register entry is open."
+  },
+  {
+   "cid": "C33",
+   "owner": "P02",
+   "status": "met",
+   "note": "A right-bound physical reader of the approved PDF range, with touch, keyboard, reduced motion and fallback."
+  },
+  {
+   "cid": "C34",
+   "owner": "P10",
+   "status": "partial",
+   "note": "Secret scan, grant tests, durable jobs and the local restore are done; P10 dependency/security scans and monitoring are not started."
+  },
+  {
+   "cid": "C35",
+   "owner": "P11",
+   "status": "partial",
+   "note": "P00–P07 are accepted serially with evidence; P08–P11 remain."
+  },
+  {
+   "cid": "C36",
+   "owner": "P11",
+   "status": "not_started",
+   "note": "No training and no custom-domain launch."
+  },
+  {
+   "cid": "C37",
+   "owner": "P11",
+   "status": "not_started",
+   "note": "The support period starts after launch."
+  },
+  {
+   "cid": "C38",
+   "owner": "P11",
+   "status": "partial",
+   "note": "The domain is in the client-owned Cloudflare account (D25). The repository and account inventory have not been handed over."
+  },
+  {
+   "cid": "C39",
+   "owner": "P11",
+   "status": "partial",
+   "note": "docs/costs.md holds cited prices only; E07 cost approval is open."
+  },
+  {
+   "cid": "C40",
+   "owner": "P11",
+   "status": "partial",
+   "note": "E01–E11 are tracked; Anas's inputs are pending."
+  }
+ ],
+ "notes": "Offered-scope progress (P00–P11), weighted high=2 and medium=1: P00 100, P01 88, P02 95, P03 97, P04 86, P05 97, P06 93, P07 88, P08 0, P09 0, P10 5, P11 5, which comes to about 63%. P12 (bonus) is 0%. Most of the findings are unrecorded gaps between the plan and the code, all found in code: no draft preview for posts, no dates in the journal, a hardcoded journal name, and no preorder. The rest are untested proofs (journal clicks, a masked /book baseline, operations and revoked-member RLS cases) and stale plan documents (EXECUTION-STATUS 'Current state', which KICKOFF has every session read first; COVERAGE saying NOT STARTED; the 180-day retention line in DECISIONS). I read every commands.txt and the key audit and exception records under artifacts/acceptance. I did not open the roughly 600 PNG screenshots or the tasmeem render JSON dumps (binary or tool output). No builds or tests were run."
+}

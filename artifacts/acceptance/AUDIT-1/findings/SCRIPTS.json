@@ -1,0 +1,452 @@
+{
+ "files": [
+  ".claude/helpers/graft-hooks.cjs",
+  ".claude/launch.json",
+  ".claude/settings.json",
+  ".cursor/hooks/graft-hooks.cjs",
+  ".cursor/mcp.json",
+  ".env.example",
+  ".gemini/settings.json",
+  ".grok/config.toml",
+  ".kiro/settings/mcp.json",
+  ".mcp.json",
+  "PLANS/ARCHITECTURE.md",
+  "PLANS/DATA-AND-SECURITY.md",
+  "PROMPT-FOR-ASTRA.md",
+  "docs/book-preview.md",
+  "docs/operations.md",
+  "opencode.json",
+  "package.json",
+  "public/_headers",
+  "scripts/backup.mjs",
+  "scripts/check-budgets.mjs",
+  "scripts/check-copy.mjs",
+  "scripts/check-export.mjs",
+  "scripts/import-content.mjs",
+  "scripts/lib/backup-format.mjs",
+  "scripts/lib/passphrase.mjs",
+  "scripts/prepare-media.mjs",
+  "scripts/prepare-preview.py",
+  "scripts/restore-check.mjs",
+  "scripts/seed-demo-catalog.mjs",
+  "src/lib/env.ts",
+  "src/lib/images.ts",
+  "src/lib/supabase/browser.ts",
+  "tests/e2e/cms.spec.ts",
+  "tsconfig.json"
+ ],
+ "findings": [
+  {
+   "id": "S17.2",
+   "severity": "medium",
+   "category": "ops",
+   "title": "`storage cp --linked` runs with cwd set to the OS temp dir, outside the linked project, so the default `pnpm backup` cannot resolve the linked project ref",
+   "file": "scripts/backup.mjs",
+   "line": 170,
+   "otherLocations": [],
+   "evidence": "const result = supabase(['storage', 'cp', '-r', `ss:///${bucket}`, `storage/${bucket}`, mode, '--experimental'], { cwd: work })",
+   "failureScenario": "The Supabase CLI finds the project by walking up from its cwd to a `supabase/config.toml`, and reads the link from `<project>/supabase/.temp/project-ref`. The repo's supabase/.temp holds only `cli-latest` today; `supabase link` writes project-ref there. For the download, the script starts the CLI in %TEMP%\\anasaq-backup-*, which has no config.toml above it, so `--linked` cannot see the owner's link. The `storage ls` call just before it (cwd = repoRoot) works; the `cp` does not. On the first real `pnpm backup` (default --linked) with any media in media-private, the cp fails with the CLI's not-linked error, or on a TTY asks the owner to pick a project. The script then prints «Downloading bucket media-private failed. No backup was written.», so the owner's only backup path fails whenever a bucket has objects. `--local` works only because the dev stack uses the CLI's default port and JWT secret. The P06 evidence records 'Not run: a --linked backup' (artifacts/acceptance/P06/commands.txt:879), so this path was never exercised.",
+   "suggestedFix": "In scripts/backup.mjs, for mode '--linked', read `join(repoRoot, 'supabase', '.temp', 'project-ref')`. If it is missing, exit with 'run supabase link first'. Pass the ref to the cp child explicitly, e.g. `env: { ...process.env, SUPABASE_PROJECT_ID: ref }` (the CLI reads SUPABASE_PROJECT_ID before the ref file). Keep cwd = work so the relative destination stays in the temp dir. Prove it once against the linked project with the owner (P11).",
+   "verifierCorrections": [
+    "Keep cwd=work. Do not use --workdir repoRoot, because the CLI would chdir and could resolve the relative destination inside the repo. For '--linked', use process.env.SUPABASE_PROJECT_ID if it is set. Otherwise read join(repoRoot,'supabase','.temp','project-ref'), and if that is missing, exit before any dump with 'run supabase link first'. Pass the ref only to the cp child: supabase([...], { cwd: work, env: { ...process.env, SUPABASE_PROJECT_ID: ref } }). Prove it once against the linked project with the owner (P11).",
+    "Keep cwd = work (passing --workdir repoRoot would chdir the CLI and land the relative destination inside the repo). For --linked, read join(repoRoot,'supabase','.temp','project-ref') once before the dumps; if missing, exit with 'run supabase link first'; pass env: { ...process.env, SUPABASE_PROJECT_ID: ref } to the cp spawn only. Record the check as a P11 owner step.",
+    "The suggested fix is correct and minimal. For `--linked`, read `join(repoRoot,'supabase','.temp','project-ref')`, exit with 'run supabase link first' if it is missing, and pass `env: { ...process.env, SUPABASE_PROJECT_ID: ref }` only to the cp spawn, keeping `cwd: work`. Do not use `--workdir repoRoot`: the CLI would chdir there, and the relative `storage/<bucket>` destination would land inside the repo. The one-time proof against the hosted project stays with the owner in P11."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S17.3",
+   "severity": "medium",
+   "category": "data-loss",
+   "title": "The reader rejects a valid backup whose last entry is zero bytes (`Entry data is truncated`), so the file can never be extracted or rehearsed",
+   "file": "scripts/lib/backup-format.mjs",
+   "line": 340,
+   "otherLocations": [],
+   "evidence": "} else {\n        // state === 'data'\n        if (data.length === 0) break\n        const take = Math.min(this.sizeLeft, data.length)\n        ...\n        if (this.sizeLeft === 0) await this.closeEntry()",
+   "failureScenario": "openEntry sets state 'data' with sizeLeft 0 for an empty file. The entry is closed only after at least one more data byte arrives, because of the `data.length === 0` break. When the empty file is the last entry, no bytes follow, and _final (line 317) sees state 'data' and throws CORRUPT 'Entry data is truncated.' cleanupExtracted then deletes everything. How it happens: `.emptyFolderPlaceholder` objects are 0 bytes (Studio creates one per folder), and a 0-byte quarantine part is possible. With a Studio-created folder that sorts after `m/` in media-public, or with media-public empty and a 0-byte object last in media-private (or any order on macOS APFS), backup.mjs reports «Backup written», but both `restore-check` modes fail and the owner cannot get the dumps back out of the file. The unit test's empty.txt is never the last entry, so it passes.",
+   "suggestedFix": "In EntryExtractor.consume's data branch, close a finished entry before the empty-data break: `if (this.sizeLeft === 0) { await this.closeEntry(); continue }` placed ahead of `if (data.length === 0) break`. Add one unit case in tests/unit/backup-format.test.ts whose last entry is an empty file.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S17.4",
+   "severity": "medium",
+   "category": "security",
+   "title": "`restore-check --extract` writes the decrypted plaintext (auth users, TOTP secrets, customer data) into any directory, including inside the repository",
+   "file": "scripts/restore-check.mjs",
+   "line": 309,
+   "otherLocations": [],
+   "evidence": "if (extractArg) {\n    const destDir = resolve(extractArg)\n    const manifest = await readBackup(backupFile, passphrase, destDir)",
+   "failureScenario": "pnpm runs scripts with cwd = the package root. So when the owner follows docs/operations.md:513 from the project folder with `pnpm restore-check <file> --extract restore`, the files go to <repo>/restore/. That folder then holds roles.sql, data.sql (auth.users password hashes, auth.mfa_factors TOTP secrets, contacts, orders) and every original image in plaintext. .gitignore does not exclude them, so a later `git add -A` and push publishes them. backup.mjs:46-52 refuses this exact mistake for the encrypted file ('A backup inside the repository could be committed by accident'), but the far more sensitive plaintext has no such guard.",
+   "suggestedFix": "In scripts/restore-check.mjs, before readBackup in the --extract branch, apply backup.mjs's refusal: `const rel = relative(repoRoot, destDir); if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))) { console.error(`Refusing --extract inside the repository: ${destDir}`); process.exit(1) }`.",
+   "verifierCorrections": [
+    "The suggested guard is right, but restore-check.mjs:24 imports only dirname/join/resolve from node:path, so add `relative` and `isAbsolute` to that import. Apply the guard in main() before readBackup (or at arg parse, next to line 50), copying backup.mjs's check."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G4.6",
+   "severity": "low",
+   "category": "security",
+   "title": "Claude settings allow `node dist/cli.js` with no prompt, and the graft hook falls back to importing <repo>/dist/claude/hooks.js, both copied from graft's own repository",
+   "file": ".claude/settings.json",
+   "line": 78,
+   "otherLocations": [
+    ".claude/helpers/graft-hooks.cjs:64",
+    ".cursor/hooks/graft-hooks.cjs:64"
+   ],
+   "evidence": ".claude/settings.json:76-78:\n      \"Bash(npx graft:*)\",\n      \"Bash(graft-dev:*)\",\n      \"Bash(node dist/cli.js:*)\"\n.claude/helpers/graft-hooks.cjs:64 (and the identical .cursor/hooks/graft-hooks.cjs:64): `return path.join(dir, 'dist', 'claude', name); // last-ditch; import will no-op if absent`. `npm view @nanonets/graft bin` gives `{ graft: 'dist/cli.js' }`, so these entries belong to graft's own development tree. This repository has no dist/, and `git check-ignore dist/cli.js` reports that the path is not ignored. BAKED (line 7) is a Windows-only absolute path.",
+   "failureScenario": "In acceptEdits mode, where edits are auto-approved, an agent steered by injected content can write dist/cli.js and then run `node dist/cli.js`. The allowlist runs it without a Bash prompt, which gives arbitrary code execution as the owner. On a Linux clone (cloud sessions), BAKED is missing and graft is not installed, so the SessionStart, PostToolUse and Stop hooks import <repo>/dist/claude/hooks.js. A branch that adds that file runs it on every tool call.",
+   "suggestedFix": "Delete the `Bash(graft-dev:*)` and `Bash(node dist/cli.js:*)` entries from .claude/settings.json. graft stays allowed through `Bash(graft:*)`. In both graft-hooks.cjs copies, change line 64 to `return null;` and line 67 to `const e = entry(\"hooks.js\"); if (e) import(pathToFileURL(e).href)...`. Functional impact: none, because the hooks still load from the global install. Note that a graft re-install may regenerate these helper files.",
+   "verifierCorrections": [
+    "Delete only the `Bash(graft-dev:*)` and `Bash(node dist/cli.js:*)` lines from .claude/settings.json (keep the preceding entry's comma correct). The graft-hooks.cjs line-64 edit is optional because it closes no new vector, and a graft re-install regenerates that file."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S23.8",
+   "severity": "low",
+   "category": "config",
+   "title": ".env.example still lists MFA_ENCRYPTION_KEY, which nothing reads since TOTP moved to Supabase Auth",
+   "file": ".env.example",
+   "line": 53,
+   "otherLocations": [],
+   "evidence": ".env.example:48-54\n```\n# Moyasar is pending E02 and does not block launch (D34). ...\nMOYASAR_SECRET_KEY=\nMOYASAR_WEBHOOK_SECRET=\nPAYMENTS_MODE=\nMFA_ENCRYPTION_KEY=\nSENTRY_DSN=\n```\nNo file in src/, supabase/, scripts/ or tests/ reads MFA_ENCRYPTION_KEY. PLANS/ARCHITECTURE.md:107 lists the planned Edge Function secrets (Moyasar, PAYMENTS_MODE, SENTRY_DSN) and does not include it.",
+   "failureScenario": "At P11 the owner works through .env.example to set function secrets. He generates and stores an MFA_ENCRYPTION_KEY (a Payload-era app-side TOTP key) that no code uses, and may believe TOTP secrets are encrypted with a key he controls, when Supabase Auth manages the factors.",
+   "suggestedFix": "Delete line 53 (`MFA_ENCRYPTION_KEY=`) from .env.example.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S18.4",
+   "severity": "low",
+   "category": "security",
+   "title": "Tooling runs unpinned latest npm packages (npx -y) in every session, contrary to D19",
+   "file": ".mcp.json",
+   "line": 5,
+   "otherLocations": [
+    ".cursor/mcp.json:5",
+    ".kiro/settings/mcp.json:5",
+    ".gemini/settings.json:5",
+    ".claude/launch.json:16",
+    ".claude/launch.json:28",
+    ".claude/launch.json:40",
+    "opencode.json:7",
+    ".grok/config.toml:3",
+    ".cursor/mcp.json:4",
+    ".kiro/settings/mcp.json:4"
+   ],
+   "evidence": "\"graft\": {\n  \"command\": \"npx\",\n  \"args\": [\"-y\", \"@nanonets/graft\", \"mcp\"]\n}",
+   "failureScenario": "Every Claude Code, Cursor, Kiro or Gemini session opened in the repo runs `npx -y @nanonets/graft` and so downloads and executes whatever version is newest on npm. That process has full access to the working tree, including .env with hosted Supabase and Cloudflare credentials. .claude/launch.json does the same with `npx -y serve`. D19 forbids 'unexamined latest tags'. A compromised or breaking publish of either package runs on the owner's machine with no review.",
+   "suggestedFix": "Pin exact versions: `@nanonets/graft@<examined version>` in .mcp.json, .cursor/mcp.json, .kiro/settings/mcp.json and .gemini/settings.json, and `serve@<examined version>` in the three .claude/launch.json configurations.",
+   "verifierCorrections": [
+    "Also pin opencode.json and .grok/config.toml, which the suggested fix leaves out: use `@nanonets/graft@<examined version>` in all six graft configs. For serve, the smallest fix that matches D19's lockfile rule is to add `serve` as an exact-pinned devDependency and call `pnpm exec serve` in the three launch.json configurations. Writing `npx -y serve@<version>` in each one also works."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.18",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "esbuild devDependency is a leftover of the OpenNext/Workers spike with no importer",
+   "file": "package.json",
+   "line": 53,
+   "otherLocations": [],
+   "evidence": "    \"esbuild\": \"0.28.2\",\n-- grep over src/ scripts/ tests/ supabase/ and all root configs: no import, require or config reference. `git log -S'\"esbuild\"' -- package.json` shows it arrived in 07cbc49 'Payload on Workers via OpenNext'. In pnpm-lock.yaml it is resolved only as the direct devDependency (vite 8 lists it as an optional peer).",
+   "failureScenario": "Every install downloads and builds a native binary that no script uses (it is also listed in pnpm.onlyBuiltDependencies).",
+   "suggestedFix": "Remove `esbuild` from devDependencies and from `pnpm.onlyBuiltDependencies` in package.json, refresh the lockfile, then confirm `pnpm test` and `pnpm build` still pass (the orchestrator runs the battery).",
+   "verifierCorrections": [
+    "As suggested: drop `esbuild` from devDependencies and from `pnpm.onlyBuiltDependencies`, run `pnpm install` to refresh the lockfile, then confirm `pnpm test` and `pnpm test:db` load vitest.config.ts. If the refreshed lock still pulls esbuild through the optional tsx peer, keep the onlyBuiltDependencies entry so its postinstall is not blocked."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G2.2",
+   "severity": "low",
+   "category": "tests",
+   "title": "`--passWithNoTests` lets the unit and DB suites pass with zero tests, contradicting 'no exit code is masked'",
+   "file": "package.json",
+   "line": 15,
+   "otherLocations": [],
+   "evidence": "\"test\": \"vitest run --passWithNoTests\",\n\"test:db\": \"vitest run --mode db --passWithNoTests\",",
+   "failureScenario": "vitest.config.ts collects only `tests/unit/**/*.test.ts` (or `tests/integration/**/*.test.ts` with `--mode db`). If that directory is renamed or moved, or the include glob or mode string drifts, vitest finds no files. With this flag it exits 0, so `pnpm check`, the CI 'Unit tests' step and `pnpm test:db` all report green having run nothing. This contradicts ci.yml:4-5 ('no exit code is masked') and VERIFICATION.md:8 ('No masked nonzero exits'). Both suites have files today (23 unit, 15 integration), so the flag only matters in that failure case.",
+   "suggestedFix": "Remove `--passWithNoTests` from the `test` and `test:db` scripts in package.json.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S12.2",
+   "severity": "low",
+   "category": "security",
+   "title": "No Content-Security-Policy anywhere, although DATA-AND-SECURITY requires one, and no work package owns it",
+   "file": "public/_headers",
+   "line": 3,
+   "otherLocations": [
+    "PLANS/DATA-AND-SECURITY.md:101",
+    "PLANS/ARCHITECTURE.md:72",
+    "src/lib/supabase/browser.ts:21"
+   ],
+   "evidence": "public/_headers:3-5:\n```\n/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n```\nThe admin rules (lines 12 and 18) carry only `Content-Security-Policy: frame-ancestors 'none'`.\nPLANS/DATA-AND-SECURITY.md:101: \"CSP consistent with Next and the Supabase origin, local PDF.js workers, restrictive admin frame-ancestors, same-origin mutations, no unsafe eval\".\nARCHITECTURE.md:72 describes _headers without a CSP, and the P10 file list does not name public/_headers.",
+   "failureScenario": "The public site and /admin share one origin. `createClient(url, key)` in src/lib/supabase/browser.ts keeps the staff session, the owner's included, in localStorage. Any script that runs on any page gets there with no script-src, connect-src or eval restriction: a future unescaped field, or a tampered third-party script such as Turnstile's api.js, which is loaded on public pages. That script can read the owner's refresh token and POST it to any host. The plan's stated 'no unsafe eval' and CSP guarantees do not hold. No package lists the work, so the gap can reach launch.",
+   "suggestedFix": "The Supabase origin differs per environment, so a static public/_headers cannot hold the right CSP. Append a `/*` CSP to out/_headers in the `build` script (package.json), taking the origin from NEXT_PUBLIC_SUPABASE_URL. Directives: default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com (Next's inline flight scripts; hashes later); connect-src 'self' <supabase>; img-src 'self' data: blob: <supabase>; frame-src https://challenges.cloudflare.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'. Keep frame-ancestors 'none' on /admin. Add the CSP to P10's file list and security spec.",
+   "verifierCorrections": [
+    "First, the smallest root-cause fix: give the requirement an owner. Add public/_headers (or the build step that writes the CSP) to P10's file list, and add a CSP check to VERIFICATION.md and tests/e2e/security.spec.ts. Second, if the CSP is added to out/_headers at build time, the suggested directive list needs these changes: add `style-src 'self' 'unsafe-inline'`, because default-src 'self' would block the React style={{}} attributes (6 files) and Next's inline styles; keep script-src free of 'unsafe-eval'; add `worker-src 'self'` for the bundled PDF.js worker (src/components/book/pdf.ts:20, which loads it by URL); allow the Supabase host in connect-src for both the Data API and /functions/v1; add Cloudflare Web Analytics hosts (static.cloudflareinsights.com in script-src, cloudflareinsights.com in connect-src) if P10 turns on its auto-injected beacon; and check the policy against the hosted preview at P10, not only against the local out/."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S17.7",
+   "severity": "low",
+   "category": "security",
+   "title": "Closing the terminal window (SIGHUP on Windows) skips the 'exit' cleanup and leaves the plaintext dumps in %TEMP%",
+   "file": "scripts/backup.mjs",
+   "line": 114,
+   "otherLocations": [
+    "scripts/restore-check.mjs:408"
+   ],
+   "evidence": "process.on('exit', cleanup)\nprocess.on('SIGINT', () => {\n  cleanup()\n  process.exit(130)\n})\nprocess.on('SIGTERM', () => {",
+   "failureScenario": "The owner closes the console window during the minutes-long dump or download, or during a restore-check rehearsal. Windows sends CTRL_CLOSE_EVENT, which Node raises as SIGHUP. With no SIGHUP listener, Node terminates without emitting 'exit'. %TEMP%\\anasaq-backup-* (roles/schema/data.sql with auth password hashes and TOTP secrets, plus the media originals) or %TEMP%\\anasaq-restore-files-* stays on disk unencrypted indefinitely. The code comments promise 'the plaintext dumps never stay in the temp dir', and D35 relies on the file being encrypted at rest.",
+   "suggestedFix": "Add `process.on('SIGHUP', () => { cleanup(); process.exit(129) })` in scripts/backup.mjs, and `process.on('SIGHUP', () => process.exit(129))` next to the SIGINT/SIGTERM handlers in scripts/restore-check.mjs. Windows allows about 10 s after a SIGHUP listener runs, which is enough for rmSync.",
+   "verifierCorrections": [
+    "In backup.mjs, add process.on('SIGHUP', () => { cleanup(); process.exit(129) }). In restore-check.mjs, add process.on('SIGHUP', () => process.exit(129)). Also move rmSync(extractDir) (and rmSync of scratch) ahead of the `supabase stop` call in cleanup at restore-check.mjs:~327. That stop call can take up to 300 s, well past Windows' ~10 s post-SIGHUP window, so the decrypted dumps must be removed first."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S18.2",
+   "severity": "low",
+   "category": "tests",
+   "title": "check:budgets passes when out/ contains no public page (Math.max of an empty list is -Infinity)",
+   "file": "scripts/check-budgets.mjs",
+   "line": 81,
+   "otherLocations": [
+    "scripts/check-budgets.mjs:48",
+    "scripts/check-budgets.mjs:64"
+   ],
+   "evidence": "const largest = Math.max(...results.map((r) => r.bytes))\nif (largest > PUBLIC_JS_GZIP_BUDGET_BYTES) {\n  ...\n  process.exit(1)\n}\nconsole.log(`  OK largest ${kib(largest)} (budget ${kib(PUBLIC_JS_GZIP_BUDGET_BYTES)})`)",
+   "failureScenario": "The header promises that missing build output is a failure, never a pass. But when out/ exists and publicPages() returns [] (an aborted or partial export that left only _next/ or admin files), results is empty and Math.max() returns -Infinity. The script then prints 'OK largest -Infinity KiB' and exits 0. It also passes with 0 bytes if every script src stops starting with /_next/static/ (a basePath or assetPrefix change), because every tag is skipped.",
+   "suggestedFix": "In scripts/check-budgets.mjs, after building PUBLIC_PAGES, exit 1 when it is empty. Before computing `largest`, exit 1 when any result has scripts === 0.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G3.5",
+   "severity": "low",
+   "category": "tests",
+   "title": "check:copy never scans content/initial-content.json, the source of most public copy, or the demo seed",
+   "file": "scripts/check-copy.mjs",
+   "line": 23,
+   "otherLocations": [
+    "scripts/check-copy.mjs:28",
+    "scripts/check-copy.mjs:15"
+   ],
+   "evidence": "const ROOTS = ['src', 'supabase/functions']\nconst EXTENSIONS = new Set(['.ts', '.tsx'])\n...\nconst PLACEHOLDERS = [/lorem ipsum/i, /\\bTODO\\b/, /\\bFIXME\\b/, /قريبا[ًا]?\\s*\\.\\.\\./, /coming soon/i]",
+   "failureScenario": "content/initial-content.json has 274 Arabic lines that `pnpm db:import` publishes to every room, the home page, the footer and /scenes. scripts/seed-demo-catalog.mjs writes the public demo product and policy text. Neither is under ROOTS or EXTENSIONS. An edit that types «٢٠١٣» into the fixture passes `pnpm check:copy` and CI, is imported and shows Arabic-Indic digits on /started, against the Latin-digits rule in DECISIONS' recorded assumptions. The placeholder regex also needs ASCII '...', so «قريباً…» with the U+2026 ellipsis the content uses passes too. The header's 'P01 extends this with the frozen-voice checks' never happened.",
+   "suggestedFix": "In scripts/check-copy.mjs, add 'content' and 'scripts' to ROOTS and '.json' and '.mjs' to EXTENSIONS, skipping scripts/check-copy.mjs itself through GENERATED. Change the placeholder pattern to /قريبا[ًا]?\\s*(\\.\\.\\.|…)/. Delete the stale P01 line in the header.",
+   "verifierCorrections": [
+    "Add 'content' and 'scripts' to ROOTS and '.json' and '.mjs' to EXTENSIONS. Skip scripts/check-copy.mjs with one direct `relative ===` check instead of GENERATED (see X6.22), since its line 11 comment contains 'TODO/FIXME'. content/book-preview-text.json is PDF-extracted text, which DECISIONS.md:54 exempts from digit rewriting. It is clean today, but either exclude it explicitly or accept that a future PDF digit would need an exemption. Change the placeholder pattern to /قريبا[ًا]?\\s*(\\.\\.\\.|…)/ and delete header line 16."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G2.3",
+   "severity": "low",
+   "category": "tests",
+   "title": "check:export crashes with a raw ENOENT when a required public page is missing, so it never prints its own list of failures",
+   "file": "scripts/check-export.mjs",
+   "line": 81,
+   "otherLocations": [],
+   "evidence": "for (const file of REQUIRED) {\n  if (!existsSync(path.join(outDir, file))) failures.push(`missing ${file}`)\n}\nfor (const page of RTL_PAGES) {\n  const head = readFileSync(path.join(outDir, page), 'utf8').slice(0, 600)",
+   "failureScenario": "Say a build leaves out `journal.html` (or any RTL_PAGES entry). Line 78 records 'missing journal.html', then line 81 calls readFileSync on the same file and throws an uncaught ENOENT. Node prints a stack trace. The collected 'missing …' lines, the secret scan and the I40 demo guard are never reported. The exit code is still non-zero, so this is not a false pass, but the person fixing the build gets a stack trace instead of the list of missing pages and other failures.",
+   "suggestedFix": "In scripts/check-export.mjs, skip missing pages in the RTL loop: `if (!existsSync(path.join(outDir, page))) continue` before the readFileSync on line 81. They are already recorded as missing.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G2.4",
+   "severity": "low",
+   "category": "tests",
+   "title": "check:export's REQUIRED list omits 24 of the 31 admin pages built since P05, so a dropped admin screen passes the export gate",
+   "file": "scripts/check-export.mjs",
+   "line": 46,
+   "otherLocations": [],
+   "evidence": "  'admin.html',\n  'admin/sign-in.html',\n  'admin/preview.html',\n  'admin/content/rooms/edit.html',\n  'admin/content/posts/edit.html',",
+   "failureScenario": "The header (line 6) and docs/development.md:131 say this check proves 'every page present' and 'the admin shells'. The current out/ holds 31 admin HTML files: admin/content.html, the six admin/content/<collection>.html lists, admin/{email,media,security,settings,stats,store,team}.html, admin/store/{coupons,customers,products,shipping-rates}.html with their edit pages, and admin/store/variants/edit.html. REQUIRED lists 9, including admin.html. Example: `generateStaticParams` in src/app/(admin)/admin/store/[table]/page.tsx:11 stops returning a table, or a P06 screen's page is removed. Its .html disappears, Cloudflare Pages returns 404 for that admin URL, and check:export still prints 'OK 28 required files present'.",
+   "suggestedFix": "In scripts/check-export.mjs, add the remaining admin files to REQUIRED: admin/content.html, admin/content/{rooms,posts,site_settings,taxonomies,policies,scenes}.html, admin/{email,media,security,settings,stats,store,team}.html, admin/store/{coupons,customers,products,shipping-rates}.html and .../edit.html, admin/store/variants/edit.html.",
+   "verifierCorrections": [
+    "Same fix, but the omitted count is 23, not 24. A simpler fix that won't drift again: build the admin entries from the tables and collections keys (they are what generateStaticParams uses), or at least list the 23 missing paths exactly as they appear in out/admin."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S17.6",
+   "severity": "low",
+   "category": "correctness",
+   "title": "writeBackup adds one 'error' listener to the framing stream per entry, so every real backup prints a MaxListenersExceededWarning 'memory leak' notice",
+   "file": "scripts/lib/backup-format.mjs",
+   "line": 197,
+   "otherLocations": [],
+   "evidence": "async function writeEntryHeader(framing, meta) {\n  ...\n  const failed = failurePromise(framing)\n  await writeChunk(framing, prefix, failed)\n\nfunction failurePromise(stream) {\n  return new Promise((_, reject) => stream.once('error', reject))",
+   "failureScenario": "Each writeEntryHeader call adds a never-removed `framing.once('error', ...)`, and writeEntryBytes adds another. The P06 backup had 227 entries, which means about 229 listeners on one PassThrough. Past 10, Node prints to stderr in the middle of the owner's backup: '(node:…) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 error listeners added to [PassThrough]'. That reads like the backup is broken, and the listeners grow linearly with the object count.",
+   "suggestedFix": "In writeBackup, create one `const framingFailed = failurePromise(framing)` next to outFailed. Pass it to writeEntryBytes and writeEntryHeader instead of creating a new failure promise in each call.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S17.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The hidden prompt drops only the ESC byte of arrow, Home and Delete key sequences and adds their tails (e.g. \"[D\", \"[3~\") to the passphrase",
+   "file": "scripts/lib/passphrase.mjs",
+   "line": 33,
+   "otherLocations": [],
+   "evidence": "// Other control characters (arrow-key escape sequences and the like)\n        // are not part of a passphrase.\n        if (/[\\u0000-\\u001f\\u007f-\\u009f]/.test(character)) continue\n        characters.push(character)",
+   "failureScenario": "In raw mode, Windows (libuv) and Unix terminals deliver Left-arrow as \"\\x1b[D\" and Delete as \"\\x1b[3~\". The loop skips \\x1b but pushes '[' and 'D'. Suppose the owner, typing blind, presses Left-arrow to fix a typo while entering the passphrase for `pnpm restore-check`. The derived key is then for 'secret[D...' and he gets 'Decryption failed: wrong passphrase or damaged file' for a correct file. At backup time the result is either a confusing mismatch, or, if the same keys are pressed in both prompts, a stored passphrase he can never retype. The comment claims these sequences are excluded; the code does not exclude them.",
+   "suggestedFix": "In promptHidden, when '\\u001b' is seen, skip the whole sequence: set a flag, ignore an optional '[' or 'O' and any parameter bytes, and clear the flag on the final byte (a character in '@'..'~'). Keep everything else as is.",
+   "verifierCorrections": [
+    "Same approach, but keep the escape state in the promptHidden closure next to `characters`, not inside the loop, so a sequence split across two 'data' chunks is still skipped. On '\\u001b' set state=1. In state 1, '[' or 'O' moves to state 2; any other character ends the sequence and is dropped (this covers Alt+key). In state 2, drop parameter and intermediate bytes (0x20-0x3F) and clear the state on a final byte in '@'..'~'. Leave everything else unchanged, and add one small assert check that feeds 'ab\\x1b[Dc\\x1b[3~d\\x1bOA' through the handler and expects 'abcd'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S18.3",
+   "severity": "low",
+   "category": "data-loss",
+   "title": "prepare-media full run overwrites the committed manifests without the entries whose (git-excluded) sources are missing, then exits 0",
+   "file": "scripts/prepare-media.mjs",
+   "line": 446,
+   "otherLocations": [
+    "scripts/prepare-media.mjs:408",
+    "scripts/prepare-media.mjs:448",
+    "scripts/prepare-media.mjs:404",
+    "tests/e2e/cms.spec.ts:22",
+    "src/lib/images.ts:41"
+   ],
+   "evidence": "    if (result.status === 'missing') {\n      missing.push(entry.src)\n      continue\n    }\n...\n  writeFileSync(path.join(IMAGES_OUT, 'manifest.json'), JSON.stringify(imageManifest, null, 2) + '\\n')",
+   "failureScenario": "BOOK_ASSETS/SORTED_2026-09-21/ and BOOK_ASSETS/v2-design/ are excluded through .git/info/exclude, so a fresh clone or another machine does not have them. Running `node scripts/prepare-media.mjs` there with no flags rebuilds imageManifest and videoManifest from scratch, skips every missing source, and rewrites the committed public/images/manifest.json and public/media/manifest.json with those entries removed (all of them on a clean clone). It prints only a 'Missing source files' list and exits 0. The next `pnpm build` then throws 'Missing image manifest entry' (src/lib/images.ts), and the admin image validation in src/admin/fields.ts rejects every image id.",
+   "suggestedFix": "In scripts/prepare-media.mjs main(), when `missing.length > 0`, print the list and `process.exit(1)` before the two writeFileSync calls. Keep the --only/--posters-only paths, which already merge into the existing manifest.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S15.4",
+   "severity": "low",
+   "category": "docs",
+   "title": "prepare-preview.py stamps the fixed 2026-09-28 approval onto whatever inputs it builds and never checks inputs against the recorded hashes",
+   "file": "scripts/prepare-preview.py",
+   "line": 150,
+   "otherLocations": [
+    "docs/book-preview.md"
+   ],
+   "evidence": "        \"approval\": {\n            \"by\": \"owner\",\n            \"date\": \"2026-09-28\",\n            \"words\": \"ANAS provide two or three PDF texts !! we only want to let users see these then had to buy the whole book to read\",\n        },",
+   "failureScenario": "docs/book-preview.md 'Updating it' says to add new PDFs to SOURCES, run the script, then 'Record the approval in the manifest (approval)'. Running the script with a changed or added BOOK_ASSETS file silently publishes the new pages and rewrites the manifest, and the manifest still claims the owner's 2026-09-28 E04 approval for the new range. If someone hand-edits `approval` as the doc says, the next run reverts it to the old literal. The doc's own test step (`python scripts/prepare-preview.py --fixtures`) also rewrites the preview and manifest. The approval record for the rights gate can therefore be wrong without anyone noticing. Nothing compares input sha256 values to the committed manifest before OUT_PDF is written (lines 144-147).",
+   "suggestedFix": "In prepare-preview.py, load the existing MANIFEST, reuse its `approval` block instead of the literal, and refuse to write when any input's sha256 or page count differs from the recorded `inputs`, unless an explicit `--new-approval` flag is passed after the approval has been recorded. Make `--fixtures` write only the fixtures. Update the 'Updating it' steps in docs/book-preview.md to match.",
+   "verifierCorrections": [
+    "Smallest fix: move the approval into one `APPROVAL` constant next to `SOURCES` in scripts/prepare-preview.py. Change docs/book-preview.md step 3 to say: update `APPROVAL` in the script (and the date asserted in tests/unit/reader-mapping.test.ts) before running, and record the approval in PLANS/. Optionally, have main() refuse to write when an input's sha256 differs from the committed manifest while `APPROVAL` is unchanged. Don't add a `--new-approval` flag or split out `--fixtures`: re-runs are deterministic, so neither is needed."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G1.4",
+   "severity": "low",
+   "category": "security",
+   "title": "`restore-check --extract` and the real-restore runbook leave a decrypted copy of the whole database on disk, with no step to remove it",
+   "file": "scripts/restore-check.mjs",
+   "line": 313,
+   "otherLocations": [
+    "docs/operations.md:513"
+   ],
+   "evidence": "restore-check.mjs:310-313:\n    const manifest = await readBackup(backupFile, passphrase, destDir)\n    ...\n    console.log('These are the files for a real restore (see docs/operations.md, \"Backups (D35)\").')\noperations.md:513-514: \"`pnpm restore-check <file> --extract <empty dir>` on any machine with the file and the passphrase (this yields the five dump files).\"",
+   "failureScenario": "Anas follows 'A real restore into a new hosted project' on a borrowed or shared machine. Step 1 decrypts roles.sql, schema.sql and data.sql into a folder. data.sql holds every customer's and every order's name, email, phone, address and dedication, contacts, and the auth tables (sessions, refresh tokens, TOTP factor secrets). Steps 2-6 never say to delete that folder, and the extract message does not warn. The plaintext stays on the disk indefinitely, with no stated retention. That defeats D35's point that only the encrypted file is safe to keep or copy. The rehearsal mode cleans its own temp dirs; only this manual path leaks.",
+   "suggestedFix": "Add a final step to 'A real restore' in docs/operations.md: delete the extracted directory once the restore is verified, because it is unencrypted and holds every personal record and the auth secrets. Print the same warning after the extract listing in scripts/restore-check.mjs (after line 313). Restore behaviour is unchanged.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S20.1",
+   "severity": "low",
+   "category": "security",
+   "title": "The local-database guard checks the URL's hostname, but `pg` connects to the `?host=` query parameter",
+   "file": "src/lib/env.ts",
+   "line": 26,
+   "otherLocations": [
+    "scripts/import-content.mjs:31",
+    "scripts/seed-demo-catalog.mjs:25"
+   ],
+   "evidence": "  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {\n    return false\n  }\n  return LOCAL_DB_HOSTS.has(parsed.hostname)\n\npg-connection-string 2.14.0 (the parser `pg` uses): `for (const entry of result.searchParams.entries()) config[entry[0]] = entry[1]` ... `if (!config.host) { config.host = decodeURIComponent(hostname) }`",
+   "failureScenario": "Setup: TEST_ENV=local and DATABASE_URL=postgres://postgres:pw@127.0.0.1:5432/postgres?host=db.<ref>.supabase.co. assertLocalTestDatabase passes because `new URL(...).hostname` is '127.0.0.1'. Every integration test builds `new pg.Client({ connectionString: process.env.DATABASE_URL })`, and that parser takes host from the query parameter, so `pnpm test:db` runs its destructive fixtures (for example the last-owner test that deactivates owners) against the hosted database. The guard exists to prevent exactly this data loss. tests/unit/env.test.ts has no query-parameter case, so nothing catches it.",
+   "suggestedFix": "In src/lib/env.ts isLocalDatabaseUrl, add `if (parsed.searchParams.has('host') || parsed.searchParams.has('hostaddr')) return false` before the hostname check. Add one case to the isLocalDatabaseUrl block in tests/unit/env.test.ts: 'postgres://u:p@127.0.0.1:5432/db?host=db.example.com' is false.",
+   "verifierCorrections": [
+    "Reject any URL with a `host` search param in all three guards. In src/lib/env.ts isLocalDatabaseUrl add `if (parsed.searchParams.has('host')) return false` (a `hostaddr` check is harmless but pg ignores hostaddr). Add the same `|| parsed.searchParams.has('host')` to the refusal condition in scripts/import-content.mjs:31 and scripts/seed-demo-catalog.mjs:25. Add one false case to tests/unit/env.test.ts."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G2.1",
+   "severity": "low",
+   "category": "config",
+   "title": "tsconfig excludes .next, so Next's route validator (.next/types/validator.ts) is never type-checked by pnpm typecheck, CI or next build",
+   "file": "tsconfig.json",
+   "line": 52,
+   "otherLocations": [],
+   "evidence": "\"include\": [ ... \".next/types/**/*.ts\", \".next/dev/types/**/*.ts\", ... ],\n\"exclude\": [\n    \"node_modules\",\n    \"supabase/functions\",\n    \".next\",",
+   "failureScenario": "`exclude` filters the results of `include`, so the explicit `.next/types/**/*.ts` includes do nothing. `tsc -p tsconfig.json --listFilesOnly` lists only `.next/dev/types/routes.d.ts` and `root-params.d.ts`, which come in through next-env.d.ts imports. It never lists `.next/types/validator.ts` or `.next/dev/types/validator.ts`, although both files exist. `next build` checks the same file list (node_modules/next/dist/lib/typescript/runTypeCheck.js:35 uses `effectiveConfiguration.fileNames`), so Next's check of page and layout exports is off everywhere. Example: a layout that requires a slot prop the route does not have, or a page file with a default export that is not a component, passes lint, typecheck, CI and the build, then breaks at render. Today there is no hidden error: I ran a scratch config with `.next` removed from exclude and both validators included, and tsc exited 0.",
+   "suggestedFix": "In tsconfig.json, remove `\".next\"` from `exclude`. The include globs already limit `.next` to its types folders, and `.next` holds no other .ts files. I verified this with a scratch tsconfig: both validator.ts files are included and tsc exits 0.",
+   "verifierCorrections": [
+    "The fix is right: remove \".next\" from exclude and change nothing else. One caveat to record: plain `pnpm typecheck` will then also check .next/dev/types/validator.ts, which can go stale after a route is deleted. next build filters those files out, but tsc does not, so a stale dev validator can fail typecheck until the dev server regenerates it or .next/dev is cleared. CI is unaffected because .next does not exist there before typecheck."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G2.6",
+   "severity": "info",
+   "category": "docs",
+   "title": "backup and restore-check comments point to the deleted scripts/glm-worker.mjs",
+   "file": "scripts/backup.mjs",
+   "line": 55,
+   "otherLocations": [
+    "scripts/restore-check.mjs:53",
+    "PROMPT-FOR-ASTRA.md:18",
+    "PROMPT-FOR-ASTRA.md:30",
+    "PROMPT-FOR-ASTRA.md:12"
+   ],
+   "evidence": "/** Runs the Supabase CLI (by name, the way scripts/glm-worker.mjs runs claude). */",
+   "failureScenario": "The working tree deletes scripts/glm-worker.mjs (D41). The doc comments on both `supabase()` helpers still explain their spawn style by pointing to that file (scripts/backup.mjs:55 and scripts/restore-check.mjs:53). A reader who follows the reference finds no file. Nothing else in code, package scripts, .claude settings or CI references the deleted file.",
+   "suggestedFix": "Drop the parenthetical from the comments in scripts/backup.mjs:55 and scripts/restore-check.mjs:53, for example '/** Runs the Supabase CLI by name. */'.",
+   "verifierCorrections": [
+    "Edit only the two script comments to read '/** Runs the Supabase CLI by name. */'. Leave PROMPT-FOR-ASTRA.md alone because it is a historical planning prompt."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.22",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "check-copy keeps an always-empty `GENERATED` skip list",
+   "file": "scripts/check-copy.mjs",
+   "line": 25,
+   "otherLocations": [],
+   "evidence": "const GENERATED = new Set()\n...\n    if (GENERATED.has(relative)) continue\n-- nothing ever adds to the set; line 16 still says 'P01 extends this with the frozen-voice checks once real copy lands'.",
+   "failureScenario": "No runtime effect; it is a config knob for a value that never changes.",
+   "suggestedFix": "Delete line 25 and the `if (GENERATED.has(relative)) continue` at line 46 in scripts/check-copy.mjs, and the stale 'P01 extends this' line 16.",
+   "verifierCorrections": [
+    "Apply this together with G3.5. If G3.5 needs to skip check-copy.mjs itself, replace the Set with one direct check (`if (relative === 'scripts/check-copy.mjs') continue`) and delete the Set. Otherwise delete lines 25 and 46 as suggested. Either way, drop the stale line 16."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.24",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "src/lib/env.ts duplicates the shared LOCAL_HOSTS set it could import",
+   "file": "src/lib/env.ts",
+   "line": 10,
+   "otherLocations": [],
+   "evidence": "const LOCAL_DB_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]', 'host.docker.internal'])\n-- identical to supabase/functions/_shared/env.ts:57 `export const LOCAL_HOSTS`, from the module this file already re-exports at line 7.",
+   "failureScenario": "No bug today; the local-host allowlist that guards destructive test runs lives in two copies that must stay equal by hand.",
+   "suggestedFix": "In src/lib/env.ts import `LOCAL_HOSTS` from '../../supabase/functions/_shared/env.ts' and use it in isLocalDatabaseUrl; delete LOCAL_DB_HOSTS.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}

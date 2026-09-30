@@ -1,0 +1,111 @@
+{
+ "files": [
+  "src/components/book/PdfBookReader.tsx",
+  "src/components/book/pdf.ts",
+  "src/components/book/reader.module.css",
+  "src/lib/book-preview.ts"
+ ],
+ "findings": [
+  {
+   "id": "S15.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Selectable text layer is offset from the drawn words by the 4:5 frame's origin (selection and find land on the wrong lines)",
+   "file": "src/components/book/pdf.ts",
+   "line": 181,
+   "otherLocations": [
+    "src/components/book/reader.module.css:323",
+    "src/components/book/reader.module.css:542"
+   ],
+   "evidence": "const at = (s: number) => page.getViewport({ scale: s, offsetX: -frame.x * s, offsetY: -frame.y * s })\n...\nthis.layer = new pdfjs.TextLayer({ textContentSource: content, container: this.text, viewport: at(scale) })\n\npdf.js 6.3.289 TextLayer (node_modules/pdfjs-dist/build/pdf.mjs 15093-15099, 15223-15243) reads only viewport.rawDims/scale:\nthis.#transform = [1, 0, 0, -1, -pageX, pageY + pageHeight];\ndivStyle.top = `${(100 * top / this.#pageHeight).toFixed(2)}%`;",
+   "failureScenario": "The canvas is drawn through the frame (offsetX/offsetY shift the ink by -frame.x/-frame.y), but pdf.js 6's TextLayer ignores viewport offsets. It places spans at full-A4 coordinates, as percentages of a container sized to var(--total-scale-factor) * 595x842, anchored at the leaf's top. For the shipped preview the text block gives frame.y of about 36pt (pypdf bbox: text y 72 to 758 on an 842pt page), so every invisible span sits about 36*scale px below its ink. In «عرض للقراءة» at 880px that is about 53px, roughly two lines at Word's 12pt. With RTL right-anchoring the layer is also shifted a few px horizontally. A reader who drags across a drawn line in the reading view (the view the reader offers for selecting) selects and copies text from other lines. Ctrl+F highlights appear below the matching words. The layer (842*scale tall) also runs past the 4:5 sheet (757*scale) and covers the sheet label under it. No e2e checks span-to-ink alignment; reader.spec.ts only checks the layer's textContent.",
+   "suggestedFix": "In pdf.ts, build the text layer with an unshifted viewport and move its container by the frame instead: `this.layer = new pdfjs.TextLayer({ textContentSource: content, container: this.text, viewport: page.getViewport({ scale }) })`, then `Object.assign(this.text.style, { left: `${-frame.x * scale}px`, top: `${-frame.y * scale}px`, right: 'auto', bottom: 'auto' })`. Add `overflow: clip` to `.sheet` in reader.module.css (`.leaf` already hides overflow). One e2e check: in the reading view, the first span's rect sits inside the sheet near the top text line.",
+   "verifierCorrections": [
+    "Suggested fix is right: build the TextLayer from page.getViewport({ scale }) (no offsets) and position the container with inline left = -frame.x*scale px, top = -frame.y*scale px, right/bottom auto (inline styles override the CSS inset:0; width/height stay from setLayerDimensions). Add overflow: clip to .sheet (the .leaf already has overflow: hidden). Optional e2e: first span rect inside the sheet near the first ink line.",
+    "Suggested fix is correct. Build the layer with `page.getViewport({ scale })` and set inline `left: ${-frame.x*scale}px; top: ${-frame.y*scale}px; right: auto; bottom: auto` on this.text. `right: auto` is required, because in RTL the over-constrained box otherwise ignores `left`. Add `overflow: clip` to `.sheet`; `.leaf` already has `overflow: hidden`. Add one e2e assertion that the first span's rect falls inside the sheet near the first drawn line.",
+    "The suggested fix is correct. Build the TextLayer with `page.getViewport({ scale })` (no offset). Then set `this.text.style` to left `${-frame.x*scale}px`, top `${-frame.y*scale}px`, right 'auto', bottom 'auto'. Setting right to auto is required, or RTL over-constraint ignores left. Add `overflow: clip` to `.sheet`; `.leaf` already hides overflow. It applies to both callers (StaticPdfReader and PdfBookReader), because both go through PageSurface.draw."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S15.2",
+   "severity": "medium",
+   "category": "performance",
+   "title": "page-flip's requestAnimationFrame loop never stops after destroy(): each close of the book leaks a perpetual 60fps loop and the whole leaf DOM",
+   "file": "src/components/book/PdfBookReader.tsx",
+   "line": 390,
+   "otherLocations": [],
+   "evidence": "      if (flip) flip.destroy()\n      else block.remove()\n\nnode_modules/page-flip/dist/js/page-flip.module.js:\nstart(){this.update();const t=e=>{this.render(e),requestAnimationFrame(t)};requestAnimationFrame(t)}\ndestroy(){this.ui.destroy(),this.block.remove()}",
+   "failureScenario": "page-flip 2.0.7's Render.start() schedules requestAnimationFrame forever, and PageFlip.destroy() only removes handlers and elements; nothing cancels the loop. Each time the book effect cleans up, the old loop keeps running drawFrame() every frame on detached leaves (style.cssText writes on all 12 leaves) and holds the leaves, cover img, spoken-text divs and PageFlip instance in memory. Cleanup runs on a switch to «عرض للقراءة», on a retry, and on leaving /book by client-side navigation (RoomNav links). A reader who toggles book/reading view 5 times leaves 5 loops running on top of the live one for the rest of the SPA session. The cost is CPU and battery on phones plus a memory leak.",
+   "suggestedFix": "Patch page-flip 2.0.7 through `pnpm patch page-flip` (patchedDependencies in package.json; the bundle resolves dist/js/page-flip.browser.js via `main`). In Render.start's loop, return when a `stopped` flag is set, and make PageFlip.destroy() set `this.render.stopped = true` before `this.ui.destroy()`. The reader code stays unchanged.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S15.3",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "«عرض للقراءة» drops keyboard focus to <body>: the focused toggle is unmounted when the tree changes shape",
+   "file": "src/components/book/PdfBookReader.tsx",
+   "line": 503,
+   "otherLocations": [
+    "src/components/book/PdfBookReader.tsx:451"
+   ],
+   "evidence": "      <button type=\"button\" className={styles.tool} onClick={() => setMode(mode === 'book' ? 'pages' : 'book')}>\n        {mode === 'book' ? 'عرض للقراءة' : 'عرض الكتاب'}\n      </button>",
+   "failureScenario": "In book mode `{tools}` is rendered inside the third child (div.controls). In pages mode the root's children are [div.readingTools, p.zoomHint, StaticPdfReader, div.closing], so React replaces div.controls with the <ol> and destroys the focused button. A keyboard or screen-reader user who presses Enter on «عرض للقراءة» lands on document.body with nothing announced, and the next Tab restarts from the skip link and header. The reverse switch is covered by host.focus() in the build effect. The same thing happens with «إعادة المحاولة» (line 451): the retry swaps the alert's children for <Opening> and focus is lost again.",
+   "suggestedFix": "Add `autoFocus={mode === 'pages'}` to this toggle button. The pages-mode instance is freshly mounted, so React focuses it on the switch; «عرض الكتاب» then keeps focus in the reading view. For the retry path, focus the disabled loading button or the status region the same way.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S15.6",
+   "severity": "low",
+   "category": "performance",
+   "title": "A PDF document (and its worker) that finishes loading after the reader closes, or whose frame measuring fails, is never destroyed",
+   "file": "src/components/book/PdfBookReader.tsx",
+   "line": 151,
+   "otherLocations": [
+    "src/components/book/pdf.ts:40"
+   ],
+   "evidence": "    openPreview(url).then(\n      (result) => live && setLoaded(result),\n      () => live && setFailed(true),\n    )\n\npdf.ts:39-40:\n  const doc = await pdfjs.getDocument({ url, ... }).promise\n  return { pdfjs, doc, frame: await measureFrame(doc) }",
+   "failureScenario": "A visitor opens the book and, before the PDF finishes loading, follows a RoomNav link (client-side navigation unmounts the reader). When openPreview resolves, `live` is false, so the document is dropped without loadingTask.destroy(), and its pdf.js worker thread and parsed document stay alive for the session. Separately, if getDocument succeeds but measureFrame rejects (e.g. a range request fails mid-way), openPreview throws without destroying `doc`. Each «إعادة المحاولة» then starts another worker.",
+   "suggestedFix": "PdfBookReader.tsx:151: `(result) => (live ? setLoaded(result) : void result.doc.loadingTask.destroy())`. In pdf.ts openPreview, wrap `measureFrame(doc)` in try/catch that calls `doc.loadingTask.destroy()` before rethrowing.",
+   "verifierCorrections": [
+    "Apply the suggested fix. Optional improvement: keep the loadingTask so the cleanup can call loadingTask.destroy() while the load is still in flight, which also aborts the download."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S15.7",
+   "severity": "low",
+   "category": "correctness",
+   "title": "From full screen, «النسخ ←» does not scroll to the editions when the URL already ends in #editions",
+   "file": "src/components/book/PdfBookReader.tsx",
+   "line": 46,
+   "otherLocations": [],
+   "evidence": "  event.preventDefault()\n  void document.exitFullscreen().then(() => {\n    window.location.hash = 'editions'\n  })",
+   "failureScenario": "The hero's «النسخ» link and the section nav's «الطلب» both set the URL to /book#editions. Say the visitor used one of them earlier, scrolled back up, opened the book in full screen and clicked «النسخ ←» on the closing leaf (or in the reading view). The click handler cancels the anchor's default. Assigning the same fragment to location.hash is a no-op (HTML Location hash setter: equal fragment returns; Chromium Location::setHash returns early). Full screen exits but the page stays on the reader, so the end-of-preview call to action does nothing.",
+   "suggestedFix": "In toEditions, after exitFullscreen resolves, call `document.getElementById('editions')?.scrollIntoView()` (scroll-margin already applies) and then `history.replaceState(null, '', '#editions')`, instead of assigning location.hash.",
+   "verifierCorrections": [
+    "Keep the existing push behavior and cover only the same-hash case: `if (location.hash === '#editions') document.getElementById('editions')?.scrollIntoView(); else window.location.hash = 'editions'`. The suggested replaceState would change the current history-entry behavior without need."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S15.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "One page at a time, the canvas window ignores skipped blank/endpaper leaves, so a turn between parts reveals an empty page",
+   "file": "src/lib/book-preview.ts",
+   "line": 82,
+   "otherLocations": [
+    "src/components/book/PdfBookReader.tsx:417"
+   ],
+   "evidence": "  for (const around of [first - 1, first, last + 1]) {\n    if (around < 0 || around >= total) continue\n    for (const leaf of visibleLeaves(around, total, portrait)) wanted.add(leaf)\n  }",
+   "failureScenario": "On a phone (portrait) at «الإهداء» (leaf 2), renderWindow gives {1,2,3}, and leaves 1 and 3 are the endpaper and a blank. «التالية», ← or a tap runs turn(), which skips the blank and calls go(4) (the first page of «المقدمة»). Leaf 4 has no canvas, so the 900ms turn reveals plain paper. The ink appears only after the 'flip' event updates the index and the page renders. Going back from leaf 4 to leaf 2 fails the same way. docs/book-preview.md promises «a turning page is never blank».",
+   "suggestedFix": "In portrait, take the neighbours past empty leaves. Give renderWindow an optional `leaves` argument and, when portrait, step first-1 and last+1 past leaves whose kind is 'blank' or 'endpaper' (the same test as `empty` in PdfBookReader). Pass `leaves` from the state effect at PdfBookReader.tsx:417.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}

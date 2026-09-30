@@ -1,0 +1,119 @@
+{
+ "files": [
+  "PLANS/EXECUTION-STATUS.md",
+  "PLANS/ISSUES.md"
+ ],
+ "findings": [
+  {
+   "id": "S22.1",
+   "severity": "medium",
+   "category": "docs",
+   "title": "EXECUTION-STATUS 'Current state (2026-09-26)' table is stale on every row KICKOFF tells each session to read",
+   "file": "PLANS/EXECUTION-STATUS.md",
+   "line": 9,
+   "otherLocations": [
+    "PLANS/EXECUTION-STATUS.md:11",
+    "PLANS/EXECUTION-STATUS.md:15",
+    "PLANS/EXECUTION-STATUS.md:16",
+    "PLANS/EXECUTION-STATUS.md:17",
+    "PLANS/EXECUTION-STATUS.md:267",
+    "PLANS/KICKOFF.md:5",
+    "PLANS/EXECUTION-STATUS.md:10",
+    "PLANS/EXECUTION-STATUS.md:22",
+    "PLANS/EXECUTION-STATUS.md:275"
+   ],
+   "evidence": "| Branch | `sync/local-2026-09-26` on origin. `agent/p00-runtime-spike` on origin is stale at `4942011` and is not the working line. |\n| Last product commit | `00586ea` (cloud audit of `3c4347c`) ...\n| P01 | Part 1 committed (`c98b091`). D39 ...: direction B accepted; every public page ported in DESIGN-B (below), uncommitted on `agent/design-b` until the owner reviews. |\n| Lock | The CLI orchestrator's `.anasaq-execution.lock` (P06 round 2) is on the owner's machine and unknown from the repo. ...",
+   "failureScenario": "KICKOFF step 1 makes every session read this table first. Reality (git): HEAD is agent/design-b at 181245f; sync/local-2026-09-26 is 788cbbe, 6 commits behind (no DESIGN-B, P02, CLEANUP-1); .anasaq-execution.lock does not exist (released 2026-09-29); P00 row (line 11) says the D32 database/functions/e2e runs are 'pending local verification' although line 15 and the P06 ledger record them verified 2026-09-27; P06 row (line 15) ends 'Round 3 not started' though P06 was accepted with round 3 done; P01 row says DESIGN-B is uncommitted though it is 1ffb8a1/7ac94e8; P02 and P07 have no rows. A new orchestrator following it would switch to the stale branch, treat a nonexistent lock as blocking, or rerun done work. The P00 ledger row (line 267) also omits the D32 replatform fcad3fd.",
+   "suggestedFix": "In PLANS/EXECUTION-STATUS.md replace the heading and rows at lines 5-17 with:\n## Current state (2026-09-30)\n| Branch | `agent/design-b` (from `788cbbe`). `origin/agent/design-b` is at `0f2d87a` (DESIGN-B and P02, pushed 2026-09-29); the CLEANUP-1 commits `5d85654` and `181245f` are local only. `sync/local-2026-09-26` (`788cbbe`) and `agent/p00-runtime-spike` are behind and are not the working line. The D41 change (sonnet-worker, auditor, settings) is uncommitted in the working tree. |\n| Last commit | `181245f` (CLEANUP-1 evidence); last product commit `5d85654`. |\n| Packages | P00 (D29 `6f09321`; D32 `fcad3fd`, locally verified on the full stack 2026-09-27), P01 part 1 `c98b091` with DESIGN-B `1ffb8a1`/`7ac94e8`, P02 `976176f`/`0f2d87a`, P03-P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29): see the package ledger. P08-P12 not started. |\n| Lock | None: `.anasaq-execution.lock` does not exist; CLEANUP-1 released it on 2026-09-29. |\nKeep the Hosted resources row. In the ledger P00 row (line 267) append: `; D32 replatform committed `fcad3fd`, locally verified 2026-09-27 (artifacts/acceptance/P06/commands.txt)`.",
+   "verifierCorrections": [
+    "The suggested rows are accurate against git: origin/agent/design-b is at 0f2d87a, the branch is ahead 2, there is no lock file and the D41 edits are in the working tree. Two additions: the ledger P06 row (:275) still ends with 'D32 replatform pending local verification; round 3 not started' after already saying 'round 3 done', so drop that trailing clause too. Label the P00 ledger addition as verified 2026-09-27 per artifacts/acceptance/P06/commands.txt."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.4",
+   "severity": "low",
+   "category": "docs",
+   "title": "Push state is wrong: DESIGN-B and P02 are on origin, yet the docs say nothing is pushed",
+   "file": "PLANS/EXECUTION-STATUS.md",
+   "line": 282,
+   "otherLocations": [
+    "PLANS/HANDOFF.md:24",
+    "PLANS/HANDOFF.md:25"
+   ],
+   "evidence": "1. The owner reviews CLEANUP-1 and decides on the push of `agent/design-b` (nothing is pushed).",
+   "failureScenario": "git: refs/remotes/origin/agent/design-b is 0f2d87a, 'update by push' at 2026-09-29 00:37 +0300, so 1ffb8a1, 7ac94e8, 976176f and 0f2d87a are already on origin; only 5d85654 and 181245f are local. HANDOFF lines 24-25 also say DESIGN-B and P02 are 'not pushed'. The owner deciding on the push believes DESIGN-B/P02 were never published and reviews the wrong range.",
+   "suggestedFix": "PLANS/EXECUTION-STATUS.md line 282: replace '(nothing is pushed)' with '(origin has everything through `0f2d87a`; only the CLEANUP-1 commits `5d85654` and `181245f` are unpushed)'. PLANS/HANDOFF.md lines 24-25: replace 'not pushed' with 'pushed to `origin/agent/design-b` on 2026-09-29'.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.27",
+   "severity": "low",
+   "category": "docs",
+   "title": "DESIGN-B package section still says the work is uncommitted and lists the P02 reader as open",
+   "file": "PLANS/EXECUTION-STATUS.md",
+   "line": 22,
+   "otherLocations": [
+    "PLANS/EXECUTION-STATUS.md:65"
+   ],
+   "evidence": "The work is on branch `agent/design-b` from `788cbbe`, under the lock, and is uncommitted until the owner reviews it.\n...\n- Session booking (P09) and the reader (P02).",
+   "failureScenario": "The ledger (line 269) says DESIGN-B was committed as 1ffb8a1/7ac94e8 and the lock released, and P02 (the reader) was committed as 976176f/0f2d87a. The 'Open for the owner and Anas' list (line 65) still asks them for the reader, so the owner is asked for work already delivered.",
+   "suggestedFix": "PLANS/EXECUTION-STATUS.md line 22: replace 'under the lock, and is uncommitted until the owner reviews it' with 'and was committed on the owner's word (`1ffb8a1`, `7ac94e8`); the lock is released'. Line 65: replace with '- Session booking (P09).'",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.8",
+   "severity": "low",
+   "category": "docs",
+   "title": "ISSUES 'Open items only' list still holds seven resolved issues",
+   "file": "PLANS/ISSUES.md",
+   "line": 3,
+   "otherLocations": [
+    "PLANS/ISSUES.md:9",
+    "PLANS/ISSUES.md:21",
+    "PLANS/ISSUES.md:27",
+    "PLANS/ISSUES.md:47",
+    "PLANS/ISSUES.md:55",
+    "PLANS/ISSUES.md:61",
+    "PLANS/ISSUES.md:67"
+   ],
+   "evidence": "Open items only. Closed items are listed at the end in one line each; ...\n## I25 — public design direction, paused\n**Status (2026-09-28): closed by D39.**",
+   "failureScenario": "I25 (line 9, closed by D39), I29 (line 21, resolved), I31 (line 27, resolved), I35 (line 47, resolved), I37 (line 55, resolved), I38 (line 61, cause found and handled in the spec) and I39 (line 67, resolved) sit in the open list with their original 'Package:' and 'should/Fix' bodies, e.g. I29 still says 'nothing expires yet' and I25 'Design is paused until the owner reopens it'. KICKOFF step 1 reads 'only the open issues that the next work names', so a session can re-plan finished work or treat design as paused.",
+   "suggestedFix": "PLANS/ISSUES.md: delete the I25, I29, I31, I35, I37, I38 and I39 sections and add under '## Closed': '- I25 — closed by D39 (direction B). - I29 — media sweep job `20260927120000`; residual (orphaned public derivatives) stays in I34. - I31 — `privacy_erase_staff`, docs/privacy-data-map.md. - I35 — `finance.outbox_due_since()`; residual for P08: quota-delayed mail needs its own signal. - I37 — e2e dev server in `.next/e2e`. - I38 — spec waits for the fixture page; production unaffected. - I39 — `pnpm build` clears `.next/cache/fetch-cache`.' Keep I35's P08 residual as one line under Next work if wanted.",
+   "verifierCorrections": [
+    "Do as suggested, but keep the two items that exist only in these sections. Either leave them as open one-liners (for example under a 'Small open items' heading: 'Open owner question: Tabuk imagery; real reference photos and film frames are preferred over generated ones.' and 'Known limit: an AVIF whose irot rotation swaps width and height is refused with a dimension mismatch.'), or fold each into its closed line. Keep I35's P08 residual (quota-delayed mail needs its own signal) visible under an open item or Next work, not only in Closed."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.9",
+   "severity": "low",
+   "category": "docs",
+   "title": "ISSUES 'Small UI items' lists an inline-styled error button that no longer exists",
+   "file": "PLANS/ISSUES.md",
+   "line": 85,
+   "otherLocations": [],
+   "evidence": "## Small UI items for when design reopens\n\n- `src/app/(public)/error.tsx` styles its button inline instead of through the CSS Module.",
+   "failureScenario": "src/app/(public)/error.tsx (rewritten in 1ffb8a1) uses `<ActionButton onClick={() => reset()}>` inside `styles.panel` from lost.module.css; there is no inline style. Design reopened with D39. A worker assigned this item edits a correct file.",
+   "suggestedFix": "PLANS/ISSUES.md: delete lines 83-85 and add to '## Closed': '- Inline-styled error button (I27 small UI item): `src/app/(public)/error.tsx` uses `ActionButton` and `lost.module.css` since DESIGN-B (`1ffb8a1`).'",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S22.10",
+   "severity": "low",
+   "category": "docs",
+   "title": "I34 still says the TOCTOU e2e proof is pending and the I29 sweep does not exist",
+   "file": "PLANS/ISSUES.md",
+   "line": 45,
+   "otherLocations": [],
+   "evidence": "... `media-delete` swallows Storage-removal failures so orphaned public derivatives can outlive their row until the I29 sweep exists, ... The original-promotion TOCTOU is closed: signed upload URLs no longer allow upsert, so a verified part cannot be replaced before it is moved (local e2e proof pending).",
+   "failureScenario": "EXECUTION-STATUS line 294 records the local run of 00586ea with 'media's two no-upsert refusals' passing on 2026-09-27, and I29's own status says the sweep exists but does not cover orphaned public derivatives. The residual list tells P11 to wait for a sweep that already shipped and to rerun a proof already recorded.",
+   "suggestedFix": "PLANS/ISSUES.md line 45: replace 'until the I29 sweep exists' with '(the I29 sweep does not remove orphaned public derivatives)' and '(local e2e proof pending)' with '(proven locally 2026-09-27, artifacts/acceptance/P06/commands.txt)'.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}

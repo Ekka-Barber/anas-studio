@@ -1,0 +1,331 @@
+{
+ "files": [
+  "PLANS/COVERAGE.md",
+  "PLANS/DECISIONS.md",
+  "src/admin/collections/index.ts",
+  "src/admin/collections/rooms.ts",
+  "src/admin/collections/site-settings.ts",
+  "src/admin/fields.ts",
+  "src/app/(admin)/admin/preview/page.tsx",
+  "src/app/(public)/contact/page.tsx",
+  "src/components/admin/CollectionForm.tsx",
+  "src/components/admin/DocumentEditor.tsx",
+  "src/components/admin/EmailView.tsx",
+  "src/components/admin/MediaLibrary.tsx",
+  "src/components/admin/MediaUpload.tsx",
+  "src/components/admin/MfaEnroll.tsx",
+  "src/components/admin/PublishBar.tsx",
+  "src/components/admin/RichTextEditor.tsx",
+  "src/components/admin/RoomPreview.tsx",
+  "src/components/admin/StepUp.tsx",
+  "src/components/admin/TableForm.tsx",
+  "src/components/admin/TeamView.tsx",
+  "src/components/admin/VersionHistory.tsx",
+  "src/lib/richtext.tsx",
+  "src/styles/globals.css"
+ ],
+ "findings": [
+  {
+   "id": "S08.2",
+   "severity": "high",
+   "category": "data-loss",
+   "title": "Autosave overwrites the unsaved local copy on offer as soon as the user edits before answering the banner",
+   "file": "src/components/admin/CollectionForm.tsx",
+   "line": 168,
+   "otherLocations": [],
+   "evidence": "if (equalData(data, initialData)) {\n  if (!localOffer) window.localStorage.removeItem(draftKey(collection, docId))\n  return\n}\ndebounceRef.current = setTimeout(() => {\n  const draft: StoredDraft = { baseSeq, data, savedAt: Date.now() }\n  window.localStorage.setItem(draftKey(collection, docId), JSON.stringify(draft))",
+   "failureScenario": "Yesterday a conflict or a closed tab left long unsaved text X in localStorage. Today the editor opens the document, and the banner «يوجد تعديل غير محفوظ محليًا» offers X. They ignore it and type one character in any field. One second later the effect writes the current form over the same key, replacing X. If they then leave or reload, X is gone for good. The comment above promises «A copy still on offer stays until the user answers it», and WORK-PACKAGES P04 says a conflict or a closed tab never loses text.",
+   "suggestedFix": "In the autosave effect in CollectionForm.tsx, do not write while an offer is pending: add `if (localOffer) return` before scheduling the setTimeout. Autosave resumes once acceptLocalOffer or discardLocalOffer clears it. The alternative is to hide the fields until the banner is answered.",
+   "verifierCorrections": [
+    "Correct and minimal: in the autosave effect, add `if (localOffer) return` right after the equalData block (after line 171, before the setTimeout). The pending timer is already cleared at line 167. After acceptLocalOffer or discardLocalOffer sets `localOffer` to null, the effect runs again (localOffer is in its deps) and autosave resumes.",
+    "Put `if (localOffer) return` right after the clearTimeout on line 167, which covers both branches, and drop the now-redundant `!localOffer` check on line 169. Autosave starts again once acceptLocalOffer or discardLocalOffer clears the offer, because `localOffer` is already a dependency of the effect.",
+    "Put `if (localOffer) return` right after the clearTimeout at line 167, before the equalData branch. That one guard covers both the write and the removal path, and autosave resumes when acceptLocalOffer or discardLocalOffer sets localOffer to null (it is already a dependency). Edits made while the offer is pending are then not autosaved until the user answers; that is acceptable."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G3.4",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Room and footer fields the admin requires are never rendered, so edits to them change nothing on the site",
+   "file": "src/admin/collections/rooms.ts",
+   "line": 61,
+   "otherLocations": [
+    "src/admin/collections/rooms.ts:57",
+    "src/admin/collections/rooms.ts:153",
+    "src/admin/collections/rooms.ts:193",
+    "src/admin/collections/rooms.ts:194",
+    "src/admin/collections/rooms.ts:196",
+    "src/admin/collections/rooms.ts:205",
+    "src/admin/collections/rooms.ts:216",
+    "src/admin/collections/site-settings.ts:23"
+   ],
+   "evidence": "  { name: 'vignette', label: 'الصورة الرئيسية', type: 'group', fields: roomVignetteFields },   (61; also 92, 151, 226)\n  { name: 'heroVignette', label: 'صورة البداية', type: 'image' },   (153)\n  { name: 'divider', label: 'الفاصل', type: 'image' },   (194)\n  { name: 'posterId', label: 'صورة الفيلم', type: 'image' },   (196)\n\n`grep` across src/components, src/app/(public) and src/components/site finds no reader of room.vignette, heroVignette, thura.vignette/divider/posterId, moonlightCup.vignette, boutique.vignette, roomLabel (used only in the admin list title) or footer.signature (Footer.tsx draws the <Signature> SVG instead).",
+   "failureScenario": "The owner replaces «الصورة الرئيسية» of بدأتُ من هنا, «صورة البداية» of مررتُ من هنا, or «الفاصل» or «صورة الفيلم» of ذرى with a new library image and publishes. After the rebuild the page is unchanged. The same happens with the footer's «التوقيع» and the room's «تسمية الغرفة». Because these are required image fields, he also cannot clear them. A library image placed there counts as in use and published (media_is_published), so the library blocks deleting a picture that appears nowhere. D40 documents only the بنيتُ هنا stage pictures as not drawn, not these fields.",
+   "suggestedFix": "Delete the unused fields from the field configs: every room's `vignette`, and roomLabel if its admin-title use is dropped, in rooms.ts; passed `heroVignette`; thura `vignette`/`divider`/`posterId`; moonlightCup and boutique `vignette`; `signature` from footerFields in site-settings.ts. Remove the same keys from content/initial-content.json. z.object strips unknown keys, so stored documents keep validating.",
+   "verifierCorrections": [
+    "Keep `roomLabel`, because the admin list title uses it. If you drop it, remove it from all four room configs and from initial-content.json, and check that documentTitle's ROOM_DOC_LABELS fallback still gives the wanted title. Remove the other unused keys from rooms.ts, site-settings.ts footerFields and content/initial-content.json. Only initial-content.json and rooms.ts reference heroVignette/posterId, and the other hits are acceptance JSON artifacts, which are not code. Before publishing, check that the admin editor strips unknown keys on save, because otherwise media_is_published keeps matching the stale ids in already-published documents until they are re-published."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X5.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Journal posts cannot be previewed as drafts (C15 'preview', D20)",
+   "file": "src/components/admin/CollectionForm.tsx",
+   "line": 37,
+   "otherLocations": [
+    "src/components/admin/RoomPreview.tsx:73",
+    "src/app/(admin)/admin/preview/page.tsx:6",
+    "PLANS/COVERAGE.md:21",
+    "PLANS/DECISIONS.md:28"
+   ],
+   "evidence": "/** The admin preview of a room's draft (D32); rooms without a built page have none. */\nfunction previewPathFor(collection: Collection, docId: string): string | null {\n  if (collection === 'rooms' && PREVIEW_ROOMS.has(docId)) return `/admin/preview?id=${docId}`\n  return null\n}",
+   "failureScenario": "The owner writes a post at /admin/content/posts/edit?id=… and saves it. PublishBar shows no «معاينة» button because previewPathFor returns null. RoomPreview also only queries `.eq('collection', 'rooms')` and has no renderer for posts. The first time the owner sees the article the way visitors will is after «نشر» and the site rebuild, so an unreviewed post goes live. P04 deferred post preview because \"posts have no public page until the journal composition\". DESIGN-B then added /journal/[slug] but never added the preview. site_settings.home and the scenes gallery have no preview either.",
+   "suggestedFix": "Move the article JSX of src/app/(public)/journal/[slug]/page.tsx into a props-only PostView component, the same way the room views work. In RoomPreview, read a `collection` query parameter (default rooms) and add a posts renderer: postSchema.safeParse, then resolve the cover with replaceMediaIds, then render <PostView>. Have previewPathFor return `/admin/preview?collection=posts&id=${docId}` for posts. Add a preview step to the cms.spec post lifecycle.",
+   "verifierCorrections": [
+    "The suggested fix covers the idea but misses one step. The public post is shaped by getPosts in src/lib/journal.ts:54-76, which maps category slugs to labels from the taxonomies table, sets the author, and computes reading time. The fix therefore needs a shared shapePost(post, labels) helper in src/lib/journal.ts, used both by getPosts and by the preview after it reads the latest taxonomy versions through RLS; replaceMediaIds on the cover is not enough. Pull the article JSX out into a props-only PostView, whose newer/older links are optional. Add a posts branch to RoomPreview keyed on a `collection` query parameter, and make previewPathFor return `/admin/preview?collection=posts&id=${docId}` for posts. The same collection parameter must also drive documentHref, which is currently hardcoded to 'rooms'.",
+    "Same approach, plus the shaping the suggested fix leaves out. Split the article JSX into a props-only PostView that takes a JournalPost (src/lib/journal.ts:18). In the preview, run postSchema.safeParse on the draft, then build the JournalPost the way getPosts does (journal.ts:54-77). Category slugs have to be mapped to their labels by reading the taxonomies rows under the staff session, because otherwise the category tag is lost. The cover goes through replaceMediaIds, and newer/older navigation is left out. Pass a `collection` parameter to /admin/preview, and fix the 'العودة للتحرير' link (RoomPreview.tsx:113), which is hard-coded to documentHref('rooms', id). Update docs/development.md:176 to match.",
+    "Same approach, with these gaps filled. (1) Extract the article JSX into a props-only PostView that takes a JournalPost. It must work without newer/older and with publishedAt null for a draft that has never been published. (2) In RoomPreview, read `collection` (default 'rooms') and use it for both the .eq('collection', …) query and the documentHref(collection, id) back link, which is also hard-coded to 'rooms' at RoomPreview.tsx:120. (3) The posts renderer must build a JournalPost the way getPosts does in src/lib/journal.ts:54-81: run postSchema.safeParse, turn category slugs into labels from taxonomies (read under RLS through the browser client), and resolve the cover with replaceMediaIds. Otherwise the tag chip is missing or shows the slug. (4) previewPathFor returns `/admin/preview?collection=posts&id=${docId}` for posts. (5) Add a preview step to the cms.spec post lifecycle. Home and scenes preview stay out of scope: neither had one in the P04 contract."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.3",
+   "severity": "medium",
+   "category": "data-loss",
+   "title": "Pending autosave is cancelled on unmount or tab close, and nothing warns about leaving with unsaved edits",
+   "file": "src/components/admin/CollectionForm.tsx",
+   "line": 172,
+   "otherLocations": [],
+   "evidence": "debounceRef.current = setTimeout(() => {\n  ...localStorage.setItem(...)\n}, 1000)\nreturn () => {\n  if (debounceRef.current) clearTimeout(debounceRef.current)\n}",
+   "failureScenario": "An editor pastes a long paragraph into a field, then within a second clicks the collection breadcrumb or an AdminShell nav link, or closes the tab. The effect cleanup clears the timer on unmount and there is no pagehide or beforeunload flush, so the paste is never stored and is not offered on return. The same happens when PublishBar or VersionHistory calls load() less than a second after a keystroke: setData(loadedData) runs the cleanup and drops the pending write. This breaks the P04 promise that a closed tab never loses text.",
+   "suggestedFix": "In CollectionForm.tsx, write the copy synchronously in the effect instead of on a 1 s timer (one localStorage.setItem per change of a document of at most 256 KB). If the debounce stays, flush the pending write in the unmount cleanup and on `pagehide`. Optionally add a `beforeunload` guard while `hasUnsavedChanges`.",
+   "verifierCorrections": [
+    "Smallest root-cause fix: drop the timer and call localStorage.setItem synchronously in the effect (the same effect already removes the key synchronously). A beforeunload guard is optional and not needed for the fix."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.5",
+   "severity": "medium",
+   "category": "concurrency",
+   "title": "A restored local copy based on an older version overwrites the newer saved version without warning; StoredDraft.baseSeq is written but never compared",
+   "file": "src/components/admin/CollectionForm.tsx",
+   "line": 143,
+   "otherLocations": [],
+   "evidence": "const stored = readStoredDraft(collection, docId)\nsetLocalOffer(stored && !equalData(stored.data, loadedData) ? (stored.data as Record<string, unknown>) : null)",
+   "failureScenario": "Session A's save hits a conflict (or A closed the tab) while B saved seq 6 with changes to other fields. A reloads, as CONFLICT_MESSAGE tells them to. The form loads seq 6 and offers A's local copy, a full document based on seq 5. A clicks «استعادة النسخة غير المحفوظة» and then حفظ. Seq 7 is A's whole stale document, and B's edits to every other field are reverted with no warning. The code stores `baseSeq` in the draft precisely to detect this but never reads it.",
+   "suggestedFix": "In load() in CollectionForm.tsx, keep `stored.baseSeq`. When it is lower than `loadedSeq`, show a different banner text, for example «هذه النسخة المحلية مبنية على النسخة {baseSeq}، والأحدث الآن {loadedSeq}؛ استعادتها تستبدل ما حُفظ بعدها.», so that restoring is a deliberate overwrite.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.5",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Admin save/publish/verify results render in non-live paragraphs, so outcomes are never announced",
+   "file": "src/components/admin/PublishBar.tsx",
+   "line": 355,
+   "otherLocations": [
+    "src/components/admin/CollectionForm.tsx:271",
+    "src/components/admin/TableForm.tsx:319",
+    "src/components/admin/StepUp.tsx:85",
+    "src/components/admin/MfaEnroll.tsx:135",
+    "src/components/admin/TeamView.tsx:268",
+    "src/components/admin/MediaLibrary.tsx:502",
+    "src/components/admin/MediaLibrary.tsx:555",
+    "src/components/admin/MediaUpload.tsx:407",
+    "src/components/admin/EmailView.tsx:208",
+    "src/components/admin/PublishBar.tsx:132",
+    "src/components/admin/VersionHistory.tsx:91"
+   ],
+   "evidence": "{message && <p className={styles.message}>{message}</p>}",
+   "failureScenario": "A staff member on a screen reader presses «نشر». PublishBar sets «نشر: تم بنجاح. يظهر التعديل على الموقع خلال دقائق.» or «نشر: <error>» in a plain <p> that is created with its text, so nothing is announced. The same happens with «تم الحفظ.»/CONFLICT_MESSAGE in CollectionForm and TableForm, a wrong TOTP code in StepUp and MfaEnroll («الرمز غير صحيح.»), team action errors, media save/delete errors and email replay errors. SignIn and CommerceSettingsForm show the correct pattern (a role=status/alert region).",
+   "suggestedFix": "Render these message elements always, empty when there is nothing to say, with role=\"status\": `<p role=\"status\" className={styles.message}>{message}</p>`. Give the error-only paragraphs role=\"alert\". Change each listed line.",
+   "verifierCorrections": [
+    "Anchor at PublishBar.tsx:132, not :355. Keep the success/status paragraphs mounted all the time, empty when there is no message, with role=\"status\" (for example `<p role=\"status\" className={styles.message}>{message}</p>`), because a status region that is inserted together with its text is often not announced. The error-only paragraphs can stay conditional with role=\"alert\", since alerts are announced on insertion. Mixed success/error strings (PublishBar, TableForm, CollectionForm saveMessage) should use the always-mounted role=status region."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.6",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Clicking into a rich-text body marks the document as changed: Publish and Schedule turn off, and a false «unsaved» copy is offered on the next visit",
+   "file": "src/components/admin/RichTextEditor.tsx",
+   "line": 220,
+   "otherLocations": [],
+   "evidence": "<OnChangePlugin onChange={handleChange} />\n// CollectionForm.tsx\nfunction equalData(a, b) { return JSON.stringify(a) === JSON.stringify(b) }\nconst hasUnsavedChanges = !equalData(data, initialData)\nconst canPublish = savedParsed.success && !hasUnsavedChanges && baseSeq > 0",
+   "failureScenario": "The owner opens a policy (or a post) to publish it and clicks inside the body without typing. OnChangePlugin's default `ignoreSelectionChange = false` calls onChange on a selection-only update, so `data.body` becomes `editorState.toJSON()` in Lexical's key order. `initialData.body` came from jsonb, which reorders keys by length (for a text node: mode, text, type, style, detail, format, version). JSON.stringify then differs, so hasUnsavedChanges becomes true. نشر and جدولة are disabled with no message, and autosave writes a copy. On the next visit that copy is offered as «تعديل غير محفوظ» for an unchanged document. Lexical's own source warns that stringified exports are not byte-stable.",
+   "suggestedFix": "In RichTextEditor.tsx, change the plugin to `<OnChangePlugin ignoreSelectionChange onChange={handleChange} />`. Optionally make `equalData` in CollectionForm.tsx key-order-insensitive (stringify with sorted keys).",
+   "verifierCorrections": [
+    "The root cause is the key-order-sensitive comparison, so fix that first: make `equalData` in CollectionForm.tsx key-order-insensitive (compare with a deep equal, or stringify with recursively sorted keys). That one change also covers the localOffer comparison at line 143 and content-neutral round-trips such as toggling bold on and off. Adding `ignoreSelectionChange` to OnChangePlugin is an optional extra, not the fix on its own."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.7",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Pasting from the web creates rich-text nodes the allowlist rejects (h1/h4–h6 headings, non-https links), and the toolbar shows an h1 as «عنوان 2»",
+   "file": "src/components/admin/RichTextEditor.tsx",
+   "line": 178,
+   "otherLocations": [],
+   "evidence": "const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode]\n...\nif ($isHeadingNode(element)) setBlockType(element.getTag() === 'h3' ? 'h3' : 'h2')",
+   "failureScenario": "An editor pastes an article that contains an <h1> (or a Google Docs title) or an <a href=\"http://…\"> or mailto link into a post body. Lexical 0.51's HeadingNode.importDOM maps h1–h6 to heading nodes, and $convertAnchorElement keeps any href. The saved body then fails richTextSchema (tag must be h2/h3, url must be https), so publishing is blocked. The only explanation is the raw English line `body.root.children.0.tag: Invalid option: expected one of \"h2\"|\"h3\"`, and the toolbar shows «عنوان 2» as pressed for that h1. The file comment says 'nothing the editor can produce falls outside the schema'.",
+   "suggestedFix": "In RichTextEditor.tsx, add a small plugin that registers node transforms. `editor.registerNodeTransform(HeadingNode, n => { if (n.getTag() !== 'h2' && n.getTag() !== 'h3') n.setTag('h2') })`, and a LinkNode transform that unwraps a node whose `getURL()` does not start with `https://` (move its children before it, then remove it).",
+   "verifierCorrections": [
+    "The transforms approach is right. Map h4-h6 to h3 and h1 to h2, which keeps the hierarchy better than mapping everything to h2. To unwrap a non-https LinkNode: `for (const c of n.getChildren()) n.insertBefore(c); n.remove()`. Register both transforms in one small plugin inside RichTextEditor.tsx."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Room preview checks the draft after swapping library image ids for media refs, so every room that uses a library image shows as invalid",
+   "file": "src/components/admin/RoomPreview.tsx",
+   "line": 95,
+   "otherLocations": [],
+   "evidence": "data = replaceMediaIds(data, byId, MEDIA_ORIGIN)\n...\nsetState({ status: 'ok', seq: version.data.seq as number, data })\n// later, render(state.data):\nconst parsed = startedRoomSchema.safeParse(data)\nreturn parsed.success ? <StartedRoomView .../> : null",
+   "failureScenario": "The owner picks a library image for a room field, for example the built room's intro vignette (the flow in tests/e2e/media.spec.ts), saves, and clicks معاينة. The preview swaps the uuid for a `media|https://…/m/<id>|1200x1200|360,…` string, then runs the room schema. `imageIdSchema` accepts only manifest ids or `isMediaId` uuids, so the check fails and the page says «المسودة غير صالحة؛ صحّح الحقول ثم احفظ.» for a valid draft that publishes fine. The public loader (content.ts fetchPublishedOrNull) parses first and resolves media afterwards. The preview works only when the library row is missing.",
+   "suggestedFix": "In RoomPreview.tsx, validate the raw draft before resolving media, in the same order as content.ts. Make each ROOMS entry `{ schema, draw }`. In the effect, run `schema.safeParse(version.data.data)`; on failure set an 'invalid' state; on success call `replaceMediaIds(parsed.data, byId, MEDIA_ORIGIN)` and have `draw` shape and render without parsing again.",
+   "verifierCorrections": [
+    "Smallest root-cause fix: in RoomPreview.tsx, parse before the media swap. Change ROOMS to hold { schema, draw } (draw gets already-validated data and only shapes and renders). In the effect, run `schema.safeParse(version.data.data)`; on failure set an 'invalid' state that shows the existing «المسودة غير صالحة» message; on success run collectMediaIds/replaceMediaIds on parsed.data and store it. Add one e2e or unit check: preview a room draft that uses a library image and expect the draft view, not the invalid message.",
+    "Parse first and resolve afterwards, as content.ts:135 does. Make each ROOMS entry `{ schema, draw }`. In the effect, run `schema.safeParse(version.data.data)`: on failure set an 'invalid' state, on success run collectMediaIds and replaceMediaIds on parsed.data and store the result. At render time call draw(state.data) without parsing again."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.11",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A room saved with an empty title gets an empty link in the room list and an empty editor heading",
+   "file": "src/admin/collections/index.ts",
+   "line": 68,
+   "otherLocations": [],
+   "evidence": "const title = typeof data?.title === 'string' ? data.title : null\nreturn label && title ? `${label}: ${title}` : (title ?? fallback)",
+   "failureScenario": "An editor clears a room's العنوان and saves (saving does not validate). `title` is '', which is not nullish, so documentTitle returns ''. In /admin/content/rooms that row's <Link> has no text: it is invisible to mouse users and nameless to screen readers, so the document can no longer be opened from the list. The <h1> in the editor is empty too.",
+   "suggestedFix": "Use `title || fallback` instead of `title ?? fallback` in documentTitle (src/admin/collections/index.ts:68).",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.4",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "`date` field type is supported everywhere but no field uses it (Payload leftover)",
+   "file": "src/admin/fields.ts",
+   "line": 27,
+   "otherLocations": [],
+   "evidence": "  | 'date'\n...\n    case 'date':\n      return isoDateSchema\n-- Count of `type: 'date'` in src/admin: 0. `git log -G\"type: 'date'\"` shows it was last used only in src/payload/collections/RuntimeProbe.ts, removed by 6f09321 (D29). Dead branches remain in fields.ts:27, 47, 71 and 128, and in src/components/admin/FieldInput.tsx:202 (default) and 359-373 (a `<input type=\"date\">` renderer). `FieldType` (fields.ts:17) itself has no references anywhere.",
+   "failureScenario": "No runtime failure: the admin bundle ships a renderer, a schema branch and a type alias that no collection or table config can reach.",
+   "suggestedFix": "Remove `'date'` from the Field union and BaseValue (fields.ts 47, 71), the `case 'date'` in baseSchemaFor (128) and in FieldInput.tsx (202, 359-373), and delete the unused `FieldType` alias (fields.ts 17-33).",
+   "verifierCorrections": [
+    "As suggested. Keep `isoDateSchema` (fields.ts:105), because the 'datetime' case at fields.ts:130-131 still uses it; remove only the `case 'date':` label at line 128. After the edit, check that the `switch` statements in FieldInput.tsx still type-check exhaustively."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.21",
+   "severity": "low",
+   "category": "rtl-i18n",
+   "title": "Content form validation errors show raw English schema paths to Anas",
+   "file": "src/components/admin/CollectionForm.tsx",
+   "line": 260,
+   "otherLocations": [],
+   "evidence": "<li key={index} className={styles.error}>\n                {issue.path.join('.')}: {issue.message}",
+   "failureScenario": "Saving a room with an empty item shows lines like «movements.2.paragraphs.0: …». These are code identifiers, not the Arabic field labels on the screen, so Anas cannot tell which field to fix. TableForm.tsx:306 already maps path[0] to the field label.",
+   "suggestedFix": "Map issue.path[0] to its label the way TableForm does: `fields.find((f) => f.name === issue.path[0])?.label ?? issue.path.join('.')`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.10",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Room ids are checked with `in`, so ?id=constructor (or toString, __proto__) passes and crashes the editor instead of showing «المستند غير موجود»",
+   "file": "src/components/admin/DocumentEditor.tsx",
+   "line": 14,
+   "otherLocations": [
+    "src/admin/collections/index.ts:55"
+   ],
+   "evidence": "if (collection === 'rooms') return docId in roomSchemas\n// CollectionForm.fieldsFor:\nconst roomFields = (collections.rooms.fields as Record<string, readonly Field[]>)[docId]\nif (!roomFields) throw new Error(`Unknown room: ${docId}`)",
+   "failureScenario": "Opening /admin/content/rooms/edit?id=constructor passes isValidDocId, because 'constructor' is in every object. fieldsFor then returns the `Object` function, and `fields.some(...)` throws a TypeError during render. The editor shows Next's error screen instead of «المستند غير موجود.». isRoomSlug in collections/index.ts has the same `in` check.",
+   "suggestedFix": "Use `Object.hasOwn(roomSchemas, docId)` in DocumentEditor.isValidDocId and in isRoomSlug (src/admin/collections/index.ts:55).",
+   "verifierCorrections": [
+    "Change only isRoomSlug (src/admin/collections/index.ts:55) to `Object.hasOwn(roomSchemas, docId)`, export it, and call it from DocumentEditor.isValidDocId so there is one guard. This covers schemaFor and documentTitle too. Optionally make CollectionForm.fieldsFor use the same guard."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.6",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "PublishBar re-implements `riyadhLocalToIso` that money-input.ts already exports",
+   "file": "src/components/admin/PublishBar.tsx",
+   "line": 20,
+   "otherLocations": [],
+   "evidence": "/** `<input type=\"datetime-local\">`'s value, read as Riyadh wall-clock time. */\nfunction riyadhLocalToIso(localValue: string): string {\n  return new Date(`${localValue}:00+03:00`).toISOString()\n}\n-- identical body at src/lib/money-input.ts:54-56 (exported, unit-tested in tests/unit/money-input.test.ts, used by FieldInput.tsx:17).",
+   "failureScenario": "No bug today, but the scheduling input uses an untested copy: a fix to the tested helper (e.g. a seconds-bearing value) would not reach the publish schedule.",
+   "suggestedFix": "In PublishBar.tsx delete the local function and `import { riyadhLocalToIso } from '@/lib/money-input'`.",
+   "verifierCorrections": [
+    "Delete PublishBar.tsx:19-22 and import { riyadhLocalToIso } from '../../lib/money-input', using the relative path to match FieldInput.tsx:17."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.12",
+   "severity": "low",
+   "category": "correctness",
+   "title": "«تطبيق الرابط» with a non-https URL silently removes the existing link",
+   "file": "src/components/admin/RichTextEditor.tsx",
+   "line": 85,
+   "otherLocations": [],
+   "evidence": "function applyLink() {\n  editor.dispatchCommand(TOGGLE_LINK_COMMAND, linkUrl.startsWith('https://') ? linkUrl : null)\n}",
+   "failureScenario": "The cursor is inside an existing https link. The editor corrects the URL field to `www.example.com` or `http://…` and presses «تطبيق الرابط». TOGGLE_LINK_COMMAND with null unlinks the text, so the link disappears with no message. The same click on plain text does nothing, again with no feedback.",
+   "suggestedFix": "In applyLink, dispatch null only when `linkUrl.trim() === ''`. For any other non-https value, set a local error («الرابط يجب أن يبدأ بـ https://») and do not dispatch.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.7",
+   "severity": "low",
+   "category": "rtl-i18n",
+   "title": "Rich-text «مائل» renders as <em> with browser-synthesised oblique on Arabic (no italic face exists)",
+   "file": "src/components/admin/RichTextEditor.tsx",
+   "line": 133,
+   "otherLocations": [
+    "src/lib/richtext.tsx:24",
+    "src/styles/globals.css:117"
+   ],
+   "evidence": "aria-pressed={italic}\n        onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic')}\n      >\n        مائل\n--- src/lib/richtext.tsx:24\nif (format & TEXT_FORMAT_ITALIC) out = <em>{out}</em>",
+   "failureScenario": "Anas marks a phrase «مائل» in a journal post or a policy. The public renderer emits <em>. No stylesheet resets em (grep finds no font-style in src), and Thmanyah has no italic face, so the browser slants the Arabic glyphs artificially on /journal/<slug>, /policies/<slug> and the product body. Arabic has no italic tradition, and the slant distorts the joined script. The DESIGN-B audit logged zero italics only because no content used the button yet.",
+   "suggestedFix": "In src/styles/globals.css, add `:where([data-surface='site']) em { font-style: normal; font-family: var(--font-display); }` (or another non-slant emphasis). Alternatively, remove the «مائل» button from RichTextEditor.tsx.",
+   "verifierCorrections": [
+    "Do not remove the «مائل» button, because WORK-PACKAGES.md:57 (P04 part 2) requires italic in the toolbar. Add a CSS reset instead: `:where([data-surface='site']) em { font-style: normal; }`, plus a non-slant emphasis (for example `font-family: var(--font-display)`, which exists at globals.css:234). Optionally apply the same reset to the admin editor's `.editor` class so the preview matches."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G3.8",
+   "severity": "info",
+   "category": "docs",
+   "title": "site-settings.ts header says the public pages read contact only from P10, but /contact already reads it",
+   "file": "src/admin/collections/site-settings.ts",
+   "line": 11,
+   "otherLocations": [
+    "src/app/(public)/contact/page.tsx:28"
+   ],
+   "evidence": " * P06 round 2 adds the optional `seo` and `contact` groups (`required:\n * false`), so the already-published document without them still validates;\n * the public pages read them from P10 (design paused).",
+   "failureScenario": "src/app/(public)/contact/page.tsx:28 calls `getContact()`, and the WhatsApp tile is built from site_settings.contact, so a change to the contact rules or shape affects a live public page now. The design is also no longer paused (D39). A developer who trusts the header treats `contact` as unused until P10 and changes it without checking /contact.",
+   "suggestedFix": "Reword the comment in src/admin/collections/site-settings.ts: «/contact reads `contact` (getContact); `seo` is read from P10.» Also update line 8's «nav, footer and the home intro addition» to «nav, footer, the home page's words and the social links».",
+   "verifierCorrections": [
+    "Reword lines 8-13 so they say: nav, footer, the home page's words (D39) and the social links (C09); `contact` is read by /contact (getContact); `seo` is not read yet (P10). Remove «design paused»."
+   ],
+   "needsOwnerDecision": false
+  }
+ ]
+}

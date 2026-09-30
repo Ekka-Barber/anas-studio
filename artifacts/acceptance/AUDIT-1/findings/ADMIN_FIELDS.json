@@ -1,0 +1,303 @@
+{
+ "files": [
+  "src/admin/collections/scenes.ts",
+  "src/components/admin/CollectionForm.tsx",
+  "src/components/admin/FieldInput.tsx",
+  "src/components/admin/MediaLibrary.tsx",
+  "src/components/admin/MediaPicker.tsx",
+  "src/components/admin/MediaUpload.tsx",
+  "src/components/admin/TableForm.tsx",
+  "supabase/functions/_shared/admin.ts",
+  "supabase/migrations/20260927180000_store_media.sql"
+ ],
+ "findings": [
+  {
+   "id": "S09.4",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Choosing an image in the picker drops keyboard focus to <body>",
+   "file": "src/components/admin/FieldInput.tsx",
+   "line": 101,
+   "otherLocations": [
+    "src/components/admin/MediaPicker.tsx:31"
+   ],
+   "evidence": "if (isId && current === null) {\n    return (\n      <div className={styles.field}>\n        <span className={styles.label}>{field.label}</span>\n        <p className={styles.message}>يحمّل...</p>\n      </div>",
+   "failureScenario": "A keyboard user opens «اختر من المكتبة» (or «تغيير») and presses Enter on a tile. MediaPicker.choose calls onChoose, so the value becomes a media id and ImageFieldInput re-renders the loading branch. That branch renders neither the opener button nor the MediaPicker, so the open modal dialog and its opener are both removed and focus falls to <body>. The user must tab again from the top of a long collection form (the «مررتُ من هنا» room has about 29 image fields). A native dialog's focus restore cannot work because its opener no longer exists.",
+   "suggestedFix": "In FieldInput.tsx ImageFieldInput: keep a ref to the «تغيير» button and a `justPicked` flag set by the picker's onChoose. When the preview branch renders with justPicked set, focus the button and clear the flag. Alternatively, render the loading branch with the same button row so the opener survives.",
+   "verifierCorrections": [
+    "Render <MediaPicker> once, outside the branches, in a stable place so the dialog is never unmounted mid-choose. Keep a ref to the «تغيير» button and a justPicked flag. When the preview branch mounts with the flag set, focus that button and clear the flag. If the fetch fails and the raw-input branch shows, focus the input instead. A loading branch with only the same button row does not restore focus on a first pick, because the opener «اختر من المكتبة» is a different element from «تغيير»."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.2",
+   "severity": "medium",
+   "category": "money",
+   "title": "Invalid money text keeps the old stored amount and Save stays enabled, so the owner saves a price other than the one shown",
+   "file": "src/components/admin/FieldInput.tsx",
+   "line": 281,
+   "otherLocations": [
+    "src/components/admin/TableForm.tsx:316"
+   ],
+   "evidence": "    const parsed = parseRiyals(next)\n    if (parsed === 'invalid') {\n      setInvalid(true)\n      return\n    }\n...\n      if (field.nullable) onChange(null)\n      else setInvalid(true)",
+   "failureScenario": "A variant is priced 69.00. The owner changes the price text to «75,00» or «75.505» (invalid) and clicks حفظ. `values.price_halalas` is still 6900, `schema.safeParse(values)` succeeds, so the button is enabled (TableForm.tsx:316), the update writes 6900 and the form says «تم الحفظ.» while the field still shows 75,00. Same for clearing a non-nullable money field (min_subtotal_halalas): the old value is saved.",
+   "suggestedFix": "In MoneyFieldInput.update, report the invalid state to the form value: call `onChange(Number.NaN)` for invalid text and for empty text on a non-nullable field (z.number rejects NaN, so Save disables), and in the sync effect skip the reset when `Number.isNaN(value)` so the typed text is not replaced with «NaN.NaN».",
+   "verifierCorrections": [
+    "As suggested: call onChange(Number.NaN) for invalid text and for empty text in a non-nullable field; zod 4.6.5 z.number (fields.ts:138-145) rejects NaN, so Save disables. In the sync effect (FieldInput.tsx:267-269), return early when Number.isNaN(value) so the typed text is kept. readOnlyText/formatRiyalsInput are never reached with NaN because the field is not read-only while it is being edited."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.4",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Admin field errors are not tied to their inputs (no aria-invalid / aria-describedby / alert)",
+   "file": "src/components/admin/FieldInput.tsx",
+   "line": 313,
+   "otherLocations": [
+    "src/components/admin/MediaLibrary.tsx:495",
+    "src/components/admin/MediaUpload.tsx:395",
+    "src/components/admin/MediaUpload.tsx:326"
+   ],
+   "evidence": "<input id={id} className={styles.input} type=\"text\" inputMode=\"decimal\" dir=\"ltr\" value={text} ... />\n...\n{invalid && (\n        <p className={styles.error}>\n          {isPercent ? 'أدخل نسبة صحيحة، مثل 10 أو 12.5.' : 'أدخل مبلغًا صحيحًا بالريال، مثل 69 أو 69.50.'}",
+   "failureScenario": "The owner types «69,5» into a price (money) field. The error paragraph appears, but the input gets no aria-invalid and no aria-describedby, and the paragraph is not live. A screen-reader user hears nothing and will not hear the error on refocus either. The media library and upload dialog do the same: a save with an empty alt text renders fieldErrors[field] in a bare <p> beside FieldInput, and focus stays on «حفظ»/«رفع» with no announcement. The contact and checkout forms already follow the correct pattern.",
+   "suggestedFix": "MoneyFieldInput: add id={`${id}-error`} to the error <p>, and aria-invalid={invalid || undefined} plus aria-describedby={invalid ? `${id}-error` : undefined} to the input. MediaLibrary.tsx:495 and MediaUpload.tsx:395: add role=\"alert\" to the fieldErrors <p>, or pass the error into FieldInput using the same id pattern.",
+   "verifierCorrections": [
+    "MoneyFieldInput: add id={`${id}-error`} to the error <p>, and aria-invalid={invalid || undefined} plus aria-describedby={invalid ? `${id}-error` : undefined} to the input. For the media fields, the smallest fix is role=\"alert\" on the fieldErrors <p> in MediaLibrary.tsx:495 and MediaUpload.tsx:395. aria-describedby cannot be wired to those without passing an error prop into FieldInput."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "The library's where-used list and delete guard ignore product covers; media_product_usage is never called",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 296,
+   "otherLocations": [
+    "supabase/migrations/20260927180000_store_media.sql:28",
+    "artifacts/acceptance/P07/commands.txt:125",
+    "supabase/functions/_shared/admin.ts:326",
+    "src/components/admin/MediaLibrary.tsx:519",
+    "src/components/admin/MediaLibrary.tsx:530"
+   ],
+   "evidence": "void getSupabaseBrowserClient()\n      .rpc('media_where_used', { p_id: selected.id })\n...\ndisabled={!usedIn || (usedIn.rows?.length ?? 0) > 0}",
+   "failureScenario": "The owner sets a library image as a product's cover (any status). On /admin/media that image shows «غير مستخدمة» and «حذف» is enabled. Confirming the delete fails because media_delete (20260927180000_store_media.sql:65-68) refuses any image a product names, and the reply is «الصورة مستخدمة؛ أزلها من المستندات أولًا.». Nothing on the screen says which product uses it, and the message points to documents, not products. P07 acceptance (artifacts/acceptance/P07/commands.txt:125) records media_product_usage as the source for the library's «used in» list, but no code anywhere calls it.",
+   "suggestedFix": "In MediaLibrary.tsx, in the same effect, also call rpc('media_product_usage', { p_id }). Store its rows next to the content rows, list each as a Link to `/admin/store/products/edit?id=<product_id>` with its title and status, and add their count to the delete-button guard. Optionally, change the IN_USE message in supabase/functions/_shared/admin.ts:327 to mention products.",
+   "verifierCorrections": [
+    "The suggested fix is correct and minimal. In the same effect, run rpc('media_product_usage') in parallel with media_where_used (Promise.all) and store the product rows next to the content rows. Render each product row as a Link to `/admin/store/products/edit?id=${product_id}` (the same route TableForm.tsx:238 uses) with its title and status. Add the product count to the :530 disabled guard. If either RPC errors, set error=true so the button stays disabled. Also change admin.ts:326 to say «من المستندات أو المنتجات».",
+    "The suggested fix is right: call rpc('media_product_usage') in the same effect, render product rows as links, and include their count in the delete guard. When changing admin.ts:326, also update the duplicate 23503 message in supabase/functions/_shared/media.ts:138 so it no longer says documents only.",
+    "The suggested fix is correct. The link shape matches TableForm.tsx:238 (`/admin/store/products/edit?id=`). Fetch both RPCs in the same effect: a failure in either should set error, and the delete guard should count content rows plus product rows. Also change the IN_USE text at admin.ts:326 so it names documents or products."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.2",
+   "severity": "medium",
+   "category": "data-loss",
+   "title": "Renaming a folder leaves the open details form on the old folder; the next save moves the image back",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 377,
+   "otherLocations": [],
+   "evidence": "setRenameMessage(data > 0 ? `نُقلت ${data} صورة إلى «${folderLabel(to)}».` : ...)\n    if (selectedFolder === renameFrom) setSelectedFolder(to)\n    setRenameFrom('')\n    setRenameTo('')\n    setReloadToken((token) => token + 1)",
+   "failureScenario": "An image in folder «a» is selected, so the details panel is open with folder «a». The owner renames «a» to «b». selected.folder and values.folder still hold «a». The owner then fixes only the alt text and clicks «حفظ». save() writes folder: 'a' (line 341), which silently moves the image out of «b» and recreates the old folder «a». Also, with the filter on a subfolder «a/x», renaming «a» leaves the filter on «a/x», which no longer exists, so the grid shows «لا توجد صور».",
+   "suggestedFix": "In renameFolder(), after a successful RPC, rewrite the selection and filter with the same prefix rule the SQL uses: `const moved = (f: string) => f === renameFrom || f.startsWith(renameFrom + '/') ? to + f.slice(renameFrom.length) : f`. Then apply it with setSelectedFolder(moved(selectedFolder)) when the filter is not null or ROOT_OPTION, and, if a row is selected, setSelected({...selected, folder: moved(selected.folder)}) and setValues(v => ({...v, folder: moved(v.folder)})).",
+   "verifierCorrections": [
+    "The proposed prefix-remap works; the smaller alternative is to call setSelected(null) after a successful rename (forcing reselect from fresh rows) plus the prefix remap for selectedFolder only."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.3",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "«المزيد» appends pages from a stale query and swallows errors",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 210,
+   "otherLocations": [],
+   "evidence": "onClick={() => {\n            void loadMediaPage(folder, search, rows.length).then((page) => {\n              setRows((previous) => [...previous, ...page])\n              setMore(page.length === PAGE_SIZE)\n            })\n          }}",
+   "failureScenario": "(1) With folder A filtered, the user clicks «المزيد» and then switches the filter to folder B (or types a search) before the request returns. B's first page loads, then A's rows 41-80 are appended into B's grid, so wrong images are shown and can be picked or selected. (2) If the request fails (network or expired session), the rejection is unhandled: no error is shown and the button just does nothing.",
+   "suggestedFix": "In MediaBrowser, keep a query generation ref that the main effect bumps. Capture it in the onClick and ignore the result when it has changed. Add `.catch(() => setError('تعذّر تحميل المكتبة.'))`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S08.13",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Taxonomy relation field hides selected slugs that are no longer published, so they cannot be unticked, and a failed taxonomy load reads as «none published»",
+   "file": "src/components/admin/FieldInput.tsx",
+   "line": 508,
+   "otherLocations": [
+    "src/components/admin/CollectionForm.tsx:102"
+   ],
+   "evidence": "const options = taxonomies?.[kind] ?? []\nconst selected = Array.isArray(value) ? (value as string[]) : []\n{options.length === 0 && <p className={styles.message}>لا توجد عناصر منشورة بعد.</p>}\n{options.map((option) => ( ...checkbox... ))}\n// CollectionForm.tsx:102  const { data: rows } = await supabase.from('published_documents')...  (error ignored)",
+   "failureScenario": "A post has categories ['news']. The owner archives the taxonomy `news`, which deletes its published_documents row. The post's form lists only published options, so 'news' stays in `categories` with no checkbox to untick, and the post publishes still referencing the archived category (validateVersion does not check relations). Separately, if the taxonomy query fails, `rows` is null and the field says «لا توجد عناصر منشورة بعد.» instead of reporting the error.",
+   "suggestedFix": "In FieldInput.tsx's relation case, also render every slug in `selected` that is not in `options` as a checked checkbox labelled with the slug, so it can be removed. In CollectionForm.tsx:102, read `error` and show «تعذّر تحميل التصنيفات.» when it is set.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.6",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Reordering list/paragraph items leaves focus on the old index, so repeated «أعلى» swaps items back and forth",
+   "file": "src/components/admin/FieldInput.tsx",
+   "line": 582,
+   "otherLocations": [
+    "src/components/admin/FieldInput.tsx:651",
+    "src/components/admin/FieldInput.tsx:590",
+    "src/components/admin/FieldInput.tsx:659"
+   ],
+   "evidence": "{items.map((paragraph, index) => (\n            <div key={index} className={styles.listItem}>\n...\n                  onClick={() => onChange(move(items, index, index - 1))}\n                >\n                  أعلى",
+   "failureScenario": "A keyboard user focuses «أعلى» on paragraph 4 and presses Enter. The item moves to index 3, but rows are keyed by index, so the focused button is still the one at index 4, which now belongs to the displaced paragraph. Pressing Enter again moves that paragraph up, which undoes the first move. An item can never be walked more than one step by keyboard, and nothing announces the move. The same applies to list items (lines 647-661, e.g. room movements and social links).",
+   "suggestedFix": "Give the move buttons ids (`${id}-${index}-up` / `-down`). After onChange(move(...)), focus the button at the new index: `requestAnimationFrame(() => document.getElementById(`${id}-${index - 1}-up`)?.focus())`. Mirror this for «أسفل» and for the list case.",
+   "verifierCorrections": [
+    "Give the buttons ids as suggested and refocus the moved item's button after the move, but fall back to the opposite button when the destination one is disabled. For example: moving up to index 0 focuses `${id}-0-down`, and moving down to the last index focuses `${id}-${last}-up`. A disabled button cannot take focus, so otherwise focus drops to body. Apply this to both the paragraphs branch and the list branch."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X4.3",
+   "severity": "low",
+   "category": "design",
+   "title": "Admin «المَشاهد» editor shows each photo as a bare file id with no thumbnail",
+   "file": "src/components/admin/FieldInput.tsx",
+   "line": 142,
+   "otherLocations": [
+    "artifacts/acceptance/CLEANUP-1/screenshots/admin-scenes-1440.png",
+    "artifacts/acceptance/CLEANUP-1/screenshots/admin-scenes-360.png",
+    "src/admin/collections/scenes.ts"
+   ],
+   "evidence": "<input\n  id={id}\n  className={styles.input}\n  list={`${id}-list`}\n  type=\"text\"\n  dir=\"auto\"",
+   "failureScenario": "The scenes gallery added in CLEANUP-1 stores each of its roughly 19 photos as a manifest id. ImageFieldInput renders a preview only for media-library UUIDs (lines 108-138). For a manifest id it falls through to a plain text input. Anas therefore sees «street4-street-sign» or «raha-drone-opening_landscape-poster» where the picture should be, and has to caption, reorder, hide or delete photos without seeing them. On a phone the id is also cut off. This contradicts DESIGN.md §7, which says scenes are edited as photos. See artifacts/acceptance/CLEANUP-1/screenshots/admin-scenes-1440.png and admin-scenes-360.png.",
+   "suggestedFix": "In the fallback branch of ImageFieldInput (src/components/admin/FieldInput.tsx), when `imageSources(value)` from src/lib/images.ts returns sources for a manifest id, render a small `<img className={styles.previewImg}>` from those sources above the input. The existing `.previewImg` style can be reused.",
+   "verifierCorrections": [
+    "Do not call imageSources(value) blindly in the fallback branch: it throws for any id missing from the manifest (images.ts:41), so a half-typed id would crash the admin render. Guard it with `typeof value === 'string' && imageIds.includes(value)`, and read the smallest derivative (or the poster) from the already-imported imageManifestRaw instead of imageSources' largest file. Render it with the existing `.previewImg` class above the input."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.12",
+   "severity": "low",
+   "category": "docs",
+   "title": "Stale header comments point to code that no longer exists",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 8,
+   "otherLocations": [
+    "src/components/admin/MediaUpload.tsx:23"
+   ],
+   "evidence": " * are the real enforcement); deletion goes through the `deleteMediaAction`\n * server action, which calls `media_delete` as `app_server`.",
+   "failureScenario": "There is no deleteMediaAction and no app_server path: since D32, deletion is callFunction('admin', {action:'media-delete'}) running as service_role (app_server's execute was revoked in 20260927090000). MediaUpload.tsx:23 also says the limits mirror `src/lib/media.ts`, which no longer exists (they live in supabase/functions/_shared/media.ts). A maintainer changing a limit or the delete path follows these comments to files that are not there.",
+   "suggestedFix": "Change MediaLibrary.tsx lines 8-9 to say deletion goes through the `admin` Edge Function's `media-delete` action (media_delete as service_role). Change MediaUpload.tsx line 23 to reference supabase/functions/_shared/media.ts.",
+   "verifierCorrections": [
+    "Also reword the MediaUpload.tsx:23-24 rationale: the server limits are in the Deno Edge Function module supabase/functions/_shared/media.ts, which is not importable into the Next client bundle (not 'server-only code')."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.7",
+   "severity": "low",
+   "category": "a11y",
+   "title": "The folder filter lists the root folder as a blank, unlabeled option",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 425,
+   "otherLocations": [],
+   "evidence": "<option value={ROOT_OPTION}>بلا مجلد</option>\n            {folders.map((folder) => (\n              <option key={folder} value={folder}>\n                {folderLabel(folder)}\n              </option>",
+   "failureScenario": "Whenever any image sits in the root folder, `folders` contains ''. The filter select then renders an extra option with an empty label and value '', a duplicate of «الكل». Screen readers announce a nameless option, and sighted users see a blank row. The rename select filters '' out (line 447); this one does not.",
+   "suggestedFix": "Use `folders.filter((folder) => folder !== '').map(...)` at line 425, the same as the rename select.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.8",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Picker tiles are announced as unpressed toggle buttons",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 189,
+   "otherLocations": [],
+   "evidence": "<button\n              key={row.id}\n              type=\"button\"\n              className={styles.mediaTile}\n              aria-pressed={selectedId === row.id}",
+   "failureScenario": "MediaPicker passes no selectedId, so every tile renders aria-pressed=\"false\". Screen readers announce each image as a «toggle button, not pressed», although activating it chooses the image and closes the dialog, which is an action, not a toggle.",
+   "suggestedFix": "Use `aria-pressed={selectedId === undefined ? undefined : selectedId === row.id}` so the attribute appears only on the library screen.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.9",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A failed delete's error stays and shows up when deleting another image",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 555,
+   "otherLocations": [],
+   "evidence": "{deleteError && <p className={styles.error}>{deleteError}</p>}",
+   "failureScenario": "A delete fails (for example the product-cover IN_USE case). The user closes the dialog, selects a different image and clicks «حذف». The dialog opens with the previous image's error already displayed, because deleteError is cleared only inside confirmDelete and not in select() or when the dialog opens.",
+   "suggestedFix": "Call setDeleteError(null) in select() (line 306), or in the «حذف» onClick before setDeleteOpen(true).",
+   "verifierCorrections": [
+    "Clear it where the dialog opens: `onClick={() => { setDeleteError(null); setDeleteOpen(true) }}` at MediaLibrary.tsx:531. This covers reopening on the same image as well as on a different one."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.10",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Where-used shows a post as its raw UUID",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 76,
+   "otherLocations": [],
+   "evidence": "if (row.collection === 'site_settings' || row.collection === 'scenes') return COLLECTION_LABELS[row.collection]\n  return row.doc_id",
+   "failureScenario": "Post doc_ids are random UUIDs (CollectionList.tsx:85). An image used as a post cover appears in «مستخدمة في» as a link reading like `3f1c…-…`, with no collection name or title, so the owner cannot tell which post uses it without clicking each link.",
+   "suggestedFix": "In whereUsedLabel, return a collection-prefixed label for other collections, for example `${COLLECTION_LABELS[row.collection as Collection] ?? row.collection}` (a title would need the RPC to return one).",
+   "verifierCorrections": [
+    "In whereUsedLabel, use POLICY_DOC_LABELS for policies, the same way rooms use ROOM_DOC_LABELS. For other collections return `${COLLECTION_LABELS[row.collection as Collection] ?? row.collection} · ${row.doc_id.slice(0, 8)}`, so several posts stay distinguishable. A collection label alone would make every post read the same «المقالات». Showing the real title needs the RPC to return one."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.11",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The folder list is silently capped at PostgREST max_rows (1000)",
+   "file": "src/components/admin/MediaLibrary.tsx",
+   "line": 281,
+   "otherLocations": [],
+   "evidence": ".select('folder')\n      .order('folder')\n      .limit(10000)",
+   "failureScenario": "supabase/config.toml sets max_rows = 1000, the same as the hosted default, so `.limit(10000)` still returns at most 1000 rows. Once the library has more than 1000 images, the rows are ordered by folder and root ('') images come first, so folders that sort late disappear from both the filter and the rename selects with no error.",
+   "suggestedFix": "Add a small SQL function `media_folders()` returning `select distinct folder from media` (security invoker, granted to authenticated) and call it here. If that is too much, loop over .range() pages.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.6",
+   "severity": "low",
+   "category": "performance",
+   "title": "Every image field mounts a hidden MediaBrowser that queries the library on form load",
+   "file": "src/components/admin/MediaPicker.tsx",
+   "line": 39,
+   "otherLocations": [],
+   "evidence": "<dialog ref={dialogRef} className={`${styles.dialog} ${styles.dialogWide}`} onClose={onClose}>\n      <h2>اختيار من المكتبة</h2>\n      <MediaBrowser folder={null} reloadToken={0} onSelect={choose} />",
+   "failureScenario": "ImageFieldInput always renders <MediaPicker> (FieldInput.tsx:136 and :170), even while it is closed, and MediaBrowser's effect runs on mount. Opening the «مررتُ من هنا» room (about 29 image fields) or the scenes gallery (19 items) fires 19 to 29 parallel 40-row `media` queries and builds hundreds of hidden tile buttons before anyone opens a picker. The picker's list is also frozen at mount (reloadToken 0), so an image uploaded later in another tab never appears until a full reload.",
+   "suggestedFix": "In MediaPicker.tsx, render the browser only while open: `{open && <MediaBrowser folder={null} reloadToken={0} onSelect={choose} />}`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S09.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The WebP error tells Safari users to use Safari",
+   "file": "src/components/admin/MediaUpload.tsx",
+   "line": 36,
+   "otherLocations": [],
+   "evidence": "const WEBP_ERROR =\n  'هذا المتصفح لا يستطيع إنشاء صور WebP. استخدم نسخة حديثة من Chrome أو Edge أو Firefox أو Safari.'",
+   "failureScenario": "Safari cannot encode WebP from a canvas: toBlob/convertToBlob return PNG, so line 104 returns WEBP_ERROR. That is the very case this error exists for (WORK-PACKAGES P05: «unsupported encoder ... usable error»). An owner on an up-to-date Safari (iPhone or Mac) is told to use a recent Safari, updates or retries, and still cannot upload. The message is not actionable.",
+   "suggestedFix": "Remove «أو Safari» from WEBP_ERROR in MediaUpload.tsx line 36, so it names only Chrome, Edge or Firefox.",
+   "verifierCorrections": [
+    "Remove «أو Safari» from WEBP_ERROR (line 36). If a newer Safari can in fact encode WebP, the message is still correct, because it only names browsers known to work."
+   ],
+   "needsOwnerDecision": false
+  }
+ ]
+}

@@ -1,0 +1,422 @@
+{
+ "files": [
+  "src/admin/fields.ts",
+  "src/admin/tables/coupons.ts",
+  "src/admin/tables/shipping-rates.ts",
+  "src/admin/tables/variants.ts",
+  "src/components/admin/AdminHome.tsx",
+  "src/components/admin/AdminShell.tsx",
+  "src/components/admin/EmailView.tsx",
+  "src/components/admin/FieldInput.tsx",
+  "src/components/admin/MediaLibrary.tsx",
+  "src/components/admin/MediaPicker.tsx",
+  "src/components/admin/MediaUpload.tsx",
+  "src/components/admin/MfaEnroll.tsx",
+  "src/components/admin/SettingsView.tsx",
+  "src/components/admin/SignIn.tsx",
+  "src/components/admin/StepUp.tsx",
+  "src/components/admin/TableForm.tsx",
+  "src/components/admin/TableList.tsx",
+  "src/components/admin/TeamView.tsx",
+  "src/components/admin/admin.module.css",
+  "src/components/book/PdfBookReader.tsx"
+ ],
+ "findings": [
+  {
+   "id": "S11.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Coupons list shows «لا يوجد» as the value of every fixed-amount coupon (amount_halalas is never selected)",
+   "file": "src/admin/tables/coupons.ts",
+   "line": 47,
+   "otherLocations": [
+    "src/components/admin/TableList.tsx:44"
+   ],
+   "evidence": "coupons.ts:44-49\n      text: (row) =>\n        row.kind === 'percent'\n          ? `${formatRiyalsInput(row.percent_bp as number)}٪`\n          : row.amount_halalas === null || row.amount_halalas === undefined\n            ? 'لا يوجد'\nTableList.tsx:44-47 listSelect: const keys = config.listColumns.map((column) => column.key) ... return ['id', ...keys].join(',')",
+   "failureScenario": "The owner creates a fixed coupon (kind=fixed, amount 50.00 ر.س). /admin/store/coupons selects only id,code,kind,percent_bp,enabled,updated_at, so row.amount_halalas is undefined and the «القيمة» cell reads «لا يوجد» for every fixed coupon, as if it had no amount.",
+   "suggestedFix": "Make the list read the column the custom text uses: e.g. add `amount_halalas` to the select for the coupon value column (an optional `extra: ['amount_halalas']` on that ListColumn in coupons.ts, pushed by `listSelect` in TableList.tsx), and add a unit assertion that `listSelect(couponsConfig)` contains amount_halalas.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.2",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "A transient current_staff_role() failure (including on every tab refocus) switches the whole admin to «لا تملك صلاحية الوصول» and unmounts the open screen",
+   "file": "src/components/admin/AdminShell.tsx",
+   "line": 43,
+   "otherLocations": [],
+   "evidence": "const { data, error } = await supabase.rpc('current_staff_role')\nif (!active) return\nif (error || !data) {\n  setGate({ status: 'no-role' })\n  return\n}",
+   "failureScenario": "auth-js 2.117.1 `_onVisibilityChanged` → `_recoverAndRefresh` emits SIGNED_IN on every hidden→visible tab change (GoTrueClient.js:4167). Each of these events re-runs evaluate(). Example: the owner is typing in the invite form, the commerce seller form or a document editor, and the laptop sleeps. On wake the tab becomes visible before Wi-Fi is back, so the RPC fails with a fetch error. The gate drops from 'ready' to 'no-role', the children unmount and anything not yet autosaved is lost. The owner then sees 'you do not have access' plus a sign-out button, although his role never changed. The same wrong message appears on first load whenever the network fails.",
+   "suggestedFix": "In AdminShell.evaluate, tell an RPC error apart from a null role and never downgrade a ready gate on an error: `if (error) { setGate((prev) => (prev.status === 'ready' ? prev : { status: 'no-role' })); return }` and keep `if (!data) setGate({ status: 'no-role' })` for a real missing role.",
+   "verifierCorrections": [
+    "The suggested fix is right as the minimal change: on an RPC error, keep a 'ready' gate as it is, and use no-role only when data is null. On first load an error still falls through to the misleading «لا تملك صلاحية الوصول». Optionally add an error state or a retry, or at least avoid showing the no-access message when `error` is set."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.3",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Client validation does not match the catalog's DB checks; every violation surfaces as one generic «تحقق من القيم.» with no field named",
+   "file": "src/components/admin/TableForm.tsx",
+   "line": 203,
+   "otherLocations": [
+    "src/admin/fields.ts:104",
+    "src/admin/fields.ts:113",
+    "src/admin/tables/shipping-rates.ts:11"
+   ],
+   "evidence": "      if (failure.code === '23505') setMessage(config.uniqueMessage)\n      else if (failure.code === '23514') setMessage(CHECK_MESSAGE)\n(fields.ts:113 text -> z.string(); fields.ts:104 slug /^[a-z0-9-]+$/; fields.ts:144 money max 10_000_000)",
+   "failureScenario": "Values that pass the form's Zod schema but fail migration 20260927160000 checks: coupon code «EID-10» (DB ^[A-Z0-9]{3,32}$), SKU «BOOK 01» (DB ^[A-Z0-9][A-Z0-9-]{0,39}$), product slug «-book» (DB ^[a-z0-9][a-z0-9-]{0,79}$), city_key «1st» or «a» (DB ^[a-z][a-z0-9-]{1,40}$), empty product/variant title or customer name, summary > 500 chars, shipping fee 15,000 ر.س (DB max 1,000,000 halalas, form max 10,000,000), coupon ends_at before starts_at. Save is enabled; the owner gets only «تحقق من القيم.» and cannot tell which field or rule failed.",
+   "suggestedFix": "Smallest root fix in TableForm.save: on 23514, find the field whose name appears in the PostgREST error message's constraint name (e.g. `coupons_code_check`, `shipping_rates_fee_halalas_check`) and show «<field label>: تحقق من القيمة.»; optionally tighten the few cheap client rules (slug regex to the DB pattern, `max: 1000000` on shipping-rates fee_halalas).",
+   "verifierCorrections": [
+    "Root cause is the rule mismatch, and the form already lists Zod issues per field live (TableForm.tsx:300-311). So the smallest fix mirrors the DB rules on the client: an optional `pattern`/`maxLength`/`nonBlank` on text fields (or a per-table refine) for code, sku, slug and city_key, `max: 1000000` on shipping fee_halalas, a trimmed min(1) on titles and names, max 500 on summary, and a starts_at < ends_at refine on coupons. Mapping the constraint name as a fallback only works for column checks (`coupons_code_check`). Table-level checks get names like `coupons_check2`, so the generic message has to stay for those."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.5",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Save results and field errors are not announced to screen readers",
+   "file": "src/components/admin/TableForm.tsx",
+   "line": 318,
+   "otherLocations": [
+    "src/components/admin/FieldInput.tsx:313"
+   ],
+   "evidence": "          {message && <p className={styles.message}>{message}</p>}",
+   "failureScenario": "A screen-reader owner presses حفظ; «تم الحفظ.», the conflict message, «تحقق من القيم.» or «تعذّر الحفظ.» appears in a plain <p> with no live region, focus stays on the button, and nothing is announced, so the user cannot tell whether the price or stock was saved. The money field's inline error (FieldInput.tsx:313-317) is likewise not tied to its input (no aria-invalid/aria-describedby). CommerceSettingsForm already uses role=\"status\"/role=\"alert\" for the same purpose.",
+   "suggestedFix": "Add `role=\"status\"` to the TableForm save message <p> (line 318) and to the money error <p> in FieldInput.tsx, matching CommerceSettingsForm.tsx:236.",
+   "verifierCorrections": [
+    "Put role=\"status\" on the save message <p> (TableForm.tsx:319), or role=\"alert\" when the message is an error, matching CommerceSettingsForm. Also give the money error <p> an id and set aria-invalid plus aria-describedby on the input when it is invalid; role=\"status\" alone on that <p> does not tie the error to the field."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.4",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Team table role <select> has no accessible name",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 164,
+   "otherLocations": [],
+   "evidence": "<select\n  className={styles.input}\n  value={role}\n  disabled={busy}\n  onChange={(event) =>",
+   "failureScenario": "A screen-reader or voice-control user tabbing through the team table reaches an unnamed combobox in every row; nothing tells them it is the role of that member, and the column header is not a label. This fails WCAG 4.1.2 (axe rule select-name). At 360px the column header is hidden (thead display:none) and the ::before text is only visual, so the control has no name there either. The e2e test only exercises the invite form.",
+   "suggestedFix": "In TeamView.tsx give each row's select a name that includes the member: `aria-label={`دور ${member.display_name}`}`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.6",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Action errors on team/step-up/MFA screens are not announced to assistive tech",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 268,
+   "otherLocations": [
+    "src/components/admin/TeamView.tsx:264",
+    "src/components/admin/StepUp.tsx:85",
+    "src/components/admin/MfaEnroll.tsx:135"
+   ],
+   "evidence": "{actionError && <p className={styles.error}>{actionError}</p>}\n...\nStepUp.tsx:85  {error && <p className={styles.error}>{error}</p>}\nMfaEnroll.tsx:135  {error && <p className={styles.error}>{error}</p>}",
+   "failureScenario": "The owner revokes the last owner, and staff-admin answers LAST_OWNER «يجب أن يبقى مالك نشط واحد على الأقل.». Or he types a wrong TOTP code in the step-up dialog or on the security page. In each case the error is inserted as a plain <p>, so a screen reader says nothing and the user only knows that nothing happened (WCAG 4.1.3 Status Messages). SignIn and CommerceSettingsForm already use role=\"alert\" for the same kind of message. The needsEnrollment note at TeamView.tsx:264 has the same problem.",
+   "suggestedFix": "Add role=\"alert\" to the error <p> in TeamView.tsx (lines 264 and 268), StepUp.tsx:85 and MfaEnroll.tsx:135, matching CommerceSettingsForm.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.7",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A new coupon with an empty percentage/amount passes form validation and fails in the DB with the generic message",
+   "file": "src/admin/tables/coupons.ts",
+   "line": 23,
+   "otherLocations": [
+    "src/components/admin/TableForm.tsx:228"
+   ],
+   "evidence": "  { name: 'percent', label: 'النسبة المئوية', type: 'money', unit: 'percent', max: 10000, nullable: true, visibleWhen: (values) => values.kind === 'percent' },\n  { name: 'amount_halalas', label: 'المبلغ', type: 'money', nullable: true, visibleWhen: (values) => values.kind === 'fixed' },",
+   "failureScenario": "Owner opens «جديد» on coupons, types a code, leaves النسبة المئوية empty (default null) and clicks حفظ. The schema accepts null (nullable), toRow sends kind=percent, percent_bp=null, violating check ((kind = 'percent') = (percent_bp is not null)); the owner sees only «تحقق من القيم.».",
+   "suggestedFix": "Validate only the visible fields in TableForm (`schemaFromFields(visibleFields)` after line 230) and drop `nullable: true` from the two coupon value fields, so the visible one must hold a value and the hidden one is not checked.",
+   "verifierCorrections": [
+    "As suggested, but build the schema after visibleFields is declared (move line 228 below 230, i.e. `schemaFromFields(visibleFields)`). Note that this also stops validating hidden fields for variants (stock when fulfillment is digital), which is harmless because those values stay valid defaults."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.17",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Admin nav links are text-height targets despite the stated 44px target rule",
+   "file": "src/components/admin/admin.module.css",
+   "line": 19,
+   "otherLocations": [],
+   "evidence": ".nav {\n  display: flex;\n  flex-wrap: wrap;\n  align-items: center;\n  gap: 0.5rem 1rem;",
+   "failureScenario": "The file header promises \"44px targets\". The nav <Link>s get no min-block-size or padding, and align-items:center keeps them at line height (about 24–28px) beside a 44px «تسجيل الخروج» button. On a phone, staff tap small, closely wrapped Arabic words («الأمان», «الفريق»).",
+   "suggestedFix": "In admin.module.css, add `.nav a { display: inline-flex; align-items: center; min-block-size: 2.75rem; }`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.12",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Owner home 'problems needing attention' counts rows that need no action and never clear",
+   "file": "src/components/admin/AdminHome.tsx",
+   "line": 116,
+   "otherLocations": [],
+   "evidence": "setEmailProblems(error ? { state: 'error' } : { state: 'ok', value: (data as unknown[])?.length ?? 0 })\n...\nمشكلات تحتاج انتباهًا:{' '}",
+   "failureScenario": "outbox_attention() also returns suppressed rows and sent rows with a bounce, complaint or failure. EmailView itself files these under «انتهت» ('nothing is left to do'). Outbox rows are only deleted by privacy requests. After three bounces, the home reads «مشكلات تحتاج انتباهًا: 3» forever, while the «تحتاج تدخل» filter on البريد shows no rows. The owner cannot bring the count back to zero.",
+   "suggestedFix": "In AdminHome.loadEmail count only the replayable rows, using the same rule as EmailView's REPLAYABLE_STATUSES: `(data as { status: string }[]).filter((r) => r.status === 'exhausted' || r.status === 'uncertain').length`. Keep «200+» when the raw list length reaches ATTENTION_CAP.",
+   "verifierCorrections": [
+    "In loadEmail, count rows whose status is exhausted or uncertain (the same rule as EmailView's REPLAYABLE_STATUSES). When the raw result reaches ATTENTION_CAP, show the filtered count followed by '+'. Do not show the literal «200+», because once non-replayable rows are dropped the capped number no longer means 200."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.13",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Owner home shows a failed stats call as «غير متاحة», and a failed staff lookup as an empty page",
+   "file": "src/components/admin/AdminHome.tsx",
+   "line": 244,
+   "otherLocations": [
+    "src/components/admin/AdminHome.tsx:160"
+   ],
+   "evidence": "{visits.state === 'ok' ? formatNumber(visits.value) : visits.state === 'loading' ? 'يحمّل...' : 'غير متاحة'}\n...\nconst { data } = await supabase.from('staff').select('display_name, role')...maybeSingle()\nif (!active || !data) return",
+   "failureScenario": "The file's contract says a failed query shows «تعذّر التحميل». On a network failure loadVisits sets {state:'error'}, but the render collapses 'error' into «غير متاحة», the text used when analytics is not configured. Separately, if getUser() or the staff row query fails, `own` stays null, no loader runs and no error appears: the owner sees only the title and the shortcuts, as if nothing needed attention.",
+   "suggestedFix": "In AdminHome.tsx render `visits.state === 'error' ? 'تعذّر التحميل' : ...` before the «غير متاحة» fallback. Also add a small `ownError` state set when getUser/staff returns no data, rendered as <p className={styles.error}>تعذّر التحميل</p>.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.5",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Admin screens have no <main> landmark and no skip link",
+   "file": "src/components/admin/AdminShell.tsx",
+   "line": 96,
+   "otherLocations": [],
+   "evidence": "<nav className={styles.nav}>\n  ...up to 9 links + sign-out...\n</nav>\n<div className={wide ? `${styles.page} ${styles.pageWide}` : styles.page}>{children}</div>",
+   "failureScenario": "On every admin page (home, email, content, media, store, stats, settings, security, team), a keyboard or screen-reader user must tab through up to 9 nav links and the sign-out button before reaching the page content. Landmark navigation offers no 'main' region to jump to (WCAG 2.4.1 Bypass Blocks, 1.3.1). The public layout and the admin sign-in page both provide `<main id=\"main\">`; the shell does not.",
+   "suggestedFix": "In AdminShell.tsx render the content wrapper as `<main id=\"main\" className={...}>` instead of `<div>` (no child view renders its own <main>), and add `aria-label=\"لوحة التحكم\"` to the <nav>.",
+   "verifierCorrections": [
+    "Change the content <div> at AdminShell.tsx:96 to <main id=\"main\" className=...>. Also add `<a href=\"#main\" className=\"skip-link\">` as the first child of the shell. The .skip-link style is already in globals.css:340, which the admin layout imports. The suggested fix does not add the skip link, so keyboard users still tab through the whole nav even with the landmark. Adding aria-label to the <nav> is optional."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.3",
+   "severity": "low",
+   "category": "rtl-i18n",
+   "title": "Email problems table shows the raw English status 'sent' (and 'pending'/'sending') for bounced/complained rows",
+   "file": "src/components/admin/EmailView.tsx",
+   "line": 32,
+   "otherLocations": [],
+   "evidence": "const STATUS_LABEL: Record<string, string> = { exhausted: 'مستنفد', uncertain: 'غير مؤكد', suppressed: 'محظور' }\n...\n{STATUS_LABEL[row.status] ?? row.status}",
+   "failureScenario": "outbox_attention() also returns rows `where ... or o.delivery in ('bounced','complained','failed')`. A normal bounce is a row with status 'sent' and delivery 'bounced' (email_event_record only sets delivery), so the الحالة cell reads «sent» next to «ارتد». This is the most common email problem, and it leaves an English code in the Arabic owner UI. outbox_replay() does not clear `delivery`, so a replayed uncertain row that already carried a delivery event also comes back as a raw 'pending' or 'sending'. That contradicts the file's comment that a sending row is never returned.",
+   "suggestedFix": "Add the missing outbox statuses to STATUS_LABEL in EmailView.tsx: `sent: 'أُرسل', pending: 'في الانتظار', sending: 'قيد الإرسال'`.",
+   "verifierCorrections": [
+    "Add `sent: 'أُرسلت'` to STATUS_LABEL in EmailView.tsx:32 (feminine, since it agrees with رسالة). Labels for pending and sending are optional: those statuses cannot actually reach this table."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.14",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Settings WhatsApp preview shows «غير مُعدّ بعد» when the settings read fails",
+   "file": "src/components/admin/SettingsView.tsx",
+   "line": 49,
+   "otherLocations": [],
+   "evidence": "const { data: published } = await supabase.from('published_documents')...maybeSingle()\nlet data = (published?.data as ...)?.contact\nif (!data) { const { data: row } = await supabase.from('content_documents')... }\n...\nif (typeof raw !== 'string' || raw.trim() === '') { setWhatsapp({ state: 'not-set' })",
+   "failureScenario": "Both queries ignore `error`. On a network or RLS failure the owner is told the WhatsApp number is not set, although it may be published. That goes against D21: unavailable is shown as unavailable.",
+   "suggestedFix": "In SettingsView.tsx read `error` from both queries and, when both fail, set a new `{ state: 'error' }` rendered as <p className={styles.error}>تعذّر التحميل</p>.",
+   "verifierCorrections": [
+    "Trigger the error state when the outcome is undetermined, not only when both fail: capture `error` from both queries and, if no contact data was found and either query errored (e.g. `if (!data && (pubErr || rowErr)) { setWhatsapp({ state: 'error' }); return }`), render <p className={styles.error}>تعذّر التحميل</p>. A published-query failure followed by an empty draft must also be an error, which a 'both fail' rule would miss."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.11",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Sign-in code step has no way to request a new code or change the email (codes expire in 10 min)",
+   "file": "src/components/admin/SignIn.tsx",
+   "line": 44,
+   "otherLocations": [],
+   "evidence": "setMessage(SENT_MESSAGE)\nsetStep('code')\n...\n) : (\n  <form className={styles.form} onSubmit={submitCode}>",
+   "failureScenario": "Once step is 'code' nothing sets it back to 'email'. If the staff member mistyped the email, or the code expired (supabase/config.toml otp_expiry = 600), each attempt ends with «الرمز غير صحيح أو انتهت صلاحيته.» and the page offers no resend or change-email control. The only way out is a full page reload, which the UI never suggests.",
+   "suggestedFix": "In SignIn.tsx add a secondary button in the code form that runs `setStep('email'); setCode(''); setError(null)`. The existing 429 handling in submitEmail already covers the resend throttle.",
+   "verifierCorrections": [
+    "Add a type=\"button\" secondary control (styles.buttonSecondary) in the code form with onClick={() => { setStep('email'); setCode(''); setError(null); setMessage(null) }}. Also clear the message, otherwise the stale 'sent' line stays above the email form."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.19",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Sign-in step change and reader mode toggle drop keyboard focus to <body>",
+   "file": "src/components/admin/SignIn.tsx",
+   "line": 44,
+   "otherLocations": [
+    "src/components/book/PdfBookReader.tsx:503"
+   ],
+   "evidence": "setMessage(SENT_MESSAGE)\n    setStep('code')\n  }\n...\n          <input\n            id=\"code\"",
+   "failureScenario": "After «أرسل الرمز», the email form, including its focused submit button, unmounts and the code form mounts with nothing focused. The keyboard user must find the code field from the top of the document. In the book reader, «عرض للقراءة»/«عرض الكتاب» re-renders the tools under a different parent (lines 503 and 517), so the pressed toggle unmounts and focus is lost the same way.",
+   "suggestedFix": "SignIn.tsx: add autoFocus to the #code input. PdfBookReader.tsx: keep a ref on the mode toggle and focus it in a useEffect keyed on [mode], or render {tools} at the same tree position in both modes.",
+   "verifierCorrections": [
+    "SignIn: add autoFocus to the #code input. Reader: the loss happens only on entering pages mode (book mode already focuses the host at line 372). Keep a ref on the toggle and focus it in an effect when mode === 'pages', or focus the readingTools container. Do not add a focus effect for both modes, because it would race host.focus()."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.18",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Admin modal dialogs have no accessible name",
+   "file": "src/components/admin/StepUp.tsx",
+   "line": 59,
+   "otherLocations": [
+    "src/components/admin/MediaPicker.tsx:37",
+    "src/components/admin/MediaUpload.tsx:304",
+    "src/components/admin/MediaLibrary.tsx:552"
+   ],
+   "evidence": "<dialog ref={dialogRef} className={styles.dialog} onClose={onClose}>\n      <form className={styles.form} onSubmit={submit}>\n        <p>يلزم رمز تطبيق المصادقة لإكمال هذا الإجراء.</p>",
+   "failureScenario": "When the owner's step-up opens, a screen reader announces only \"dialog\", with no title. The media picker, upload and delete dialogs each show an <h2> but do not reference it. EmailView does this correctly with aria-labelledby.",
+   "suggestedFix": "StepUp: add aria-label=\"التحقق بتطبيق المصادقة\". MediaPicker, MediaUpload and the MediaLibrary delete dialog: give each <h2> an id and add aria-labelledby on the <dialog>.",
+   "verifierCorrections": [
+    "StepUp: aria-label=\"التحقق بتطبيق المصادقة\" as suggested. MediaPicker is rendered once per image field (FieldInput.tsx:136,170), so a form with several image fields would duplicate a static id; use React useId() for the <h2> id there (and for consistency in MediaUpload/MediaLibrary), then aria-labelledby on each <dialog>."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Every edit page flashes the red error «تعذّر تحميل السجل.» while the row is still loading",
+   "file": "src/components/admin/TableForm.tsx",
+   "line": 225,
+   "otherLocations": [],
+   "evidence": "      setRole((roleData as StaffRole | null) ?? null)\n...\n      const { data: row, error } = await supabase.from(config.table).select('*').eq('id', idParam).maybeSingle()\n...\n  if (loadError || !values) return <p className={styles.error}>تعذّر تحميل السجل.</p>",
+   "failureScenario": "Opening /admin/store/products/edit?id=<uuid>: role is set, then the row fetch awaits; during that round trip role != null and values == null, so the page renders the failure message in error style until the row arrives (the whole fetch duration on a slow connection), for every product, variant, rate, coupon and customer.",
+   "suggestedFix": "Render the loading text until the row resolves: change line 225 to `if (loadError) return …error…; if (!values) return <p className={styles.message}>يحمّل...</p>`.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.8",
+   "severity": "low",
+   "category": "correctness",
+   "title": "RLS-denied updates and failed secondary loads are reported as the wrong state",
+   "file": "src/components/admin/TableForm.tsx",
+   "line": 207,
+   "otherLocations": [
+    "src/components/admin/TableForm.tsx:162"
+   ],
+   "evidence": "    if (savedRows.length === 0) {\n      // Another session changed the row first; the typed values stay.\n      setMessage(CONFLICT_MESSAGE)\n...\n        const { data } = await query\n        if (active) setVariants((data as Record<string, unknown>[]) ?? [])",
+   "failureScenario": "An owner demoted to operations in another session (or a row deleted) saves: RLS filters the UPDATE to zero rows with no error, so the form claims another session edited the record. Separately, if the product page's variants query fails, `data` is null and the page states «لا توجد خيارات بعد.», inviting the owner to add duplicate variants.",
+   "suggestedFix": "In the zero-row branch re-read `current_staff_role()` and show «لا تملك صلاحية الوصول» when it is not owner; in the secondary load keep `variants` null and show «تعذّر تحميل الخيارات.» when `error` is set.",
+   "verifierCorrections": [
+    "The zero-row branch is fine as proposed (re-read current_staff_role and show the no-access text). For the secondary loads, handle both queries: on error, keep variants null (the empty-state message at line 353 is already gated on variants !== null) and show «تعذّر تحميل الخيارات.». Treat the coupon products load the same way, so an empty scope is not mistaken for «all products»."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S11.9",
+   "severity": "low",
+   "category": "correctness",
+   "title": "TableForm ignores config.read and config.insert, so direct URLs show misleading pages",
+   "file": "src/components/admin/TableForm.tsx",
+   "line": 223,
+   "otherLocations": [],
+   "evidence": "  if (role === 'editor') return <p className={styles.error}>لا تملك صلاحية الوصول</p>",
+   "failureScenario": "Operations opens /admin/store/coupons/edit?id=new and gets a blank read-only coupon form («هذه الصفحة للقراءة فقط»), or ?id=<uuid> and gets «تعذّر تحميل السجل.» instead of no-access (TableList checks config.read, TableForm does not). The owner opening /admin/store/customers/edit?id=new gets an editable customer form whose save always fails («تعذّر الحفظ.», no insert grant).",
+   "suggestedFix": "Mirror TableList's guard at line 223: `if (role === 'editor' || (config.read === 'owner' && role !== 'owner'))` → no access; and treat `idParam === 'new' && !config.insert` as not found.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.20",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Team invite: email field lacks dir=\"ltr\", and the fields are cleared even when the invite failed",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 118,
+   "otherLocations": [
+    "src/components/admin/TeamView.tsx:219"
+   ],
+   "evidence": "await runAction({ action: 'invite', email: inviteEmail, displayName: inviteName, role: inviteRole })\n    setInviteEmail('')\n    setInviteName('')",
+   "failureScenario": "runAction swallows failures into actionError and returns normally, so an invite refused by staff-admin (for example an invalid or duplicate address) still wipes both fields, and the owner retypes everything. The #invite-email input (line 219) also has no dir=\"ltr\"/autoComplete, unlike SignIn's email field, so a Latin address is typed right-aligned in RTL.",
+   "suggestedFix": "Make runAction return true on success and clear the fields only then (the step-up path keeps its body). Add dir=\"ltr\" and autoComplete=\"email\" to #invite-email.",
+   "verifierCorrections": [
+    "Have runAction return a boolean (true only when result.ok), clear the invite fields only on true, and leave them filled on the STEP_UP_REQUIRED path because the retry may still fail. Copy SignIn's attributes to #invite-email: dir=\"ltr\", spellCheck={false}, autoComplete=\"email\"."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.8",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Owner can revoke or demote himself with one click, no confirmation",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 199,
+   "otherLocations": [],
+   "evidence": "onClick={() =>\n  runAction({ action: 'set_active', userId: member.user_id, active: !member.active })\n}",
+   "failureScenario": "With two owners, owner A clicks «إيقاف» on his own row, for example within 5 minutes of a previous step-up, when no dialog appears. staff-admin sets active=false and bans A for 876000h, which locks him out immediately; only the other owner can restore him. The last-owner trigger does not help because another owner exists. A role change on his own row to محرر also drops his owner access at once. No confirm() or dialog guards either action.",
+   "suggestedFix": "In TeamView.tsx, before runAction for set_active with active=false, and for set_role on the signed-in user's own row, ask with `window.confirm(...)` and return when it is refused; or hide these controls on the caller's own row (compare with the session user id).",
+   "verifierCorrections": [
+    "Smallest root-cause fix, with no need to look up the session user id: in the revoke onClick, when member.active is true, run `if (!window.confirm(`إيقاف ${member.display_name}؟`)) return` before runAction. This guards every revoke, the caller's own row included. Leave set_role alone, since it already needs two deliberate actions."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S10.9",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Team table shows a revoked member as «نشط» after a BAN_FAILED reply",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 83,
+   "otherLocations": [
+    "src/components/admin/TeamView.tsx:109"
+   ],
+   "evidence": "if (result.ok) {\n  await loadDirectory()\n  return\n}\n...\nsetActionError(result.error.message)",
+   "failureScenario": "On set_active, staff-admin first commits `active=false`, then the ban call fails and it answers 500 BAN_FAILED «حُدّثت الحالة لكن تعذّر إيقاف الدخول». The directory reloads only on ok, so the row still says «نشط» with an «إيقاف» button while the database says موقوف. onStepUpVerified (line 109) behaves the same way.",
+   "suggestedFix": "In TeamView.runAction and onStepUpVerified, call `await loadDirectory()` on every non-STEP_UP result as well, not only on ok.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.15",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "Table list `nullText` repeats the field's `nullHint` string",
+   "file": "src/admin/tables/variants.ts",
+   "line": 37,
+   "otherLocations": [],
+   "evidence": "  { name: 'price_halalas', label: 'السعر', type: 'money', nullable: true, nullHint: 'غير مسعّر: لا يُعرض للبيع.' },\n...\n    { key: 'price_halalas', label: 'السعر', nullText: 'غير مسعّر: لا يُعرض للبيع.' },\n-- same pair in shipping-rates.ts:11 and :24. These two list columns are the only users of ListColumn.nullText (index.ts:32). TableForm.tsx:82 already derives the empty text from `field.nullHint`.",
+   "failureScenario": "No bug today; one wording change must be made twice or the list and the form disagree.",
+   "suggestedFix": "In TableList.tsx cellText, move the null check below the field lookup and return `(field?.type === 'money' && field.nullHint) || 'لا يوجد'`. Then delete `nullText` from ListColumn and from both configs.",
+   "verifierCorrections": [
+    "Suggested fix is right. In cellText (TableList.tsx:28-29), look up the field first, then return `field?.type === 'money' && field.nullHint ? field.nullHint : 'لا يوجد'` for null or undefined. This matches TableForm.tsx:82. Remove `nullText` from ListColumn (index.ts:32) and from variants.ts:37 and shipping-rates.ts:24."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.17",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "Staff role type and Arabic role labels declared in five places",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 24,
+   "otherLocations": [],
+   "evidence": "const ROLE_LABEL: Record<Role, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل' }\n-- identical ROLE_LABEL at AdminHome.tsx:22. The union 'owner' | 'editor' | 'operations' is declared at AdminHome.tsx:19, AdminShell.tsx:12, TableList.tsx:21 (exported StaffRole), TeamView.tsx:12 and supabase/functions/_shared/staff.ts:14 (exported StaffRole).",
+   "failureScenario": "No bug today; adding or renaming a role needs five edits, and a missed one type-checks silently for the string-typed copies.",
+   "suggestedFix": "Import `type StaffRole` from supabase/functions/_shared/staff.ts (type-only import, zero bundle cost) in the four admin components. Export ROLE_LABEL once (e.g. from TableList.tsx or a small src/admin/roles.ts) and import it in AdminHome.tsx and TeamView.tsx.",
+   "verifierCorrections": [
+    "Keep the Deno copy separate. In src, reuse the StaffRole already exported from TableList.tsx:21 (StoreHome.tsx and TableForm.tsx already import it). Export ROLE_LABEL once next to it, then import both into AdminHome.tsx, AdminShell.tsx and TeamView.tsx and delete the local copies."
+   ],
+   "needsOwnerDecision": false
+  }
+ ]
+}

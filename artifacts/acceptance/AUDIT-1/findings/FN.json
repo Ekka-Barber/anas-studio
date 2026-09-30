@@ -1,0 +1,326 @@
+{
+ "files": [
+  "PLANS/ARCHITECTURE.md",
+  "docs/operations.md",
+  "src/admin/collections/media.ts",
+  "src/components/public/contact/ContactForm.tsx",
+  "supabase/functions/_shared/admin.ts",
+  "supabase/functions/_shared/analytics.ts",
+  "supabase/functions/_shared/checkout.ts",
+  "supabase/functions/_shared/contact.ts",
+  "supabase/functions/_shared/email.ts",
+  "supabase/functions/_shared/http.ts",
+  "supabase/functions/_shared/media-rules.ts",
+  "supabase/functions/_shared/media.ts",
+  "supabase/functions/_shared/resend-webhook.ts",
+  "supabase/functions/_shared/staff.ts",
+  "supabase/functions/contact/deno.json",
+  "supabase/functions/staff-admin/index.ts",
+  "supabase/migrations/20260926090000_media_library.sql",
+  "supabase/migrations/20260927120000_rebuild_delivery_and_media_sweep.sql"
+ ],
+ "findings": [
+  {
+   "id": "S16.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Contact textarea allows 5,000 characters, but the function rejects bodies over 8 KiB, so long Arabic messages fail after the visitor has written them",
+   "file": "src/components/public/contact/ContactForm.tsx",
+   "line": 164,
+   "otherLocations": [
+    "supabase/functions/_shared/contact.ts:32",
+    "PLANS/ARCHITECTURE.md:95",
+    "docs/operations.md:42"
+   ],
+   "evidence": "<textarea ... maxLength={5000}   (ContactForm.tsx:164)\nvs supabase/functions/_shared/contact.ts:26-32: \"Arabic is two bytes a character in UTF-8, so a message stops fitting near 4,000 Arabic characters ... the P01 form should cap its textarea accordingly.\" const MAX_BODY_BYTES = 8_192",
+   "failureScenario": "A visitor writes a 3,800-character Arabic message. The textarea accepts it because it is under maxLength 5000. They solve Turnstile and press أرسل. The JSON body is about 7.6 KB of message, plus the name, email, UUID and a Turnstile token of up to 2 KB, which is more than 8,192 bytes. The function answers 413 «رسالتك أطول من المسموح؛ اختصرها…». The token is spent, and the form never says how much to cut, even though the handler's comment asks the form to cap the field.",
+   "suggestedFix": "In ContactForm.tsx, cap the field to what fits in bytes. Before the fetch in submit(), add `if (new TextEncoder().encode(values.message.trim()).length > 5500) { setErrors({ message: 'رسالتك أطول من المسموح؛ اختصرها.' }); messageRef.current?.focus(); return }`, and lower maxLength to 2750. This keeps the check ahead of the Turnstile spend.",
+   "verifierCorrections": [
+    "Fix it once in one of two ways. (a) The root cause is that the byte ceiling is smaller than the schema's 5,000-character bound. Raise MAX_BODY_BYTES in contact.ts to 16_384 (5000×2 + 2048 token + fields fits, and the 32 KiB declared-length guard stays) and update the '8 KiB' wording in PLANS/ARCHITECTURE.md:95, docs/operations.md:42 and the contact.ts:26-31 comment. (b) If 8 KiB must stay, keep maxLength and add only the client check in submit() before the Turnstile check: if new TextEncoder().encode(values.message.trim()).length > 5500, set the message error and focus it."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S02.3",
+   "severity": "low",
+   "category": "docs",
+   "title": "media-delete comment says leftover objects are covered by the I29 sweep, but the sweep only handles quarantine/ and remove() never reports a failure",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 331,
+   "otherLocations": [
+    "supabase/functions/_shared/admin.ts:104",
+    "supabase/migrations/20260927120000_rebuild_delivery_and_media_sweep.sql:114"
+   ],
+   "evidence": "admin.ts:331-332:\n  // ponytail: a failed object removal still answers ok; the leftovers are\n  // unreferenced and covered by the storage orphan sweep (I29 housekeeping).\nadmin.ts:104-107 (remove ignores the returned error, so the try/catch at 333-338 never fires):\n    async remove(bucket, keys) {\n      if (keys.length === 0) return\n      await storage().from(bucket).remove(keys)\n    },\nrebuild_delivery_and_media_sweep.sql:114-115: where o.bucket_id = 'media-private' and o.name like 'quarantine/%'",
+   "failureScenario": "The owner deletes an image, for example because its rights were withdrawn, while Storage has a transient failure. The row is gone and the request answers ok, but media-public/m/<id>/<w>.webp and media-private/originals/<id> stay. Nothing ever removes them: media_sweep_candidates lists only media-private quarantine/ objects. The public derivatives stay downloadable indefinitely. PLANS/ISSUES.md I29 already says 'Not covered: orphaned public derivatives (I34 residual)'. The new fact is that the code comment says the opposite, and a maintainer who trusts it will not follow up.",
+   "suggestedFix": "supabase/functions/_shared/admin.ts:331-332: say that leftovers are NOT swept (I29 'Not covered', I34 residual) and that storageStore().remove does not surface Storage errors, so the catch below is only a guard. No behaviour change is needed for this finding.",
+   "verifierCorrections": [
+    "Beyond the comment fix: the orphaned original under media-private/originals/ is not swept either, since it sits outside quarantine/. The comment should name both it and the media-public derivatives as unswept (I29 'Not covered', I34 residual)."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S02.5",
+   "severity": "low",
+   "category": "docs",
+   "title": "admin.ts header says the role check 'only shapes the reply', but for stats, status and the TOTP step-up it is the only enforcement",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 29,
+   "otherLocations": [
+    "supabase/functions/_shared/admin.ts:156",
+    "supabase/functions/_shared/admin.ts:164"
+   ],
+   "evidence": "admin.ts:29-30:\n * Every SQL function rechecks the actor's role itself; the role check here\n * only shapes the reply.\nadmin.ts:156-169: stats()/settingsStatus() call no SQL at all, and the recentTotp check for commerce-settings-save / commerce-policies-approve exists only here (commerce_settings_save and commerce_policies_approve receive p_actor from service_role and cannot see aal/amr).",
+   "failureScenario": "A maintainer trusts the header and removes or loosens the 'redundant' checks in handleAdmin. Any active editor could then read the owner statistics and the configuration status, and an owner session without a fresh TOTP could change the seller details and approve policies. That would defeat the D13 step-up, which only this file enforces.",
+   "suggestedFix": "supabase/functions/_shared/admin.ts:29-30: state that the media and commerce SQL functions recheck the role, while the owner-only `stats` and `status` checks and every TOTP step-up are enforced only here and must stay.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S07.1",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The 'most requested pages' list counts 404s, redirects and bot scans because the query has no status filter",
+   "file": "supabase/functions/_shared/analytics.ts",
+   "line": 79,
+   "otherLocations": [],
+   "evidence": "TOP_PATHS_QUERY (lines 76-84):\n        limit: ${TOP_PATHS_QUERY_LIMIT}\n        orderBy: [count_DESC]\n        filter: { datetime_geq: $start, datetime_lt: $end, requestSource: \"eyeball\", clientRequestHTTPHost: $host }\nisRealPage() (lines 112-121) removes only /admin, /api, /_next and a fixed list of file extensions. Nothing filters on response status. PLANS/ARCHITECTURE.md:103 promises \"a separate path-grouped request count for successful public HTML pages\".",
+   "failureScenario": "On any public host, scanners send eyeball requests daily to paths like /wp-login.php, /xmlrpc.php and /.env. The extensions 'php' and 'env' are not in EXCLUDED_EXTENSIONS, and every one of these requests gets a 404, so they rank in the owner's «أكثر الصفحات طلبًا» (most requested pages) list at /admin/stats and on the owner home, for example '/wp-login.php: 312'. On a new, low-traffic site they can push out the real pages. Redirect hits such as /store.html, and Cloudflare's own /cdn-cgi/* paths, show up the same way. The plan's guarantee of successful pages only is not kept.",
+   "suggestedFix": "In TOP_PATHS_QUERY (analytics.ts:79), add a success filter to the `filter` object, for example `edgeResponseStatus_in: [200, 304]` (or `edgeResponseStatus: 200`), and confirm the field at the E11 live-schema check that the file already names. Update the query expectation in tests/unit/analytics.test.ts if it pins the query text. Functional impact: top paths show only pages that were actually served. The visits number and the unavailable/sampled logic do not change.",
+   "verifierCorrections": [
+    "Enforce both halves of the spec in the query filter, not only the status: add `edgeResponseStatus: 200` (or `edgeResponseStatus_in: [200, 304]`) and `edgeResponseContentTypeName: \"html\"` to the TOP_PATHS_QUERY filter, and keep isRealPage for the admin/api prefixes. Confirm both field names at the E11 live-schema check. Add one assertion in tests/unit/analytics.test.ts (near line 99) that TOP_PATHS_QUERY contains the status filter."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S04.5",
+   "severity": "low",
+   "category": "security",
+   "title": "The contact name accepts newlines, so a visitor can forge the notice's own الاسم / البريد / الوقت lines",
+   "file": "supabase/functions/_shared/contact.ts",
+   "line": 85,
+   "otherLocations": [
+    "supabase/functions/_shared/email.ts:239"
+   ],
+   "evidence": "  name: z.string().trim().min(1).max(120),",
+   "failureScenario": "The name is trimmed only at its ends. The database CHECK (char_length(btrim(name)) between 1 and 120) also allows \\n, \\r, U+2028 and U+2029. renderContactNotice (email.ts:239) wraps the whole name in a single FSI...PDI pair and does not split it into lines as it does the message. So `{\"name\":\"Ali\\nالبريد: publisher@realpress.com\\nالوقت: 2026-01-01\"}` produces a notice whose first البريد line is forged and appears above the real one. Isolates end at a paragraph break, so the forged lines are not isolated either. This breaks the 'isolates around every user line' contract in email.ts:230 and lets a sender pass as someone else in the owner's only inbox (D31).",
+   "suggestedFix": "In contact.ts line 85, collapse whitespace in the name: `name: z.string().trim().min(1).max(120).transform((s) => s.replace(/\\s+/gu, ' ')),`. JavaScript's \\s includes \\n, \\r, U+2028 and U+2029. Functional impact: a multi-line name is stored on one line. The database CHECK still passes.",
+   "verifierCorrections": [
+    "Fix it in renderContactNotice, the single place every notice goes through, so rows that are already stored are covered too: `isolated(data.name.replace(/[\\r\\n\\u0085  ]+/gu, ' '))`. Optionally also collapse whitespace in the contact.ts schema as suggested. Note that JS \\s does not match U+0085 (NEL), so list it explicitly."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.11",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "email.ts has a second constant-time comparator beside env.ts `secretsMatch`",
+   "file": "supabase/functions/_shared/email.ts",
+   "line": 262,
+   "otherLocations": [],
+   "evidence": "function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {\n  const length = Math.max(a.length, b.length)\n  let diff = a.length ^ b.length\n  for (let i = 0; i < length; i += 1) {\n    diff |= (a[i] ?? 0) ^ (b[i] ?? 0)\n  }\n-- env.ts:23 `secretsMatch` runs the same loop on TextEncoder bytes, and its doc says 'The one implementation for every bearer-secret check'.",
+   "failureScenario": "No bug; two copies of a security primitive must be kept identical by hand.",
+   "suggestedFix": "Extract a byte-level `bytesEqual(a, b)` into env.ts. Implement `secretsMatch` as `bytesEqual(encode(a), encode(b))` and import it in email.ts in place of `timingSafeEqual`.",
+   "verifierCorrections": [
+    "Smaller fix with no new helper: at email.ts:323, compare the base64 strings with `secretsMatch(entry.slice('v1,'.length), bytesToBase64(expected))`, import secretsMatch from env.ts, and delete timingSafeEqual. Keep base64ToBytes only if it is still used to decode the whsec_ key. Svix's own libraries compare the base64 signature strings the same way."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S07.2",
+   "severity": "low",
+   "category": "security",
+   "title": "Public functions read the whole body into memory before checking its size; boundedText() exists for this but nothing calls it",
+   "file": "supabase/functions/_shared/http.ts",
+   "line": 40,
+   "otherLocations": [
+    "supabase/functions/_shared/contact.ts:129",
+    "supabase/functions/_shared/checkout.ts:249",
+    "supabase/functions/_shared/resend-webhook.ts:121"
+   ],
+   "evidence": "export async function boundedText(request: Request, maxBytes: number): Promise<string | null> {\n  const declared = Number(request.headers.get('content-length'))\n  if (declared > maxBytes) return null\n  const text = await request.text()\n  return new TextEncoder().encode(text).length > maxBytes ? null : text\n}\nNo file in the repo calls it. contact.ts:129, checkout.ts:249 and resend-webhook.ts:121 each copy the same pattern: a Content-Length check, then `await request.text()`, then a size check afterwards.",
+   "failureScenario": "An unauthenticated client POSTs a chunked body with no Content-Length to /functions/v1/contact, /checkout or /resend-webhook (all verify_jwt=false), with the correct content type and a 100 MB payload. The declared-length check sees NaN and passes. `request.text()` then buffers all 100 MB, and TextEncoder copies it again, before the 8-64 KiB limit is enforced. Repeated requests can hit the Edge Function memory limit (the worker is killed) and burn invocations on the public endpoints. The comments call the post-read check a 'backstop', but it does not bound memory.",
+   "suggestedFix": "Make http.ts boundedText stream the body. Read `request.body.getReader()`, add up `value.byteLength`, and call `reader.cancel()` and return null as soon as the total passes maxBytes. At the end, decode the collected bytes with TextDecoder, which gives the same UTF-8 text as request.text(), so the Svix signature over the raw body is unchanged. Then replace the three `await request.text()` plus post-check blocks in contact.ts:129, checkout.ts:249 and resend-webhook.ts:121 with `const text = await boundedText(request, MAX_BODY_BYTES); if (text === null) return <existing 413>`. This also removes the dead export. Functional impact: none for real requests.",
+   "verifierCorrections": [
+    "Stream inside boundedText in http.ts. Use `request.body?.getReader()`, sum `value.byteLength`, and call `reader.cancel()` and return null once the total exceeds maxBytes. Concatenate the chunks and decode them with `new TextDecoder().decode(...)` (non-fatal, so the output is identical to request.text()). contact.ts and checkout.ts can then switch to `const text = await boundedText(request, MAX_BODY_BYTES); if (text === null) return fail(413, ...)`. That leaves checkout's MAX_DECLARED_BODY_BYTES and contact's 32 KiB declared pre-check redundant; drop them. resend-webhook.ts still needs `bodyBytes` for the MAX_EVENT_BYTES branch at :164, so keep `const bodyBytes = new TextEncoder().encode(rawBody).length` after the bounded read, or have the helper return the byte count too. admin.ts:135 and jobs.ts:36 have the same unbounded read but sit behind a JWT or a secret; routing them through the helper is optional."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S02.2",
+   "severity": "low",
+   "category": "correctness",
+   "title": "folderIsInvalid misses C1 control characters that the SQL [[:cntrl:]] check refuses, so an upload fails only after every part is sent",
+   "file": "supabase/functions/_shared/media-rules.ts",
+   "line": 28,
+   "otherLocations": [
+    "supabase/migrations/20260926090000_media_library.sql:24",
+    "src/admin/collections/media.ts:47"
+   ],
+   "evidence": "media-rules.ts:28: return folder.length > 120 || /[\\u0000-\\u001F\\u007F]/.test(folder) || /(^\\/|\\/$|\\/\\/)/.test(folder)\nmedia_library.sql:24: char_length(folder) <= 120 and folder !~ '[[:cntrl:]]' and folder !~ '(^/|/$|//)'\ncommerce-settings.ts states the same class: \"The SQL checks use `[[:cntrl:]]`, which in the database's UTF-8 locale also matches the C1 controls U+0080–U+009F\" and refuses \\u007F-\\u009F there.",
+   "failureScenario": "An editor types or pastes a folder name that contains a C1 control, for example U+0085 or a U+0080-U+009F character from mojibake text. mediaMetaSchema and ticketRequestSchema both accept it because they share folderIsInvalid. The ticket is created and every part uploads. Then media_complete's INSERT violates the media.folder check (23514), cleanupAll deletes the promoted objects, and the dialog shows only «بيانات غير صالحة.» with no field error. Every retry fails the same way. A metadata save shows «تعذّر الحفظ.», and a folder rename shows «تعذّرت إعادة تسمية المجلد.», for the same reason.",
+   "suggestedFix": "supabase/functions/_shared/media-rules.ts:28: widen the class to /[\\u0000-\\u001F\\u007F-\\u009F]/, matching commerce-settings.ts. The admin form, the upload dialog and the Edge Function all use this one helper, so the three agree.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.2",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "Unused function `declaredParts` in the media rules module",
+   "file": "supabase/functions/_shared/media.ts",
+   "line": 116,
+   "otherLocations": [],
+   "evidence": "/** The upload ticket's parts list, as the API replies with it. */\nexport function declaredParts(declared: TicketRequest): Array<{ part: string; bytes: number }> {\n  return [\n    { part: 'original', bytes: declared.original.bytes },\n    ...declared.derivatives.map((d) => ({ part: `w${d.width}`, bytes: d.bytes })),\n  ]\n}\n-- grep 'declaredParts' repo-wide (src, supabase, scripts, tests): only this definition. admin.ts:204-212 builds the same parts list inline.",
+   "failureScenario": "No runtime failure. The doc comment says it is how the API replies, but admin.ts `mediaTicket` builds its own list, so the two can drift and a reader trusts the wrong one.",
+   "suggestedFix": "Delete `declaredParts` (media.ts lines 115-121).",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S07.6",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A failed staff-row lookup is reported as unauthenticated, so the owner is told the page is for owners only",
+   "file": "supabase/functions/_shared/staff.ts",
+   "line": 37,
+   "otherLocations": [],
+   "evidence": "const staff = await client.from('staff').select('role, active').eq('user_id', userId).maybeSingle()\n  if (staff.error) return null\n(A null result becomes 401 UNAUTHENTICATED in admin.ts:133. StatsView.tsx:53 then maps UNAUTHENTICATED to 'forbidden' and shows «غير متاحة: الإحصاءات للمالك فقط.»)",
+   "failureScenario": "A transient PostgREST or database error on the staff lookup, after the token has already been verified as genuine, returns null. The admin function answers 401 UNAUTHENTICATED. On /admin/stats the signed-in owner then reads that statistics are for the owner only, instead of 'failed, reload'. The media and commerce screens get an auth error for what is a server fault. The module's own contract (line 6) says null means 'a missing, bad or unverifiable token', not a database failure.",
+   "suggestedFix": "In staff.ts:37, throw instead of returning null (`if (staff.error) throw new Error('STAFF_LOOKUP_FAILED')`), so the function answers 500. callFunction then yields UNKNOWN, and StatsView shows its 'failed' message. Functional impact: bad tokens still get 401; only database faults become 500.",
+   "verifierCorrections": [
+    "A bare throw escapes handleAdmin, because admin/index.ts is just Deno.serve(handleAdmin). Deno's default handler then answers a plain-text 500 with no CORS headers. The browser sees a CORS failure: it still ends up as UNKNOWN, but it breaks the function's JSON and CORS contract. Throw in staff.ts:37 as suggested, and also wrap the lookup in handleAdmin (admin.ts:132): `let staff; try { staff = await deps.staff(request) } catch { return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.') }`. The reply then carries CORS headers and JSON. Add one unit case in tests/unit/admin-function.test.ts with a resolver that throws, expecting a 500."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X1.5",
+   "severity": "low",
+   "category": "config",
+   "title": "The staff-admin function, the most privileged one, imports an unpinned supabase-js major version",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 10,
+   "otherLocations": [],
+   "evidence": "import { createClient } from 'npm:@supabase/supabase-js@2'",
+   "failureScenario": "Every other function pins `npm:@supabase/supabase-js@2.117.1` through its deno.json; staff-admin has no deno.json. Each deploy of staff-admin (service-role key, creates and bans users) resolves whatever 2.x is newest at that moment. A bad or compromised 2.x release reaches the function holding the secret key with no lockfile or review step, and a behaviour change in getClaims could silently alter the owner check.",
+   "suggestedFix": "Pin it: `import { createClient } from 'npm:@supabase/supabase-js@2.117.1'`, or add supabase/functions/staff-admin/deno.json with the same imports map as admin/deno.json and import '@supabase/supabase-js'. No functional change.",
+   "verifierCorrections": [
+    "Add supabase/functions/staff-admin/deno.json with {\"imports\":{\"@supabase/supabase-js\":\"npm:@supabase/supabase-js@2.117.1\"}} and import from '@supabase/supabase-js'. That matches the other functions and keeps one pin per function dir. Pinning inline in the specifier also works."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S07.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "staff-admin ignores failed audit writes, so an invite, role change or revoke can succeed with no audit record",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 97,
+   "otherLocations": [
+    "supabase/functions/staff-admin/index.ts:107",
+    "supabase/functions/staff-admin/index.ts:122"
+   ],
+   "evidence": "const audit = (action: string, entityId: string, summary: Record<string, unknown>) =>\n    admin.from('audit_events').insert({ actor: claims.sub, action, entity: 'staff', entity_id: entityId, summary })\n...\n      await audit('staff.invite', created.user.id, { role })\n      return reply(200, { ok: true, data: { userId: created.user.id } })\n(The same pattern is at line 107 for set_role and line 122 for set_active.)",
+   "failureScenario": "The staff row change commits in its own PostgREST request. If the separate audit_events insert then fails (a transient PostgREST or network error), `await audit(...)` resolves to `{ error }`, which nothing reads. The owner is told the action succeeded, and the security trail that PLANS/DATA-AND-SECURITY.md treats as the record of staff changes has no entry for that invite, promotion to owner, or revoke. Nobody is told.",
+   "suggestedFix": "In staff-admin/index.ts, read the insert result at the three call sites, e.g. `const { error: auditError } = await audit(...); if (auditError) return fail(500, 'AUDIT_FAILED', 'تم الإجراء لكن تعذّر تسجيله في سجل التدقيق.')`, so the failure is visible and the owner can report or redo it. Functional impact: successful paths are unchanged; a lost audit write now shows an error instead of success.",
+   "verifierCorrections": [
+    "Check the error at all three sites: `const { error: auditError } = await audit(...); if (auditError) return fail(500, 'AUDIT_FAILED', 'تم الإجراء لكن تعذّر تسجيله في سجل التدقيق.')`. For set_active, do this after the ban result is known, so the ban error is not masked; banError can go into the message or take priority."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S07.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The invite answers 'email already registered' for every createUser failure",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 89,
+   "otherLocations": [],
+   "evidence": "const { data: created, error } = await admin.auth.admin.createUser({\n        email: email.trim().toLowerCase(),\n        email_confirm: true,\n      })\n      if (error || !created.user) return fail(409, 'USER_EXISTS', 'هذا البريد مسجّل مسبقًا.')",
+   "failureScenario": "The owner invites an address that passes the loose isEmail regex but that Supabase Auth rejects (for example an invalid format or `email_address_invalid` under extended email validation), or Auth fails for a transient reason (rate limit, 5xx). The team screen says «هذا البريد مسجّل مسبقًا.» (this email is already registered). The owner looks for an existing member who does not exist, and no one is invited.",
+   "suggestedFix": "In staff-admin/index.ts:89, return USER_EXISTS only when `error?.code === 'email_exists'` (AuthApiError code; status 422). For other errors return `fail(422, 'INVALID_EMAIL', ...)` when the code is a validation code, or else `fail(500, 'INVITE_FAILED', 'تعذّرت الدعوة. حاول مرة أخرى.')`. Functional impact: only the message and code on failure change.",
+   "verifierCorrections": [
+    "Return USER_EXISTS only when `error?.code === 'email_exists'`. Send every other error, including a missing user, to `fail(500, 'INVITE_FAILED', 'تعذّرت الدعوة. حاول مرة أخرى.')`, which is the message line 95 already uses. A separate INVALID_EMAIL branch is optional."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S07.7",
+   "severity": "low",
+   "category": "correctness",
+   "title": "When a restore's ban lift fails, the message says sign-in could not be stopped, and the member is left shown as active while still banned",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 123,
+   "otherLocations": [],
+   "evidence": "const { data, error } = await admin.from('staff').update({ active }).eq('user_id', userId).select('user_id')\n...\n      const { error: banError } = await admin.auth.admin.updateUserById(userId, {\n        ban_duration: active ? 'none' : BAN_FOREVER,\n      })\n      ...\n      if (banError) return fail(500, 'BAN_FAILED', 'حُدّثت الحالة لكن تعذّر إيقاف الدخول. حاول مرة أخرى.')",
+   "failureScenario": "The owner restores a revoked member (active: true) and the Auth admin call fails. The row is now active=true but the ban is still in place. The owner reads «...تعذّر إيقاف الدخول» ('could not stop sign-in'), which describes the opposite action. After a reload the team screen shows the member as «نشط» (active) with only an «إيقاف» (revoke) button, so there is no way to retry the restore, and the member cannot sign in.",
+   "suggestedFix": "In staff-admin/index.ts set_active, choose the message by direction: for restore say the ban could not be lifted. For restore, also lift the ban (updateUserById 'none') before updating the row to active=true, so a failure leaves the member consistently revoked and the «استعادة» (restore) button still works. Revoke keeps its current order. Functional impact: only failure paths change.",
+   "verifierCorrections": [
+    "In set_active, when active is true, call updateUserById(userId, {ban_duration:'none'}) before the row update. On banError, return fail(500, 'UNBAN_FAILED', 'تعذّر رفع إيقاف الدخول. حاول مرة أخرى.') without touching the row. Keep the current order and message for a revoke."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.16",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "staff-admin re-implements staff.ts identity, db.ts client and http.ts reply helpers",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 19,
+   "otherLocations": [],
+   "evidence": "const CORS = {\n  'Access-Control-Allow-Origin': '*',\n  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',\n  'Access-Control-Allow-Methods': 'POST, OPTIONS',\n}\nfunction reply(status: number, body: unknown): Response {\n-- lines 19-29 duplicate http.ts corsHeaders('*')/fail/ok. Lines 47-62 duplicate db.ts serviceClient() and staff.ts staffFromRequest (getClaims + staff row + hasRecentTotp). It also imports `npm:@supabase/supabase-js@2`, unpinned, while every other function pins 2.117.1 through deno.json.",
+   "failureScenario": "No bug today. A hardening fix to staffFromRequest (e.g. its `staff.error` check) does not reach the owner-only endpoint that manages roles.",
+   "suggestedFix": "In staff-admin/index.ts use `staffFromRequest` (require role === 'owner' && recentTotp), `serviceClient()`, and `corsHeaders('*')`/`fail`/`ok` from ../_shared. Add a deno.json with the pinned supabase-js import like the other functions.",
+   "verifierCorrections": [
+    "Add supabase/functions/staff-admin/deno.json with the same pinned `@supabase/supabase-js` import as admin/deno.json (required anyway, since _shared/db.ts uses the bare `@supabase/supabase-js` specifier). Then use `staffFromRequest` (null -> 401 UNAUTHENTICATED, role !== 'owner' -> 403 FORBIDDEN, !recentTotp -> 403 STEP_UP_REQUIRED) and `serviceClient()`. Pass `corsHeaders('*')` as the `headers` argument of `fail`/`ok`, because http.ts fail/ok add no CORS by default, and keep the OPTIONS 204 with those headers. Keep the existing error codes, which TeamView.tsx/StepUp.tsx depend on."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.10",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "contact.ts and checkout.ts redefine http.ts helpers (NO_STORE, fail) and duplicate siteOrigin",
+   "file": "supabase/functions/_shared/checkout.ts",
+   "line": 32,
+   "otherLocations": [],
+   "evidence": "const NO_STORE = { 'cache-control': 'no-store' }\n\nfunction siteOrigin(): string | null {\n  const siteUrl = optionalEnv('SITE_URL')\n...\n  const fail = (status: number, code: string, message: string, fields?: unknown): Response =>\n    Response.json(\n      { ok: false, error: { code, message, ...(fields ? { fields } : {}) }, requestId: crypto.randomUUID() },\n-- http.ts already exports NO_STORE and `fail(status, code, message, fields, headers)` with exactly this body. contact.ts:36-47 and 103-107 repeat NO_STORE, siteOrigin and fail verbatim, and resend-webhook.ts:211 redefines NO_STORE again. contact.ts already imports corsHeaders from http.ts.",
+   "failureScenario": "No bug today. The file header says http.ts is 'the JSON reply contract shared by every Edge Function', yet two public endpoints carry private copies, so a contract change such as a new header silently misses them.",
+   "suggestedFix": "In checkout.ts and contact.ts import `{ corsHeaders, fail as failWith, NO_STORE, ok }` from './http.ts'. Define `const fail = (s, c, m, f?) => failWith(s, c, m, f, cors)` as admin.ts does, and move `siteOrigin` into http.ts or env.ts once. In resend-webhook.ts import NO_STORE.",
+   "verifierCorrections": [
+    "The fix is right. Keep it small: import NO_STORE and `fail as failWith` from http.ts in checkout.ts, contact.ts and resend-webhook.ts (resend-webhook needs only NO_STORE, because its replies are not in the envelope shape). Export siteOrigin from http.ts (or env.ts) once and import it in both files. The local `ok`/`received` closures can stay if the default status or data shape differs."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.1",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "Dead export `boundedText` in http.ts while three handlers inline the same body-limit logic",
+   "file": "supabase/functions/_shared/http.ts",
+   "line": 37,
+   "otherLocations": [],
+   "evidence": "export async function boundedText(request: Request, maxBytes: number): Promise<string | null> {\n  const declared = Number(request.headers.get('content-length'))\n  if (declared > maxBytes) return null\n  const text = await request.text()\n  return new TextEncoder().encode(text).length > maxBytes ? null : text\n}\n-- grep 'boundedText' over src/ supabase/ scripts/ tests/: only this definition. checkout.ts:244-252, contact.ts:124-132 and resend-webhook.ts:113-120 each hand-roll the same declared-length + post-read check; checkout.ts:28/30 even keeps two constants for one value (MAX_BODY_BYTES = MAX_DECLARED_BODY_BYTES = 65_536).",
+   "failureScenario": "No runtime bug: the helper is never called, so the shared JSON contract module ships an unused function and the same 8-line limit check is maintained in three places (a limit fix in one handler silently misses the others).",
+   "suggestedFix": "Either delete `boundedText` from supabase/functions/_shared/http.ts, or (smaller total diff) use it in checkout.ts/contact.ts (`const text = await boundedText(request, MAX_BODY_BYTES); if (text === null) return fail(413, ...)`) and drop checkout.ts's duplicate MAX_DECLARED_BODY_BYTES. contact.ts keeps its larger declared limit only if that difference is intended.",
+   "verifierCorrections": [
+    "Do not delete boundedText. Fix it as described under S07.2 and use it in the three handlers; that removes both the dead code and the duplicated logic. contact.ts's 32 KiB declared limit (contact.ts:34) serves no purpose once the read is streamed and bounded at 8 KiB, so drop it rather than preserve it."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.19",
+   "severity": "info",
+   "category": "config",
+   "title": "Import maps list `image-size` for functions that never load media.ts",
+   "file": "supabase/functions/contact/deno.json",
+   "line": 4,
+   "otherLocations": [],
+   "evidence": "    \"image-size\": \"npm:image-size@2.0.4\",\n-- import graph: contact → contact.ts → db, env, http, rate-limit, turnstile; resend-webhook → resend-webhook.ts → db, email, env. Neither reaches media.ts, the only `image-size` importer. Needed only in admin/ and outbox/ (jobs.ts → admin.ts → media.ts).",
+   "failureScenario": "No runtime effect: an unused mapping is config nobody reads, and it misleads anyone checking which functions parse images.",
+   "suggestedFix": "Delete the `image-size` line from supabase/functions/contact/deno.json and supabase/functions/resend-webhook/deno.json.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}

@@ -1,0 +1,558 @@
+{
+ "files": [
+  "PLANS/DATA-AND-SECURITY.md",
+  "PLANS/WORK-PACKAGES.md",
+  "docs/operations.md",
+  "src/app/(public)/policies/[slug]/page.tsx",
+  "src/app/(public)/store/[slug]/page.tsx",
+  "src/app/(public)/store/page.tsx",
+  "src/components/admin/AdminHome.tsx",
+  "src/components/store/AddToCart.tsx",
+  "src/components/store/CartLink.tsx",
+  "src/components/store/CartProvider.tsx",
+  "src/components/store/CartView.tsx",
+  "src/components/store/CheckoutForm.tsx",
+  "src/components/store/quote.ts",
+  "src/components/store/store.module.css",
+  "src/components/weave/VideoTile.tsx",
+  "src/lib/cart.ts",
+  "supabase/functions/_shared/checkout.ts",
+  "supabase/migrations/20260927160000_catalog_and_checkout.sql"
+ ],
+ "findings": [
+  {
+   "id": "S06.1",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Storage-denied cart: edits made on /cart never reach the memory cart, so /checkout shows and orders the stale cart",
+   "file": "src/components/store/CartProvider.tsx",
+   "line": 35,
+   "otherLocations": [],
+   "evidence": "const update = useCallback((next: CartV1) => {\n    setState((previous) => ({ cart: next, persistent: (previous?.persistent ?? true) && writeCart(next) }))\n  }, [])",
+   "failureScenario": "The browser blocks storage (for example Chrome with all cookies blocked), so cartArea() returns null and readCart() returns the module-level memoryCart with persistent:false. The buyer adds A x1 and B x1 on the product page, which updates memoryCart through AddToCart's writeCart. On /cart they remove B and set A to 3. Because previous.persistent is false, the `&&` short-circuits and writeCart is never called, so memoryCart still holds [A x1, B x1]. The buyer presses «المتابعة لإتمام الطلب», a next/link client navigation that keeps module state. The checkout page's new CartProvider calls readCart() and gets [A x1, B x1], so the summary shows the removed line and the old quantity, and `create` orders them. The same thing happens after one setItem fails mid-session (quota): later edits are never written and the next page reads the older localStorage cart. This breaks DATA-AND-SECURITY 'Checkout transaction' step 1: 'Storage denial still permits session cart.'",
+   "suggestedFix": "In src/components/store/CartProvider.tsx, always write and keep the flag sticky: `const update = useCallback((next: CartV1) => { const saved = writeCart(next); setState((previous) => ({ cart: next, persistent: (previous?.persistent ?? true) && saved })) }, [])`. writeCart already updates memoryCart when storage is denied or throws. This also moves the side effect out of the state updater.",
+   "verifierCorrections": [
+    "The suggested fix is correct and minimal for the storage-denied case: `const saved = writeCart(next); setState((previous) => ({ cart: next, persistent: (previous?.persistent ?? true) && saved }))`. It does not cover the mid-session quota failure the finding also names. There, cartArea() is non-null, so the next page's readCart reads the older localStorage value, not memoryCart. That case is practically unreachable for a tiny ID/quantity cart, so leave it or note it with a ponytail comment.",
+    "The suggested fix is correct for the storage-denied case: call writeCart(next) outside the updater on every update, and AND the result into a sticky flag. It only partly fixes the quota case: readCart (cart.ts:234-247) prefers localStorage whenever getItem works, so a cart that failed setItem is still read back stale on the next page. To close that too, have readCart return memoryCart when a write has failed in this tab (for example a module-level `writeFailed` flag set in writeCart's catch)."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.2",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "Cart coupon errors, quote failures and new totals appear silently (no live region)",
+   "file": "src/components/store/CartView.tsx",
+   "line": 251,
+   "otherLocations": [
+    "src/components/store/CartView.tsx:124",
+    "src/components/store/CartView.tsx:259",
+    "src/components/store/CheckoutForm.tsx:463"
+   ],
+   "evidence": "{couponErrors.length > 0 && (\n            <ul className={styles.lineErrors}>\n              {couponErrors.map((error, i) => (\n                <li key={i}>{quoteErrorMessage(error)}</li>",
+   "failureScenario": "A screen-reader user types a coupon and presses «تطبيق». About 300 ms later the requote renders «كود الخصم غير صالح.», or a lower «الإجمالي» and a «الخصم» row. Focus stays on the button and none of these nodes is live, so nothing is announced (WCAG 4.1.3). The same goes for a city change repricing delivery. The quote-failed warning uses role=\"note\", which is not live either.",
+   "suggestedFix": "In CartView.tsx, add role=\"alert\" to the coupon and other error <ul>s and to the quote-failed <p>, replacing role=\"note\". Also add one always-mounted <p role=\"status\" className=\"visually-hidden\"> that holds the current «الإجمالي …» text. Apply the same to the error list in CheckoutForm.tsx.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.3",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "One failed quote refresh replaces the whole checkout form, with no way to retry except a reload that loses the typed details",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 377,
+   "otherLocations": [],
+   "evidence": "if (quoteFailed) {\n  return <p className={styles.warning} role=\"note\">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>\n}",
+   "failureScenario": "The buyer types email, name, phone and address, then changes the city or applies a coupon. The debounced fetchQuote fails, from a mobile network blip or the 300-per-hour quote throttle (429). quoteFailed becomes true and the form unmounts, including the city select and the coupon input. The quote effect only reruns when [ready, cart, city, coupon] change, and nothing left on the page can change them, so the quote is never fetched again. The warning says «أعد المحاولة بعد لحظات», but the only way out is a reload. A reload keeps only the city and coupon (sessionStorage) and drops email, name, phone and address. The same thing happens when refreshQuote() fails after POLICY_CHANGED (lines 191-193).",
+   "suggestedFix": "Replace the form only when there has never been a quote: change line 377 to `if (quoteFailed && quote === null)`. When a quote already exists, show the same warning above the form and keep the form. The last quote is safe to submit because checkout_create re-prices and answers QUOTE_CHANGED with the fresh quote.",
+   "verifierCorrections": [
+    "As suggested: `if (quoteFailed && quote === null)`, and render the warning inside the form (next to submitError) when a quote already exists, so the state stays visible. A stale quote is safe to submit because checkout_create re-prices and answers QUOTE_CHANGED with the fresh quote. Optionally add a retry button that calls refreshQuote() on the no-quote path, which is otherwise still a dead end."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.5",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "The order hold and cancel results are not announced, and focus is lost to <body> in the core checkout flow",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 337,
+   "otherLocations": [
+    "src/components/store/CheckoutForm.tsx:346",
+    "src/components/store/CheckoutForm.tsx:361",
+    "src/components/store/CartView.tsx:124",
+    "src/components/store/CartView.tsx:143",
+    "src/components/store/CheckoutForm.tsx:339"
+   ],
+   "evidence": "if (pending !== null) {\n  return (\n    <div className={styles.orderBox}>\n      ...\n      {submitError !== '' && <p className={styles.warning} role=\"note\">{submitError}</p>}",
+   "failureScenario": "A screen-reader user presses «تأكيد الطلب». On success, setPending swaps the whole <form>, including the focused submit button, for the hold view. Focus falls to <body>, and neither the order number nor «حُجز طلبك لمدة 20 دقيقة…» is in a live region or focused, so nothing is announced. Pressing «إلغاء الطلب» removes that button as well: on success, focus is lost again and a <p role=\"status\"> is inserted with its text already inside, which screen readers often skip. On failure, the error is inserted with role=\"note\", which is not a live role, so it is never announced. This fails WCAG 4.1.3 and 2.4.3. The cart has the same pattern: its quote-failure warning (CartView.tsx:124) uses role=\"note\", and line errors that appear after a quantity change (CartView.tsx:143-149) are not announced either.",
+   "suggestedFix": "In CheckoutForm.tsx, add a ref and tabIndex={-1} to the orderBox div and focus it in useEffect(() => orderBoxRef.current?.focus(), [pending, closed]). Change the role on line 361 from \"note\" to \"alert\". In CartView.tsx:124, use role=\"status\" instead of \"note\".",
+   "verifierCorrections": [
+    "Focus the orderBox (ref plus tabIndex={-1}) only after a user action, meaning a successful create or cancel, for example through a flag set in submit() and cancelOrder(). The suggested effect on [pending, closed] would also fire when pending is restored from readPendingOrder() on page load and steal focus there. Change line 361 to role=\"alert\", and CartView.tsx:124 to role=\"status\". Also cover the CartView line errors: keep one persistent role=\"status\" region (or give each lineErrors <ul> role=\"alert\") so errors that appear after a quantity change are announced, which the suggested fix leaves out."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.2",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "Pressing Enter in the checkout coupon field submits the whole order instead of applying the coupon",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 428,
+   "otherLocations": [],
+   "evidence": "<form ref={formRef} ... onSubmit={submit} noValidate>\n  ...\n  <input type=\"text\" dir=\"ltr\" value={couponDraft} onChange={(e) => setCouponDraft(e.target.value)} />\n  <ActionButton variant=\"outline\" onClick={() => { ... setCoupon(applied) ... }}>تطبيق</ActionButton>\n  ...\n  <ActionButton type=\"submit\" ...>تأكيد الطلب</ActionButton>",
+   "failureScenario": "The coupon input sits inside the checkout <form>, and «تأكيد الطلب» is the form's default submit button (ActionButton defaults to type=button, so «تطبيق» is not). Enter, or 'Go' on a phone keyboard, in the coupon field triggers implicit submission. If the contact fields are still empty, which is common because the summary panel comes first on phones, every field turns red and focus jumps to the email field, and the coupon is never applied. If the fields are filled and consent is ticked, create runs with coupon='' and a 20-minute hold is placed at the full, undiscounted total. The buyer must then cancel and start again.",
+   "suggestedFix": "In CheckoutForm.tsx, move the «تطبيق» onClick body into a local applyCoupon(). Add onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon() } }} to the coupon input.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.4",
+   "severity": "medium",
+   "category": "correctness",
+   "title": "The consent sentence's policy links navigate away in the same tab and wipe the typed checkout details",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 403,
+   "otherLocations": [],
+   "evidence": "قرأت{' '}\n{consentPolicies.map((id, index) => (\n  <span key={id}>\n    {index > 0 ? ' و' : ''}\n    <Link href={`/policies/${id}`} prefetch={false}>",
+   "failureScenario": "The consent line («قرأت … وأوافق عليها») invites the buyer to read each policy. A buyer who fills email, name, phone and address and then clicks «سياسة الاسترجاع» leaves /checkout through a client-side navigation in the same tab. CheckoutForm unmounts, and the fields live only in useState (no cacheComponents or Activity in next.config). Going back remounts an empty form: only the city and coupon come back from sessionStorage. The buyer has to type everything again, and reading the policies before consenting is exactly the behaviour the form asks for.",
+   "suggestedFix": "In CheckoutForm.tsx line 403, open the policy links in a new tab: add target=\"_blank\" rel=\"noopener\" to the consent Link, with a visually hidden «(تفتح في نافذة جديدة)» after each label.",
+   "verifierCorrections": [
+    "Add target=\"_blank\" rel=\"noopener\" to the consent Link with a visually hidden «(تفتح في نافذة جديدة)», as suggested. This matches the existing target=_blank rel=noopener pattern in admin/PublishBar.tsx:91 and avoids persisting buyer PII to sessionStorage."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.6",
+   "severity": "medium",
+   "category": "a11y",
+   "title": "The delivery-address textarea has no autocomplete token (WCAG 1.3.5, Identify Input Purpose)",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 556,
+   "otherLocations": [],
+   "evidence": "<textarea\n  id=\"checkout-address\"\n  rows={3}\n  dir=\"auto\"\n  value={address}",
+   "failureScenario": "The textarea collects the buyer's own shipping address, which is a WCAG 'street-address' input purpose, but it has no autoComplete attribute. Browsers and assistive tools cannot identify it or autofill it, so users with motor or cognitive disabilities must type the full address by hand. The email, name and phone fields in the same form do carry autocomplete tokens. This fails WCAG 2.2 AA 1.3.5.",
+   "suggestedFix": "Add autoComplete=\"shipping street-address\" to the checkout-address textarea in CheckoutForm.tsx.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.2",
+   "severity": "medium",
+   "category": "data-loss",
+   "title": "Re-adding a variant from the product page silently erases the dedication typed in the cart",
+   "file": "src/lib/cart.ts",
+   "line": 94,
+   "otherLocations": [],
+   "evidence": "l.variantId === variantId\n  ? {\n      variantId,\n      quantity: Math.min(MAX_QUANTITY, l.quantity + quantity),\n      ...(dedication !== undefined ? { dedication } : {}),\n    }\n  : l,",
+   "failureScenario": "A buyer adds a signed copy, opens the cart and types «إلى أمي» in نص الإهداء. setDedication stores it. They go back to the product page and press «أضف إلى السلة» again for a second copy. AddToCart calls addLine(cart, { variantId, quantity }) with no dedication, and the merge branch rebuilds the line without l.dedication, so the stored line becomes { variantId, quantity: 2 } and the dedication is gone. The checkout summary never shows dedications, so the order is created without it and the buyer is not told. No unit test covers a merge that keeps a dedication.",
+   "suggestedFix": "In src/lib/cart.ts addLine, keep the existing value when the new line has none: `...(dedication !== undefined ? { dedication } : l.dedication !== undefined ? { dedication: l.dedication } : {})`, or spread `...l` first and then override quantity and the optional dedication. Add one test to tests/unit/cart.test.ts.",
+   "verifierCorrections": [
+    "Smallest fix: `{ ...l, quantity: Math.min(MAX_QUANTITY, l.quantity + quantity), ...(dedication !== undefined ? { dedication } : {}) }` in the merge branch, plus one unit test that a merge without a dedication keeps the existing one."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.14",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "Policies page re-implements content.ts's published-document fetch",
+   "file": "src/app/(public)/policies/[slug]/page.tsx",
+   "line": 31,
+   "otherLocations": [],
+   "evidence": "async function getPublishedPolicy(id: PolicyDocId): Promise<z.infer<typeof policySchema> | null> {\n  const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL')\n  const key = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')\n  const params = new URLSearchParams({ collection: 'eq.policies', doc_id: `eq.${id}`, select: 'data' })\n-- same as src/lib/content.ts:124-135 `fetchPublishedOrNull` (not exported); the page's own comment says it reads 'exactly as `fetchPublished` reads any collection'.",
+   "failureScenario": "No bug today. A later change to the shared loader (media resolution, error text) skips the policies pages.",
+   "suggestedFix": "Export `fetchPublishedOrNull` from src/lib/content.ts and call `fetchPublishedOrNull('policies', id, policySchema)` in the page. Then delete getPublishedPolicy and the `zod`/`requireEnv` imports.",
+   "verifierCorrections": [
+    "Follow the file's existing getX pattern (getScenes at content.ts:239) and don't export the private helper. Add `export async function getPolicy(id: PolicyDocId) { return fetchPublishedOrNull('policies', id, policySchema) }` to src/lib/content.ts and call it from the page and from generateMetadata (see X7.3). Then delete getPublishedPolicy and the page's `z` and `requireEnv` imports."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X7.3",
+   "severity": "low",
+   "category": "seo",
+   "title": "The policy pages' <title> ignores the published policy title while the <h1> uses it, so the two drift apart as soon as Anas edits a title",
+   "file": "src/app/(public)/policies/[slug]/page.tsx",
+   "line": 28,
+   "otherLocations": [],
+   "evidence": "export async function generateMetadata(...) {\n  ...\n  return { title: id === undefined ? undefined : POLICY_DOC_LABELS[id] }\n}\n...\n<h1 className={styles.title} {...calmEnter}>{policy?.title ?? POLICY_DOC_LABELS[id]}</h1>",
+   "failureScenario": "`title` is an editable field of the `policies` collection (src/admin/collections/policies.ts:13). Suppose Anas publishes the refund policy with the title «سياسة الاسترجاع والاستبدال». After the rebuild, /policies/refund shows that heading, but the browser tab, bookmarks and the search-result title still read «سياسة الاسترجاع · أنس عبدالله القرني». The page's title and its h1 then disagree. Today's built pages match only because the seeded titles equal the fixed labels.",
+   "suggestedFix": "In generateMetadata in src/app/(public)/policies/[slug]/page.tsx, read the published document the way the page does: `if (id === undefined) return {}; const policy = await getPublishedPolicy(id); return { title: policy?.title ?? POLICY_DOC_LABELS[id] }`. getPublishedPolicy is already defined in this file.",
+   "verifierCorrections": [
+    "Combine this with X6.14: `if (id === undefined) return {}; const policy = await getPolicy(id); return { title: policy?.title ?? POLICY_DOC_LABELS[id] }`. Next memoizes the identical fetch, so the page and its metadata still make only one request per build."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S12.4",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A published product with no enabled variant shows an empty list on its page, with no «unavailable» line",
+   "file": "src/app/(public)/store/[slug]/page.tsx",
+   "line": 79,
+   "otherLocations": [],
+   "evidence": "```\n<ul className={styles.variants}>\n  {product.variants.map((variant) => (\n    <li key={variant.id} className={styles.variant}>\n```\nThere is no branch for `product.variants.length === 0`. The store list handles the same case: `{lowest === null ? 'غير متاح حاليًا' : `من ${formatMoney(lowest)}`}`.",
+   "failureScenario": "The owner publishes a product before adding variants, or disables all of them (lib/store.ts fetches only `enabled: 'eq.true'`). /store shows «غير متاح حاليًا», but /store/<slug> shows the title and body above an empty <ul>: no price, no button and no statement that it cannot be bought. That is not the 'honestly unavailable' state the page comments promise.",
+   "suggestedFix": "In src/app/(public)/store/[slug]/page.tsx, when product.variants.length === 0 render `<p className={styles.unpriced}>غير متاح حاليًا</p>` instead of the empty list.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S12.3",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Each store card link's accessible name repeats the product title",
+   "file": "src/app/(public)/store/page.tsx",
+   "line": 49,
+   "otherLocations": [],
+   "evidence": "```\n<Link href={`/store/${product.slug}`} prefetch={false} className={styles.cardLink}>\n  {product.cover !== null && (\n    <Picture\n      id={product.cover}\n      alt={product.title}\n...\n  <h2 className={styles.cardTitle}>{product.title}</h2>\n```",
+   "failureScenario": "A product with a cover: screen readers announce the link as «خوص (تجريبي) خوص (تجريبي)، رابط». The img alt and the h2 inside the same link both give the title. Voice-control users see the same doubled name. This is redundant link text (WCAG 1.1.1, technique H2).",
+   "suggestedFix": "In src/app/(public)/store/page.tsx, pass alt=\"\" to the card's Picture. The h2 already names the link.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.8",
+   "severity": "low",
+   "category": "correctness",
+   "title": "«أضف إلى السلة» confirms an add that addLine refused or capped",
+   "file": "src/components/store/AddToCart.tsx",
+   "line": 22,
+   "otherLocations": [],
+   "evidence": "function add() {\n    const { cart } = readCart()\n    writeCart(addLine(cart, { variantId, quantity }))\n    setAdded(true)\n  }",
+   "failureScenario": "A buyer already has 20 copies of a variant and adds 5 more. addLine caps at Math.min(20, 25), so nothing changes, yet the page says 'أُضيف إلى السلة.'. The same happens when the cart already has 50 lines: addLine returns the cart unchanged and the success note still shows.",
+   "suggestedFix": "In AddToCart.add, compare the result with the input: `const next = addLine(cart, …); if (next === cart || cartCount(next) === cartCount(cart)) { /* show a short note that the limit (20 per item / 50 lines) is reached */ } else { writeCart(next); setAdded(true) }`.",
+   "verifierCorrections": [
+    "Comparing cartCount alone is enough: `const next = addLine(cart, {variantId, quantity}); if (cartCount(next) === cartCount(cart)) { show the limit note (20 per item, 50 lines) } else { writeCart(next); setAdded(true) }`. The `next === cart` check adds nothing, because the merge branch always returns a new object. Do this together with the X3.12 fix in the same status node."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.12",
+   "severity": "low",
+   "category": "a11y",
+   "title": "«أُضيف إلى السلة» status is inserted already filled and never re-announced",
+   "file": "src/components/store/AddToCart.tsx",
+   "line": 46,
+   "otherLocations": [
+    "src/components/weave/VideoTile.tsx:103"
+   ],
+   "evidence": "{added && (\n        <p className={styles.addedNote} role=\"status\">\n          أُضيف إلى السلة. <Link href=\"/cart\" prefetch={false}>عرض السلة</Link>",
+   "failureScenario": "The role=\"status\" node is mounted together with its text on the first add, and VoiceOver and JAWS often miss live regions created already filled. On every later «أضف إلى السلة» press, `added` is already true and the text is unchanged, so nothing is announced even though the cart quantity grew. VideoTile's failure status has the same insertion pattern.",
+   "suggestedFix": "Keep the <p role=\"status\"> mounted, empty until the first add, and change its text on each add (for example with the running count). Apply the same to VideoTile.tsx:103.",
+   "verifierCorrections": [
+    "Keep the role=\"status\" node always mounted (empty at first) and change its text on each add, for example by including the new quantity or a count, so the text differs every time. Share the node with the S06.8 limit message. In VideoTile, keep the status <p> mounted and fill it only when state === 'failed'."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G5.3",
+   "severity": "low",
+   "category": "correctness",
+   "title": "With JavaScript off, the product page's «أضف إلى السلة» does nothing and nothing says why",
+   "file": "src/components/store/AddToCart.tsx",
+   "line": 349,
+   "otherLocations": [
+    "src/app/(public)/store/[slug]/page.tsx:88"
+   ],
+   "evidence": "function add() {\n  const { cart } = readCart()\n  writeCart(addLine(cart, { variantId, quantity }))\n  setAdded(true)\n}\n...\n<ActionButton onClick={add}>أضف إلى السلة</ActionButton>",
+   "failureScenario": "A visitor with JavaScript off opens /store/<slug> for a priced variant. The static HTML shows a quantity field and a live-looking «أضف إلى السلة» (type=button, onClick only). Pressing it does nothing, with no feedback. /cart and /checkout carry <noscript>السلة والطلب يحتاجان JavaScript.</noscript>, but the product page (store/[slug]/page.tsx) has none. The one purchase control on the page is dead without a word, against WORK-PACKAGES P01 ('purchase/form controls have truthful unavailable states') and DESIGN-AUDIT 149.",
+   "suggestedFix": "Add the same `<noscript>السلة والطلب يحتاجان JavaScript.</noscript>` that cart/page.tsx uses, above the variants list in src/app/(public)/store/[slug]/page.tsx. Optionally render the button disabled until hydrated (the BookPreview `useSyncExternalStore` pattern) in AddToCart.tsx.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.11",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The «السلة (n)» count on store and product pages goes stale after adding to the cart",
+   "file": "src/components/store/CartLink.tsx",
+   "line": 18,
+   "otherLocations": [
+    "src/components/store/AddToCart.tsx:22"
+   ],
+   "evidence": "useEffect(() => {\n  void Promise.resolve().then(() => setCount(cartCount(readCart().cart)))\n}, [])",
+   "failureScenario": "The product page loads showing «السلة (1)». The buyer adds 2 copies with AddToCart, which writes localStorage and shows «أُضيف إلى السلة». The CartLink in the same page header still shows «السلة (1)», because it reads the cart only once on mount, until the buyer navigates away and back.",
+   "suggestedFix": "In AddToCart.add() call window.dispatchEvent(new Event('anasaq:cart')) after writeCart. In CartLink, add a listener for that event (and 'storage') that re-runs setCount(cartCount(readCart().cart)), removed in the effect cleanup.",
+   "verifierCorrections": [
+    "Dispatch the event once, inside writeCart in src/lib/cart.ts: `window.dispatchEvent(new Event('anasaq:cart'))`. Putting it in AddToCart would miss the other callers. In CartLink's effect, add a listener for 'anasaq:cart' and for 'storage' (for other tabs) that re-runs setCount(cartCount(readCart().cart)), and remove both listeners in the effect's cleanup."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.8",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "CartProvider computes `count` that no consumer reads",
+   "file": "src/components/store/CartProvider.tsx",
+   "line": 43,
+   "otherLocations": [],
+   "evidence": "interface CartState {\n  ...\n  count: number\n...\n      count: state ? cartCount(state.cart) : 0,\n-- useCart() has two consumers, CartView.tsx and CheckoutForm.tsx. They read ready/cart/persistent/update only (grep 'cartState\\.' and destructuring); CartLink.tsx computes its own count from readCart().",
+   "failureScenario": "No runtime failure; a cart sum is recomputed on every cart change and never shown.",
+   "suggestedFix": "Remove `count` from CartState (line 19) and from the memo (line 43), and drop the `cartCount` import in CartProvider.tsx.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.10",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Cart and product quantity inputs cannot be cleared to type a new value",
+   "file": "src/components/store/CartView.tsx",
+   "line": 169,
+   "otherLocations": [
+    "src/components/store/AddToCart.tsx:39"
+   ],
+   "evidence": "onChange={(event) => {\n  const next = Number(event.target.value)\n  if (Number.isFinite(next) && next >= 1 && next <= MAX_QUANTITY) {\n    update(setQuantity(cart, line.variantId, next))\n  }\n}}",
+   "failureScenario": "In the cart, a line shows 3 and the buyer taps the field, presses backspace and types 5. The empty value is rejected, so React restores the controlled value '3'. The 5 then makes '35', which is also rejected, and the field stays 3. On the product page (AddToCart.tsx:39-42), clearing clamps to 1, so backspace then 5 gives 15, not 5. Keyboard and phone users can only change the quantity with select-all or the ± buttons.",
+   "suggestedFix": "Keep a local draft string for the input and commit a clamped value on blur or Enter. Alternatively, in both onChange handlers, return early without changing anything when event.target.value === '', so the field can be empty while typing, and clamp on blur.",
+   "verifierCorrections": [
+    "The fix's alternative is wrong for CartView: returning early on '' is already what CartView does, and React still restores the controlled value. Keep a local string draft per input: set the draft on every change, commit when the draft parses to an integer from 1 to MAX_QUANTITY, and on blur (or Enter) clamp to [1, MAX_QUANTITY] and resync the draft. Apply the same to AddToCart.tsx."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.13",
+   "severity": "low",
+   "category": "correctness",
+   "title": "When the server refuses a signed line's dedication, the dedication input is hidden, so the buyer can only delete the line",
+   "file": "src/components/store/CartView.tsx",
+   "line": 191,
+   "otherLocations": [
+    "src/components/store/quote.ts:237"
+   ],
+   "evidence": "{quoteLine?.fulfillment === 'signed' && (\n  <label className={styles.dedication}>\n    نص الإهداء",
+   "failureScenario": "checkout_price leaves refused lines out of quote.lines (INVALID_DEDICATION, for example a pasted text containing a tab, or DEDICATION_NOT_ALLOWED after the owner changes the variant from signed). For such a line quoteLine is null, so the only input that could fix the dedication disappears. The line shows «منتج في السلة» with the generic «تحقق من محتويات السلة.», because quoteErrorMessage has no dedication case. The only way out is «حذف» or «إزالة غير المتاح», which drops the whole line.",
+   "suggestedFix": "In CartView.tsx line 191, also render the input when the line already has text: `(quoteLine?.fulfillment === 'signed' || line.dedication !== undefined) && (...)`. In quote.ts quoteErrorMessage, add cases for INVALID_DEDICATION and DEDICATION_NOT_ALLOWED with «تحقق من نص الإهداء.».",
+   "verifierCorrections": [
+    "As suggested: render the input when `quoteLine?.fulfillment === 'signed' || line.dedication`. Add cases for INVALID_DEDICATION and DEDICATION_NOT_ALLOWED that return «تحقق من نص الإهداء.», which matches supabase/functions/_shared/checkout.ts:176-177. Also strip control characters in setDedication (src/lib/cart.ts:122), e.g. `.replace(/[\\u0000-\\u001F\\u007F]/g, ' ')`, so the INVALID_DEDICATION path is not reachable from the UI."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.9",
+   "severity": "low",
+   "category": "rtl-i18n",
+   "title": "Hand-built signs beside Latin digits reorder in RTL: discount shows «50.00−», attention count shows «+200»",
+   "file": "src/components/store/CartView.tsx",
+   "line": 276,
+   "otherLocations": [
+    "src/components/store/CheckoutForm.tsx:449",
+    "src/components/admin/AdminHome.tsx:194"
+   ],
+   "evidence": "<dd>−{formatMoney(quote.discount)}</dd>\n--- src/components/admin/AdminHome.tsx:194\n? `${ATTENTION_CAP}+`",
+   "failureScenario": "In an RTL paragraph, U+2212 before the European-number run resolves to R (bidi rules W6/N1), so the discount row renders with the minus on the right of the Latin digits («ر.س 50.00−»). CLDR's ar-latn places it on the left through an LRM. On the owner home, «200+» resolves the trailing '+' to R and displays as «+200», which reads as \"plus 200\" instead of \"200 or more\".",
+   "suggestedFix": "CartView.tsx:276 and CheckoutForm.tsx:449: prefix an LRM, `<dd>{'‎−'}{formatMoney(quote.discount)}</dd>` (bidi rule W7 then makes the digits and the minus LTR). AdminHome.tsx:194: wrap the value in <bdi>…</bdi> or <span dir=\"ltr\">.",
+   "verifierCorrections": [
+    "The LRM prefix for the two discount rows is correct. For AdminHome, use `<span dir=\"ltr\">` rather than a bare <bdi>: a bdi's dir=auto finds no strong character in «200+», so it is not a guaranteed LTR run. A root-cause alternative: formatMoney (src/lib/format.ts:61) emits '‎-' as its negative sign, and the rows call formatMoney(-quote.discount). That also fixes any future negative amount."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X3.11",
+   "severity": "low",
+   "category": "a11y",
+   "title": "Cart line controls have identical names on every line («الكمية», «إنقاص الكمية», «حذف»)",
+   "file": "src/components/store/CartView.tsx",
+   "line": 168,
+   "otherLocations": [
+    "src/components/store/CartView.tsx:155",
+    "src/components/store/CartView.tsx:179",
+    "src/components/store/CartView.tsx:187",
+    "src/components/store/AddToCart.tsx:30"
+   ],
+   "evidence": "aria-label=\"الكمية\"\n...\naria-label=\"زيادة الكمية\"\n...\n<button type=\"button\" className={styles.textButton} onClick={() => update(removeLine(cart, line.variantId))}>\n                      حذف",
+   "failureScenario": "With two products in the cart, a screen-reader user listing form controls or buttons hears «الكمية» twice and «حذف» twice, with no product name, and cannot tell which line a control changes or deletes (WCAG 2.4.6). On a product page with several variants, every «الكمية» / «أضف إلى السلة» pair is identical too.",
+   "suggestedFix": "Include the line title: aria-label={`الكمية: ${quoteLine?.productTitle ?? ''} ${quoteLine?.variantTitle ?? ''}`}, and the same for the step buttons and «حذف» (aria-label=`حذف ${…}`). In AddToCart, accept the variant title as a prop for its labels.",
+   "verifierCorrections": [
+    "Compute the displayed line title once in CartView (the string already built at :137, including its «منتج في السلة» fallback) and add it to all four controls, for example aria-label={`حذف ${title}`}. Do not use `quoteLine?.productTitle ?? ''`, which leaves an empty trailing name when the quote refused the line. In AddToCart, pass a `label` prop with `${product.title}: ${variant.title}` from page.tsx:88, add it to the input label as visually hidden text or an aria-label, and give the ActionButton an aria-label such as `أضف ${label} إلى السلة`."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.5",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Address field allows 2000 characters but the database accepts 500, and the refusal says «أدخل عنوان التوصيل»",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 565,
+   "otherLocations": [
+    "supabase/migrations/20260927160000_catalog_and_checkout.sql:919",
+    "supabase/functions/_shared/checkout.ts:78",
+    "src/components/store/CheckoutForm.tsx:497"
+   ],
+   "evidence": "maxLength={2000}\n                  required",
+   "failureScenario": "A buyer types a detailed 600-character delivery address. The client check (at least 5 characters) passes, and the checkout.ts schema `address: z.string().max(2000)` passes. checkout_create then refuses with ADDRESS_REQUIRED because `char_length(v_address) not between 5 and 500` (migration line 919). The buyer sees the banner 'أدخل عنوان التوصيل.', which tells them to enter an address they already entered, with no field error and no hint about the limit.",
+   "suggestedFix": "Set the textarea to `maxLength={500}` in src/components/store/CheckoutForm.tsx, and bound the server schema to the database limit in supabase/functions/_shared/checkout.ts: `address: z.string().max(500).optional()`. Whitespace folding only shortens the text, so 500 typed characters always fit.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.9",
+   "severity": "low",
+   "category": "correctness",
+   "title": "The idempotency key lives only in memory, so after a lost response and a reload the buyer is blocked by their own hold and told to do something the page cannot do",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 284,
+   "otherLocations": [
+    "supabase/migrations/20260927160000_catalog_and_checkout.sql:889",
+    "src/components/store/CheckoutForm.tsx:242"
+   ],
+   "evidence": "const idempotencyRef = useRef<string | null>(null)\nconst fingerprintRef = useRef<string | null>(null)\n...\nif (error?.code === 'ACTIVE_HOLD') {\n  const mine = readPendingOrder()\n  if (mine) {",
+   "failureScenario": "create reaches the server and the order commits, but the response is lost, so the UI shows «تعذّر الاتصال بالخدمة؛ أعد المحاولة.». The buyer reloads, which is a common reaction, and the ref-held key and fingerprint are gone. The next identical submit mints a new key. checkout_create finds the unexpired hold for this email or session and answers ACTIVE_HOLD. readPendingOrder() is null because the token never arrived, so the buyer sees «لديك طلب قيد الانتظار؛ أكمله أو ألغه أولًا.». The page offers no way to complete or cancel that order, and the buyer is blocked for up to 20 minutes. The DATA contract says same-request retries reuse the original order; with the key held only in memory, that stops working after a reload.",
+   "suggestedFix": "Persist the pair {fingerprint, idempotencyKey} with writeSessionValue under a new key in src/lib/cart.ts, and read it back in the mount effect. A reload-and-retry of the identical request then reuses the key, and the server returns the duplicate order with its access token.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.6",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Server field errors (422 INVALID) are dropped, so a rejected email shows only «بيانات غير صالحة.»",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 292,
+   "otherLocations": [],
+   "evidence": "setSubmitError(error?.message ?? 'تعذّر إتمام الطلب.')",
+   "failureScenario": "The buyer types 'name@gmail.c'. The client regex /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/ accepts it, but the server's EMAIL_SHAPE needs a TLD of at least 2 letters, so the function answers 422 {code:'INVALID', fields:{fieldErrors:{email:['بريد غير صالح.']}}}. CheckoutForm ignores fields.fieldErrors and shows the generic banner 'بيانات غير صالحة.'. The email field gets no aria-invalid or focus, so the buyer cannot tell what to fix. The same happens for a name over 120 characters (the input has no maxLength).",
+   "suggestedFix": "In CheckoutForm.submit, when `error?.code === 'INVALID'`, map `error.fields?.fieldErrors` keys that match the Field names (email, name, phone, address) into setErrors with their messages, and focus the first one, before falling back to setSubmitError.",
+   "verifierCorrections": [
+    "Map error.fields.fieldErrors keys that are Field names into setErrors and focus the first one, as suggested. Also add maxLength={120} to the name input and tighten the client email regex to require a TLD of at least 2 characters, so the common cases are caught before the request."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.7",
+   "severity": "low",
+   "category": "correctness",
+   "title": "A duplicate `create` reply for an expired or cancelled order is shown as a live 20-minute hold",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 259,
+   "otherLocations": [],
+   "evidence": "if (reply.ok && reply.data !== undefined) {\n        const order = orderSchema.parse(reply.data.order)\n        setOrderTotal(order.total)\n        if (reply.data.accessToken) {\n          const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: reply.data.accessToken }\n          writePendingOrder(saved)",
+   "failureScenario": "The first `create` commits but the response is lost, so the form shows 'تعذّر الاتصال بالخدمة'. The buyer comes back 25 minutes later and presses «تأكيد الطلب» with the same fields, which reuses the same idempotency key. checkout_create answers duplicate:true with the order that checkout_expire has since marked 'expired'. The client never reads order.status, so it saves the pending order and shows 'حُجز طلبك لمدة 20 دقيقة', but the hold and its stock were already released.",
+   "suggestedFix": "In CheckoutForm.submit after parsing, if `order.status === 'expired' || order.status === 'cancelled'`, call setClosed(order.status) (and still set pending so the closed view renders) instead of presenting a live hold.",
+   "verifierCorrections": [
+    "After orderSchema.parse, if order.status is 'expired' or 'cancelled', do not call writePendingOrder. Set pending, which the closed view needs, and call setClosed(order.status), so the stale token never reaches sessionStorage."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.8",
+   "severity": "low",
+   "category": "correctness",
+   "title": "Submit is not blocked while the quote is stale or refused, so avoidable refusals use up the buyer's five hourly create attempts",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 198,
+   "otherLocations": [],
+   "evidence": "if (!quote || !cart || submitting) return\n...\nquoteHash: quote.quoteHash,",
+   "failureScenario": "(1) With a physical cart, the buyer picks a city and presses «تأكيد الطلب» before the 300 ms debounce and the quote round trip finish. create sends the new cityKey with the old city-less quoteHash. The server re-prices with the city and answers QUOTE_CHANGED «تغيّر السعر أو التوفر…», although nothing changed. (2) With quote.ok=false (OUT_OF_STOCK, COUPON_INVALID), the button stays enabled, and every press spends a Turnstile token and one attempt from the per-email throttle (5 per hour, taken at line 880 before re-pricing). After five presses, the buyer who then fixes the cart gets RATE_LIMITED for up to an hour.",
+   "suggestedFix": "In CheckoutForm.tsx, track a `quoting` flag: set it when the debounced quote effect schedules a fetch, clear it when the fetch settles, and disable the submit while it is true. In submit(), return early with setSubmitError('راجع ملخص الطلب أولًا.') when !quote.ok.",
+   "verifierCorrections": [
+    "Don't call a synchronous setQuoting in the effect body: the code avoids that on purpose (react-hooks/set-state-in-effect, lines 90-91, 111). Instead, store the quote with the inputs that produced it: build `key = JSON.stringify([toApiLines(cart.lines), city, coupon])` in the effect and in refreshQuote, and call setQuote with that key. Treat the quote as stale when its key differs from the current one. Disable submit and return early when the quote is stale or `!quote.ok` (setSubmitError('راجع ملخص الطلب أولًا.'))."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.9",
+   "severity": "low",
+   "category": "dead-code",
+   "title": "CheckoutForm hand-rolls a copy of the shared `useTurnstile` hook",
+   "file": "src/components/store/CheckoutForm.tsx",
+   "line": 135,
+   "otherLocations": [],
+   "evidence": "  const turnstileBox = useCallback(\n    (box: HTMLDivElement | null) => {\n      if (box === null || !siteKey) return\n      let gone = false\n      loadTurnstile()\n        .then(() => {\n-- lines 135-167 repeat src/lib/turnstile.ts:227-264 (useTurnstile, whose doc says it is 'shared by the checkout and the contact form'); the only difference is setAwaitingToken(false) in error-callback. Only ContactForm.tsx:33 uses the hook.",
+   "failureScenario": "No bug today. A fix to widget lifecycle or cleanup in useTurnstile (the hook the lib claims both forms share) would not reach checkout.",
+   "suggestedFix": "Use `const turnstile = useTurnstile('checkout')` in CheckoutForm.tsx (box/token/failed/reset/available). Replace the error-callback side effect with `useEffect(() => { if (turnstile.failed) setAwaitingToken(false) }, [turnstile.failed])`. Delete the local widgetId/token/turnstileFailed state and turnstileBox, and drop loadTurnstile/TURNSTILE_LOOK/turnstileApi from the public exports if nothing else needs them.",
+   "verifierCorrections": [
+    "Use `const turnstile = useTurnstile('checkout')`, and call turnstile.reset() in the finally block. Don't use an effect to clear awaitingToken, because that would trip the set-state-in-effect lint. Derive the waiting state instead: `const waiting = awaitingToken && !turnstile.failed`, and use it in the button and in the requestSubmit effect. Remove the local widgetId, token and turnstileFailed state and turnstileBox. Stop exporting loadTurnstile, TURNSTILE_LOOK and turnstileApi only if nothing else imports them."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S06.9",
+   "severity": "low",
+   "category": "correctness",
+   "title": "quoteErrorMessage has no case for the dedication codes, so a dedication refusal reads «تحقق من محتويات السلة.»",
+   "file": "src/components/store/quote.ts",
+   "line": 261,
+   "otherLocations": [],
+   "evidence": "    case 'EMPTY_CART':\n      return 'سلتك فارغة.'\n    default:\n      return 'تحقق من محتويات السلة.'",
+   "failureScenario": "The owner turns a signed variant into a physical one while a buyer's stored line still carries a dedication. The quote returns DEDICATION_NOT_ALLOWED for that line, and the cart shows only 'تحقق من محتويات السلة.'. The line's dedication input is hidden, because a refused line has no quoteLine, so nothing tells the buyer the dedication is the cause. INVALID_DEDICATION (a pasted control character) gets the same generic text. The function's own REFUSALS map says 'تحقق من نص الإهداء.' for both codes, which the doc comment claims this switch mirrors.",
+   "suggestedFix": "Add to quoteErrorMessage in src/components/store/quote.ts: `case 'DEDICATION_NOT_ALLOWED': case 'INVALID_DEDICATION': return 'تحقق من نص الإهداء.'`.",
+   "verifierCorrections": [
+    "Add the suggested case. Because the refused line hides the dedication field, the buyer can only remove the line, so the DEDICATION_NOT_ALLOWED text could also say that (for example «هذا الخيار لا يقبل إهداء؛ احذف السطر وأعد إضافته.»). This is optional: the minimum fix is to reuse the REFUSALS text."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "S14.12",
+   "severity": "low",
+   "category": "data-loss",
+   "title": "A failed cart write is kept in memory but never read back while localStorage is readable, so AddToCart reports an item added that the cart never shows",
+   "file": "src/lib/cart.ts",
+   "line": 232,
+   "otherLocations": [
+    "src/lib/cart.ts:262",
+    "src/components/store/AddToCart.tsx:24"
+   ],
+   "evidence": "export function readCart(area: CartArea = cartArea()) {\n  if (area === null) return { cart: memoryCart, persistent: false }\n  try {\n    const raw = area.getItem(CART_STORAGE_KEY)\n    if (raw === null) return { cart: EMPTY_CART, persistent: true }",
+   "failureScenario": "localStorage is readable but setItem throws (QuotaExceededError). writeCart stores the new cart in memoryCart and returns false. AddToCart ignores that return value and shows «أُضيف إلى السلة». On /cart, readCart() finds a non-null area and returns the stored cart without the new line, with persistent=true. The item is gone, and the «السلة مؤقتة…» note never appears.",
+   "suggestedFix": "In src/lib/cart.ts, record a module-level `writeFailed = true` in writeCart's catch. In readCart, return { cart: memoryCart, persistent: false } when writeFailed is set, before reading storage.",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "G1.3",
+   "severity": "low",
+   "category": "privacy",
+   "title": "The dedication text is saved to localStorage on every keystroke and never cleared, against DATA step 1 and P07's 'persist cart IDs/qty only'",
+   "file": "src/lib/cart.ts",
+   "line": 260,
+   "otherLocations": [
+    "src/components/store/CartView.tsx:198",
+    "PLANS/DATA-AND-SECURITY.md:57",
+    "PLANS/WORK-PACKAGES.md:93",
+    "docs/operations.md:426"
+   ],
+   "evidence": "cart.ts:5-7: localStorage holds `anasaq:cart:v1` ... `{ \"variantId\": uuid, \"quantity\": 1..20, \"dedication\"?: string }`\ncart.ts:72: return JSON.stringify({ version: 1, lines: cart.lines })\ncart.ts:260: area.setItem(CART_STORAGE_KEY, serializeCart(cart))\nCartView.tsx:198: onChange={(event) => update(setDedication(cart, line.variantId, event.target.value))}\nDATA-AND-SECURITY.md:57: \"Browser stores only variant IDs, quantities and cart schema version in localStorage.\"",
+   "failureScenario": "A buyer on a shared family or office computer types «إلى سارة، مع كل الحب» as a signed-copy dedication on /cart. Each keystroke is written to localStorage['anasaq:cart:v1']. The cart is deliberately kept after the hold is created (CheckoutForm: nothing settles before P08), so the text stays in the browser forever. The next person who opens /cart on that device sees it. The plan's contract allows only ids, quantities and the schema version in localStorage (DATA step 1, WORK-PACKAGES P07 line 93).",
+   "suggestedFix": "In src/lib/cart.ts, have serializeCart write lines without `dedication`. Keep dedications in sessionStorage under a new key `anasaq:dedications` ({variantId: text}), using the readSessionValue/writeSessionValue helpers the file already has. readCart merges them back. The feature is unchanged within the tab: the dedication survives a reload and the cart-to-checkout step, but is gone when the tab closes. Update the matching sentence in docs/operations.md (line 426).",
+   "verifierCorrections": [
+    "First decide which side is authoritative. If the plan wins, apply the suggested sessionStorage split, and merge the dedications back in both readCart branches: the storage branch and the memoryCart fallback. Otherwise, amend DATA-AND-SECURITY.md step 1 and WORK-PACKAGES P07 to allow a bounded dedication in the cart. Either way, fix S06.2 in the same change."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.7",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "`quoteSchema` shim unused; the `{ parse }` wrappers only delegate",
+   "file": "src/components/store/quote.ts",
+   "line": 203,
+   "otherLocations": [],
+   "evidence": "/** The parsers under the names the cart and checkout already call. */\nexport const priceSchema = { parse: parsePrice }\nexport const quoteSchema = { parse: parseQuote }\nexport const orderSchema = { parse: parseOrder }\n-- grep 'quoteSchema' src tests: only quote.ts:203. priceSchema/orderSchema are used only at CheckoutForm.tsx:260 and 273.",
+   "failureScenario": "No runtime failure. These objects are leftovers of the removed Zod schemas; one is dead and the other two wrap a function without adding anything.",
+   "suggestedFix": "Delete lines 201-204 and export `parsePrice`/`parseOrder` directly; in CheckoutForm.tsx call `parseOrder(...)` and `parsePrice(...)`.",
+   "verifierCorrections": [
+    "Smallest fix: delete the quoteSchema line (203). Exporting parsePrice/parseOrder directly and dropping the other two wrappers is an optional clean-up that changes CheckoutForm.tsx:46/260/273."
+   ],
+   "needsOwnerDecision": false
+  },
+  {
+   "id": "X6.23",
+   "severity": "info",
+   "category": "dead-code",
+   "title": "Two unused CSS module classes ship in the public CSS",
+   "file": "src/components/store/store.module.css",
+   "line": 27,
+   "otherLocations": [],
+   "evidence": ".inner {\n  max-inline-size: 880px;\n}\n-- store.module.css importers (cart, checkout, policies, store pages, AddToCart, CartLink, CartView, CheckoutForm) use `styles.innerWide` only; `styles.inner` appears nowhere. Likewise src/components/weave/layout.module.css:14 `.splitCenter { align-items: center; }` has no `layout.splitCenter` reference in its 7 importers.",
+   "failureScenario": "Dead rules add bytes to the public CSS on every page that imports those modules.",
+   "suggestedFix": "Delete `.inner` (store.module.css 27-29) and `.splitCenter` (layout.module.css 14-16).",
+   "verifierCorrections": [],
+   "needsOwnerDecision": false
+  }
+ ]
+}
