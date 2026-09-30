@@ -14,7 +14,7 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "-y",
-        "serve",
+        "serve@14.2.6",
         "out",
         "-l",
         "4010"
@@ -26,12 +26,24 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": [
         "-y",
-        "serve",
+        "serve@14.2.6",
         "deploy",
         "-l",
         "4321"
       ],
       "port": 4321
+    },
+    {
+      "name": "art",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "-y",
+        "serve@14.2.6",
+        "BOOK_ASSETS/v4-art",
+        "-l",
+        "4020"
+      ],
+      "port": 4020
     }
   ]
 }

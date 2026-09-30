@@ -1,7 +1,8 @@
 ---
 name: auditor
-description: Diff-scoped auditor (inherits the orchestrator model). Reviews every worker diff before package acceptance. Never writes product code.
-model: inherit
+description: Diff-scoped auditor on Claude Sonnet 5.5 (effort xhigh; D41). Reviews every worker diff before package acceptance. Never writes product code.
+model: claude-sonnet-5-5
+effort: xhigh
 tools: Read, Grep, Glob, Bash
 ---
 

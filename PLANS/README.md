@@ -1,16 +1,16 @@
 # ANASAQ (anas.studio): start here
 
-`PLANS/` is the plan of record. Revised 2026-09-24 for D29: a custom Supabase admin replaces Payload, and work stays local until P11.
+`PLANS/` is the plan of record. Revised 2026-09-30 (D41). Since D29 a custom Supabase admin replaces Payload, and work stays local until P11.
 
 Read in order: [DECISIONS.md](DECISIONS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DATA-AND-SECURITY.md](DATA-AND-SECURITY.md), [WORK-PACKAGES.md](WORK-PACKAGES.md), [VERIFICATION.md](VERIFICATION.md), then [EXECUTION-STATUS.md](EXECUTION-STATUS.md) and the open items in [ISSUES.md](ISSUES.md). Consult [COVERAGE.md](COVERAGE.md) (offer C-IDs), [DESIGN-AUDIT.md](DESIGN-AUDIT.md) (before any UI work), [research-final.md](research-final.md) (limits and package choices) and [SOURCE-NOTES.md](SOURCE-NOTES.md) (source precedence) when a task needs them. The session kickoff is [KICKOFF.md](KICKOFF.md).
 
-Authority: the owner's current amendments; offer v3's binding scope, with its Payload requirement replaced by D29; compatible PRD detail; the frozen `deploy/design/` showcase; assets and brand sources; project rules. Never inspect or modify `_archive/`. Source hashes in `evidence/source-manifest.json` protect the frozen sources.
+Authority: the owner's current amendments; offer v3's binding scope, with its Payload requirement replaced by D29; compatible PRD detail; the frozen `deploy/design/` showcase (v1 history; the public design is D39's direction B, `DESIGN.md`); assets and brand sources; project rules. Never inspect or modify `_archive/`. Source hashes in `evidence/source-manifest.json` protect the frozen sources.
 
-Packages run P00 to P11 in order, each accepted independently. Offer phases: P00–P02 foundation, P03–P06 administration, P07–P09 store/payment, P10–P11 launch. P12 لوحة أنس is BONUS SCOPE, accepted separately, outside the offer C-IDs and the 7–9-week estimate.
+Packages run P00 to P11 in order (D38 lets P07–P09 run before P01 and P02 finish), each accepted independently. Offer phases: P00–P02 foundation, P03–P06 administration, P07–P09 store/payment, P10–P11 launch. P12 لوحة أنس is BONUS SCOPE, accepted separately, outside the offer C-IDs and the 7–9-week estimate.
 
 ## Single-writer orchestration
 
-Roles are in D28 as amended by D30: the orchestrator (Opus 5.5) plans, audits, fixes and designs; `glm-worker` (Z.AI GLM-5.3, launched by `node scripts/glm-worker.mjs <brief-file>`) does long, well-specified work. Token rules are in CLAUDE.md (I24).
+Roles are in D28 as amended by D41: the orchestrator (Opus 5.5) plans, audits, fixes and designs; every sub-agent runs Claude Sonnet 5.5 at effort xhigh, `sonnet-worker` for long, well-specified work and `auditor` for diff review. Token rules are in CLAUDE.md (I24).
 
 Before any write, the writer holds `.anasaq-execution.lock`, created exclusively with Node `fs.openSync(path, 'wx')`. It records package, agent, task, base commit, start time, dirty paths at start and the expanded exact allowed paths. An existing lock blocks dispatch. Never expire a lock by clock: prove the prior writer stopped, inspect the diff, record recovery, then release. The lock stays held through integration and the orchestrator's audit. A new path is added to the allowlist before it is written.
 
