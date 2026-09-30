@@ -27,13 +27,7 @@ const config = [
       'graft/**',
       'artifacts/**',
       '.codegraph/**',
-      '.adal/**',
       '.claude/**',
-      '.cursor/**',
-      '.gemini/**',
-      '.grok/**',
-      '.kiro/**',
-      '.windsurf/**',
       // Generated files with a single generator as their owner.
       'next-env.d.ts',
     ],

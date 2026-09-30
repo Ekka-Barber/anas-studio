@@ -14,7 +14,7 @@ Roles are in D28 as amended by D41: the orchestrator (Opus 5.5) plans, audits, f
 
 Before any write, the writer holds `.anasaq-execution.lock`, created exclusively with Node `fs.openSync(path, 'wx')`. It records package, agent, task, base commit, start time, dirty paths at start and the expanded exact allowed paths. An existing lock blocks dispatch. Never expire a lock by clock: prove the prior writer stopped, inspect the diff, record recovery, then release. The lock stays held through integration and the orchestrator's audit. A new path is added to the allowlist before it is written.
 
-The orchestrator alone updates `EXECUTION-STATUS.md` and `ISSUES.md`. States: not_started/building/audit_failed/accepted/blocked_external. Every accepted package gets a clean commit on an `agent/` branch; unrelated edits are never staged into it. No push, purchase, live charge or deploy authority is implied by this plan.
+The orchestrator alone updates `EXECUTION-STATUS.md` and `ISSUES.md`. States: not_started/building/audit_failed/accepted/blocked_external. `main` is the only long-lived branch and the single source of truth: each package is built on a short-lived `agent/<package>` branch cut from `main`, fast-forwarded into `main` on the owner's word, pushed, and deleted; unrelated edits are never staged into a package commit. No push, purchase, live charge or deploy authority is implied by this plan.
 
 ## Builder brief
 
