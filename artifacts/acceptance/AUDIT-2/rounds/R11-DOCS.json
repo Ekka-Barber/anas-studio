@@ -1,0 +1,98 @@
+[
+ {
+  "id": "GAP-G3-5",
+  "severity": "medium",
+  "verdict": "confirmed",
+  "location": "docs/operations.md:579-583",
+  "title": "Neither the restore runbook nor the rehearsal proves that the nine pg_cron jobs exist after a restore",
+  "claim": "Every schedule (email-outbox, site-build-trigger, content-publish-due, media-sweep, checkout-expire, rate-limits-purge, job-runs-purge, contacts-purge, buyer-retention) exists only as a row created by `select cron.schedule(...)` inside a migration. history_data.sql marks all migrations applied, so a restore never re-runs them. scripts/restore-check.mjs passes when the COPY row counts in data.sql equal the restored counts (lines 382-395). It never queries cron.job, and it starts from an empty `supabase init` workdir, not the repo's migrations. The runbook's 'what a file does not hold' list (lines 520-523) names Vault, function secrets, Auth settings and keys, but not the cron schema, and steps 3-5 never say to check or re-create the jobs.",
+  "quote": "3. Re-create the Vault secrets: `select vault.create_secret(...)` for",
+  "failure_scenario": "If data.sql does not carry cron.job (the rehearsal cannot tell), the restored project has every function and no schedule. The outbox never runs, publishes never trigger a rebuild, scheduled posts never go live, checkout holds never expire, and contacts-purge, buyer-retention and rate-limits-purge never run, so the 90-day retention promise silently fails. The owner home only shows 'لم يعمل بعد'.",
+  "suggested_fix": "Add a step that runs `select jobname, schedule from cron.job order by 1` and compares it with the nine names above, re-running the cron.schedule lines from the migrations for any that are missing; add the same comparison to restore-check.mjs's pass criteria, and add cron.job to the 'does not hold' list if the dump indeed omits it.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G3-3",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "PLANS/DATA-AND-SECURITY.md:53-53",
+  "title": "check:export is cited as proof of 'no migration credential' but has no pattern for one",
+  "claim": "SECRET_PATTERNS in scripts/check-export.mjs:68-75 are sb_secret_, whsec_, a Resend key shape, a PEM private key, the two local dev secrets, plus a service_role JWT decode. There is no pattern for a Postgres connection string (DATABASE_URL, which .env.example:67 calls a migration credential), a Supabase access token (sbp_...), the DB password, the Cloudflare API or analytics tokens, or a Turnstile secret. The contract sentence claims the script proves the absence of a migration credential.",
+  "quote": "No secret/service-role key or migration credential in the static site or browser (`pnpm check:export`).",
+  "failure_scenario": "During P11 someone sets DATABASE_URL (or an sbp_ token) as a NEXT_PUBLIC_ variable in the Pages build environment, or pastes it into a client component. pnpm check:export exits 0 and the credential is inlined into out/_next/static JavaScript and deployed, while this document says the check covers it.",
+  "suggested_fix": "Add patterns such as /postgres(ql)?:\\/\\/[^\\s\"'@]+:[^\\s\"'@]+@/ and /sbp_[0-9a-f]{40}/ (and the Turnstile 0x4 secret shape) to SECRET_PATTERNS with a unit test, or reword the sentence to list exactly what the script detects.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G3-4",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "docs/operations.md:582-583",
+  "title": "Restore step 4 does not list the Edge Function secrets, and TOKEN_HASH_PEPPER is not a throwaway value",
+  "claim": "Backups deliberately exclude Edge Function secrets (operations.md:520-523), so step 4 is the only place they come back, yet it names two and says 'the rest'. TOKEN_HASH_PEPPER is load-bearing well beyond what .env.example:27-28 says ('Salts the contact form's hashed caller key'). checkout.ts:136-141 derives each order access token as HMAC(pepper, 'order-access:<idempotencyKey>') and stores sha256(pepper:order:token) as orders.access_token_hash. Nothing tells the operator to reuse the original pepper or keep a copy; a fresh random value is the natural choice. An unset TOKEN_HASH_PEPPER makes contact answer 500 (contact.ts:141-142) and checkout 503 (checkout.ts:217); an unset SITE_URL makes contact answer 403 to every origin.",
+  "quote": "(`JOBS_SECRET`, `RESEND_WEBHOOK_SECRET`, and the rest).",
+  "failure_scenario": "After a restore the operator sets JOBS_SECRET and RESEND_WEBHOOK_SECRET and a newly generated TOKEN_HASH_PEPPER. Every stored access_token_hash (7-day order links, P08 download tokens, DATA-AND-SECURITY.md:75) stops matching, so buyers' cancel calls answer 404 and P08 links die. If the operator forgets TOKEN_HASH_PEPPER or SITE_URL, the contact form fails with 500 or 403 and nothing in the runbook would show it.",
+  "suggested_fix": "In step 4 list every secret by name from .env.example (SITE_URL, JOBS_SECRET, TOKEN_HASH_PEPPER, RESEND_API_KEY, EMAIL_FROM, RESEND_WEBHOOK_SECRET, TURNSTILE_SECRET_KEY, ANALYTICS_TOKEN, CLOUDFLARE_ZONE_ID, plus PAYMENTS_MODE when it exists), mark TOKEN_HASH_PEPPER 'reuse the original; it is not in any backup; keep a copy with the passphrase', add a smoke test (a contact POST from the site origin answers 201), and fix the .env.example comment.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G3-6",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "docs/privacy-data-map.md:35-35",
+  "title": "The access/erase lookup misses visitors whose address has an internationalized domain",
+  "claim": "contact.ts:53-77 converts any non-ASCII domain to punycode before validation and storage (its comment names the Saudi '.السعودية' TLD), and the DB check only accepts xn-- labels. The runbook's export and delete queries compare against the address exactly as the requester writes it. Step 37 then says to 'list the ids with the query above' before calling privacy_erase_contacts, so a miss feeds straight into the erase call.",
+  "quote": "select id, name, email, message, created_at from public.contacts where email = lower(btrim('<address>'));",
+  "failure_scenario": "A visitor who wrote from x@مثال.السعودية asks for deletion. The operator pastes that address, gets 0 rows, tells the visitor nothing is held and writes nothing to the ledger, while the row stored as x@xn--mgbh0fb.xn--mgberp4a5d4ar (or the like) and its message remain.",
+  "suggested_fix": "Tell the operator to punycode the domain first (for example with node -e \"console.log(new URL('http://'+domain).hostname)\") or to search with `email like '%@xn--%'` plus the local part, and say so next to the query.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G3-7",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "docs/privacy-data-map.md:23-23",
+  "title": "Data map omits Cloudflare as a recipient of the visitor's raw IP and misstates what the owner sees of staff",
+  "claim": "The Providers row lists only Resend and Supabase. turnstile.ts:68 sends the visitor's raw IP as remoteip to Cloudflare's siteverify on every contact and checkout submission (skipped only for 'local'), and operations.md:48-53 says only that no raw IP is stored or logged by us. Cloudflare also serves the site and Email Routing forwards help@anas.studio. Line 17 says the owner sees names and roles in the team screen, but staff_directory() (20260925090000_audit_and_staff_directory.sql:44-65) returns each member's email and whether they enrolled TOTP. The map is the input to the E08 privacy text.",
+  "quote": "| Providers | Resend keeps sent-email data 30 days on the Free plan; Supabase keeps its platform logs per plan |",
+  "failure_scenario": "Anas drafts the E08 privacy policy from this map and omits Cloudflare (Turnstile receives each submitter's IP; Email Routing and Pages handle mail and requests), so the approved policy understates the processors and the processor review E08 requires is incomplete.",
+  "suggested_fix": "Add a Cloudflare row (Turnstile: IP and browser signals per contact or checkout submission; Pages: request logs; Email Routing: help@anas.studio mail) and change line 17 to 'names, emails, roles and TOTP status'.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G3-8",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "docs/operations.md:337-343",
+  "title": "Runbook quotes admin strings that the screens do not show, and keeps pre-D31 package numbers",
+  "claim": "The runbook tells the owner what the stats screen says when unconfigured. StatsView.tsx:32 and :119 render «غير متاح: الإحصاءات غير مُعدّة بعد. تحتاج إلى ANALYTICS_TOKEN و CLOUDFLARE_ZONE_ID.», and StatsView.tsx:91 renders «غير مُعدّ بعد. تظهر أرقامه عند افتتاح المتجر.»; neither quoted string exists anywhere in src. Line 341-342 also says commerce stays unconfigured 'until the order and payment tables exist (P07/P08)', but the orders tables exist since P07 (20260927160000) and stats.ts:10 still reports not_configured until P08. Line 94 says availability notices are P07; D31 and HANDOFF.md:39 moved them to P08.",
+  "quote": "«غير متاح — غير مُعدّة بعد», never 0.",
+  "failure_scenario": "At E11 the owner or an auditor checks the stats screen against this runbook, searches for the quoted Arabic, and cannot match it, so a correct 'not configured' state is reported as a defect or the wrong secret is chased; the P07/P08 wording sends a P08 builder to look for missing tables that already exist.",
+  "suggested_fix": "Quote the real strings (or describe them without quoting), and change '(P07/P08)' to 'P08' for commerce stats and '(P07)' to '(P08)' for availability notices.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G3-9",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": ".env.example:62-62",
+  "title": "SUPABASE_PROJECT_REF is a name nothing reads; the backup script uses SUPABASE_PROJECT_ID",
+  "claim": "scripts/backup.mjs:49 and :192 read SUPABASE_PROJECT_ID, and docs/operations.md:550 documents that name. SUPABASE_PROJECT_REF is referenced nowhere in src, scripts, supabase, tests, CI or docs. AUDIT-1 S23.8 removed one stale name from this file but left this one.",
+  "quote": "SUPABASE_PROJECT_REF=",
+  "failure_scenario": "On the owner's machine he fills SUPABASE_PROJECT_REF as the template suggests and expects `pnpm backup --linked` to use it without `supabase link`. The script ignores it and exits with 'No linked Supabase project' (or backs up a previously linked project).",
+  "suggested_fix": "Rename it to SUPABASE_PROJECT_ID in .env.example (with a comment that only backup.mjs reads it), or delete the line.",
+  "audit1_ref": "S23.8"
+ },
+ {
+  "id": "GAP-G3-10",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "PLANS/EXECUTION-STATUS.md:11-11",
+  "title": "The 'Current state' table still says AUDIT-1 is not committed and stops at the wrong last commit",
+  "claim": "Line 11 says AUDIT-1 was 'not committed'. Line 10 and the package ledger (line 323) say it was committed as f38f04d and pushed, and git log confirms f38f04d, 9f6f37f, cab4000 and 4f22b78. Row 10 names the D42 docs commit as the last commit, but HEAD is 4f22b78 (REPO-SWEEP). KICKOFF tells each session to read this table first (AUDIT-1 S22.1 was the same class).",
+  "quote": "AUDIT-1 (built and audited 2026-09-30, not committed): see the package ledger.",
+  "failure_scenario": "A fresh orchestrator session reads the table, believes the AUDIT-1 work is uncommitted, and stages or re-commits already committed files, or asks the owner to authorize a commit that already happened.",
+  "suggested_fix": "Change the Packages cell to 'AUDIT-1 (committed f38f04d, pushed)' and the Last commit cell to 4f22b78, the REPO-SWEEP commit.",
+  "audit1_ref": "S22.1"
+ }
+]

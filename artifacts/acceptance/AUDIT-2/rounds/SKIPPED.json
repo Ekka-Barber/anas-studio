@@ -1,0 +1,31 @@
+{
+ "p08": [
+  "DB-commerce-set-1",
+  "X-CONTRACT-2",
+  "DB-auditfix-1",
+  "STORE-checkout-1",
+  "X-MONEY-1",
+  "EF-money-2",
+  "FIX-public-4",
+  "STORE-checkout-10",
+  "X-SEC-4",
+  "DB-catalog-2",
+  "X-MONEY-3",
+  "STORE-checkout-9",
+  "GAP-G5-3",
+  "GAP-G4-4"
+ ],
+ "decisions": {
+  "TOOLING-7": "won't fix: graft generates these hook entries; a longer-than-needed timeout is harmless and a hand edit would be reverted by the next graft upgrade",
+  "ADMIN-editor-8": "deferred to I45: whether the site shows a contact e-mail is Anas's content decision",
+  "PUBLIC-data-6": "deferred to I45: whether the site shows a contact e-mail is Anas's content decision",
+  "GAP-G3-11": "orchestrator (docs round): C25 WhatsApp wording"
+ },
+ "environment": [
+  "TOOLING-1",
+  "TOOLING-2",
+  "TOOLING-5",
+  "TOOLING-6",
+  "FIX-rest-5"
+ ]
+}

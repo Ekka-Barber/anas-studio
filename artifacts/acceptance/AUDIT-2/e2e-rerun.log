@@ -1,0 +1,348 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 80 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[1/80] [chromium] › tests\e2e\auth.spec.ts:9:1 › an unknown email gets the identical sent message
+[2/80] [chromium] › tests\e2e\auth.spec.ts:16:1 › sign-in by code reaches /admin, enrols TOTP, and invites a member through step-up
+[3/80] [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[4/80] [chromium] › tests\e2e\cms.spec.ts:255:1 › room: edit, preview, publish, restore (requires pnpm db:import)
+[5/80] [chromium] › tests\e2e\cms.spec.ts:362:1 › editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import)
+[6/80] [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import)
+  1) [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import) 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText(/^روابط التواصل: الرابط غير صالح./)
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText(/^روابط التواصل: الرابط غير صالح./) with timeout 20000ms
+      - waiting for getByText(/^روابط التواصل: الرابط غير صالح./)
+
+
+      452 |   await items.nth(4).getByLabel('المعرّف').fill(added.handle)
+      453 |   await items.nth(4).getByLabel('الرابط').fill(added.href.replace('https:', 'http:'))
+    > 454 |   await expect(page.getByText(/^روابط التواصل: الرابط غير صالح./)).toBeVisible()
+          |                                                                    ^
+      455 |   await items.nth(4).getByLabel('الرابط').fill(added.href)
+      456 |   await expect(page.getByText('هناك مشاكل في البيانات:')).toHaveCount(0)
+      457 |
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\cms.spec.ts:454:68
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[7/80] [chromium] › tests\e2e\cms.spec.ts:507:1 › scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import)
+[8/80] [chromium] › tests\e2e\cms.spec.ts:595:1 › a stale save is rejected with a conflict message and keeps the typed text
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[9/80] [chromium] › tests\e2e\media.spec.ts:102:1 › happy path: ticket, every part, complete, then the public derivative
+[10/80] [chromium] › tests\e2e\media.spec.ts:164:1 › HTML bytes declared as image/jpeg: complete fails and every stored object is removed
+[11/80] [chromium] › tests\e2e\media.spec.ts:223:1 › more bytes than declared are refused at completion; nothing goes public
+[12/80] [chromium] › tests\e2e\media.spec.ts:245:1 › another staff member's ticket is 404; an expired ticket is 410
+[13/80] [chromium] › tests\e2e\media.spec.ts:274:1 › no token is 401; an operations token is 403
+[14/80] [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete
+  2) [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  getByRole('link', { name: 'بنيتُ هنا' })
+    Expected: 2
+    Received: 1
+    Timeout:  20000ms
+
+    Call log:
+      - Expect "toHaveCount" getByRole('link', { name: 'بنيتُ هنا' }) with timeout 20000ms
+      - waiting for getByRole('link', { name: 'بنيتُ هنا' })
+        43 × locator resolved to 1 element
+           - unexpected value "1"
+
+
+      422 |   await page.getByRole('button', { name: new RegExp(probeName) }).click()
+      423 |   const usedLinks = page.getByRole('link', { name: 'بنيتُ هنا' })
+    > 424 |   await expect(usedLinks).toHaveCount(2)
+          |                           ^
+      425 |   await expect(usedLinks.first()).toHaveAttribute('href', '/admin/content/rooms/edit?id=built')
+      426 |   await expect(page.getByText('منشورة')).toBeVisible()
+      427 |   await expect(page.getByText('مسودة')).toBeVisible()
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\media.spec.ts:424:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[15/80] [chromium] › tests\e2e\media.spec.ts:485:1 › round 2: search and المزيد paging past 40 items
+[16/80] [chromium] › tests\e2e\media.spec.ts:531:1 › round 2: screenshots at 360 and 1440, and horizontal overflow
+[17/80] [chromium] › tests\e2e\owner-operations.spec.ts:127:1 › a contact submission is stored and its notices queued
+[18/80] [chromium] › tests\e2e\owner-operations.spec.ts:165:1 › with no jobs run the message is stored and its notice waits, so an email outage loses nothing
+[19/80] [chromium] › tests\e2e\owner-operations.spec.ts:180:1 › a jobs run delivers the notices through Mailpit, sent but not yet delivered
+[20/80] [chromium] › tests\e2e\owner-operations.spec.ts:231:1 › the daily media sweep removes day-old quarantine parts through Storage and records the run (I29)
+[21/80] [chromium] › tests\e2e\owner-operations.spec.ts:262:1 › a signed delivered webhook marks delivery; a forged signature is 401
+[22/80] [chromium] › tests\e2e\owner-operations.spec.ts:290:1 › the honeypot answers success and stores nothing
+[23/80] [chromium] › tests\e2e\owner-operations.spec.ts:313:1 › an over-length Turnstile token is refused by the schema
+[24/80] [chromium] › tests\e2e\owner-operations.spec.ts:329:1 › a non-JSON content type is refused with 415
+[25/80] [chromium] › tests\e2e\owner-operations.spec.ts:337:1 › an oversized body is refused with 413
+[26/80] [chromium] › tests\e2e\owner-operations.spec.ts:345:1 › the jobs endpoint refuses a missing or wrong bearer
+[27/80] [chromium] › tests\e2e\owner-operations.spec.ts:357:1 › the owner home shows real counts and no inbox (D31)
+[28/80] [chromium] › tests\e2e\owner-operations.spec.ts:375:1 › the owner home shows the backup job: never run, ok, then stale after 30 days (D35)
+[29/80] [chromium] › tests\e2e\owner-operations.spec.ts:400:1 › the email job warns only when a row has waited more than 10 minutes (I35)
+[30/80] [chromium] › tests\e2e\owner-operations.spec.ts:447:1 › an operations member sees email but not stats or settings, and there is no inbox
+[31/80] [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC
+  3) [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC ───────────
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('تعذّر تحميل مشكلات البريد.')
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" getByText('تعذّر تحميل مشكلات البريد.') with timeout 20000ms
+      - waiting for getByText('تعذّر تحميل مشكلات البريد.')
+
+
+      473 |   await page.goto('/admin/email')
+      474 |   // The RPC itself is refused for an editor.
+    > 475 |   await expect(page.getByText('تعذّر تحميل مشكلات البريد.')).toBeVisible()
+          |                                                              ^
+      476 |   await expect(page.locator('tbody tr')).toHaveCount(0)
+      477 | })
+      478 |
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\owner-operations.spec.ts:475:62
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[32/80] [chromium] › tests\e2e\owner-operations.spec.ts:479:1 › email problems: replay exhausted, confirm uncertain, suppressed is refused
+[33/80] [chromium] › tests\e2e\owner-operations.spec.ts:549:1 › an operations member can replay a failed outbox row through the risk-acceptance flow
+[34/80] [chromium] › tests\e2e\owner-operations.spec.ts:576:1 › settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets
+[35/80] [chromium] › tests\e2e\owner-operations.spec.ts:631:1 › the owner saves the store seller details through the step-up dialog
+[36/80] [chromium] › tests\e2e\owner-operations.spec.ts:680:1 › screenshots at 360 and 1440 with no horizontal overflow
+[37/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › / loads
+[38/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /started loads
+[39/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /built loads
+[40/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /passed loads
+[41/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /shelf loads
+[42/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /book loads
+[43/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /journal loads
+[44/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /scenes loads
+[45/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /contact loads
+[46/80] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /store loads
+[47/80] [chromium] › tests\e2e\public.spec.ts:36:3 › every page renders with one h1 and no console errors › an unknown path is the woven 404
+[48/80] [chromium] › tests\e2e\public.spec.ts:45:3 › header and menu › the menu opens as a modal, marks the room, closes on Escape and returns focus
+[49/80] [chromium] › tests\e2e\public.spec.ts:62:3 › header and menu › from 1024px the rooms are inline and the current one is marked
+[50/80] [chromium] › tests\e2e\public.spec.ts:71:3 › header and menu › the skip link jumps to the page content
+[51/80] [chromium] › tests\e2e\public.spec.ts:82:3 › films play only when asked › a film shows its poster and a play button, then plays with its own controls
+[52/80] [chromium] › tests\e2e\public.spec.ts:96:3 › المَشاهد › the filter narrows the grid and says which filter is on
+[53/80] [chromium] › tests\e2e\public.spec.ts:109:3 › المَشاهد › the lightbox opens by keyboard, steps in Arabic order and returns focus
+[54/80] [chromium] › tests\e2e\public.spec.ts:126:3 › كتبتُ هنا › cover B, and the contents strip jumps to its sections
+[55/80] [chromium] › tests\e2e\public.spec.ts:137:3 › تواصل › an empty send names each missing field and focuses the first
+[56/80] [chromium] › tests\e2e\public.spec.ts:147:3 › تواصل › a service opens the form with its name in the message
+[57/80] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › / reads without JS
+[58/80] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /started reads without JS
+[59/80] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /built reads without JS
+[60/80] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /passed reads without JS
+[61/80] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /shelf reads without JS
+[62/80] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /book reads without JS
+[63/80] [chromium] › tests\e2e\reader.spec.ts:93:3 › the book preview › the published preview is the approved export, byte for byte
+[64/80] [chromium] › tests\e2e\reader.spec.ts:99:3 › the book preview › closed, it loads nothing; open, it fetches only the preview and reads right to left
+[65/80] [chromium] › tests\e2e\reader.spec.ts:138:3 › the book preview › opening keeps the page still, the closed book centred on the stage
+[66/80] [chromium] › tests\e2e\reader.spec.ts:163:3 › the book preview › a part under the closed book opens the book at that part
+[67/80] [chromium] › tests\e2e\reader.spec.ts:169:3 › the book preview › the pages carry their text, for selection and screen readers
+[68/80] [chromium] › tests\e2e\reader.spec.ts:182:3 › the book preview › a drag from the left page to the right turns to the next spread
+[69/80] [chromium] › tests\e2e\reader.spec.ts:195:3 › the book preview › without motion a turn is a short fade, never a rotation
+[70/80] [chromium] › tests\e2e\reader.spec.ts:213:3 › the book preview › a resize redraws the pages at the new size
+[71/80] [chromium] › tests\e2e\reader.spec.ts:223:3 › the book preview › full screen, then back
+[72/80] [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions
+  4) [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('#pages [aria-live="polite"]')
+    Expected pattern: /2 \/ 5/
+    Received string:  "الإهداء1 / 5"
+    Timeout: 20000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#pages [aria-live="polite"]') with timeout 20000ms
+      - waiting for locator('#pages [aria-live="polite"]')
+        6 × locator resolved to <p aria-live="polite" class="reader-module__6urtYG__where">…</p>
+          - unexpected value "الغلاف"
+        37 × locator resolved to <p aria-live="polite" class="reader-module__6urtYG__where">…</p>
+           - unexpected value "الإهداء1 / 5"
+
+
+      232 |     await openBook(page)
+      233 |     await page.keyboard.press('ArrowLeft')
+    > 234 |     await expect(where(page)).toHaveText(/2 \/ 5/)
+          |                               ^
+      235 |     await page.getByRole('button', { name: 'عرض للقراءة' }).click()
+      236 |     const sheets = page.getByRole('list', { name: 'صفحات من خوص' })
+      237 |     await expect(sheets.getByRole('listitem')).toHaveCount(5)
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\reader.spec.ts:234:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[73/80] [chromium] › tests\e2e\reader.spec.ts:245:3 › the book preview › an odd page count and a single page still make a book
+[74/80] [chromium] › tests\e2e\reader.spec.ts:264:3 › the book preview › a corrupt or unreachable file says so, and a retry opens the book
+[75/80] [chromium] › tests\e2e\reader.spec.ts:281:3 › the book preview › a click on a corner turns that page, and closing the book slides it with the turn
+[76/80] [chromium] › tests\e2e\reader.spec.ts:318:3 › one page at a time, by hand › a click turns by the half it is on, and never stops on an empty leaf
+[77/80] [chromium] › tests\e2e\reader.spec.ts:354:3 › one page at a time, by hand › a drag that would stop on the blank back carries on to the next page
+[78/80] [chromium] › tests\e2e\reader.spec.ts:400:3 › one page at a time, by hand › the corner hints: forward on page 1, both ways from page 2
+[79/80] [chromium] › tests\e2e\reader.spec.ts:414:3 › on a phone › the book turns one page at a time, and the reading view zooms
+[80/80] [chromium] › tests\e2e\reader.spec.ts:431:1 › without JavaScript the closed book links to the preview itself
+  4 failed
+    [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import) 
+    [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete 
+    [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC ────────────
+    [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions 
+  76 passed (7.2m)
+rerun exit 1

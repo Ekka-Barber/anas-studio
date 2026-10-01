@@ -1,0 +1,133 @@
+[
+ {
+  "id": "ADMIN-media-1",
+  "severity": "medium",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:415-416",
+  "title": "save() re-selects the image that was open when Save was clicked, so a click on another tile during the request mixes two images' metadata",
+  "claim": "`save()` awaits the `media` update with `selected` captured in its closure. Only the Save button is disabled while `saving`; the grid tiles stay clickable. After the await it calls `setSelected({ ...selected, ...patch })` and `setValues(previous => ({...previous, folder, name}))` with no check that the selection is still the same image. If the owner clicks tile B while A's save is in flight, `select(B)` runs first, then the continuation puts A back as `selected` and overwrites B's `name` and `folder` in `values`. The form now shows A's heading, A's name and folder, and B's alt text, caption and rights. A second Save then writes that mix to A's row (`.eq('id', selected.id)`), overwriting A's alt text and rights (attribution) with B's.",
+  "quote": "setSelected({ ...selected, ...patch })",
+  "failure_scenario": "Owner edits image A's alt text and clicks حفظ on a slow connection. Within the ~300 ms request they click tile B. B's details appear, then the save resolves and the panel flips back to A's heading with B's alt/caption/rights and A's name/folder, with 'حُفظ' shown. Pressing حفظ again stores B's rights and alt text on image A (rights misattribution and wrong accessible text on a public image).",
+  "suggested_fix": "After the await, apply the patch only if the current selection is still this row: use functional updates such as `setSelected(cur => cur?.id === savedId ? { ...cur, ...patch } : cur)` and `setValues` guarded the same way, or a ref holding the current selected id. Alternatively disable the tiles (or ignore `onSelect`) while `saving`.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "ADMIN-media-2",
+  "severity": "medium",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:236-246",
+  "title": "«المزيد» has no in-flight guard: a double click appends the same page twice and the next page skips 40 images",
+  "claim": "The AUDIT-1 S09.3 fix (the `generation` ref) only discards results from a superseded query. Two «المزيد» clicks on the same query both capture the same `requested` generation and the same `rows.length` from the same render closure, so they fetch the identical range. Both `.then` callbacks pass the `requested !== generation.current` check and both append. The grid then holds duplicate `key={row.id}` tiles (React duplicate-key warning, unpredictable reconciliation), and `rows.length` is 40 larger than the server offset already consumed. The next «المزيد» requests `range(rows.length, ...)`, which jumps over the 40 rows in between, so those images never appear in the library grid or the picker unless the owner searches by name. There is no `loadingMore` state and the button is not disabled during the request.",
+  "quote": "void loadMediaPage(folder, search, rows.length)",
+  "failure_scenario": "Library has 300 images. Owner clicks «المزيد» twice quickly. rows = 40 + 40 + 40 duplicate = 120 while only 80 distinct rows were fetched. The next click fetches offset 120, so images 81-120 (newest-first order) are missing from the grid and from every content form's picker, and duplicate tiles are shown.",
+  "suggested_fix": "Track a `loadingMore` state (or a ref) and return early from the click handler while a page is in flight; disable the button meanwhile. Optionally de-duplicate appended rows by id and page by a keyset (created_at, id) instead of an offset.",
+  "audit1_ref": "S09.3"
+ },
+ {
+  "id": "ADMIN-media-3",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:401-407",
+  "title": "Save reports 'حُفظ' when the update matched zero rows (image deleted by another staff member, or role revoked)",
+  "claim": "The update is `.update({...}).eq('id', selected.id)` with no `.select()` and no row-count check. PostgREST answers 204 with no error when zero rows match, and RLS (`media_staff_update`) filters rows silently instead of raising. `save()` only tests `error`, so a save against a row that another owner/editor deleted a moment ago, or after this user's staff row was deactivated or demoted to operations, shows 'حُفظ', patches local state and reloads, although nothing was written.",
+  "quote": ".eq('id', selected.id)",
+  "failure_scenario": "The editor deletes image X while the owner has X's details open. The owner corrects the rights text and presses حفظ. The UI says 'حُفظ'. The reload then drops X from the grid, and the correction is lost with no explanation.",
+  "suggested_fix": "Chain `.select('id')` (or `{ count: 'exact' }`) on the update and treat an empty result as failure ('تعذّر الحفظ.' or 'لم تعد الصورة موجودة').",
+  "audit1_ref": ""
+ },
+ {
+  "id": "ADMIN-media-4",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:426-444",
+  "title": "Folder rename can run twice (button not disabled while the RPC is in flight); the second run overwrites the success message and double-moves a nested target",
+  "claim": "`renameFolder()` has no in-flight guard. The button is disabled only when `renameFrom`/`renameTo` are empty, and both are cleared only after the RPC resolves (lines 441-442). A second click during the request re-sends the same `p_from`/`p_to` from the old closure. If the target is not inside the source, the second call moves 0 rows and its `setRenameMessage('لا توجد صور في هذا المجلد.')` replaces «نُقلت N صورة …», so a successful rename reads as 'nothing to move'. If the target is inside the source (for example `أ` to `أ/ب`, which `folderIsInvalid` accepts), the second call matches the freshly moved rows again (`left(folder, n+1) = p_from || '/'`) and nests them a second time (`أ/ب/ب`). The same closure also calls `setSelected({ ...selected, ... })` with a possibly stale `selected`, the same pattern as the save() race.",
+  "quote": "const { data, error } = await getSupabaseBrowserClient().rpc('media_rename_folder', {",
+  "failure_scenario": "Owner picks folder `أ`, types `أ/ب` and double-clicks إعادة تسمية المجلد. Both RPCs run; every image ends under `أ/ب/ب` (or `أ/ب/ب/x` for children) instead of `أ/ب`. For a plain rename such as `أ` to `ب` the status line ends on 'لا توجد صور في هذا المجلد.' after the images actually moved.",
+  "suggested_fix": "Add a `renaming` state set before the await and cleared after; disable the button while it is true and return early in `renameFolder()` if it is set.",
+  "audit1_ref": "S09.2"
+ },
+ {
+  "id": "ADMIN-media-5",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:320-330",
+  "title": "Folder-list scan discards Supabase errors and publishes a partial (or empty) folder list without any message",
+  "claim": "The AUDIT-1 S09.11 fix pages the `folder` column but reads only `{ data }`. A failed page (expired token between refreshes, network blip, 5xx) yields `data = null`, so `page = []`, the loop breaks, and `setFolders([...distinct])` publishes whatever was collected so far, which is nothing if the first page failed. The «تصفية بالمجلد» and «إعادة تسمية المجلد» dropdowns then silently lose their folder options, with no error and no retry. The effect re-runs on every `reloadToken` bump (every save, upload, rename and delete), so this exposure recurs. The loop also always makes one extra request (it stops only on an empty page, never on `page.length < FOLDER_PAGE_SIZE`), and `active` is checked only after the whole loop, so an unmounted screen keeps paging.",
+  "quote": "const { data } = await supabase",
+  "failure_scenario": "After a save, the access token refresh races the folder request and it returns 401. `folders` becomes []. The owner sees only 'الكل' and 'بلا مجلد', cannot filter or rename any folder, and nothing says why until a full page reload.",
+  "suggested_fix": "Destructure `error`; on error keep the previous folders (or show 'تعذّر تحميل المجلدات.') and stop. Break when `page.length < FOLDER_PAGE_SIZE` to drop the wasted last request, and check `active` inside the loop.",
+  "audit1_ref": "S09.11"
+ },
+ {
+  "id": "ADMIN-media-6",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:399-399",
+  "title": "Edit and upload forms accept untrimmed folder paths (trailing/whitespace-only), while the rename tool trims; identical-looking folders and blank dropdown options result",
+  "claim": "`mediaMetaSchema.folder` (src/admin/collections/media.ts:47) only runs `folderIsInvalid`, with no `.trim()`. `name`, `altAr` and `rights` are trimmed but the folder is not. Both `save()` (this line) and the upload form (`MediaUpload.submit`) therefore store `صور ` or a whitespace-only `' '` as a folder. Neither the SQL check nor `folderIsInvalid` rejects them. `renameFolder()` trims its target (line 421), so only the free-text forms can produce these. The folder filter and the rename-source dropdown then list «صور» and «صور » as two visually identical options, and a whitespace-only folder renders as a blank, unlabeled option (the defect AUDIT-1 fixed as S09.7 for the root), because only `folder !== ''` is filtered out.",
+  "quote": "folder: parsed.data.folder,",
+  "failure_scenario": "An editor uploads one photo into `صور` and, in the edit form, moves another into `صور ` (trailing space). The folder dropdown shows two identical «صور» entries. Filtering by either shows only half of the photos, and the two can never be merged by looking at the UI.",
+  "suggested_fix": "Trim in the schema: `folder: z.string().trim().refine(...)` (and keep the `refine` on the trimmed value), so the edit form, the upload dialog and the rename tool share one normalisation.",
+  "audit1_ref": "S09.7"
+ },
+ {
+  "id": "ADMIN-media-7",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaUpload.tsx:203-203",
+  "title": "Only JPEG orientation is normalised server-side, so AVIF (irot) and PNG/WebP (EXIF orientation 5-8) uploads are rejected with DIMENSION_MISMATCH",
+  "claim": "The browser declares the dimensions of `createImageBitmap(chosen)` (`original.width/height`, line 239), which applies the image's orientation metadata: AVIF `irot`/`imir` and, in Chromium, EXIF orientation on PNG and WebP. On the server, `verifyObjectHead` compares that to `image-size`'s header dimensions and swaps width and height only for `image/jpeg` (media.ts:189-192). The installed image-size parsers for heif and webp contain no `irot` or orientation handling, so they report the unrotated `ispe`/header size. For a rotated 90 or 270 degree AVIF (or a PNG/WebP with EXIF orientation 5-8) the two disagree and `media-complete` answers 422 DIMENSION_MISMATCH. The upload is dead on every retry, because the same bytes and the same bitmap are used each time.",
+  "quote": "decoded = await createImageBitmap(chosen)",
+  "failure_scenario": "An editor uploads a portrait photo saved as AVIF with an `irot` rotation from a phone or from `avifenc`. The cropper shows it upright and all derivatives upload, but media-complete fails with 'أبعاد الصورة الفعلية لا تطابق المُعلَن.' and «إعادة المحاولة» fails identically. The editor has no way to know that re-exporting the file without rotation metadata is the fix.",
+  "suggested_fix": "Either declare the header (unrotated) dimensions for non-JPEG originals, for example by decoding with `createImageBitmap(chosen, { imageOrientation: 'none' })` for the declared `original` size while cropping from the oriented bitmap, or extend `verifyObjectHead` to swap for AVIF/WebP/PNG orientation. At minimum, show an actionable message for DIMENSION_MISMATCH.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "FIX-admin-4",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:415-416",
+  "title": "save() and renameFolder() write the stale `selected` after an await, overwriting a different image chosen meanwhile",
+  "claim": "Both handlers close over `selected` and set it again after awaiting the network. Nothing blocks choosing another tile while a save or rename is in flight (only the «حفظ» button is disabled by `saving`). When the request returns, `setSelected({ ...selected, ...patch })` re-selects the old image, and `setValues` merges the old image's name and folder into the form of the image just chosen. The next «حفظ» updates the old image's row (`.eq('id', selected.id)`) with the other image's alt text, caption and rights.",
+  "quote": "    setSelected({ ...selected, ...patch })\n    setValues((previous) => ({ ...previous, folder: parsed.data.folder, name: parsed.data.name }))",
+  "failure_scenario": "Anas edits image A and clicks «حفظ», then clicks tile B before the request returns. select(B) fills the form with B's values. When A's update completes, selected becomes A again (the heading shows A's name) while the form still holds B's alt, caption and rights, with A's name and folder written over B's. He fixes one word and clicks «حفظ». Image A's row is overwritten with B's alt text, caption and rights, and neither the message nor the heading reveals it. renameFolder() at lines 437-439 has the same pattern.",
+  "suggested_fix": "After the await, apply the result only if the selection is unchanged: use `setSelected((current) => (current?.id === selected.id ? { ...current, ...patch } : current))`, and guard setValues the same way (compare against a ref holding the current selected id). Alternatively disable the tiles while `saving` or a rename is running.",
+  "audit1_ref": "S09.2"
+ },
+ {
+  "id": "X-A11Y-RTL-7",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:458",
+  "title": "Deleting an image drops focus and announces nothing",
+  "claim": "On success confirmDelete closes the dialog and sets `selected` to null in the same batch. That unmounts the details panel, including the «حذف» button that opened the dialog, so dialog.close() has nothing to return focus to and it lands on <body>. The deleted tile silently leaves the grid; no status text says the image was deleted.",
+  "quote": "setSelected(null)",
+  "failure_scenario": "A screen-reader user confirms «تأكيد الحذف». The dialog closes, focus goes to <body>, and nothing is spoken; they cannot tell whether the delete worked and must navigate from the top of the page.",
+  "suggested_fix": "After the delete, focus the library heading or the grid (tabIndex -1) and set a role=status message such as «حُذفت الصورة» (keep the region mounted).",
+  "audit1_ref": "S09.4"
+ },
+ {
+  "id": "GAP-G4-8",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:422",
+  "title": "Folder rename checks only the new prefix, but the SQL check applies to every child path",
+  "claim": "`media_rename_folder` sets `folder = p_to || substr(folder, char_length(p_from)+1)` for the folder and all its descendants, and the `media` table requires `char_length(folder) <= 120` on each row. `folderIsInvalid(to)` validates the new name alone. The function is one statement, so one overlong child path fails the whole rename with 23514, and the client shows only 'تعذّرت إعادة تسمية المجلد.'.",
+  "quote": "if (renameFrom === '' || to === '' || folderIsInvalid(to)) {",
+  "failure_scenario": "Folder «أ» has a child path of 100 characters (`أ/…`, 102 characters in total). The owner renames «أ» to a 40-character name. `to` passes, but the child becomes 141 characters, so the statement is rejected and nothing moves. The owner sees only «تعذّرت إعادة تسمية المجلد.» and cannot tell that a nested folder is too long.",
+  "suggested_fix": "Before calling the RPC, compute `movedFolder(f, renameFrom, to)` for each loaded folder and refuse with a specific message if any result fails `folderIsInvalid` (the folder list is already loaded, S09.11).",
+  "audit1_ref": ""
+ },
+ {
+  "id": "GAP-G5-5",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/admin/MediaLibrary.tsx:392-407",
+  "title": "Saving image details reports success when the row was deleted or RLS no longer lets the caller update it",
+  "claim": "The metadata save is a Data API UPDATE ... WHERE id with no .select() and no row-count check. A PATCH that matches zero rows (the row was removed by media_delete, or media_staff_update's current_staff_role() check now fails because the member was deactivated or demoted) answers 204 with no error. The code treats error == null as success, shows 'حُفظ' and patches local state. A deleted image or a revoked editor therefore sees a saved confirmation for a write that never happened, until the reloadToken refetch drops the row. media_delete's row lock serializes correctly with the update; the defect is what the client does with a zero-row outcome. No test covers the race.",
+  "quote": "const { error } = await getSupabaseBrowserClient()",
+  "failure_scenario": "Editor A opens image M's details form. Owner B deletes M through the admin function (media_delete: row locked, usage check passes, row deleted, committed). A edits the alt text and clicks save: UPDATE media SET alt_ar=... WHERE id=M matches 0 rows, PostgREST answers 204 with no error, and the UI shows 'حُفظ' and updates the local copy. Nothing was stored. The same happens when A was deactivated between opening the form and saving, because the RLS policy filters the row.",
+  "audit1_ref": ""
+ }
+]

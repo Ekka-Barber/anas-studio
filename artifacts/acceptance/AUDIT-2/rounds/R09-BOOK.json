@@ -1,0 +1,86 @@
+[
+ {
+  "id": "BOOK-1",
+  "severity": "medium",
+  "verdict": "confirmed",
+  "location": "src/components/book/PdfBookReader.tsx:198",
+  "title": "go() during a running turn lands on the wrong spread: holding End (key repeat) ends on the blank/endpaper spread",
+  "claim": "go() drives page-flip's flip(page). Flip.flipToPage() mutates the collection's currentSpreadIndex to next-1 (or next+1) before the animation starts, and the index is only corrected when the animation callback runs. A second go() while a turn is in flight computes 'next vs current' against the mutated index, so page-flip first finishes the first turn (finishAnimation runs its callback) and then starts one more turn in the same direction. onKeyDown does not ignore event.repeat, and docs/book-preview.md promises 'Home and End go to the cover and the closing leaf'. Home is bounded by the cover, so it is safe. End targets a middle spread, so it overshoots by one spread. The same happens if a second part is picked in «انتقل إلى» within the 900ms turn.",
+  "quote": "else flip.flip(toFlip(at, total), 'bottom')",
+  "failure_scenario": "Landscape, preview plan of 12 leaves, book on the cover. The visitor holds End for a little over 0.5s. Keydown 1 calls go(8). The mutated spread index is 3 and a 900ms backward turn starts. The auto-repeat keydown then calls go(8) again. flipToPage sees current=3 and next=2, so it flips again. finishAnimation completes turn 1 and lands on spread 2, then start() begins another backward turn. The book stops on page-flip spread [1,2], which is reading leaves 10 and 9: the back endpaper and a blank. The label reads «نهاية الصفحات المتاحة» but the closing leaf with «النسخ ←» is not on screen. Reduced-motion users are unaffected because they take the fade path.",
+  "suggested_fix": "In go() (and turn()), return early while a turn is running: expose getState() in page-flip.d.ts and use `if (flip.getState() !== 'read') return`, or check `block.dataset.turning !== undefined`. Also ignore `event.repeat` for Home and End in onKeyDown.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "BOOK-3",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/book/PdfBookReader.tsx:306",
+  "title": "Resizing or rotating into portrait on the last spread strands the reader on an empty endpaper and arms a stale skip that hijacks the next turn",
+  "claim": "page-flip's update() ends in pages.show(), which fires a 'flip' event with no turn in progress. The ResizeObserver calls flip.update() on every size change. When the book changes from landscape to portrait while on the last inner spread, the event carries leaf 10, the back endpaper (the left leaf of the last spread is always an empty leaf). The handler sees portrait and an empty leaf, so it stores skipRef and returns without setIndex or any turn. skipRef is only consumed on the next changeState 'read', which does not come for a resize.",
+  "quote": "if (portraitRef.current && at > 0 && at < plan.length - 1 && empty(plan[at])) {",
+  "failure_scenario": "A phone in landscape (width over 800px) is turned to the last spread [9,10] (a blank, then the endpaper). The visitor rotates to portrait. The book now shows the bare endpaper alone. `from` equals `at` (both 10), so the handler walks the target backwards to leaf 8 and sets skipRef=8. Nothing turns the page. The visitor taps «التالية». The turn reaches the back cover (leaf 11). On the resulting 'read' state, skip !== null, so a requestAnimationFrame runs go(8). The book jumps back to the closing leaf right after arriving at the back cover, while the visitor asked to go forward.",
+  "suggested_fix": "In the flip handler, when flip.getState() === 'read' (an update or orientation change, not a turn), call requestAnimationFrame(() => go(target)) directly instead of storing skipRef. Alternatively clear skipRef on every 'flip' event that does not come from a turn.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "BOOK-4",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/book/pdf.ts:39",
+  "title": "A failed getDocument() never destroys its loading task, so every failed load or «إعادة المحاولة» leaves a live pdf.js worker (S15.6 fixed only the measureFrame path)",
+  "claim": "getDocument() without a shared worker creates its own PDFWorker (node_modules/pdfjs-dist/build/pdf.mjs:15484-15487). When the load fails (missing or corrupt file, or the network dropping: DocException at :16653, or the setup chain at :15565), the code only rejects the capability with `.catch(task._capability.reject)`. Nothing destroys the worker; that only happens in PDFDocumentLoadingTask.destroy() (:15597). openPreview() destroys doc.loadingTask only when measureFrame() throws, and tests/unit/pdf-open.test.ts covers only that path.",
+  "quote": "const doc = await pdfjs.getDocument({ url, enableXfa: false, disableFontFace: true, verbosity: pdfjs.VerbosityLevel.ERRORS }).promise",
+  "failure_scenario": "The visitor is on a flaky connection. The preview request fails, the reader shows «تعذّر فتح الصفحات.», and the visitor presses «إعادة المحاولة» four times. Each attempt calls getDocument() again and rejects. Five pdf.js Worker threads stay alive for the whole SPA session and are never terminated. tests/e2e/reader.spec.ts:264 exercises exactly this retry sequence but does not assert worker cleanup.",
+  "suggested_fix": "Keep the task: `const task = pdfjs.getDocument({...}); let doc; try { doc = await task.promise } catch (error) { void task.destroy(); throw error }`, then continue with the existing measureFrame try/catch. Add a unit case where getDocument's promise rejects and assert destroy was called.",
+  "audit1_ref": "S15.6"
+ },
+ {
+  "id": "BOOK-5",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/book/PdfBookReader.tsx:448",
+  "title": "Arrow/Home/End handling ignores modifier keys and steals Alt+← / Cmd+← (browser Back) while the book has focus",
+  "claim": "onKeyDown maps event.key without looking at altKey, ctrlKey or metaKey and calls preventDefault. The book host is focused automatically as soon as the book opens (host.focus() in the build effect), so the handler is live for a visitor who has not touched the book.",
+  "quote": "const action = actions[event.key]",
+  "failure_scenario": "The visitor opens the book (focus moves to the book), reads a page, then presses Alt+ArrowLeft (Windows or Linux) or Cmd+ArrowLeft (macOS) to go back. The keydown is cancelled and the page turns instead, so history navigation is blocked until they click elsewhere. Ctrl/Cmd+Home and Ctrl/Cmd+End are swallowed the same way and cannot scroll to the page top or bottom.",
+  "suggested_fix": "Add `if (event.altKey || event.ctrlKey || event.metaKey) return` before the lookup.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "BOOK-6",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/book/PdfBookReader.tsx:511",
+  "title": "«انتقل إلى» is controlled by state that only updates after the 900ms turn, so the select snaps back and cannot be stepped with the arrow keys",
+  "claim": "The select's value is part.index, derived from the index state. That state only changes on page-flip's 'flip' event at the end of the animation. onChange calls go() but sets no state, so React restores the DOM select to the old value right after the event handler. In a closed select, Chrome and Firefox on Windows and Linux fire change on every arrow keypress.",
+  "quote": "<select value={part.index} onChange={(event) => go(Number(event.target.value))}>",
+  "failure_scenario": "A keyboard user focuses «انتقل إلى» on the cover and presses ArrowDown. The change event fires go(2) (الإهداء) and React immediately resets the select to «الغلاف». Pressing ArrowDown again within the turn selects «الإهداء» again instead of «المقدمة», so the third option is unreachable without waiting about a second between presses. A screen reader hears the chosen option revert, then change once the turn ends.",
+  "suggested_fix": "Hold the picked value in local state set in onChange (the select shows it at once), and clear it when the 'flip' event updates index. Or use an uncontrolled select with a key that changes with part.index.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "BOOK-7",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/book/reader.module.css:281",
+  "title": "The closing leaf's flex centring is dead: page-flip writes inline display:block on every shown leaf",
+  "claim": "HTMLPage.simpleDraw() and HTMLPage.draw() replace element.style.cssText on every frame, and both start with `display: block`. An inline declaration beats the class rule, so `.leaf[data-kind='end']` is never a flex container. justify-content, align-items, flex-direction and gap all do nothing. The same rule works for `.closing` in the reading view, which page-flip does not touch, so the two ends of the preview differ.",
+  "quote": "display: flex;",
+  "failure_scenario": "The visitor reaches «هنا تنتهي الصفحات المتاحة للقراءة.» in the book view. The text, the «بقية الحكاية في الكتاب.» line and the «النسخ ←» link are stacked from the top of the leaf under the 12% padding, with no 0.9em gaps, instead of being centred vertically as in the reading view's closing block.",
+  "suggested_fix": "Lay the leaf out with block-level rules that survive an inline display:block: wrap the three children in one inner div in makeLeaf and make that div the flex column (with height:100%, justify-content:center, gap), or place the content with position:absolute; inset:12%; display:flex on the inner wrapper.",
+  "audit1_ref": ""
+ },
+ {
+  "id": "FIX-public-8",
+  "severity": "low",
+  "verdict": "confirmed",
+  "location": "src/components/book/PdfBookReader.tsx:168-168",
+  "title": "A second failed retry drops keyboard focus to <body> again",
+  "claim": "The retry fix moves focus from «إعادة المحاولة» to the loading status region. If the open fails again, setFailed(true) unmounts that focused status div and mounts the alert view. The effect only focuses in the loading state (`!failed`), and nothing focuses the new retry button or alert. Focus falls to <body>, the same defect S15.3 fixed for the mode toggle.",
+  "quote": "if (attempt > 0 && !loaded && !failed) statusRef.current?.focus()",
+  "failure_scenario": "A keyboard user presses Enter on «إعادة المحاولة» and the PDF fails to load again. The focused status node disappears, focus goes to <body>, and the next Tab starts from the top of the page, far above the reader.",
+  "suggested_fix": "When `failed` becomes true and attempt > 0, focus the alert container (tabIndex -1) or the retry button. This is the same ref-and-effect pattern used for the toggle.",
+  "audit1_ref": "S15.3"
+ }
+]

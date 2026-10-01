@@ -1,0 +1,212 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 107 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[1/107] [chromium] › tests\e2e\cart-checkout.spec.ts:211:1 › the store lists the fixture product and its page prices every variant
+[2/107] [chromium] › tests\e2e\cart-checkout.spec.ts:224:1 › while checkout is off, the cart and the checkout say so
+[3/107] [chromium] › tests\e2e\cart-checkout.spec.ts:235:1 › the cart persists across reload, follows the live quote and removes a line
+[4/107] [chromium] › tests\e2e\cart-checkout.spec.ts:268:1 › a digital-only cart shows no city; the coupon applies and the discount shows
+[5/107] [chromium] › tests\e2e\cart-checkout.spec.ts:280:1 › a signed line gets its dedication field in the cart
+[6/107] [chromium] › tests\e2e\cart-checkout.spec.ts:289:1 › with checkout on: order, hold message, kept cart and cancel
+[7/107] [chromium] › tests\e2e\cart-checkout.spec.ts:326:1 › a price change between the quote and the submit asks for confirmation, then succeeds
+[8/107] [chromium] › tests\e2e\cart-checkout.spec.ts:359:1 › storage denied still allows a session cart, with the honest note
+[9/107] [chromium] › tests\e2e\cart-checkout.spec.ts:377:1 › the store and a product page read without JavaScript
+[10/107] [chromium] › tests\e2e\cart-checkout.spec.ts:390:3 › screenshots and overflow at 360
+[11/107] [chromium] › tests\e2e\cart-checkout.spec.ts:390:3 › screenshots and overflow at 1440
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[12/107] [chromium] › tests\e2e\checkout-api.spec.ts:97:1 › a quote for a fixture product prices the cart
+[13/107] [chromium] › tests\e2e\checkout-api.spec.ts:108:1 › a create while checkout is off is 503 CHECKOUT_DISABLED
+[14/107] [chromium] › tests\e2e\checkout-api.spec.ts:128:1 › with checkout on: create, repeat and cancel
+[15/107] [chromium] › tests\e2e\checkout-api.spec.ts:179:1 › a foreign Origin is 403
+[16/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /: reveals below the fold are held, then each one plays
+[17/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /book: reveals below the fold are held, then each one plays
+[18/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /built: reveals below the fold are held, then each one plays
+[19/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /started: reveals below the fold are held, then each one plays
+[20/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /passed: reveals below the fold are held, then each one plays
+[21/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /shelf: reveals below the fold are held, then each one plays
+[22/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /scenes: reveals below the fold are held, then each one plays
+[23/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /contact: reveals below the fold are held, then each one plays
+[24/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /store: reveals below the fold are held, then each one plays
+[25/107] [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /store/demo-khous: reveals below the fold are held, then each one plays
+[26/107] [chromium] › tests\e2e\motion.spec.ts:128:5 › the money and policy pages stay calm › /cart: no reveal, and the title only fades in briefly
+[27/107] [chromium] › tests\e2e\motion.spec.ts:128:5 › the money and policy pages stay calm › /checkout: no reveal, and the title only fades in briefly
+[28/107] [chromium] › tests\e2e\motion.spec.ts:128:5 › the money and policy pages stay calm › /policies/privacy: no reveal, and the title only fades in briefly
+[29/107] [chromium] › tests\e2e\motion.spec.ts:148:1 › a page seen before comes back without its entrances, and its reveals still play
+[30/107] [chromium] › tests\e2e\motion.spec.ts:176:3 › without motion › /started holds, plays and enters nothing
+[31/107] [chromium] › tests\e2e\reader.spec.ts:93:3 › the book preview › the published preview is the approved export, byte for byte
+[32/107] [chromium] › tests\e2e\reader.spec.ts:99:3 › the book preview › closed, it loads nothing; open, it fetches only the preview and reads right to left
+[33/107] [chromium] › tests\e2e\reader.spec.ts:138:3 › the book preview › opening keeps the page still, the closed book centred on the stage
+[34/107] [chromium] › tests\e2e\reader.spec.ts:163:3 › the book preview › a part under the closed book opens the book at that part
+[35/107] [chromium] › tests\e2e\reader.spec.ts:169:3 › the book preview › the pages carry their text, for selection and screen readers
+[36/107] [chromium] › tests\e2e\reader.spec.ts:182:3 › the book preview › a drag from the left page to the right turns to the next spread
+[37/107] [chromium] › tests\e2e\reader.spec.ts:195:3 › the book preview › without motion a turn is a short fade, never a rotation
+[38/107] [chromium] › tests\e2e\reader.spec.ts:213:3 › the book preview › a resize redraws the pages at the new size
+[39/107] [chromium] › tests\e2e\reader.spec.ts:223:3 › the book preview › full screen, then back
+[40/107] [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions
+  1) [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator: locator('#pages [aria-live="polite"]')
+    Expected pattern: /2 \/ 5/
+    Received string:  "الإهداء1 / 5"
+    Timeout: 20000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#pages [aria-live="polite"]') with timeout 20000ms
+      - waiting for locator('#pages [aria-live="polite"]')
+        6 × locator resolved to <p aria-live="polite" class="reader-module__6urtYG__where">…</p>
+          - unexpected value "الغلاف"
+        37 × locator resolved to <p aria-live="polite" class="reader-module__6urtYG__where">…</p>
+           - unexpected value "الإهداء1 / 5"
+
+
+      232 |     await openBook(page)
+      233 |     await page.keyboard.press('ArrowLeft')
+    > 234 |     await expect(where(page)).toHaveText(/2 \/ 5/)
+          |                               ^
+      235 |     await page.getByRole('button', { name: 'عرض للقراءة' }).click()
+      236 |     const sheets = page.getByRole('list', { name: 'صفحات من خوص' })
+      237 |     await expect(sheets.getByRole('listitem')).toHaveCount(5)
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\reader.spec.ts:234:31
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\reader-the-book-preview-th-bfa94-ith-the-way-to-the-editions-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[41/107] [chromium] › tests\e2e\reader.spec.ts:245:3 › the book preview › an odd page count and a single page still make a book
+[42/107] [chromium] › tests\e2e\reader.spec.ts:264:3 › the book preview › a corrupt or unreachable file says so, and a retry opens the book
+[43/107] [chromium] › tests\e2e\reader.spec.ts:281:3 › the book preview › a click on a corner turns that page, and closing the book slides it with the turn
+[44/107] [chromium] › tests\e2e\reader.spec.ts:318:3 › one page at a time, by hand › a click turns by the half it is on, and never stops on an empty leaf
+[45/107] [chromium] › tests\e2e\reader.spec.ts:354:3 › one page at a time, by hand › a drag that would stop on the blank back carries on to the next page
+[46/107] [chromium] › tests\e2e\reader.spec.ts:400:3 › one page at a time, by hand › the corner hints: forward on page 1, both ways from page 2
+[47/107] [chromium] › tests\e2e\reader.spec.ts:414:3 › on a phone › the book turns one page at a time, and the reading view zooms
+[48/107] [chromium] › tests\e2e\reader.spec.ts:431:1 › without JavaScript the closed book links to the preview itself
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[49/107] [chromium] › tests\e2e\store-admin.spec.ts:79:1 › the owner creates a product, a variant and a city rate without code changes
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[50/107] [chromium] › tests\e2e\store-admin.spec.ts:151:1 › the checkout function prices the admin-created catalog: total is price plus fee
+[51/107] [chromium] › tests\e2e\store-admin.spec.ts:165:1 › with checkout on (a fixture), a create reaches a persisted pending order
+[52/107] [chromium] › tests\e2e\store-admin.spec.ts:204:1 › a stale save shows the conflict and keeps the typed values
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[53/107] [chromium] › tests\e2e\store-admin.spec.ts:226:1 › a percentage coupon typed as 12.5 is stored as 1250 basis points
+[54/107] [chromium] › tests\e2e\store-admin.spec.ts:242:1 › an editor gets no store link
+[55/107] [chromium] › tests\e2e\store-admin.spec.ts:249:1 › an operations member sees the products list, no «جديد», and cannot save
+[56/107] [chromium] › tests\e2e\store-admin.spec.ts:265:1 › the policies collection lists its four fixed documents
+[57/107] [chromium] › tests\e2e\store-admin.spec.ts:274:1 › screenshots at 360 and 1440 with no horizontal overflow
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+
+[58/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 360px, JS on, no horizontal overflow
+[59/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 768px, JS on, no horizontal overflow
+[60/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 1024px, JS on, no horizontal overflow
+[61/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 1440px, JS on, no horizontal overflow
+[62/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › home, JS off, readable
+[63/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 360px, JS on, no horizontal overflow
+[64/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 768px, JS on, no horizontal overflow
+[65/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 1024px, JS on, no horizontal overflow
+[66/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 1440px, JS on, no horizontal overflow
+[67/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › started, JS off, readable
+[68/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 360px, JS on, no horizontal overflow
+[69/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 768px, JS on, no horizontal overflow
+[70/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 1024px, JS on, no horizontal overflow
+[71/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 1440px, JS on, no horizontal overflow
+[72/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › built, JS off, readable
+[73/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 360px, JS on, no horizontal overflow
+[74/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 768px, JS on, no horizontal overflow
+[75/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 1024px, JS on, no horizontal overflow
+[76/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 1440px, JS on, no horizontal overflow
+[77/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › passed, JS off, readable
+[78/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 360px, JS on, no horizontal overflow
+[79/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 768px, JS on, no horizontal overflow
+[80/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 1024px, JS on, no horizontal overflow
+[81/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 1440px, JS on, no horizontal overflow
+[82/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › shelf, JS off, readable
+[83/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 360px, JS on, no horizontal overflow
+[84/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 768px, JS on, no horizontal overflow
+[85/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 1024px, JS on, no horizontal overflow
+[86/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 1440px, JS on, no horizontal overflow
+[87/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › book, JS off, readable
+[88/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 360px, JS on, no horizontal overflow
+[89/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 768px, JS on, no horizontal overflow
+[90/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 1024px, JS on, no horizontal overflow
+[91/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 1440px, JS on, no horizontal overflow
+[92/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › journal, JS off, readable
+[93/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 360px, JS on, no horizontal overflow
+[94/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 768px, JS on, no horizontal overflow
+[95/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 1024px, JS on, no horizontal overflow
+[96/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 1440px, JS on, no horizontal overflow
+[97/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › scenes, JS off, readable
+[98/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 360px, JS on, no horizontal overflow
+[99/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 768px, JS on, no horizontal overflow
+[100/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 1024px, JS on, no horizontal overflow
+[101/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 1440px, JS on, no horizontal overflow
+[102/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › contact, JS off, readable
+[103/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 360px, JS on, no horizontal overflow
+[104/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 768px, JS on, no horizontal overflow
+[105/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 1024px, JS on, no horizontal overflow
+[106/107] [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 1440px, JS on, no horizontal overflow
+[107/107] [chromium] › tests\e2e\visual.spec.ts:58:3 › store, JS off, readable
+  1 failed
+    [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions 
+  106 passed (7.3m)
+batch2 exit 1

@@ -1,0 +1,660 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 62 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[1/62] [chromium] › tests\e2e\auth.spec.ts:9:1 › an unknown email gets the identical sent message
+[2/62] [chromium] › tests\e2e\auth.spec.ts:16:1 › sign-in by code reaches /admin, enrols TOTP, and invites a member through step-up
+  1) [chromium] › tests\e2e\auth.spec.ts:16:1 › sign-in by code reaches /admin, enrols TOTP, and invites a member through step-up 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\auth-sign-in-by-code-reach-42804-es-a-member-through-step-up-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\auth-sign-in-by-code-reach-42804-es-a-member-through-step-up-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\auth-sign-in-by-code-reach-42804-es-a-member-through-step-up-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\auth-sign-in-by-code-reach-42804-es-a-member-through-step-up-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[3/62] [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore
+  2) [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[4/62] [chromium] › tests\e2e\cms.spec.ts:255:1 › room: edit, preview, publish, restore (requires pnpm db:import)
+  3) [chromium] › tests\e2e\cms.spec.ts:255:1 › room: edit, preview, publish, restore (requires pnpm db:import) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-room-edit-preview-publ-cc2e9-re-requires-pnpm-db-import--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-room-edit-preview-publ-cc2e9-re-requires-pnpm-db-import--chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-room-edit-preview-publ-cc2e9-re-requires-pnpm-db-import--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-room-edit-preview-publ-cc2e9-re-requires-pnpm-db-import--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[5/62] [chromium] › tests\e2e\cms.spec.ts:362:1 › editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import)
+  4) [chromium] › tests\e2e\cms.spec.ts:362:1 › editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-editor-a-local-copy-is-6df1f-اع-requires-pnpm-db-import--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-editor-a-local-copy-is-6df1f-اع-requires-pnpm-db-import--chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-editor-a-local-copy-is-6df1f-اع-requires-pnpm-db-import--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-editor-a-local-copy-is-6df1f-اع-requires-pnpm-db-import--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[6/62] [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import)
+  5) [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-social-links-edit-add--cdd03-ow-requires-pnpm-db-import--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[7/62] [chromium] › tests\e2e\cms.spec.ts:507:1 › scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import)
+  6) [chromium] › tests\e2e\cms.spec.ts:507:1 › scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-scenes-add-move-first--4ebdf-ws-requires-pnpm-db-import--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-scenes-add-move-first--4ebdf-ws-requires-pnpm-db-import--chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-scenes-add-move-first--4ebdf-ws-requires-pnpm-db-import--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-scenes-add-move-first--4ebdf-ws-requires-pnpm-db-import--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[8/62] [chromium] › tests\e2e\cms.spec.ts:595:1 › a stale save is rejected with a conflict message and keeps the typed text
+  7) [chromium] › tests\e2e\cms.spec.ts:595:1 › a stale save is rejected with a conflict message and keeps the typed text 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-a-stale-save-is-reject-260a0-ge-and-keeps-the-typed-text-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-a-stale-save-is-reject-260a0-ge-and-keeps-the-typed-text-chromium\test-failed-2.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\cms-a-stale-save-is-reject-260a0-ge-and-keeps-the-typed-text-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\cms-a-stale-save-is-reject-260a0-ge-and-keeps-the-typed-text-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\cms-a-stale-save-is-reject-260a0-ge-and-keeps-the-typed-text-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[9/62] [chromium] › tests\e2e\media.spec.ts:102:1 › happy path: ticket, every part, complete, then the public derivative
+[10/62] [chromium] › tests\e2e\media.spec.ts:164:1 › HTML bytes declared as image/jpeg: complete fails and every stored object is removed
+[11/62] [chromium] › tests\e2e\media.spec.ts:223:1 › more bytes than declared are refused at completion; nothing goes public
+[12/62] [chromium] › tests\e2e\media.spec.ts:245:1 › another staff member's ticket is 404; an expired ticket is 410
+[13/62] [chromium] › tests\e2e\media.spec.ts:274:1 › no token is 401; an operations token is 403
+[14/62] [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete
+  8) [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\media-round-2-library-uplo-b29e7-se-in-a-room-folders-delete-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[15/62] [chromium] › tests\e2e\media.spec.ts:485:1 › round 2: search and المزيد paging past 40 items
+  9) [chromium] › tests\e2e\media.spec.ts:485:1 › round 2: search and المزيد paging past 40 items ──
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-search-and-المزيد-paging-past-40-items-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\media-round-2-search-and-المزيد-paging-past-40-items-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-search-and-المزيد-paging-past-40-items-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\media-round-2-search-and-المزيد-paging-past-40-items-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[16/62] [chromium] › tests\e2e\media.spec.ts:531:1 › round 2: screenshots at 360 and 1440, and horizontal overflow
+  10) [chromium] › tests\e2e\media.spec.ts:531:1 › round 2: screenshots at 360 and 1440, and horizontal overflow 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-screenshots--dc5f5-440-and-horizontal-overflow-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\media-round-2-screenshots--dc5f5-440-and-horizontal-overflow-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\media-round-2-screenshots--dc5f5-440-and-horizontal-overflow-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\media-round-2-screenshots--dc5f5-440-and-horizontal-overflow-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[17/62] [chromium] › tests\e2e\owner-operations.spec.ts:127:1 › a contact submission is stored and its notices queued
+[18/62] [chromium] › tests\e2e\owner-operations.spec.ts:165:1 › with no jobs run the message is stored and its notice waits, so an email outage loses nothing
+[19/62] [chromium] › tests\e2e\owner-operations.spec.ts:180:1 › a jobs run delivers the notices through Mailpit, sent but not yet delivered
+  11) [chromium] › tests\e2e\owner-operations.spec.ts:180:1 › a jobs run delivers the notices through Mailpit, sent but not yet delivered 
+
+    Error: expect(received).toBeGreaterThanOrEqual(expected)
+
+    Expected: >= 1
+    Received:    0
+
+      186 |   expect(body.ok).toBe(true)
+      187 |   expect(body.data[0]!.job).toBe('email_outbox')
+    > 188 |   expect(body.data[0]!.accepted).toBeGreaterThanOrEqual(1)
+          |                                  ^
+      189 |
+      190 |   // One claim takes at most 10 rows and orders by id, so this run may not
+      191 |   // reach every recipient of the contact yet — any sent row proves the path.
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\owner-operations.spec.ts:188:34
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-jobs-ru-c6e4f--sent-but-not-yet-delivered-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-jobs-ru-c6e4f--sent-but-not-yet-delivered-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-jobs-ru-c6e4f--sent-but-not-yet-delivered-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-jobs-ru-c6e4f--sent-but-not-yet-delivered-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[20/62] [chromium] › tests\e2e\owner-operations.spec.ts:231:1 › the daily media sweep removes day-old quarantine parts through Storage and records the run (I29)
+[21/62] [chromium] › tests\e2e\owner-operations.spec.ts:262:1 › a signed delivered webhook marks delivery; a forged signature is 401
+  12) [chromium] › tests\e2e\owner-operations.spec.ts:262:1 › a signed delivered webhook marks delivery; a forged signature is 401 
+
+    TypeError: Cannot read properties of undefined (reading 'delivery')
+
+      278 |     ])
+      279 |   ).rows[0]!
+    > 280 |   expect(row.delivery).toBe('delivered')
+          |              ^
+      281 |
+      282 |   const forgedSecret = `whsec_${Buffer.from('a-forged-secret').toString('base64')}`
+      283 |   const forged = await request.post(functionUrl('resend-webhook'), {
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\owner-operations.spec.ts:280:14
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-signed--bd10f-y-a-forged-signature-is-401-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-signed--bd10f-y-a-forged-signature-is-401-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-signed--bd10f-y-a-forged-signature-is-401-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-a-signed--bd10f-y-a-forged-signature-is-401-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[22/62] [chromium] › tests\e2e\owner-operations.spec.ts:290:1 › the honeypot answers success and stores nothing
+[23/62] [chromium] › tests\e2e\owner-operations.spec.ts:313:1 › an over-length Turnstile token is refused by the schema
+[24/62] [chromium] › tests\e2e\owner-operations.spec.ts:329:1 › a non-JSON content type is refused with 415
+[25/62] [chromium] › tests\e2e\owner-operations.spec.ts:337:1 › an oversized body is refused with 413
+[26/62] [chromium] › tests\e2e\owner-operations.spec.ts:345:1 › the jobs endpoint refuses a missing or wrong bearer
+[27/62] [chromium] › tests\e2e\owner-operations.spec.ts:357:1 › the owner home shows real counts and no inbox (D31)
+  13) [chromium] › tests\e2e\owner-operations.spec.ts:357:1 › the owner home shows real counts and no inbox (D31) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-9b5fc-al-counts-and-no-inbox-D31--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-9b5fc-al-counts-and-no-inbox-D31--chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-9b5fc-al-counts-and-no-inbox-D31--chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-9b5fc-al-counts-and-no-inbox-D31--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-9b5fc-al-counts-and-no-inbox-D31--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[28/62] [chromium] › tests\e2e\owner-operations.spec.ts:375:1 › the owner home shows the backup job: never run, ok, then stale after 30 days (D35)
+  14) [chromium] › tests\e2e\owner-operations.spec.ts:375:1 › the owner home shows the backup job: never run, ok, then stale after 30 days (D35) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-be497-en-stale-after-30-days-D35--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-be497-en-stale-after-30-days-D35--chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-be497-en-stale-after-30-days-D35--chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-be497-en-stale-after-30-days-D35--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-be497-en-stale-after-30-days-D35--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[29/62] [chromium] › tests\e2e\owner-operations.spec.ts:400:1 › the email job warns only when a row has waited more than 10 minutes (I35)
+  15) [chromium] › tests\e2e\owner-operations.spec.ts:400:1 › the email job warns only when a row has waited more than 10 minutes (I35) 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-email-5914d-d-more-than-10-minutes-I35--chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-email-5914d-d-more-than-10-minutes-I35--chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-email-5914d-d-more-than-10-minutes-I35--chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-email-5914d-d-more-than-10-minutes-I35--chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-email-5914d-d-more-than-10-minutes-I35--chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[30/62] [chromium] › tests\e2e\owner-operations.spec.ts:447:1 › an operations member sees email but not stats or settings, and there is no inbox
+  16) [chromium] › tests\e2e\owner-operations.spec.ts:447:1 › an operations member sees email but not stats or settings, and there is no inbox 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-b1d73-tings-and-there-is-no-inbox-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-b1d73-tings-and-there-is-no-inbox-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-b1d73-tings-and-there-is-no-inbox-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-b1d73-tings-and-there-is-no-inbox-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-b1d73-tings-and-there-is-no-inbox-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[31/62] [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC
+  17) [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC ──────────
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-editor-gets-no-email-RPC-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[32/62] [chromium] › tests\e2e\owner-operations.spec.ts:479:1 › email problems: replay exhausted, confirm uncertain, suppressed is refused
+  18) [chromium] › tests\e2e\owner-operations.spec.ts:479:1 › email problems: replay exhausted, confirm uncertain, suppressed is refused 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-email-pro-a1b6e-rtain-suppressed-is-refused-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-email-pro-a1b6e-rtain-suppressed-is-refused-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-email-pro-a1b6e-rtain-suppressed-is-refused-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-email-pro-a1b6e-rtain-suppressed-is-refused-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-email-pro-a1b6e-rtain-suppressed-is-refused-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[33/62] [chromium] › tests\e2e\owner-operations.spec.ts:549:1 › an operations member can replay a failed outbox row through the risk-acceptance flow
+  19) [chromium] › tests\e2e\owner-operations.spec.ts:549:1 › an operations member can replay a failed outbox row through the risk-acceptance flow 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-2e8cf-gh-the-risk-acceptance-flow-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-2e8cf-gh-the-risk-acceptance-flow-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-2e8cf-gh-the-risk-acceptance-flow-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-2e8cf-gh-the-risk-acceptance-flow-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-an-operat-2e8cf-gh-the-risk-acceptance-flow-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[34/62] [chromium] › tests\e2e\owner-operations.spec.ts:576:1 › settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets
+  20) [chromium] › tests\e2e\owner-operations.spec.ts:576:1 › settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-settings--7a768-zes-status-shows-no-secrets-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-settings--7a768-zes-status-shows-no-secrets-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-settings--7a768-zes-status-shows-no-secrets-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-settings--7a768-zes-status-shows-no-secrets-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-settings--7a768-zes-status-shows-no-secrets-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[35/62] [chromium] › tests\e2e\owner-operations.spec.ts:631:1 › the owner saves the store seller details through the step-up dialog
+  21) [chromium] › tests\e2e\owner-operations.spec.ts:631:1 › the owner saves the store seller details through the step-up dialog 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-5fa72--through-the-step-up-dialog-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-5fa72--through-the-step-up-dialog-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-5fa72--through-the-step-up-dialog-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-5fa72--through-the-step-up-dialog-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-the-owner-5fa72--through-the-step-up-dialog-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+[36/62] [chromium] › tests\e2e\owner-operations.spec.ts:680:1 › screenshots at 360 and 1440 with no horizontal overflow
+  22) [chromium] › tests\e2e\owner-operations.spec.ts:680:1 › screenshots at 360 and 1440 with no horizontal overflow 
+
+    TypeError: fetch failed
+    [cause]: SocketError: other side closed
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-screensho-75f99-with-no-horizontal-overflow-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-screensho-75f99-with-no-horizontal-overflow-chromium\error-context.md
+
+    Error Context: artifacts\acceptance\AUDIT-2\playwright\owner-operations-screensho-75f99-with-no-horizontal-overflow-chromium\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\AUDIT-2\playwright\owner-operations-screensho-75f99-with-no-horizontal-overflow-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\AUDIT-2\playwright\owner-operations-screensho-75f99-with-no-horizontal-overflow-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[37/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › / loads
+[38/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /started loads
+[39/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /built loads
+[40/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /passed loads
+[41/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /shelf loads
+[42/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /book loads
+[43/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /journal loads
+[44/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /scenes loads
+[45/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /contact loads
+[46/62] [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /store loads
+[47/62] [chromium] › tests\e2e\public.spec.ts:36:3 › every page renders with one h1 and no console errors › an unknown path is the woven 404
+[48/62] [chromium] › tests\e2e\public.spec.ts:45:3 › header and menu › the menu opens as a modal, marks the room, closes on Escape and returns focus
+[49/62] [chromium] › tests\e2e\public.spec.ts:62:3 › header and menu › from 1024px the rooms are inline and the current one is marked
+[50/62] [chromium] › tests\e2e\public.spec.ts:71:3 › header and menu › the skip link jumps to the page content
+[51/62] [chromium] › tests\e2e\public.spec.ts:82:3 › films play only when asked › a film shows its poster and a play button, then plays with its own controls
+[52/62] [chromium] › tests\e2e\public.spec.ts:96:3 › المَشاهد › the filter narrows the grid and says which filter is on
+[53/62] [chromium] › tests\e2e\public.spec.ts:109:3 › المَشاهد › the lightbox opens by keyboard, steps in Arabic order and returns focus
+[54/62] [chromium] › tests\e2e\public.spec.ts:126:3 › كتبتُ هنا › cover B, and the contents strip jumps to its sections
+[55/62] [chromium] › tests\e2e\public.spec.ts:137:3 › تواصل › an empty send names each missing field and focuses the first
+[56/62] [chromium] › tests\e2e\public.spec.ts:147:3 › تواصل › a service opens the form with its name in the message
+[57/62] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › / reads without JS
+[58/62] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /started reads without JS
+[59/62] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /built reads without JS
+[60/62] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /passed reads without JS
+[61/62] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /shelf reads without JS
+[62/62] [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /book reads without JS
+  22 failed
+    [chromium] › tests\e2e\auth.spec.ts:16:1 › sign-in by code reaches /admin, enrols TOTP, and invites a member through step-up 
+    [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore 
+    [chromium] › tests\e2e\cms.spec.ts:255:1 › room: edit, preview, publish, restore (requires pnpm db:import) 
+    [chromium] › tests\e2e\cms.spec.ts:362:1 › editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import) 
+    [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import) 
+    [chromium] › tests\e2e\cms.spec.ts:507:1 › scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import) 
+    [chromium] › tests\e2e\cms.spec.ts:595:1 › a stale save is rejected with a conflict message and keeps the typed text 
+    [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete 
+    [chromium] › tests\e2e\media.spec.ts:485:1 › round 2: search and المزيد paging past 40 items ───
+    [chromium] › tests\e2e\media.spec.ts:531:1 › round 2: screenshots at 360 and 1440, and horizontal overflow 
+    [chromium] › tests\e2e\owner-operations.spec.ts:180:1 › a jobs run delivers the notices through Mailpit, sent but not yet delivered 
+    [chromium] › tests\e2e\owner-operations.spec.ts:262:1 › a signed delivered webhook marks delivery; a forged signature is 401 
+    [chromium] › tests\e2e\owner-operations.spec.ts:357:1 › the owner home shows real counts and no inbox (D31) 
+    [chromium] › tests\e2e\owner-operations.spec.ts:375:1 › the owner home shows the backup job: never run, ok, then stale after 30 days (D35) 
+    [chromium] › tests\e2e\owner-operations.spec.ts:400:1 › the email job warns only when a row has waited more than 10 minutes (I35) 
+    [chromium] › tests\e2e\owner-operations.spec.ts:447:1 › an operations member sees email but not stats or settings, and there is no inbox 
+    [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC ────────────
+    [chromium] › tests\e2e\owner-operations.spec.ts:479:1 › email problems: replay exhausted, confirm uncertain, suppressed is refused 
+    [chromium] › tests\e2e\owner-operations.spec.ts:549:1 › an operations member can replay a failed outbox row through the risk-acceptance flow 
+    [chromium] › tests\e2e\owner-operations.spec.ts:576:1 › settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets 
+    [chromium] › tests\e2e\owner-operations.spec.ts:631:1 › the owner saves the store seller details through the step-up dialog 
+    [chromium] › tests\e2e\owner-operations.spec.ts:680:1 › screenshots at 360 and 1440 with no horizontal overflow 
+  40 passed (2.9m)
+batch1 exit 1

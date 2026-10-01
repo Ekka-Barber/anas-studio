@@ -1,0 +1,43 @@
+AUDIT-2: commands and results (orchestrator, 2026-09-30 to 2026-10-01)
+
+Audit (read-only)
+- ocr --version                                   -> open-code-review v1.12.2
+- ocr scan --preview --format json                -> 1423 files, 391 reviewable; 265 source files kept (deploy/, artifacts/, assets, graft/, PLANS/evidence/ set aside)
+- ocr delegate rule --format json <265 paths>     -> 6 rule groups
+- ocr delegate preview -c f38f04d --format json   -> 123 reviewable files (the AUDIT-1 fix commit)
+- Workflow wf_2dbde205-515 (read-only)            -> 254 raw findings; 0 critical/high; 11 distinct medium; 147 low entries; 14 P08; 16 split; 5 environment; 56 refuted
+
+graft repair (outside the repository)
+- npm i -g @nanonets/graft@0.21.1                 -> global CLI 0.21.1, matching the .mcp.json pin
+- graft/.cache/wiring-stamp.json                  -> version 0.21.1, hosts agents, antigravity, claude, hermes
+- git checkout -- (6 files); rm the 9 regenerated paths
+- node .claude/helpers/graft-hooks.cjs session-start; npx -y @nanonets/graft@0.21.1 mcp </dev/null  -> git status clean after each
+
+Fixes (lock AUDIT-2-FIX)
+- Workflow wf_c600ebdd-922: 11 rounds, 34 agents; every round pass after its Sonnet pre-audit (re-fixes: R03 1, R08 1, R10 2, R11 2)
+- Orchestrator audit (D43): whole diff read; fixes listed in REPORT.md section 9
+
+Acceptance battery (final code)
+- pnpm lint                                        -> exit 0
+- pnpm typecheck                                   -> exit 0
+- pnpm test                                        -> 47 files, 632/632
+- pnpm check:copy                                  -> OK, 194 source files
+- pnpm check:frozen                                -> OK, 50 files under deploy/ unchanged
+- pnpm db:reset; pnpm db:env; pnpm db:import; pnpm db:demo-catalog (DATABASE_URL = local DB_URL)
+                                                   -> every migration applied, 6 documents imported, demo catalog written
+- docker start supabase_edge_runtime_ANASAQ.ME     -> FUNCTIONS_URL present
+- TEST_ENV=local pnpm test:db                      -> 17 files, 230/230 (first run 229/230: stats cache test; fixed with a 30-second cache for a failed answer)
+- seed publish gate (temporary unit test, removed) -> every seeded document passes schemaFor(...) after the stricter rules
+- pnpm build                                       -> exit 0
+- pnpm check:export                                -> 51 required files, 320 text files, no secrets; demo content only against loopback; no child-film name
+- pnpm check:budgets                               -> largest 147.4 KiB (budget 150.0 KiB)
+- ACCEPTANCE_PACKAGE=AUDIT-2 playwright, batch 1 (public, auth, cms, media, owner-operations)
+                                                   -> 40 passed, 22 failed: Mailpit's forwarded port was dead (container up, host port closed); docker restart supabase_inbucket_ANASAQ.ME
+- batch 2 (cart-checkout, checkout-api, store-admin, reader, motion, visual)
+                                                   -> 106 passed, 1 failed (reader: the new turn guard dropped an arrow pressed during the opening turn; fixed by queueing the move)
+- re-run (reader, public, auth, cms, media, owner-operations)
+                                                   -> 76 passed, 4 failed: four tests encoded the old behaviour (reader test race, item-and-field error label, media used once, editor email screen); tests updated
+- re-run (cms, media, owner-operations, reader)    -> 52/52
+- e2e total                                        -> 169/169 on each suite's last run
+- git checkout -- next-env.d.ts after every e2e run
+- Screenshots: /shelf lattice at 768 (no solid line-colour cell), 1440 (three across) and 360 (one column, no horizontal overflow), on the built export
