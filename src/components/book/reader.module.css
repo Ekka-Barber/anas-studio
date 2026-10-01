@@ -275,17 +275,24 @@
   visibility: hidden;
 }
 
-/* The closing leaf: the rest is in the book. */
+/* The closing leaf: the rest is in the book. page-flip writes display: block on
+   every leaf it shows, so the leaf's content is centred by its own wrapper. */
 .leaf[data-kind='end'],
+.closing {
+  text-align: center;
+  color: var(--aub);
+  font-weight: 700;
+}
+.endBody,
 .closing {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 0.9em;
-  text-align: center;
-  color: var(--aub);
-  font-weight: 700;
+}
+.endBody {
+  block-size: 100%;
 }
 .leaf[data-kind='end'] {
   padding: 12%;

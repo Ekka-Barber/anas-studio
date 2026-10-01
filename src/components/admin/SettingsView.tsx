@@ -16,6 +16,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction, documentHref } from '@/lib/supabase/functions'
 import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
 
+import { useStaffRole } from './AdminShell'
 import { CommerceSettingsForm } from './CommerceSettingsForm'
 import styles from './admin.module.css'
 
@@ -42,11 +43,13 @@ function setOrNot(set: boolean): string {
 }
 
 export function SettingsView() {
+  const role = useStaffRole()
   const [whatsapp, setWhatsapp] = useState<WhatsAppPreview>({ state: 'loading' })
   const [status, setStatus] = useState<SettingsStatus | null>(null)
   const [statusError, setStatusError] = useState(false)
 
   useEffect(() => {
+    if (role !== 'owner') return
     let active = true
     void (async () => {
       const supabase = getSupabaseBrowserClient()
@@ -98,7 +101,16 @@ export function SettingsView() {
     return () => {
       active = false
     }
-  }, [])
+  }, [role])
+
+  if (role !== 'owner') {
+    return (
+      <div>
+        <h1>الإعدادات</h1>
+        <p className={styles.error}>هذه الصفحة للمالك فقط.</p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -155,7 +167,7 @@ export function SettingsView() {
 
       <section>
         <h2>حالة الإعداد</h2>
-        {statusError && <p className={styles.error}>تعذّر تحميل الحالة. هذه الصفحة للمالك فقط.</p>}
+        {statusError && <p className={styles.error}>تعذّر تحميل الحالة.</p>}
         {!statusError && !status && <p className={styles.message}>يحمّل...</p>}
         {status && (
           <ul className={styles.metaList}>

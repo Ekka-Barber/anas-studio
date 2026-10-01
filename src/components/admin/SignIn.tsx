@@ -4,12 +4,14 @@ import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
 import { Mark } from '@/components/weave/Action'
+import { otpDigits } from '@/lib/digits'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
 
 const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 6 أرقام.'
 const RATE_LIMITED_MESSAGE = 'أُرسلت رموز كثيرة في وقت قصير. انتظر قليلًا ثم اطلب رمزًا جديدًا.'
+const OFFLINE_MESSAGE = 'تعذّر الاتصال. تحقق من الشبكة وحاول مرة أخرى.'
 const BAD_CODE_MESSAGE = 'الرمز غير صحيح أو انتهت صلاحيته.'
 
 /**
@@ -36,6 +38,12 @@ export function SignIn() {
       options: { shouldCreateUser: false },
     })
     setBusy(false)
+    // A request that never reached the server has no HTTP status; it says
+    // nothing about the address, so it may be told apart from the masked answers.
+    if (sendError && !sendError.status) {
+      setMessage(OFFLINE_MESSAGE)
+      return
+    }
     if (sendError?.status === 429) {
       setMessage(RATE_LIMITED_MESSAGE)
       return
@@ -116,11 +124,10 @@ export function SignIn() {
               inputMode="numeric"
               dir="ltr"
               autoComplete="one-time-code"
-              maxLength={6}
               required
               autoFocus
               value={code}
-              onChange={(event) => setCode(event.target.value)}
+              onChange={(event) => setCode(otpDigits(event.target.value))}
             />
           </div>
           <button type="submit" className={styles.button} disabled={busy}>

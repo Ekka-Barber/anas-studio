@@ -68,7 +68,7 @@ describe('admin function: stats', () => {
     expect(response.status).toBe(401)
   })
 
-  it('an owner gets not_configured commerce and unavailable analytics, cached for 5 minutes', async () => {
+  it('an owner gets not_configured commerce and unavailable analytics, cached briefly (30 s)', async () => {
     // Runs first in this file, so the per-isolate cache is empty and the two
     // owner calls below exercise exactly one analytics fetch.
     const first = await GET(requestWith(tokens.owner))

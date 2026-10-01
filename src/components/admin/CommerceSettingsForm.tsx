@@ -243,9 +243,13 @@ export function CommerceSettingsForm() {
         </p>
       )}
 
-      {stepUp && (
-        <StepUp open factorId={stepUp.factorId} onVerified={onStepUpVerified} onClose={() => setStepUp(null)} />
-      )}
+      {/* Always mounted: closing it calls dialog.close(), which returns focus to where the owner was. */}
+      <StepUp
+        open={stepUp !== null}
+        factorId={stepUp?.factorId ?? ''}
+        onVerified={onStepUpVerified}
+        onClose={() => setStepUp(null)}
+      />
     </div>
   )
 }

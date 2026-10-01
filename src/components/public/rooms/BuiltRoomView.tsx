@@ -1,5 +1,5 @@
 import { RoomHero } from '@/components/public/RoomHero'
-import { classify, toBlocks, type Block, type Para } from '@/components/public/story/flow'
+import { classify, posterBlock, toBlocks, type Block, type Para } from '@/components/public/story/flow'
 import { StatementBand, StoryFigure, StoryText } from '@/components/public/story/Story'
 import { Picture } from '@/components/public/Picture'
 import { Band } from '@/components/weave/Band'
@@ -84,10 +84,9 @@ export function BuiltRoomView({ room }: { room: BuiltRoom }) {
   ]
   // The opening film follows the first band, and the poster stands beside the first text after it.
   // Both are drawn exactly once, whatever band lines the owner sets: with no band, the film comes
-  // after the intro and the poster goes beside its last text.
+  // after the intro and the poster goes beside its last text, as it does when no text follows the band.
   const firstBand = intro.findIndex((block) => block.kind === 'band')
-  const texts = intro.flatMap((block, i) => (block.kind === 'text' ? [i] : []))
-  const posterAt = firstBand === -1 ? texts[texts.length - 1] : texts.find((i) => i > firstBand)
+  const posterAt = posterBlock(intro)
   const openingFilm = (
     <figure className={built.openingFilm}>
       <div className="motion-expand">

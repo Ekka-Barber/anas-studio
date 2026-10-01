@@ -6,7 +6,9 @@ import type { ReactNode } from 'react'
 import '@/styles/globals.css'
 
 export const metadata: Metadata = {
-  title: 'لوحة أنس',
+  // Each screen sets its own title: the route announcer speaks a navigation
+  // only when the title changes, and a tab or history entry names its screen.
+  title: { default: 'لوحة أنس', template: '%s · لوحة أنس' },
   robots: { index: false, follow: false },
 }
 
@@ -23,7 +25,7 @@ export const viewport: Viewport = {
  */
 export default function AdminRootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl">
+    <html lang="ar" dir="rtl" data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   )

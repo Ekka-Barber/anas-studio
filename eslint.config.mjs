@@ -3,7 +3,9 @@ import nextConfig from 'eslint-config-next/core-web-vitals'
 /**
  * Flat config. Only application code is linted: the repository also holds the
  * frozen design sources, the archive and the planning material, none of which
- * this package may touch.
+ * this package may touch. The Deno Edge Functions (`supabase/functions`) are
+ * linted too (AUDIT-2 TOOLING-9); `tsc` does not check them (tsconfig
+ * excludes them), which only `deno check` can.
  */
 const config = [
   {
@@ -14,8 +16,6 @@ const config = [
       // Generated Playwright output (reports and trace viewers, H2).
       'test-results/**',
       'artifacts/acceptance/*/playwright-report/**',
-      // Deno Edge Functions: checked by the Supabase edge runtime, not by the Next toolchain.
-      'supabase/functions/**',
       // Frozen or out-of-scope sources.
       '_archive/**',
       'deploy/**',

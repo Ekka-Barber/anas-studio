@@ -58,7 +58,10 @@ Deno.serve(async (req) => {
   try {
     const text = await req.text()
     if (text.length > 4096) return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
-    body = JSON.parse(text)
+    const parsed = JSON.parse(text) as unknown
+    // `null`, an array or a scalar is not a request: BAD_JSON, like `admin`.
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('shape')
+    body = parsed as Record<string, unknown>
   } catch {
     return fail(400, 'BAD_JSON', 'تعذّرت قراءة الطلب.')
   }
@@ -66,27 +69,42 @@ Deno.serve(async (req) => {
   const audit = async (action: string, entityId: string, summary: Record<string, unknown>) =>
     (await admin.from('audit_events').insert({ actor, action, entity: 'staff', entity_id: entityId, summary })).error
 
+  // A failed invite can leave a confirmed auth user with no staff row (its
+  // rollback delete may fail too), and that orphan would answer USER_EXISTS
+  // for the address for ever. The id of such a user, or null when the address
+  // belongs to a real member (or the lookup failed, which keeps USER_EXISTS).
+  // ponytail: one page of 1000 auth users; public sign-up is off, so they are staff and orphans.
+  const orphanedUserId = async (address: string): Promise<string | null> => {
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    const user = error ? undefined : data.users.find((u) => u.email?.toLowerCase() === address)
+    if (!user) return null
+    const row = await admin.from('staff').select('user_id').eq('user_id', user.id).maybeSingle()
+    return row.error || row.data ? null : user.id
+  }
+
   switch (body.action) {
     case 'invite': {
       const { email, displayName, role } = body
       if (!isEmail(email) || !isName(displayName) || !isRole(role)) {
         return fail(422, 'INVALID', 'تحقق من البريد والاسم والدور.')
       }
-      const { data: created, error } = await admin.auth.admin.createUser({
-        email: email.trim().toLowerCase(),
-        email_confirm: true,
-      })
-      if (error?.code === 'email_exists') return fail(409, 'USER_EXISTS', 'هذا البريد مسجّل مسبقًا.')
-      if (error || !created.user) return fail(500, 'INVITE_FAILED', 'تعذّرت الدعوة. حاول مرة أخرى.')
+      const address = email.trim().toLowerCase()
+      const { data: created, error } = await admin.auth.admin.createUser({ email: address, email_confirm: true })
+      const adopted = error?.code === 'email_exists'
+      const userId = adopted ? await orphanedUserId(address) : created?.user?.id
+      if (adopted && !userId) return fail(409, 'USER_EXISTS', 'هذا البريد مسجّل مسبقًا.')
+      if (!userId) return fail(500, 'INVITE_FAILED', 'تعذّرت الدعوة. حاول مرة أخرى.')
       const { error: staffError } = await admin
         .from('staff')
-        .insert({ user_id: created.user.id, display_name: displayName.trim(), role })
+        .insert({ user_id: userId, display_name: displayName.trim(), role })
       if (staffError) {
-        await admin.auth.admin.deleteUser(created.user.id)
+        // A user created here is rolled back; if that delete fails too, the
+        // next invite of this address adopts the orphan (above).
+        if (!adopted) await admin.auth.admin.deleteUser(userId)
         return fail(500, 'INVITE_FAILED', 'تعذّرت الدعوة. حاول مرة أخرى.')
       }
-      if (await audit('staff.invite', created.user.id, { role })) return auditFailed()
-      return ok({ userId: created.user.id })
+      if (await audit('staff.invite', userId, { role })) return auditFailed()
+      return ok({ userId })
     }
 
     case 'set_role': {

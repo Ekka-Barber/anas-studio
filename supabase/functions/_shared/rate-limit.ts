@@ -31,13 +31,35 @@ export function requestIp(request: Request): string {
   return hops.at(-1) ?? 'local'
 }
 
+/**
+ * The address part of the key. An IPv6 client is reduced to its /64: one
+ * subscriber or VPS controls a whole /64, so keying on the full address would
+ * give a caller a fresh bucket on every request. IPv4, `local`, IPv4-mapped
+ * addresses and anything that is not a plain IPv6 address stay as they are.
+ * (`requestIp` keeps the real address; Turnstile's `remoteip` still gets it.)
+ */
+export function throttleAddress(ip: string): string {
+  const halves = ip.toLowerCase().split('%')[0]!.split('::')
+  if (!ip.includes(':') || halves.length > 2) return ip
+  const head = halves[0] ? halves[0].split(':') : []
+  const tail = halves[1] ? halves[1].split(':') : []
+  const groups =
+    halves.length === 2
+      ? [...head, ...Array<string>(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail]
+      : head
+  if (groups.length !== 8 || !groups.every((group) => /^[0-9a-f]{1,4}$/.test(group))) return ip
+  // `::`, `::1` and the IPv4-mapped forms have a zero prefix: keep them whole.
+  if (groups.slice(0, 5).every((group) => parseInt(group, 16) === 0)) return ip
+  return `${groups.slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(':')}::/64`
+}
+
 /** sha256 hex of the peppered, date-salted caller key. */
 export async function clientKeyHash(request: Request, pepper: string): Promise<string> {
   const now = new Date()
   const utcDate = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(
     now.getUTCDate(),
   ).padStart(2, '0')}`
-  const material = `${pepper}:${utcDate}:${requestIp(request)}`
+  const material = `${pepper}:${utcDate}:${throttleAddress(requestIp(request))}`
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(material))
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))

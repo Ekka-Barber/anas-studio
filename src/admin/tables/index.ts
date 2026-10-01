@@ -54,6 +54,9 @@ export interface TableConfig {
   toRow: (values: Record<string, unknown>) => Record<string, unknown>
   /** Row columns → form values; the identity when the names match. */
   fromRow?: (row: Record<string, unknown>) => Record<string, unknown>
+  /** Rules a field's own schema cannot state (the customer's phone spellings):
+   *  each issue names its field, and the form keeps Save off until there are none. */
+  validate?: (values: Record<string, unknown>) => Array<{ field: string; message: string }>
   /** A «تجريبي» badge's text on list rows, or null (D37; only products carry the flag). */
   listBadge?: (row: Record<string, unknown>) => string | null
 }

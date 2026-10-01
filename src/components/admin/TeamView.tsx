@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction } from '@/lib/supabase/functions'
 
+import { useStaffRole } from './AdminShell'
 import { StepUp } from './StepUp'
 import styles from './admin.module.css'
 import { ROLE_LABEL, type StaffRole } from './TableList'
@@ -19,31 +20,13 @@ type Member = {
   has_totp: boolean
   created_at: string
 }
-type ActionResult = { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }
-
-async function callStaffAdmin(body: Record<string, unknown>): Promise<ActionResult> {
-  const supabase = getSupabaseBrowserClient()
-  const { data, error } = await supabase.functions.invoke('staff-admin', { body })
-  if (error) {
-    if (error instanceof FunctionsHttpError) {
-      try {
-        const parsed = await error.context.json()
-        if (parsed?.error) return { ok: false, error: parsed.error }
-      } catch {
-        // fall through to the generic message below
-      }
-    }
-    return { ok: false, error: { code: 'UNKNOWN', message: 'تعذّر الاتصال بالخادم.' } }
-  }
-  return data as ActionResult
-}
-
 /**
  * Owner-only team directory and actions (P03). Every mutation goes through
  * the `staff-admin` Edge Function; a `STEP_UP_REQUIRED` reply opens a fresh
  * TOTP challenge and the same action retries exactly once.
  */
 export function TeamView() {
+  const staffRole = useStaffRole()
   const [members, setMembers] = useState<Member[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -59,6 +42,13 @@ export function TeamView() {
     const supabase = getSupabaseBrowserClient()
     const { data, error } = await supabase.rpc('staff_directory')
     if (error) {
+      // The owner's own revoke or demotion makes this reload fail with
+      // insufficient_privilege: the table must not stay up with stale rows.
+      if (error.code === '42501') {
+        setMembers(null)
+        setLoadError('لم تعد تملك صلاحية عرض الفريق. أعد تحميل الصفحة.')
+        return
+      }
       setLoadError('تعذّر تحميل الفريق.')
       return
     }
@@ -67,10 +57,11 @@ export function TeamView() {
   }
 
   useEffect(() => {
+    if (staffRole !== 'owner') return
     void (async () => {
       await loadDirectory()
     })()
-  }, [])
+  }, [staffRole])
 
   function clearInvite() {
     setInviteEmail('')
@@ -82,7 +73,7 @@ export function TeamView() {
     setBusy(true)
     setActionError(null)
     setNeedsEnrollment(false)
-    const result = await callStaffAdmin(body)
+    const result = await callFunction<unknown>('staff-admin', body)
     setBusy(false)
     if (result.ok) {
       await loadDirectory()
@@ -111,7 +102,7 @@ export function TeamView() {
     setStepUp(null)
     setBusy(true)
     setActionError(null)
-    const result = await callStaffAdmin(body)
+    const result = await callFunction<unknown>('staff-admin', body)
     setBusy(false)
     if (result.ok) {
       if (body.action === 'invite') clearInvite()
@@ -127,11 +118,24 @@ export function TeamView() {
     if (await runAction({ action: 'invite', email: inviteEmail, displayName: inviteName, role: inviteRole })) clearInvite()
   }
 
+  if (staffRole !== 'owner') {
+    return (
+      <div>
+        <h1>الفريق</h1>
+        <p className={styles.error}>هذه الصفحة للمالك فقط.</p>
+      </div>
+    )
+  }
+
   if (members === null) {
     return (
       <div>
         <h1>الفريق</h1>
-        {loadError ? <p className={styles.error}>{loadError}</p> : null}
+        {loadError ? (
+          <p role="alert" className={styles.error}>
+            {loadError}
+          </p>
+        ) : null}
       </div>
     )
   }
@@ -142,6 +146,12 @@ export function TeamView() {
   return (
     <div>
       <h1>الفريق</h1>
+      {/* A failed reload after an action leaves the old rows up: say so. */}
+      {loadError && (
+        <p role="alert" className={styles.error}>
+          {loadError}
+        </p>
+      )}
 
       <div className={styles.tableWrap}>
         <table className={`${styles.table} ${styles.responsive}`}>
@@ -186,6 +196,7 @@ export function TeamView() {
                       <button
                         type="button"
                         className={styles.buttonSecondary}
+                        aria-label={`حفظ: ${member.display_name}`}
                         disabled={busy || role === member.role}
                         onClick={() => runAction({ action: 'set_role', userId: member.user_id, role })}
                       >
@@ -203,6 +214,7 @@ export function TeamView() {
                     <button
                       type="button"
                       className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
+                      aria-label={`${member.active ? 'إيقاف' : 'استعادة'}: ${member.display_name}`}
                       disabled={busy}
                       onClick={() => {
                         // A revoke bans the account at once, the caller's own row included.
@@ -284,14 +296,13 @@ export function TeamView() {
         </p>
       )}
 
-      {stepUp && (
-        <StepUp
-          open
-          factorId={stepUp.factorId}
-          onVerified={onStepUpVerified}
-          onClose={() => setStepUp(null)}
-        />
-      )}
+      {/* Always mounted: closing it calls dialog.close(), which returns focus to where the owner was. */}
+      <StepUp
+        open={stepUp !== null}
+        factorId={stepUp?.factorId ?? ''}
+        onVerified={onStepUpVerified}
+        onClose={() => setStepUp(null)}
+      />
     </div>
   )
 }

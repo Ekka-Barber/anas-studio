@@ -33,12 +33,18 @@ export function AddToCart({ variantId, label }: { variantId: string; label: stri
     setDraft(String(quantity))
     const { cart } = readCart()
     const next = addLine(cart, { variantId, quantity })
-    if (cartCount(next) === cartCount(cart)) {
+    const added = cartCount(next) - cartCount(cart)
+    if (added === 0) {
       setNote(`لم يُضف شيء: الحد الأقصى ${MAX_QUANTITY} لكل منتج و${MAX_LINES} منتجًا في السلة.`)
       return
     }
     writeCart(next)
-    setNote(`أُضيف إلى السلة. في السلة الآن ${cartCount(next)}.`)
+    // addLine caps a merged line at 20: a partial add says so.
+    setNote(
+      added < quantity
+        ? `أُضيف ${added} فقط: الحد الأقصى ${MAX_QUANTITY} لكل منتج. في السلة الآن ${cartCount(next)}.`
+        : `أُضيف إلى السلة. في السلة الآن ${cartCount(next)}.`,
+    )
   }
 
   return (

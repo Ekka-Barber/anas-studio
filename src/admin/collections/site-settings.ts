@@ -27,7 +27,7 @@ export const footerSchema = schemaFromFields(footerFields)
 
 /** D39: the home page's words, all Anas's (his brief, section 1 and 2). */
 export const homeFields = [
-  { name: 'name', label: 'الاسم الكامل', type: 'text' },
+  { name: 'name', label: 'الاسم الكامل', type: 'text', nonBlank: true },
   { name: 'portrait', label: 'الصورة الشخصية', type: 'image' },
   { name: 'portraitAlt', label: 'وصف الصورة الشخصية', type: 'text' },
   { name: 'tagline', label: 'الوصف المختصر', type: 'text' },
@@ -67,6 +67,11 @@ export const SOCIAL_NETWORK_ERROR = 'اكتب اسم الشبكة.'
 export const SOCIAL_HANDLE_ERROR = 'اكتب المعرّف.'
 export const SOCIAL_HREF_ERROR = 'الرابط غير صالح. لازم رابط كامل يبدأ بـ https، مثل https://x.com/name.'
 
+/** The publish rules for each menu item, and their messages. */
+export const NAV_LABEL_ERROR = 'اكتب اسم العنصر.'
+export const NAV_HREF_ERROR = 'الرابط غير صالح. لازم مسار داخلي يبدأ بـ /، مثل ‎/journal، أو رابط كامل يبدأ بـ https.'
+export const NAV_HREF_DUPLICATE_ERROR = 'هذا الرابط مكرر في القائمة.'
+
 /** True only for an absolute `https:` URL: `http:`, `javascript:`, `data:` and relative links are false. */
 export function isHttpsUrl(value: string): boolean {
   try {
@@ -97,6 +102,18 @@ export type SiteSettings = z.infer<typeof siteSettingsStoredSchema>
  * gate: stored leniency above, plus the L5 contact rules and the C09 social
  * link rules. */
 export const siteSettingsSchema = siteSettingsStoredSchema.superRefine((value, ctx) => {
+  // A blank item draws an unnamed link, and an empty href marks every page as
+  // current (`startsWith('/')`); the header keys its items by href.
+  const hrefs = new Set<string>()
+  value.nav.forEach((item, index) => {
+    if (item.label.trim() === '') ctx.addIssue({ code: 'custom', path: ['nav', index, 'label'], message: NAV_LABEL_ERROR })
+    if (!/^\/(?!\/)\S*$/.test(item.href) && !isHttpsUrl(item.href)) {
+      ctx.addIssue({ code: 'custom', path: ['nav', index, 'href'], message: NAV_HREF_ERROR })
+    } else if (hrefs.has(item.href)) {
+      ctx.addIssue({ code: 'custom', path: ['nav', index, 'href'], message: NAV_HREF_DUPLICATE_ERROR })
+    }
+    hrefs.add(item.href)
+  })
   value.social?.forEach((link, index) => {
     if (link.network.trim() === '') {
       ctx.addIssue({ code: 'custom', path: ['social', index, 'network'], message: SOCIAL_NETWORK_ERROR })

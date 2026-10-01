@@ -18,29 +18,35 @@ import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import { $isLinkNode, LinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link'
-import { $isListNode, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListItemNode, ListNode, REMOVE_LIST_COMMAND } from '@lexical/list'
+import { $isListNode, $removeList, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, ListItemNode, ListNode, REMOVE_LIST_COMMAND } from '@lexical/list'
 import { $createHeadingNode, $createQuoteNode, $isHeadingNode, $isQuoteNode, HeadingNode, QuoteNode } from '@lexical/rich-text'
 import {
   $createParagraphNode,
+  $createTextNode,
   $getSelection,
   $isElementNode,
   $isRangeSelection,
   FORMAT_TEXT_COMMAND,
+  TabNode,
   type EditorState,
   type ElementNode,
   type LexicalEditor,
 } from 'lexical'
 
-import type { RichTextDocument } from '@/admin/richtext'
+import { httpsUrl, type RichTextDocument } from '../../admin/richtext'
 
 import styles from './admin.module.css'
 
 type BlockType = 'paragraph' | 'h2' | 'h3' | 'quote' | 'bullet' | 'number'
 
-function toggleBlock(editor: LexicalEditor, create: () => ElementNode) {
+export function toggleBlock(editor: LexicalEditor, create: () => ElementNode) {
   editor.update(() => {
     const selection = $getSelection()
     if (!$isRangeSelection(selection)) return
+    // A list item cannot become a paragraph or a heading while its list stays
+    // around it (the list plugin puts it back), so the list goes first, as
+    // «قائمة» does when pressed again.
+    if (selection.getNodes().some((node) => $isListNode(node.getTopLevelElement()))) $removeList()
     const targets = new Set<ElementNode>()
     for (const node of selection.getNodes()) {
       const top = node.getTopLevelElementOrThrow()
@@ -84,8 +90,9 @@ function Toolbar(): JSX.Element {
 
   function applyLink() {
     const url = linkUrl.trim()
-    // An empty field removes the link; anything else must be https, and says so.
-    if (url !== '' && !url.startsWith('https://')) {
+    // An empty field removes the link; anything else must be an https address
+    // the schema accepts (not «https://» alone, not one with a space), and says so.
+    if (url !== '' && !httpsUrl.safeParse(url).success) {
       setLinkError(true)
       return
     }
@@ -184,7 +191,7 @@ function Toolbar(): JSX.Element {
       </button>
       {linkError && (
         <p role="alert" className={styles.error}>
-          الرابط يجب أن يبدأ بـ https://
+          اكتب رابطًا كاملًا صالحًا يبدأ بـ https://
         </p>
       )}
     </div>
@@ -195,8 +202,9 @@ const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode]
 
 /**
  * Pasted HTML brings nodes the schema rejects: h1 and h4–h6 headings, and
- * links that are not https. Turn them into the nearest allowed node instead,
- * so publishing is never blocked by a paste.
+ * links that are not https. Pasted plain text brings tabs, which Lexical keeps
+ * as a `tab` node. Turn them into the nearest allowed node instead (a tab
+ * becomes one space), so publishing is never blocked by a paste.
  */
 export function registerAllowlistTransforms(editor: LexicalEditor): () => void {
   const heading = editor.registerNodeTransform(HeadingNode, (node) => {
@@ -204,13 +212,17 @@ export function registerAllowlistTransforms(editor: LexicalEditor): () => void {
     if (tag !== 'h2' && tag !== 'h3') node.setTag(tag === 'h1' ? 'h2' : 'h3')
   })
   const link = editor.registerNodeTransform(LinkNode, (node) => {
-    if (node.getURL().startsWith('https://')) return
+    if (httpsUrl.safeParse(node.getURL()).success) return
     for (const child of node.getChildren()) node.insertBefore(child)
     node.remove()
+  })
+  const tab = editor.registerNodeTransform(TabNode, (node) => {
+    node.replace($createTextNode(' ').setFormat(node.getFormat()))
   })
   return () => {
     heading()
     link()
+    tab()
   }
 }
 

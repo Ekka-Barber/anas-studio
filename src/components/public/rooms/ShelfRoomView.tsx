@@ -239,13 +239,13 @@ export function ShelfRoomView({ room }: { room: ShelfRoom }) {
               <div className={layout.text}>
                 <StoryText paras={moonFirst} />
               </div>
-              {moonFactory && <StoryFigure id={moonFactory.id} />}
+              {moonFactory && <StoryFigure id={moonFactory.id} alt={moonFactory.alt} />}
             </div>
           </Band>
           {moonLast.length > 0 && (
             <Band tone="sand" pad="xs" padEnd="l">
               <div className={`${layout.split} ${layout.splitEnd}`}>
-                {moonInside && <StoryFigure id={moonInside.id} />}
+                {moonInside && <StoryFigure id={moonInside.id} alt={moonInside.alt} />}
                 <div className={layout.text}>
                   {moonRender2 && (
                     <figure data-tone="paper" className={shelf.renderSmall} data-reveal="" data-fx="media">

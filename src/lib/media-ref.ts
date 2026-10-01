@@ -64,14 +64,17 @@ export interface MediaRef {
   height: number
   /** Available derivative widths, ascending. */
   widths: number[]
+  /** The alt text Anas wrote when he uploaded the picture (the library requires one). */
+  alt?: string
 }
 
-/** `media|<base>|<width>x<height>|<w1>,<w2>,…` */
+/** `media|<base>|<width>x<height>|<w1>,<w2>,…`, then `|<alt>` (URI-encoded) when the picture has one. */
 export function formatMediaRef(ref: MediaRef): string {
-  return `media|${ref.base}|${ref.width}x${ref.height}|${ref.widths.join(',')}`
+  const alt = ref.alt ? `|${encodeURIComponent(ref.alt)}` : ''
+  return `media|${ref.base}|${ref.width}x${ref.height}|${ref.widths.join(',')}${alt}`
 }
 
-const REF_PATTERN = /^media\|([^|]+)\|(\d+)x(\d+)\|(\d{1,7}(?:,\d{1,7})*)$/
+const REF_PATTERN = /^media\|([^|]+)\|(\d+)x(\d+)\|(\d{1,7}(?:,\d{1,7})*)(?:\|([^|]+))?$/
 
 /** The inverse of `formatMediaRef`; null for anything else (including bare ids). */
 export function parseMediaRef(value: unknown): MediaRef | null {
@@ -83,5 +86,13 @@ export function parseMediaRef(value: unknown): MediaRef | null {
   const widths = match[4]!.split(',').map(Number)
   if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) return null
   if (widths.some((w) => !Number.isInteger(w) || w <= 0)) return null
-  return { base: match[1]!, width, height, widths }
+  let alt: string | undefined
+  if (match[5]) {
+    try {
+      alt = decodeURIComponent(match[5])
+    } catch {
+      return null
+    }
+  }
+  return { base: match[1]!, width, height, widths, ...(alt ? { alt } : {}) }
 }

@@ -1,8 +1,12 @@
+import { parseMediaRef } from '../lib/media-ref'
+
 /**
  * Alt text and captions for images the CMS stores as a bare id (a room's or
- * a movement's picture field has no alt of its own). Keyed by image id; an
- * image not listed here is treated as decorative (empty alt). Lists that
- * carry their own `alt` in the CMS (galleries, photos) never read this.
+ * a movement's picture field has no alt of its own). Keyed by image id. An
+ * image not listed here takes the alt its media-library reference carries
+ * (the one written at upload), and is decorative (empty alt) without one.
+ * Lists that carry their own `alt` in the CMS (galleries, photos) never read
+ * this.
  */
 export interface MediaNote {
   alt: string
@@ -42,5 +46,5 @@ export const FILM_CAPTIONS: Record<string, string> = {
 }
 
 export function noteFor(id: string | null | undefined): MediaNote {
-  return (id && MEDIA_NOTES[id]) || { alt: '' }
+  return (id && MEDIA_NOTES[id]) || { alt: parseMediaRef(id)?.alt ?? '' }
 }

@@ -52,6 +52,7 @@
     "out",
     "artifacts",
     "_archive",
-    "deploy"
+    "deploy",
+    "BOOK_ASSETS"
   ]
 }

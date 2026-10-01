@@ -10,6 +10,13 @@ time, and the server only verifies what arrived.
 
 - **Alt text (`altAr`) is required.** Describe the image in Arabic for a
   visitor who cannot see it. This is not optional and cannot be left blank.
+  The public site is built with this text as the image's alt wherever a page
+  draws a library image (the room pages, the story figures, a journal post's
+  cover); a card in the journal list is empty on purpose, because it sits
+  inside a link that already carries the post's title. Editing the text in the
+  library does not request a site rebuild (only a publish, an archive, a
+  scheduled go-live or a catalog change does), so the live pages keep the old
+  text until the next build.
 - **The rights statement is required.** A short Arabic note naming who owns
   the image and what allows us to publish it (for example the photographer
   and the licence, or "تصوير أنس" for our own work). If you do not have the
@@ -80,7 +87,18 @@ The library lives at **/admin/media** (owners and editors). Its steps:
    references the image, as a link with its state (منشورة / مسودة / مجدولة).
    «حذف» stays disabled while that list is not empty — the server enforces
    the same guard again — and asks for confirmation in a dialog. Deleting
-   removes the private original and every public derivative.
+   removes the private original and every public derivative; focus then moves
+   to the «المكتبة» heading and «حُذفت الصورة.» is announced. A document whose
+   latest version is the live one, with no schedule, is listed once as
+   «منشورة», not also as a draft; a later version that differs from the live
+   one is still a draft.
+5. **Saving and renaming** change only the image they were started on, even if
+   another image was opened meanwhile. A save that matched no row says «لم
+   يُحفظ؛ الصورة محذوفة أو لا تملك صلاحية تعديلها.». «المزيد» reads «يحمّل...»
+   and is disabled while a page loads; a failed folder list says «تعذّر تحميل
+   المجلدات.» and a failed library load «تعذّر تحميل المكتبة.». Renaming a
+   folder is refused with «الاسم الجديد يجعل أحد المجلدات الفرعية أطول من 120
+   حرفًا.» when a subfolder would pass 120 characters.
 
 The details panel also shows the original's dimensions, size and type
 read-only, with the list of generated derivatives.

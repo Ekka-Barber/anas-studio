@@ -181,6 +181,14 @@ const VIDEOS = [
 ]
 
 /**
+ * Image manifest entries no generator here produces: their webp files sit in
+ * `public/images/started/` (P01). The admin accepts only image ids that are in
+ * the manifest and cms.spec.ts uses `started-street-4`, so a full run carries
+ * them over from the committed manifest instead of dropping them.
+ */
+const HAND_MADE_IMAGES = ['started-street-4', 'started-mothers-hands', 'started-child-door', 'started-closed-door']
+
+/**
  * على الرف — ذرى: the task calls for a poster frame only (the teaser cut is
  * not yet decided; DESIGN-DIRECTION §3 "the teaser seconds are still
  * unknown"), so this is a still extraction, not a transcode.
@@ -449,6 +457,11 @@ async function main() {
     console.error(`Missing source files (${missing.length}); the manifests were not rewritten:`)
     for (const m of missing) console.error(`  ${path.relative(repoRoot, m)}`)
     process.exit(1)
+  }
+  const committed = JSON.parse(readFileSync(path.join(IMAGES_OUT, 'manifest.json'), 'utf8'))
+  for (const id of HAND_MADE_IMAGES) {
+    if (!committed[id]) throw new Error(`HAND_MADE_IMAGES names ${id}, which the committed image manifest does not hold`)
+    imageManifest[id] = committed[id]
   }
   writeFileSync(path.join(IMAGES_OUT, 'manifest.json'), JSON.stringify(imageManifest, null, 2) + '\n')
   mkdirSync(MEDIA_OUT, { recursive: true })

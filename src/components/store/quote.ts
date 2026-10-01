@@ -271,13 +271,13 @@ export interface CityRate {
   fee_halalas: number
 }
 
-/** The enabled, priced cities anon may read (RLS returns exactly those). */
+/** The enabled, priced cities anon may read (RLS returns exactly those); throws when the list cannot be read, so an empty list means none are served. */
 export async function fetchCities(): Promise<CityRate[]> {
   const response = await fetch(
     `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/shipping_rates?select=city_key,name_ar,fee_halalas&order=sort_order,name_ar`,
     { headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '' } },
   )
-  if (!response.ok) return []
+  if (!response.ok) throw new Error('تعذّر تحميل قائمة المدن.')
   return list(await response.json(), (entry) => {
     const row = obj(entry)
     return { city_key: str(row.city_key), name_ar: str(row.name_ar), fee_halalas: count(row.fee_halalas) }

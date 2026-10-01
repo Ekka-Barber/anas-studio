@@ -6,6 +6,7 @@ import { ActionButton } from '@/components/weave/Action'
 import { useTurnstile } from '@/lib/turnstile'
 
 import styles from './contact.module.css'
+import { servicePrefill } from './prefill'
 
 type Field = 'name' | 'email' | 'message'
 type Errors = Partial<Record<Field, string>>
@@ -60,7 +61,12 @@ export function ContactForm() {
       const previous = prefill.current
       prefill.current = text
       // An empty message, or one still exactly the previous service's line, is replaced; anything the visitor wrote stays.
-      setValues((v) => ({ ...v, message: v.message.trim() && v.message !== previous ? v.message : text }))
+      const { replace, resetKey } = servicePrefill(messageRef.current?.value ?? '', previous, text)
+      if (replace) {
+        // A different message is a different submission: it must not go out under the last one's key.
+        if (resetKey) submissionKey.current = null
+        setValues((v) => ({ ...v, message: text }))
+      }
       setStatus({ kind: 'idle', text: '' })
       requestAnimationFrame(() => messageRef.current?.focus({ preventScroll: true }))
     }
@@ -141,7 +147,7 @@ export function ContactForm() {
         {label}
       </label>
       {input}
-      <span id={`contact-${name}-error`} className={styles.error}>
+      <span id={`contact-${name}-error`} role="alert" className={styles.error}>
         {errors[name]}
       </span>
     </div>

@@ -7,7 +7,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import {
   assertSafeEntryPath,
@@ -16,6 +16,59 @@ import {
   readBackup,
   writeBackup,
 } from '../../scripts/lib/backup-format.mjs'
+
+// Two seams into the module under test. A written file can be made to fail
+// asynchronously, as a full disk does: after N bytes (the archive's `.partial`
+// file only), or when a write completes after end() was called (the final
+// flush: the 16-byte auth tag, or the last bytes of an extracted file). And
+// every directory and plaintext file the reader creates is recorded with its
+// mode, which POSIX file modes alone could not check on Windows.
+const fsSpy = vi.hoisted(() => ({
+  failWritesAfter: Number.POSITIVE_INFINITY,
+  failOnEnd: false,
+  created: [] as Array<{ kind: 'file' | 'dir'; mode: number | undefined }>,
+}))
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    createWriteStream: (file: string, options?: { mode?: number }) => {
+      const stream = actual.createWriteStream(file, options)
+      const partial = file.endsWith('.partial')
+      if (!partial) fsSpy.created.push({ kind: 'file', mode: options?.mode })
+      type Done = (error?: Error | null) => void
+      const internals = stream as unknown as {
+        _write: (chunk: Buffer, encoding: string, done: Done) => void
+        _writev: (chunks: Array<{ chunk: Buffer }>, done: Done) => void
+      }
+      const write = internals._write.bind(stream)
+      const writev = internals._writev.bind(stream)
+      const enospc = () => Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' })
+      let written = 0
+      const guard = (size: number, run: (done: Done) => void, done: Done) => {
+        written += size
+        if (partial && written > fsSpy.failWritesAfter) setImmediate(done, enospc())
+        else run((error) => (fsSpy.failOnEnd && stream.writableEnded ? setImmediate(done, enospc()) : done(error)))
+      }
+      internals._write = (chunk, encoding, done) => guard(chunk.length, (cb) => write(chunk, encoding, cb), done)
+      internals._writev = (chunks, done) =>
+        guard(chunks.reduce((sum, { chunk }) => sum + chunk.length, 0), (cb) => writev(chunks, cb), done)
+      return stream
+    },
+  }
+})
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    mkdir: (dir: string, options?: { mode?: number }) => {
+      fsSpy.created.push({ kind: 'dir', mode: options?.mode })
+      return actual.mkdir(dir, options as never)
+    },
+  }
+})
 
 const PASSPHRASE = 'a-real-backup-passphrase-123'
 
@@ -192,6 +245,60 @@ describe('writeBackup / readBackup', () => {
     await expect(writeBackup(outFile, broken, key)).rejects.toThrow()
     expect(reads).toBe(3)
     expect(existsSync(`${outFile}.partial`)).toBe(false)
+  })
+
+  it('a destination that fails mid-write rejects with its error and deletes the partial file (no crash, no hang)', async () => {
+    // Incompressible, so the failing stream sees far more than the limit.
+    const big = join(src, 'big.bin')
+    writeFileSync(big, randomBytes(1024 * 1024))
+    const target = join(root, 'enospc.enc')
+    fsSpy.failWritesAfter = 100 * 1024
+    try {
+      await expect(writeBackup(target, [{ path: 'big.bin', file: big }], key)).rejects.toMatchObject({ code: 'ENOSPC' })
+    } finally {
+      fsSpy.failWritesAfter = Number.POSITIVE_INFINITY
+    }
+    expect(existsSync(`${target}.partial`)).toBe(false)
+    expect(existsSync(target)).toBe(false)
+  })
+
+  it('a destination that fails on the final flush (the auth tag) rejects with its error and leaves nothing', async () => {
+    // end() has been called when the last write fails; its callback then gets
+    // ERR_STREAM_DESTROYED before the real error, and a truncated archive
+    // must not be renamed into place as if it were complete.
+    const target = join(root, 'enospc-last.enc')
+    fsSpy.failOnEnd = true
+    try {
+      await expect(writeBackup(target, ENTRIES, key)).rejects.toMatchObject({ code: 'ENOSPC' })
+    } finally {
+      fsSpy.failOnEnd = false
+    }
+    expect(existsSync(`${target}.partial`)).toBe(false)
+    expect(existsSync(target)).toBe(false)
+  })
+
+  it('a restore whose last write to an extracted file fails rejects with its error and leaves nothing', async () => {
+    await writeSample()
+    const target = join(root, 'dest-enospc-last')
+    fsSpy.failOnEnd = true
+    try {
+      await expect(readBackup(outFile, key, target)).rejects.toMatchObject({ code: 'ENOSPC' })
+    } finally {
+      fsSpy.failOnEnd = false
+    }
+    expect(existsSync(target)).toBe(false)
+  })
+
+  it('extracts the plaintext with private modes: directories 0700, files 0600', async () => {
+    await writeSample()
+    fsSpy.created.length = 0
+    await readBackup(outFile, key, join(root, 'dest-modes'))
+    const dirs = fsSpy.created.filter((entry) => entry.kind === 'dir')
+    const files = fsSpy.created.filter((entry) => entry.kind === 'file')
+    expect(dirs.length).toBeGreaterThan(0)
+    expect(files).toHaveLength(ENTRIES.length + 1) // the entries and manifest.json
+    expect(dirs.every((entry) => entry.mode === 0o700)).toBe(true)
+    expect(files.every((entry) => entry.mode === 0o600)).toBe(true)
   })
 
   it('the writer refuses an unsafe entry path', async () => {

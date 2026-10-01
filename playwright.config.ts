@@ -15,8 +15,9 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 // The specs' own screenshots follow the same rule per package (tests/e2e/shots.ts):
 // a package's evidence folder is written only when ACCEPTANCE_PACKAGE names that package.
 const acceptancePackage = process.env.ACCEPTANCE_PACKAGE
-if (acceptancePackage && !/^(P\d{2}|[A-Z]+-\d+)$/.test(acceptancePackage)) {
-  throw new Error(`ACCEPTANCE_PACKAGE must look like P06 or CLEANUP-1, got "${acceptancePackage}"`)
+// The recorded packages: P00-P07, CLEANUP-1, AUDIT-1, AUDIT-2 and DESIGN-B.
+if (acceptancePackage && !/^(P\d{2}|[A-Z]+-(\d+|[A-Z]))$/.test(acceptancePackage)) {
+  throw new Error(`ACCEPTANCE_PACKAGE must look like P06, CLEANUP-1 or DESIGN-B, got "${acceptancePackage}"`)
 }
 const runDir = acceptancePackage ? `./artifacts/acceptance/${acceptancePackage}` : './test-results'
 

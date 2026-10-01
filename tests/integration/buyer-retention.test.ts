@@ -91,6 +91,21 @@ describe('buyer retention (D42)', () => {
       // Kept: a hold cancelled 10 days ago, and a pending hold (never purged by status).
       const recentBuyer = await customer(120)
       const recentOrder = await order(recentBuyer, 'cancelled', 10)
+      // A coupon order keeps a 'released' use after its hold ends; the use
+      // references the order without ON DELETE CASCADE, so the purge must
+      // delete it first or `delete from finance.orders` fails with 23503.
+      const coupon = (
+        await postgres.query<{ id: string }>(
+          `insert into public.coupons (code, kind, percent_bp) values ($1, 'percent', 1000) returning id`,
+          [`RET${randomUUID().replace(/-/g, '').slice(0, 12).toUpperCase()}`],
+        )
+      ).rows[0]!.id
+      await postgres.query(
+        `insert into finance.coupon_redemptions (coupon_id, order_id, state, expires_at, released_at)
+         values ($1, $2, 'released', now() - interval '91 days', now() - interval '91 days'),
+                ($1, $3, 'released', now() - interval '10 days', now() - interval '10 days')`,
+        [coupon, oldOrder, recentOrder],
+      )
       const pendingBuyer = await customer(120)
       const pendingOrder = await order(pendingBuyer, 'pending_payment', 100)
       // Customers with no order: gone when untouched for 90 days, kept when recent.
@@ -105,6 +120,8 @@ describe('buyer retention (D42)', () => {
       expect(
         (await postgres.query('select 1 from finance.inventory_reservations where order_id = $1', [oldOrder])).rowCount,
       ).toBe(0)
+      expect((await postgres.query('select 1 from finance.coupon_redemptions where order_id = $1', [oldOrder])).rowCount).toBe(0)
+      expect((await postgres.query('select 1 from finance.coupon_redemptions where order_id = $1', [recentOrder])).rowCount).toBe(1)
       expect(await exists('public.customers', oldBuyer)).toBe(false)
       expect(await exists('public.customers', idleBuyer)).toBe(false)
 

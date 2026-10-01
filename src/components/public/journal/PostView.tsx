@@ -5,6 +5,7 @@ import { Band } from '@/components/weave/Band'
 import { Edge } from '@/components/weave/Edge'
 import { enter } from '@/components/weave/motion'
 import { Signature } from '@/components/weave/Signature'
+import { noteFor } from '@/content/media-notes'
 import { formatDate } from '@/lib/format'
 import { readingTime, wordCount, type JournalPost } from '@/lib/journal'
 import { RichText } from '@/lib/richtext'
@@ -48,7 +49,7 @@ export function PostView({ post, journalName = 'المجلس' }: { post: Journal
           {post.cover && (
             <Band tone="paper" pad="m">
               <figure className={styles.postCover} {...enter(520, 'media')}>
-                <Picture id={post.cover} alt="" sizes="(min-width: 1100px) 1000px, 100vw" loading="eager" />
+                <Picture id={post.cover} alt={noteFor(post.cover).alt} sizes="(min-width: 1100px) 1000px, 100vw" loading="eager" />
               </figure>
             </Band>
           )}

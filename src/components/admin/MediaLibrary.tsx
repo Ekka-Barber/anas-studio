@@ -82,6 +82,18 @@ export function movedFolder(folder: string, from: string, to: string): string {
   return folder === from || folder.startsWith(`${from}/`) ? to + folder.slice(from.length) : folder
 }
 
+/**
+ * Why `from` → `to` cannot run, or null. The SQL length check applies to every
+ * child path, so one overlong descendant fails the whole rename.
+ */
+export function renameProblem(folders: string[], from: string, to: string): string | null {
+  if (from === '' || to === '' || folderIsInvalid(to)) return 'مسار مجلد جديد غير صالح.'
+  if (folders.some((folder) => folderIsInvalid(movedFolder(folder, from, to)))) {
+    return 'الاسم الجديد يجعل أحد المجلدات الفرعية أطول من 120 حرفًا.'
+  }
+  return null
+}
+
 function whereUsedLabel(row: WhereUsedRow): string {
   if (row.collection === 'rooms') {
     const label = ROOM_DOC_LABELS[row.doc_id as keyof typeof ROOM_DOC_LABELS]
@@ -114,6 +126,31 @@ export async function fetchMediaRow(id: string): Promise<MediaRow | null> {
     .eq('id', id)
     .maybeSingle()
   return (data as MediaRow | null) ?? null
+}
+
+/** The columns the details form edits; `caption` is null when empty, as stored. */
+type MediaPatch = Pick<MediaRow, 'name' | 'alt_ar' | 'caption' | 'rights' | 'folder'>
+
+/**
+ * Saves one image's details. `missing` when no row matched: PostgREST answers
+ * 204 without an error for an update whose row was deleted or which RLS no
+ * longer lets the caller touch, so the updated ids are read back.
+ */
+export async function updateMediaRow(id: string, patch: MediaPatch): Promise<'saved' | 'missing' | 'error'> {
+  const { data, error } = await getSupabaseBrowserClient().from('media').update(patch).eq('id', id).select('id')
+  if (error) return 'error'
+  return data && data.length > 0 ? 'saved' : 'missing'
+}
+
+/** `patch` on `current` only while `current` is still the saved row; another image opened meanwhile stays as it is. */
+export function patchSelected(current: MediaRow | null, id: string, patch: Partial<MediaRow>): MediaRow | null {
+  return current?.id === id ? { ...current, ...patch } : current
+}
+
+/** `page` after `previous`, minus rows already shown: two requests for one range must not double a tile. */
+export function appendPage(previous: MediaRow[], page: MediaRow[]): MediaRow[] {
+  const shown = new Set(previous.map((row) => row.id))
+  return [...previous, ...page.filter((row) => !shown.has(row.id))]
 }
 
 /** One page of the library list, newest first. */
@@ -151,6 +188,7 @@ export function MediaBrowser({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [more, setMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   // Bumped whenever a query's first page lands. A «المزيد» request started
   // before that must not append its rows to the new query's grid.
   const generation = useRef(0)
@@ -176,6 +214,7 @@ export function MediaBrowser({
             if (!active) return
             generation.current += 1
             setLoading(false)
+            setLoadingMore(false)
           })
       },
       search ? 300 : 0,
@@ -185,6 +224,27 @@ export function MediaBrowser({
       clearTimeout(timer)
     }
   }, [search, folder, reloadToken])
+
+  function loadMore() {
+    // One page at a time: a second click would fetch the same range from the same `rows.length`.
+    if (loadingMore) return
+    const requested = generation.current
+    setLoadingMore(true)
+    void loadMediaPage(folder, search, rows.length)
+      .then((page) => {
+        if (requested !== generation.current) return
+        setError(null)
+        setRows((previous) => appendPage(previous, page))
+        setMore(page.length === PAGE_SIZE)
+      })
+      .catch(() => {
+        if (requested === generation.current) setError('تعذّر تحميل المكتبة.')
+      })
+      .finally(() => {
+        // A superseded request leaves `loadingMore` to the new query's first page.
+        if (requested === generation.current) setLoadingMore(false)
+      })
+  }
 
   return (
     <div className={styles.field}>
@@ -228,24 +288,8 @@ export function MediaBrowser({
         })}
       </div>
       {more && (
-        <button
-          type="button"
-          className={styles.buttonSecondary}
-          onClick={() => {
-            const requested = generation.current
-            void loadMediaPage(folder, search, rows.length)
-              .then((page) => {
-                if (requested !== generation.current) return
-                setError(null)
-                setRows((previous) => [...previous, ...page])
-                setMore(page.length === PAGE_SIZE)
-              })
-              .catch(() => {
-                if (requested === generation.current) setError('تعذّر تحميل المكتبة.')
-              })
-          }}
-        >
-          المزيد
+        <button type="button" className={styles.buttonSecondary} disabled={loadingMore} onClick={loadMore}>
+          {loadingMore ? 'يحمّل...' : 'المزيد'}
         </button>
       )}
     </div>
@@ -274,11 +318,19 @@ export function MediaLibrary() {
   const [renameFrom, setRenameFrom] = useState('')
   const [renameTo, setRenameTo] = useState('')
   const [renameMessage, setRenameMessage] = useState<string | null>(null)
+  const [renaming, setRenaming] = useState(false)
+  const [folderError, setFolderError] = useState(false)
+  const [libraryMessage, setLibraryMessage] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
   const deleteDialogRef = useRef<HTMLDialogElement>(null)
   const deleteTitleId = useId()
   const detailsRef = useRef<HTMLElement>(null)
   const detailsHeadingRef = useRef<HTMLHeadingElement>(null)
+  const libraryHeadingRef = useRef<HTMLHeadingElement>(null)
+  // The id of the image whose details are open. A save or delete that resolves
+  // after the owner opened another image applies its result only while this
+  // still matches the id it wrote.
+  const selectedIdRef = useRef<string | null>(null)
   // Bumped on every selection so the details scroll into view and take focus
   // even when the same item is chosen again.
   const [selectionCount, setSelectionCount] = useState(0)
@@ -307,27 +359,44 @@ export function MediaLibrary() {
     if (!deleteOpen && dialog.open) dialog.close()
   }, [deleteOpen])
 
+  // A delete unmounts the details panel, and the «حذف» button the closing dialog
+  // would return focus to with it: the heading takes focus so the place is kept.
+  // Declared after the dialog effect, so the modal is closed (the page no longer
+  // inert) by the time focus moves.
+  useEffect(() => {
+    if (libraryMessage) libraryHeadingRef.current?.focus()
+  }, [libraryMessage])
+
   useEffect(() => {
     // ponytail: the Data API has no DISTINCT, and a response is capped at
     // PostgREST's max_rows (1000), so `.limit()` cannot lift it. Read only the
     // folder column (RLS already scopes it to owner/editor) page by page and
     // dedupe here; a SQL function returning the distinct folders would replace this.
+    // Paging runs to an empty page, not to a short one: max_rows may be lower than a page.
     let active = true
     void (async () => {
       const supabase = getSupabaseBrowserClient()
       const distinct = new Set<string>()
-      for (let from = 0; ; ) {
-        const { data } = await supabase
+      for (let from = 0; active; ) {
+        const { data, error } = await supabase
           .from('media')
           .select('folder')
           .order('folder')
           .range(from, from + FOLDER_PAGE_SIZE - 1)
+        if (error) {
+          // A failed page must not publish a partial list: keep the previous one and say so.
+          if (active) setFolderError(true)
+          return
+        }
         const page = (data ?? []) as unknown as Array<{ folder: string }>
         for (const row of page) distinct.add(row.folder)
         if (page.length === 0) break
         from += page.length
       }
-      if (active) setFolders([...distinct])
+      if (active) {
+        setFolders([...distinct])
+        setFolderError(false)
+      }
     })()
     return () => {
       active = false
@@ -362,6 +431,8 @@ export function MediaLibrary() {
   }, [selected, reloadToken])
 
   function select(row: MediaRow) {
+    selectedIdRef.current = row.id
+    setLibraryMessage(null)
     setSelected(row)
     setValues({
       name: row.name,
@@ -389,55 +460,60 @@ export function MediaLibrary() {
     setFieldErrors({})
     setSaving(true)
     setSaveMessage(null)
-    const { error } = await getSupabaseBrowserClient()
-      .from('media')
-      .update({
-        name: parsed.data.name,
-        alt_ar: parsed.data.altAr,
-        caption: parsed.data.caption ? parsed.data.caption : null,
-        rights: parsed.data.rights,
-        folder: parsed.data.folder,
-      })
-      .eq('id', selected.id)
-    setSaving(false)
-    if (error) {
-      setSaveMessage('تعذّر الحفظ.')
-      return
-    }
-    setSaveMessage('حُفظ')
-    const patch: Partial<MediaRow> = {
+    const id = selected.id
+    const patch: MediaPatch = {
       name: parsed.data.name,
       alt_ar: parsed.data.altAr,
-      caption: parsed.data.caption ?? null,
+      caption: parsed.data.caption ? parsed.data.caption : null,
       rights: parsed.data.rights,
       folder: parsed.data.folder,
     }
-    setSelected({ ...selected, ...patch })
-    setValues((previous) => ({ ...previous, folder: parsed.data.folder, name: parsed.data.name }))
+    const result = await updateMediaRow(id, patch)
+    setSaving(false)
+    // The panel may show another image by now: this result belongs to `id` only.
+    const stillOpen = selectedIdRef.current === id
+    if (result !== 'saved') {
+      const text = result === 'missing' ? 'لم يُحفظ؛ الصورة محذوفة أو لا تملك صلاحية تعديلها.' : 'تعذّر الحفظ.'
+      setSaveMessage(stillOpen ? text : `«${patch.name}»: ${text}`)
+      if (result === 'missing') setReloadToken((token) => token + 1)
+      return
+    }
+    setSelected((open) => patchSelected(open, id, patch))
+    if (stillOpen) {
+      setSaveMessage('حُفظ')
+      setValues((previous) => ({ ...previous, folder: patch.folder, name: patch.name }))
+    }
     setReloadToken((token) => token + 1)
   }
 
   async function renameFolder() {
+    if (renaming) return
     const to = renameTo.trim()
-    if (renameFrom === '' || to === '' || folderIsInvalid(to)) {
-      setRenameMessage('مسار مجلد جديد غير صالح.')
+    const problem = renameProblem(folders, renameFrom, to)
+    if (problem) {
+      setRenameMessage(problem)
       return
     }
+    setRenaming(true)
     const { data, error } = await getSupabaseBrowserClient().rpc('media_rename_folder', {
       p_from: renameFrom,
       p_to: to,
     })
+    setRenaming(false)
     if (error || typeof data !== 'number') {
       setRenameMessage('تعذّرت إعادة تسمية المجلد.')
       return
     }
     setRenameMessage(data > 0 ? `نُقلت ${data} صورة إلى «${folderLabel(to)}».` : 'لا توجد صور في هذا المجلد.')
     // The open details form and the filter still hold the old path: follow the rename, or a save would move the image back.
-    if (selectedFolder !== null && selectedFolder !== ROOT_OPTION) setSelectedFolder(movedFolder(selectedFolder, renameFrom, to))
-    if (selected) {
-      setSelected({ ...selected, folder: movedFolder(selected.folder, renameFrom, to) })
-      setValues((previous) => ({ ...previous, folder: movedFolder(previous.folder ?? '', renameFrom, to) }))
-    }
+    // Functional updates: whatever is open or chosen now moved too, not what the closure held when the click came.
+    setSelectedFolder((current) =>
+      current !== null && current !== ROOT_OPTION ? movedFolder(current, renameFrom, to) : current,
+    )
+    setSelected((open) => (open ? { ...open, folder: movedFolder(open.folder, renameFrom, to) } : open))
+    setValues((previous) =>
+      previous.folder === undefined ? previous : { ...previous, folder: movedFolder(previous.folder, renameFrom, to) },
+    )
     setRenameFrom('')
     setRenameTo('')
     setReloadToken((token) => token + 1)
@@ -445,9 +521,10 @@ export function MediaLibrary() {
 
   async function confirmDelete() {
     if (!selected || !accessToken) return
+    const id = selected.id
     setDeleting(true)
     setDeleteError(null)
-    const result = await callFunction<{ id: string }>('admin', { action: 'media-delete', id: selected.id })
+    const result = await callFunction<{ id: string }>('admin', { action: 'media-delete', id })
     setDeleting(false)
     if (!result.ok) {
       setDeleteError(result.error.message)
@@ -455,7 +532,12 @@ export function MediaLibrary() {
     }
     setDeleteError(null)
     setDeleteOpen(false)
-    setSelected(null)
+    // Esc closes the dialog mid-request, so another image may be open by now.
+    if (selectedIdRef.current === id) {
+      selectedIdRef.current = null
+      setSelected(null)
+    }
+    setLibraryMessage('حُذفت الصورة.')
     setReloadToken((token) => token + 1)
   }
 
@@ -468,7 +550,9 @@ export function MediaLibrary() {
 
   return (
     <div className={styles.field}>
-      <h1>المكتبة</h1>
+      <h1 ref={libraryHeadingRef} tabIndex={-1}>
+        المكتبة
+      </h1>
       <div className={styles.row}>
         <button type="button" className={styles.button} onClick={() => setUploadOpen(true)}>
           رفع صورة
@@ -494,7 +578,15 @@ export function MediaLibrary() {
               ))}
           </select>
         </div>
+        <p role="status" className={styles.message}>
+          {libraryMessage}
+        </p>
       </div>
+      {folderError && (
+        <p role="alert" className={styles.error}>
+          تعذّر تحميل المجلدات.
+        </p>
+      )}
       <fieldset className={styles.fieldset}>
         <legend className={styles.legend}>إعادة تسمية المجلد</legend>
         <div className={styles.row}>
@@ -533,7 +625,7 @@ export function MediaLibrary() {
           <button
             type="button"
             className={styles.buttonSecondary}
-            disabled={renameFrom === '' || renameTo.trim() === ''}
+            disabled={renaming || renameFrom === '' || renameTo.trim() === ''}
             onClick={() => void renameFolder()}
           >
             إعادة تسمية المجلد

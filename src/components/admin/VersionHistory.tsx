@@ -50,9 +50,10 @@ export function VersionHistory({ collection, docId, liveSeq, latestSeq, onRestor
   useEffect(() => {
     // Deferred to a microtask so `load`'s first setState call is not
     // synchronous within the effect body (react-hooks/set-state-in-effect).
+    // A save changes `latestSeq` without remounting, so it reloads the list.
     void Promise.resolve().then(load)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collection, docId])
+  }, [collection, docId, latestSeq])
 
   async function restoreVersion(seq: number) {
     setBusy(true)
@@ -117,6 +118,7 @@ export function VersionHistory({ collection, docId, liveSeq, latestSeq, onRestor
                     type="button"
                     className={styles.buttonSecondary}
                     disabled={busy}
+                    aria-label={`استعادة النسخة ${version.seq}`}
                     onClick={() => restoreVersion(version.seq)}
                   >
                     استعادة

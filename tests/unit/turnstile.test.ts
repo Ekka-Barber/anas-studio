@@ -5,7 +5,7 @@
 // in artifacts/acceptance/P06/siteverify-live-test-secret.json.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { verifyTurnstile } from '../../supabase/functions/_shared/turnstile.ts'
+import { isTurnstileUnavailable, verifyTurnstile } from '../../supabase/functions/_shared/turnstile.ts'
 
 const savedEnv = { ...process.env }
 
@@ -47,6 +47,37 @@ describe('verifyTurnstile', () => {
     expect(await verifyTurnstile({ ...base, secret: REAL_SECRET })).toEqual({ ok: false, code: 'INVALID_TOKEN' })
   })
 
+  it.each(['invalid-input-secret', 'missing-input-secret', 'internal-error'])(
+    'the server-side code %s is MISCONFIGURED, logged by code only, not "you are not human"',
+    async (code) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      reply({ success: false, 'error-codes': [code] })
+      expect(await verifyTurnstile({ ...base, secret: REAL_SECRET })).toEqual({ ok: false, code: 'MISCONFIGURED' })
+      expect(warn.mock.calls).toEqual([[expect.any(String), [code]]])
+      warn.mockRestore()
+    },
+  )
+
+  it.each(['invalid-input-response', 'timeout-or-duplicate'])(
+    'the visitor-side code %s stays INVALID_TOKEN and is not logged',
+    async (code) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      reply({ success: false, 'error-codes': [code] })
+      expect(await verifyTurnstile({ ...base, secret: REAL_SECRET })).toEqual({ ok: false, code: 'INVALID_TOKEN' })
+      expect(warn).not.toHaveBeenCalled()
+      warn.mockRestore()
+    },
+  )
+
+  it('callers answer 503 for every failure that is not the visitor\'s', () => {
+    for (const code of ['UNREACHABLE', 'MISCONFIGURED', 'TEST_SECRET_IN_PRODUCTION'] as const) {
+      expect(isTurnstileUnavailable(code)).toBe(true)
+    }
+    for (const code of ['INVALID_TOKEN', 'ACTION_MISMATCH', 'HOSTNAME_MISMATCH'] as const) {
+      expect(isTurnstileUnavailable(code)).toBe(false)
+    }
+  })
+
   it('a wrong action is ACTION_MISMATCH', async () => {
     reply({ success: true, action: 'login', hostname: 'anas.studio' })
     expect(await verifyTurnstile({ ...base, secret: REAL_SECRET })).toEqual({ ok: false, code: 'ACTION_MISMATCH' })
@@ -79,6 +110,7 @@ describe('verifyTurnstile', () => {
 
   it('a test secret is refused outright for a hosted site, without calling siteverify', async () => {
     vi.stubEnv('SITE_URL', 'https://anas.studio')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
     expect(await verifyTurnstile({ ...base, secret: PASS_SECRET })).toEqual({
@@ -86,6 +118,8 @@ describe('verifyTurnstile', () => {
       code: 'TEST_SECRET_IN_PRODUCTION',
     })
     expect(fetchMock).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
   })
 
   it('a test secret for a local SITE_URL skips hostname and action checks (its reply has neither of ours)', async () => {

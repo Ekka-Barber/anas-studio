@@ -10,9 +10,10 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
+import { COLLECTION_LABELS } from '@/admin/collections'
 import { formatNumber, formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
-import { callFunction } from '@/lib/supabase/functions'
+import { callFunction, documentHref } from '@/lib/supabase/functions'
 
 import styles from './admin.module.css'
 import { ROLE_LABEL, type StaffRole } from './TableList'
@@ -49,6 +50,15 @@ const JOB_STALE_TEXT: Partial<Record<string, string>> = {
 const JOB_NEVER_TEXT: Partial<Record<string, string>> = {
   backup: 'لا توجد نسخة بعد.',
 }
+const STALE_TEXT = 'آخر تشغيل قديم. تأكد من الجدولة.'
+/** The email run that sent nothing because the provider's sending limit is
+ * used up (`QUOTA_HELD`): the mail sends itself when the limit renews. */
+const QUOTA_HELD_TEXT = 'بريد محجوز بسبب حدّ الإرسال. يُرسل تلقائيًا عند تجدّد الحد.'
+/** `site_build` skipped with `NO_HOOK`: no rebuild hook is set, so a publish
+ * is recorded but the site is never rebuilt. */
+const NO_HOOK_TEXT = 'رابط بناء الموقع غير مضبوط، فلن يُعاد بناء الموقع عند النشر.'
+/** How far back the owner home lists `content.publish_due_failed` events. */
+const PUBLISH_FAILED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 /** `outbox_attention()` caps its result at 200 rows (its SQL limit), so a
  * result at the cap renders its count followed by «+», not a silent total (L6). */
 const ATTENTION_CAP = 200
@@ -58,7 +68,26 @@ const LOADING: Count = { state: 'loading' }
 interface JobRun {
   job: string
   status: string
+  /** The run's own summary; `reason` says why a partial or skipped run did less. */
+  detail?: { reason?: string } | null
   finished_at: string
+}
+
+type PublishFailure = { collection: string; docId: string }
+
+/** The documents behind `content.publish_due_failed` audit rows (newest
+ * first), one entry each: a document that failed twice is listed once. */
+export function publishFailures(rows: readonly { entity: string; entity_id: string | null }[]): PublishFailure[] {
+  const seen = new Set<string>()
+  const failures: PublishFailure[] = []
+  for (const row of rows) {
+    if (row.entity_id === null) continue
+    const key = `${row.entity}/${row.entity_id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    failures.push({ collection: row.entity, docId: row.entity_id })
+  }
+  return failures
 }
 
 /** The `outbox_attention()` rows a person can still act on: the replayable
@@ -89,12 +118,33 @@ function isStaleRun(run: JobRun): boolean {
  * minutes. */
 const EMAIL_WAITING_MS = 10 * 60 * 1000
 
-function emailWaiting(run: JobRun | undefined, dueSince: string | null): boolean {
+/** The latest email run is the hold's own marker: it sent nothing because the
+ * provider's quota is used up. */
+function isQuotaHeld(run: JobRun | undefined): boolean {
+  return run?.status === 'partial' && run.detail?.reason === 'QUOTA_HELD'
+}
+
+export function emailWaiting(run: JobRun | undefined, dueSince: string | null): boolean {
   if (dueSince === null) return false
   const due = Date.parse(dueSince)
   if (Number.isNaN(due) || Date.now() - due <= EMAIL_WAITING_MS) return false
+  // A held run that finished a minute ago is no sign of life: it is the marker
+  // of the hold itself. The reason alone proves nothing (one empty claim after
+  // a lease or suppression flip can record it once); a row still due does.
+  if (isQuotaHeld(run)) return true
   const finished = run ? Date.parse(run.finished_at) : NaN
   return Number.isNaN(finished) || Date.now() - finished > EMAIL_WAITING_MS
+}
+
+/** What a job line says in place of its last run when something is wrong
+ * with it, or null when the job is healthy. */
+export function jobProblem(job: string, run: JobRun | undefined, dueSince: string | null): string | null {
+  if (job === 'email_outbox') {
+    if (!emailWaiting(run, dueSince)) return null
+    return isQuotaHeld(run) ? QUOTA_HELD_TEXT : (JOB_STALE_TEXT.email_outbox ?? STALE_TEXT)
+  }
+  if (job === 'site_build' && run?.status === 'skipped' && run.detail?.reason === 'NO_HOOK') return NO_HOOK_TEXT
+  return run !== undefined && isStaleRun(run) ? (JOB_STALE_TEXT[job] ?? STALE_TEXT) : null
 }
 
 export function AdminHome() {
@@ -105,6 +155,10 @@ export function AdminHome() {
     { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: string | null }
   >({ state: 'loading' })
   const [scheduled, setScheduled] = useState<Count>(LOADING)
+  // The owner's audit trail (RLS: owner only) of scheduled publishes that failed.
+  const [publishFailed, setPublishFailed] = useState<
+    { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: PublishFailure[] }
+  >({ state: 'loading' })
   const [visits, setVisits] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'unavailable' } | { state: 'ok'; value: number }
   >({ state: 'loading' })
@@ -151,6 +205,23 @@ export function AdminHome() {
       setScheduled(error || count === null ? { state: 'error' } : { state: 'ok', value: count })
     }
 
+    async function loadPublishFailures() {
+      const supabase = getSupabaseBrowserClient()
+      const { data, error } = await supabase
+        .from('audit_events')
+        .select('entity, entity_id')
+        .eq('action', 'content.publish_due_failed')
+        .gte('at', new Date(Date.now() - PUBLISH_FAILED_WINDOW_MS).toISOString())
+        .order('at', { ascending: false })
+        .limit(100)
+      if (!active) return
+      setPublishFailed(
+        error
+          ? { state: 'error' }
+          : { state: 'ok', value: publishFailures((data ?? []) as { entity: string; entity_id: string | null }[]) },
+      )
+    }
+
     async function loadVisits() {
       const result = await callFunction<{
         analytics?: { status: string; visits?: number }
@@ -158,7 +229,8 @@ export function AdminHome() {
       }>('admin', { action: 'stats' })
       if (!active) return
       if (!result.ok) {
-        setVisits(result.error.code === 'UNKNOWN' ? { state: 'error' } : { state: 'unavailable' })
+        // A failed call is a failure; «غير متاحة» is only for analytics that report themselves unavailable (below).
+        setVisits({ state: 'error' })
         return
       }
       const analytics = result.data.analytics
@@ -185,8 +257,11 @@ export function AdminHome() {
       const role = data.role as StaffRole
       setOwn({ display_name: data.display_name, role })
 
-      const jobs = [loadEmail(), loadJobs()]
+      // A role that never sees a section does not ask for it: the call would be refused.
+      const jobs: Promise<void>[] = []
+      if (role === 'owner' || role === 'operations') jobs.push(loadEmail(), loadJobs())
       if (role === 'owner' || role === 'editor') jobs.push(loadScheduled())
+      if (role === 'owner') jobs.push(loadPublishFailures())
       if (role === 'owner' && sessionData.session) jobs.push(loadVisits())
       await Promise.all(jobs)
     })()
@@ -234,13 +309,12 @@ export function AdminHome() {
             <ul className={styles.metaList}>
               {KNOWN_JOBS.map((job) => {
                 const run = jobRuns.value.find((row) => row.job === job)
-                const trouble =
-                  job === 'email_outbox' ? emailWaiting(run, jobRuns.dueSince) : run !== undefined && isStaleRun(run)
+                const problem = jobProblem(job, run, jobRuns.dueSince)
                 return (
                   <li key={job}>
                     {JOB_LABEL[job] ?? job}:{' '}
-                    {trouble ? (
-                      <span className={styles.error}>{JOB_STALE_TEXT[job] ?? 'آخر تشغيل قديم. تأكد من الجدولة.'}</span>
+                    {problem ? (
+                      <span className={styles.error}>{problem}</span>
                     ) : run ? (
                       `${JOB_STATUS_LABEL[run.status] ?? run.status} (${formatRiyadh(run.finished_at)})`
                     ) : (
@@ -258,6 +332,26 @@ export function AdminHome() {
         <section>
           <h2>المحتوى المجدول</h2>
           <p>مستندات تنتظر موعد النشر: {countText(scheduled)}</p>
+          {own?.role === 'owner' && publishFailed.state === 'error' && (
+            <p className={styles.error}>تعذّر التحقق من نجاح النشر المجدول.</p>
+          )}
+          {own?.role === 'owner' && publishFailed.state === 'ok' && publishFailed.value.length > 0 && (
+            <>
+              <p className={styles.error}>
+                تعذّر نشر {formatNumber(publishFailed.value.length)} من المحتوى المجدول في آخر 7 أيام:
+              </p>
+              <ul className={styles.metaList}>
+                {publishFailed.value.map((failure) => (
+                  <li key={`${failure.collection}/${failure.docId}`}>
+                    <Link href={documentHref(failure.collection, failure.docId)}>
+                      {(COLLECTION_LABELS as Record<string, string>)[failure.collection] ?? failure.collection}:{' '}
+                      <bdi>{failure.docId}</bdi>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <Link href="/admin/content">فتح المحتوى</Link>
         </section>
       )}

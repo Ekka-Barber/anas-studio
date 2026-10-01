@@ -13,8 +13,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 
-import { type Field } from '@/admin/fields'
-import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIso } from '../../lib/money-input'
+import { defaultsForFields, type Field } from '../../admin/fields'
+import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIsoOrNull } from '../../lib/money-input'
 import { isMediaId, mediaUrl } from '../../lib/media-ref'
 
 import imageManifestRaw from '../../../public/images/manifest.json'
@@ -241,48 +241,8 @@ export interface TaxonomiesByKind {
   failed?: boolean
 }
 
-/** A field list's empty starting value, computed from the config itself. */
-export function defaultsForFields(fields: readonly Field[]): Record<string, unknown> {
-  const value: Record<string, unknown> = {}
-  for (const field of fields) value[field.name] = defaultForField(field)
-  return value
-}
-
-function defaultForField(field: Field): unknown {
-  if (field.nullable) return null
-  // An optional (not nullable) image/video has no valid "empty" id, so an
-  // empty default must be an absent key, not '' (which would fail the id
-  // schema). `posts.cover` is the only field like this today.
-  if (field.required === false && (field.type === 'image' || field.type === 'video')) return undefined
-  switch (field.type) {
-    case 'text':
-    case 'textarea':
-    case 'slug':
-    case 'image':
-    case 'video':
-      return ''
-    case 'paragraphs':
-    case 'relation':
-      return []
-    case 'boolean':
-      return false
-    case 'select':
-      return field.options[0] ?? ''
-    // P07 round 2: nullable number/money/datetime default to null (handled
-    // above), otherwise a number starts at 0 and a timestamp as ''.
-    case 'number':
-    case 'money':
-      return 0
-    case 'datetime':
-      return ''
-    case 'richtext':
-      return { root: { type: 'root', children: [] } }
-    case 'group':
-      return defaultsForFields(field.fields)
-    case 'list':
-      return []
-  }
-}
+// Lives in `src/admin/fields.ts` now (unit-testable without this component); TableForm still imports it from here.
+export { defaultsForFields }
 
 function move<T>(items: readonly T[], from: number, to: number): T[] {
   const next = items.slice()
@@ -517,7 +477,9 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                 onChange(field.nullable ? null : '')
                 return
               }
-              onChange(riyadhLocalToIso(local))
+              // A year past four digits is not a time: the field keeps its last valid value.
+              const iso = riyadhLocalToIsoOrNull(local)
+              if (iso !== null) onChange(iso)
             }}
           />
         </div>
@@ -651,6 +613,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                   id={`${id}-${index}-move-up`}
                   type="button"
                   className={styles.buttonSecondary}
+                  aria-label={`أعلى: ${field.label} ${index + 1}`}
                   disabled={index === 0}
                   onClick={() => reorder(id, items, index, index - 1, onChange)}
                 >
@@ -660,6 +623,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                   id={`${id}-${index}-move-down`}
                   type="button"
                   className={styles.buttonSecondary}
+                  aria-label={`أسفل: ${field.label} ${index + 1}`}
                   disabled={index === items.length - 1}
                   onClick={() => reorder(id, items, index, index + 1, onChange)}
                 >
@@ -668,6 +632,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                 <button
                   type="button"
                   className={styles.buttonSecondary}
+                  aria-label={`حذف: ${field.label} ${index + 1}`}
                   onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
                 >
                   حذف
@@ -722,6 +687,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                   id={`${id}-${index}-move-up`}
                   type="button"
                   className={styles.buttonSecondary}
+                  aria-label={`أعلى: ${field.label} ${index + 1}`}
                   disabled={index === 0}
                   onClick={() => reorder(id, items, index, index - 1, onChange)}
                 >
@@ -731,6 +697,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                   id={`${id}-${index}-move-down`}
                   type="button"
                   className={styles.buttonSecondary}
+                  aria-label={`أسفل: ${field.label} ${index + 1}`}
                   disabled={index === items.length - 1}
                   onClick={() => reorder(id, items, index, index + 1, onChange)}
                 >
@@ -739,6 +706,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
                 <button
                   type="button"
                   className={styles.buttonSecondary}
+                  aria-label={`حذف: ${field.label} ${index + 1}`}
                   onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
                 >
                   حذف

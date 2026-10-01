@@ -43,6 +43,25 @@ export function toBlocks(paras: readonly Para[]): Block[] {
   return out
 }
 
+/**
+ * The text block a room's picture stands beside: the first one after the
+ * first band, else the last one (no band, or no text after it), so the
+ * picture is drawn exactly once.
+ */
+export function posterBlock(blocks: readonly Block[]): number | undefined {
+  const firstBand = blocks.findIndex((block) => block.kind === 'band')
+  const texts = blocks.flatMap((block, i) => (block.kind === 'text' ? [i] : []))
+  return (firstBand === -1 ? undefined : texts.find((i) => i > firstBand)) ?? texts[texts.length - 1]
+}
+
+/**
+ * The pictures that stand beside a room's text blocks: those the room still
+ * has, no more than there are text blocks. Any other stays with the products.
+ */
+export function storyPictures(wanted: readonly string[], available: readonly { id: string }[], blocks: readonly Block[]): string[] {
+  return wanted.filter((id) => available.some((photo) => photo.id === id)).slice(0, blocks.filter((block) => block.kind === 'text').length)
+}
+
 /** The paragraphs up to and including the first large line, and the rest. */
 export function splitAfterFirstDisplay(paras: readonly Para[]): [Para[], Para[]] {
   const at = paras.findIndex((para) => para.kind === 'display')

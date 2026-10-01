@@ -10,6 +10,10 @@
   block-size: 100%;
   object-fit: cover;
 }
+/* Focus lands on the film when it starts; the tile would clip a ring drawn outside. */
+.video:focus-visible {
+  outline-offset: -6px;
+}
 
 /* The whole poster is the button; its visible part is the coral label. */
 .play {

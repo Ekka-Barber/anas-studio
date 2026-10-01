@@ -10,10 +10,28 @@ import { type Field, schemaFromFields } from '../fields'
  * but posts and taxonomies.
  */
 export const policyFields = [
-  { name: 'title', label: 'العنوان', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
   { name: 'body', label: 'النص', type: 'richtext' },
 ] as const satisfies Field[]
-export const policySchema = schemaFromFields(policyFields)
+
+/** Whether a rich-text node, or anything under it, holds text other than spaces. */
+function hasText(node: unknown): boolean {
+  if (!node || typeof node !== 'object') return false
+  const { text, children } = node as { text?: unknown; children?: unknown }
+  if (typeof text === 'string' && text.trim() !== '') return true
+  return Array.isArray(children) && children.some(hasText)
+}
+
+export const POLICY_BODY_ERROR = 'اكتب نص السياسة.'
+
+/**
+ * A policy with no title or no text cannot go live: the owner approves the
+ * published revisions as the ones the buyer agrees to at checkout, and the
+ * page would show an empty heading and body.
+ */
+export const policySchema = schemaFromFields(policyFields).superRefine((value, ctx) => {
+  if (!hasText(value.body.root)) ctx.addIssue({ code: 'custom', path: ['body'], message: POLICY_BODY_ERROR })
+})
 
 export const POLICY_DOC_IDS = ['store', 'delivery', 'refund', 'privacy'] as const
 export type PolicyDocId = (typeof POLICY_DOC_IDS)[number]

@@ -21,9 +21,11 @@ const text = z.looseObject({
   format: z.number().int().min(0).max(2047).default(0),
 })
 const linebreak = z.looseObject({ type: z.literal('linebreak') })
+/** One rule for a link's address: the editor checks it while typing, the schema when publishing. */
+export const httpsUrl = z.url({ protocol: /^https$/ }).max(2000)
 const link = z.looseObject({
   type: z.literal('link'),
-  url: z.url({ protocol: /^https$/ }).max(2000),
+  url: httpsUrl,
   children,
 })
 const paragraph = z.looseObject({ type: z.literal('paragraph'), children })
@@ -36,21 +38,19 @@ const list = z.looseObject({
   children: z.array(listitem).max(500),
 })
 
-const inlineOrBlock: z.ZodType<RichTextNode> = z.union([
-  text,
-  linebreak,
-  link,
-  paragraph,
-  heading,
-  quote,
-  list,
-  listitem,
-])
+// zod's own message for a union is «Invalid input», in English and with no
+// hint; the form prints it as is, so a node no branch accepts says it in Arabic.
+const badNode = { error: 'يحتوي النص عنصرًا غير صالح؛ احذف ما لصقته أو أعد كتابة الفقرة.' }
+
+const inlineOrBlock: z.ZodType<RichTextNode> = z.union(
+  [text, linebreak, link, paragraph, heading, quote, list, listitem],
+  badNode,
+)
 
 export const richTextSchema = z.looseObject({
   root: z.looseObject({
     type: z.literal('root'),
-    children: z.array(z.union([paragraph, heading, quote, list])).max(1000),
+    children: z.array(z.union([paragraph, heading, quote, list], badNode)).max(1000),
   }),
 })
 

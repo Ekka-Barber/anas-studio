@@ -104,4 +104,25 @@ describe('RichText renderer', () => {
     expect(html).not.toContain('<a ')
     expect(html).toContain('نص')
   })
+
+  it('draws a nested list inside the item before it, with no wrapper bullet (ADMIN-publish-10)', () => {
+    const item = (text: string) => ({ type: 'listitem', children: [{ type: 'text', text, format: 0 }] })
+    const doc = {
+      root: {
+        type: 'root',
+        children: [
+          {
+            type: 'list',
+            listType: 'bullet',
+            // Lexical's shape: the nested list sits in a listitem of its own.
+            children: [item('one'), { type: 'listitem', children: [{ type: 'list', listType: 'number', children: [item('a')] }] }, item('two')],
+          },
+        ],
+      },
+    }
+    const html = renderToStaticMarkup(RichText({ document: doc as never }))
+    expect(html).toBe(
+      '<ul><li><span>one</span><ol><li><span>a</span></li></ol></li><li><span>two</span></li></ul>',
+    )
+  })
 })

@@ -21,6 +21,7 @@ import { mkdir, open, readdir, rename, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { once } from 'node:events'
 import { PassThrough, Writable } from 'node:stream'
+import { finished } from 'node:stream/promises'
 import { createGzip, createGunzip } from 'node:zlib'
 
 export const MAGIC = 'ANASAQ-BACKUP\n'
@@ -74,9 +75,22 @@ function sha256Hex(buf) {
   return createHash('sha256').update(buf).digest('hex')
 }
 
+/**
+ * Rejects with the first error of any of `streams`. A pipe does not forward
+ * errors and a failing destination stalls it, so every wait of the writer
+ * races this; it is never an unhandled rejection.
+ */
+function firstFailure(streams) {
+  const failed = new Promise((_, reject) => {
+    for (const stream of streams) stream.once('error', reject)
+  })
+  failed.catch(() => {}) // the races observe it; an error nobody is waiting on is not a crash
+  return failed
+}
+
 /** One error capture per stream (created once, awaited on every write). */
 function failurePromise(stream) {
-  return new Promise((_, reject) => stream.once('error', reject))
+  return firstFailure([stream])
 }
 
 /** Rejects as a BackupFormatError the moment the stream errors. */
@@ -89,12 +103,15 @@ async function writeChunk(stream, chunk, failed) {
   if (!stream.write(chunk)) await Promise.race([once(stream, 'drain'), failed])
 }
 
-/** Ends a writable; rejects on its error instead of leaving it unhandled. */
-function endStream(stream) {
-  return new Promise((resolve, reject) => {
-    stream.once('error', reject)
-    stream.end(() => resolve())
-  })
+/**
+ * Ends a writable and waits until it has flushed and closed; rejects with the
+ * stream's own error. end()'s callback cannot be used: when a pending write
+ * fails, Node calls it with ERR_STREAM_DESTROYED before the real error, and a
+ * truncated file would pass as complete.
+ */
+async function endStream(stream) {
+  stream.end()
+  await finished(stream)
 }
 
 /** Resolves when a readable side has emitted everything; rejects on error. */
@@ -149,22 +166,20 @@ export async function writeBackup(outFile, entries, passphrase, options = {}) {
   const gzip = createGzip()
   const framing = new PassThrough()
   const out = createWriteStream(`${outFile}.partial`)
-  const cipherDone = readableEnded(cipher)
-  const outFailed = failurePromise(out)
-  const framingFailed = failurePromise(framing) // one listener for the whole run, not one per entry
+  const failed = firstFailure([framing, gzip, cipher, out]) // one listener per stream for the whole run, not one per entry
   try {
     // The header goes to the file first, unencrypted: it is the AAD.
-    await writeChunk(out, header, outFailed)
+    await writeChunk(out, header, failed)
     framing.pipe(gzip).pipe(cipher).pipe(out, { end: false }) // the tag is appended after the cipher ends
 
-    await writeEntryBytes(framing, 'manifest.json', manifestBytes, framingFailed)
+    await writeEntryBytes(framing, 'manifest.json', manifestBytes, failed)
     for (let index = 0; index < entries.length; index += 1) {
-      await writeEntryFile(framing, files[index], entries[index].file, framingFailed)
+      await writeEntryFile(framing, files[index], entries[index].file, failed)
     }
     framing.end()
-    await cipherDone
-    await writeChunk(out, cipher.getAuthTag(), outFailed)
-    await endStream(out)
+    await Promise.race([readableEnded(cipher), failed])
+    await writeChunk(out, cipher.getAuthTag(), failed)
+    await Promise.race([endStream(out), failed]) // never rename a partial file whose flush failed
     await rename(`${outFile}.partial`, outFile)
   } catch (error) {
     for (const stream of [framing, gzip, cipher, out]) stream.destroy()
@@ -181,12 +196,20 @@ async function writeEntryBytes(framing, path, bytes, failed) {
 
 async function writeEntryFile(framing, meta, file, failed) {
   await writeEntryHeader(framing, meta, failed)
-  await new Promise((resolve, reject) => {
-    createReadStream(file)
-      .once('error', reject)
-      .once('end', resolve)
-      .pipe(framing, { end: false })
-  })
+  const source = createReadStream(file)
+  try {
+    // `failed` is raced: when the archive's own stream breaks, the pipe stalls
+    // and the file would never reach its end.
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        source.once('error', reject).once('end', resolve).pipe(framing, { end: false })
+      }),
+      failed,
+    ])
+  } catch (error) {
+    source.destroy()
+    throw error
+  }
 }
 
 async function writeEntryHeader(framing, meta, failed) {
@@ -203,7 +226,8 @@ async function writeEntryHeader(framing, meta, failed) {
  * the magic, version, the GCM auth tag and every entry's size and sha256. On
  * any failure everything written is deleted and a BackupFormatError is thrown
  * (NOT_A_BACKUP, WRONG_PASSPHRASE_OR_DAMAGED or CORRUPT). Returns the parsed
- * manifest.
+ * manifest. The dumps are plaintext secrets: directories are created 0700 and
+ * files 0600 (POSIX; Windows keeps the user-profile ACL).
  */
 export async function readBackup(inFile, passphrase, destDir) {
   const info = await stat(inFile)
@@ -216,7 +240,7 @@ export async function readBackup(inFile, passphrase, destDir) {
     if (items.length > 0) throw new Error(`Destination directory is not empty: ${destDir}`)
   } catch (error) {
     if (error?.code === 'ENOENT') {
-      await mkdir(destDir, { recursive: true })
+      await mkdir(destDir, { recursive: true, mode: 0o700 })
       createdDir = true
     } else {
       throw error
@@ -379,8 +403,8 @@ class EntryExtractor extends Writable {
     if (this.written.has(dest)) {
       throw new BackupFormatError('CORRUPT', `Duplicate entry path: ${meta.path}`)
     }
-    await mkdir(dirname(dest), { recursive: true })
-    this.ws = createWriteStream(dest)
+    await mkdir(dirname(dest), { recursive: true, mode: 0o700 })
+    this.ws = createWriteStream(dest, { mode: 0o600 })
     this.wsFailed = failurePromise(this.ws)
     this.written.add(dest)
     this.entry = meta

@@ -416,15 +416,15 @@ test('round 2: library upload with crop and EXIF removal, reuse in a room, folde
   expect(builtHtml).toContain(`/storage/v1/object/public/media-public/m/${id}/1200.webp`)
   expect((await request.get(publicUrl(`m/${id}/1200.webp`))).status()).toBe(200)
 
-  // 3. Where-used lists the room — twice: the live document and the latest
-  // (draft) version both reference the image — and blocks deletion.
+  // 3. Where-used lists the room once, as live: its latest version is the
+  // published one, so it is not also a draft (AUDIT-2 DB-media-1). It blocks deletion.
   await page.goto('/admin/media')
   await page.getByRole('button', { name: new RegExp(probeName) }).click()
   const usedLinks = page.getByRole('link', { name: 'بنيتُ هنا' })
-  await expect(usedLinks).toHaveCount(2)
+  await expect(usedLinks).toHaveCount(1)
   await expect(usedLinks.first()).toHaveAttribute('href', '/admin/content/rooms/edit?id=built')
   await expect(page.getByText('منشورة')).toBeVisible()
-  await expect(page.getByText('مسودة')).toBeVisible()
+  await expect(page.getByText('مسودة')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'حذف', exact: true })).toBeDisabled()
 
   // 4. Move to a folder, then rename the folder; the filter shows the item.

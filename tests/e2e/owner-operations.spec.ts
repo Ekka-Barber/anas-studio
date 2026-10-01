@@ -470,10 +470,16 @@ test('an operations member sees email but not stats or settings, and there is no
 test('an editor gets no email RPC', async ({ page }) => {
   const editor = await createStaff('editor')
   await signInByCode(page, editor.email)
+  // The screen knows the role from the shell and does not ask (AUDIT-2 ADMIN-ops-5);
+  // the RPC itself is refused for an editor too (tests/integration).
+  const emailRpcs: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('/rpc/outbox_attention')) emailRpcs.push(request.url())
+  })
   await page.goto('/admin/email')
-  // The RPC itself is refused for an editor.
-  await expect(page.getByText('تعذّر تحميل مشكلات البريد.')).toBeVisible()
+  await expect(page.getByText('لا تملك صلاحية الوصول')).toBeVisible()
   await expect(page.locator('tbody tr')).toHaveCount(0)
+  expect(emailRpcs).toEqual([])
 })
 
 test('email problems: replay exhausted, confirm uncertain, suppressed is refused', async ({ page }) => {

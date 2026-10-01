@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useEffect, useState, type ReactNode } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
@@ -17,21 +17,63 @@ type Gate =
   | { status: 'error' }
   | { status: 'ready'; role: StaffRole }
 
+/** The role the shell resolved, for the screens inside it: they render only
+ * once it is known, so none of them asks `current_staff_role()` again. */
+const RoleContext = createContext<StaffRole | null>(null)
+
+export function useStaffRole(): StaffRole {
+  const role = useContext(RoleContext)
+  if (role === null) throw new Error('useStaffRole needs an AdminShell above it.')
+  return role
+}
+
+/** The screens whose tables do not fit the reading measure (the email
+ * problems, the team, each store table's list): the shell is one layout for
+ * every page, so the width is read from the path, not passed by the page. */
+export function isWidePath(pathname: string): boolean {
+  return /^\/admin\/(?:email|team|store\/[^/]+)\/?$/.test(pathname)
+}
+
+/** The editor's unsaved drafts (`draftKey` in CollectionForm). They hold a
+ * person's work, so they do not outlive the person's session. */
+const DRAFT_PREFIX = 'anasaq:draft:'
+
+export function hasDrafts(): boolean {
+  try {
+    return Object.keys(window.localStorage).some((key) => key.startsWith(DRAFT_PREFIX))
+  } catch {
+    return false
+  }
+}
+
+export function clearDrafts(): void {
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith(DRAFT_PREFIX)) window.localStorage.removeItem(key)
+    }
+  } catch {
+    // Storage is unavailable: there is nothing stored to clear.
+  }
+}
+
 /**
  * Gates the admin UI on the session and `current_staff_role()`. RLS and the
  * Edge Function checks are the real enforcement (P03); this only shapes the
- * screen. The sign-in page renders outside this gate. `wide` is for the
- * email-problems table: it cannot fit the reading measure without hiding
- * columns. Contact messages have no screen here: they reach the owner's own
- * mailbox (D31).
+ * screen. It is mounted once, by the layout of every signed-in admin screen
+ * (`(shell)/layout.tsx`), so moving between screens keeps the nav, the focus
+ * and the session state and asks for the role once. The sign-in page and the
+ * full-width preview render outside it. Contact messages have no screen here:
+ * they reach the owner's own mailbox (D31).
  */
-export function AdminShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+export function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter()
+  const wide = isWidePath(usePathname())
   const [gate, setGate] = useState<Gate>({ status: 'checking' })
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
     let active = true
+    let userId: string | null = null
 
     async function evaluate(session: Session | null) {
       if (!session) {
@@ -39,6 +81,9 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
         router.replace('/admin/sign-in')
         return
       }
+      // Another person signed in under this tab: the last one's drafts go.
+      if (userId !== null && userId !== session.user.id) clearDrafts()
+      userId = session.user.id
       const { data, error } = await supabase.rpc('current_staff_role')
       if (!active) return
       if (error) {
@@ -55,9 +100,23 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
       setGate({ status: 'ready', role: data as StaffRole })
     }
 
-    supabase.auth.getSession().then(({ data }) => evaluate(data.session))
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      evaluate(session)
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active) return
+      // A failed read (an expired token whose refresh could not reach the
+      // network) is not a sign-out: the refresh token is still stored, and
+      // redirecting would cost a new emailed code.
+      if (error) {
+        setGate((prev) => (prev.status === 'ready' ? prev : { status: 'error' }))
+        return
+      }
+      void evaluate(data.session)
+    })
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
+      // The session read above is this mount's one initial read; auth-js also
+      // emits INITIAL_SESSION to a new subscriber, with a null session after a
+      // failed refresh, which would read as a sign-out here.
+      if (event === 'INITIAL_SESSION') return
+      void evaluate(session)
     })
     return () => {
       active = false
@@ -66,6 +125,9 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
   }, [router])
 
   async function signOut() {
+    // Unsaved local copies go with the session: say so before they are lost.
+    if (hasDrafts() && !window.confirm('لديك تعديلات غير محفوظة على هذا الجهاز، وتسجيل الخروج يحذفها. هل تريد الخروج؟')) return
+    clearDrafts()
     await getSupabaseBrowserClient().auth.signOut()
     router.replace('/admin/sign-in')
   }
@@ -105,7 +167,7 @@ export function AdminShell({ children, wide = false }: { children: ReactNode; wi
         </button>
       </nav>
       <main id="main" className={wide ? `${styles.page} ${styles.pageWide}` : styles.page}>
-        {children}
+        <RoleContext.Provider value={gate.role}>{children}</RoleContext.Provider>
       </main>
     </div>
   )

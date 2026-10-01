@@ -24,6 +24,8 @@ export const CART_EVENT = 'anasaq:cart'
 export const MAX_LINES = 50
 export const MAX_QUANTITY = 20
 export const MAX_DEDICATION = 200
+/** The longest coupon code the checkout function accepts (its quote and create schemas). */
+export const MAX_COUPON = 64
 
 export interface CartLine {
   variantId: string
@@ -301,6 +303,20 @@ export function writeCart(cart: CartV1, area: CartArea = cartArea()): boolean {
   return saved
 }
 
+/**
+ * Applies one line-level change (`setQuantity`, `removeLines`, ...) to the
+ * latest stored cart and persists the result. The page's own copy of the cart
+ * may be older than storage (another tab added an item), so a change is never
+ * written as a whole snapshot of that copy.
+ */
+export function updateStoredCart(
+  change: (cart: CartV1) => CartV1,
+  area: CartArea = cartArea(),
+): { cart: CartV1; saved: boolean } {
+  const next = change(readCart(area).cart)
+  return { cart: next, saved: writeCart(next, area) }
+}
+
 // ---------------------------------------------------------------------------
 // sessionStorage values (city, coupon, checkout session, pending order)
 // ---------------------------------------------------------------------------
@@ -332,6 +348,23 @@ export function writeSessionValue(key: string, value: string): void {
   } catch {
     // Keep going without persistence; the page still works.
   }
+}
+
+/** A coupon as the buyer typed it, in the form the function compares: trimmed, upper-case, at most 64 characters. */
+export function normalizeCoupon(text: string): string {
+  return text.trim().toUpperCase().slice(0, MAX_COUPON)
+}
+
+/**
+ * The coupon kept for this tab. One longer than the function accepts (saved
+ * before the input had a cap) fails every quote, so it is dropped here and
+ * `tooLong` tells the page to say so.
+ */
+export function readSavedCoupon(): { coupon: string; tooLong: boolean } {
+  const saved = readSessionValue(COUPON_KEY) ?? ''
+  if (saved.length <= MAX_COUPON) return { coupon: saved, tooLong: false }
+  writeSessionValue(COUPON_KEY, '')
+  return { coupon: '', tooLong: true }
 }
 
 /** The buyer's checkout session id, one per tab, minted once. */

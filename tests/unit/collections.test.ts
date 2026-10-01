@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { describe, expect, it } from 'vitest'
 
-import { documentTitle, isRoomSlug, ROOM_DOC_LABELS, schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
+import { collections, documentTitle, isRoomSlug, ROOM_DOC_LABELS, schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
 import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policySchema } from '../../src/admin/collections/policies'
 import { SCENE_CAPTION_ERROR, sceneFields, scenesSchema } from '../../src/admin/collections/scenes'
 import {
@@ -104,10 +104,12 @@ describe('schemaFor: rejects malformed data', () => {
     expect(schemaFor('rooms', 'started').safeParse(bad).success).toBe(false)
   })
 
-  it('rejects a slug with characters outside a-z0-9-', () => {
-    const bad = structuredClone(content.rooms.started)
-    bad.slug = 'Not A Valid Slug!'
-    expect(schemaFor('rooms', 'started').safeParse(bad).success).toBe(false)
+  it('has no room slug field: nothing reads it, and a stored one is ignored, not validated', () => {
+    const stored = { ...structuredClone(content.rooms.started), slug: 'Not A Valid Slug!' }
+    expect(schemaFor('rooms', 'started').safeParse(stored).success).toBe(true)
+    for (const fields of Object.values(collections.rooms.fields)) {
+      expect(fields.map((field) => field.name)).not.toContain('slug')
+    }
   })
 
   it('rejects a document missing a required field', () => {
@@ -272,7 +274,9 @@ describe('the number, money and datetime field types (P07 round 2)', () => {
 })
 
 describe('the policies collection (P07 round 2)', () => {
-  const lexicalBody = { root: { type: 'root', children: [] } }
+  const lexicalBody = {
+    root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: 'نص السياسة', format: 0 }] }] },
+  }
 
   it('has exactly the four fixed documents, labelled', () => {
     expect([...POLICY_DOC_IDS]).toEqual(['store', 'delivery', 'refund', 'privacy'])

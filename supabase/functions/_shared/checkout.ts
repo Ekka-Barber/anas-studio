@@ -6,7 +6,7 @@ import { isHostedSite, optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, ok, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { normalizeSaudiMobile } from './saudi-mobile.ts'
-import { verifyTurnstile, type TurnstileResult } from './turnstile.ts'
+import { isTurnstileUnavailable, verifyTurnstile, type TurnstileResult } from './turnstile.ts'
 
 /**
  * The store's public checkout endpoint: the `checkout` Edge Function (P07).
@@ -322,7 +322,7 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
     expectedHostname: new URL(siteUrl).hostname,
   })
   if (!verdict.ok) {
-    if (verdict.code === 'UNREACHABLE') return fail(503, 'TURNSTILE_UNAVAILABLE', 'تعذّر التحقق من الطلب.')
+    if (isTurnstileUnavailable(verdict.code)) return fail(503, 'TURNSTILE_UNAVAILABLE', 'تعذّر التحقق من الطلب.')
     return fail(400, 'TURNSTILE', 'تعذّر التحقق من أنك إنسان.')
   }
 

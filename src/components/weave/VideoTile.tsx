@@ -50,7 +50,8 @@ export function VideoTile({
   large?: boolean
   className?: string
 }) {
-  const entry = manifest[id]
+  // An own key only: an inherited one («constructor») would pass as an entry.
+  const entry = Object.hasOwn(manifest, id) ? manifest[id] : undefined
   const ref = useRef<HTMLVideoElement>(null)
   const hydrated = useHydrated()
   const [state, setState] = useState<'idle' | 'playing' | 'failed'>('idle')
@@ -61,7 +62,10 @@ export function VideoTile({
     const video = ref.current
     if (!video) return
     setState('playing')
-    video.play().catch(() => setState('failed'))
+    video.play().catch((error: unknown) => {
+      // Pausing before the first bytes arrive rejects play() with an AbortError; nothing failed.
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setState('failed')
+    })
   }
 
   // The play button unmounts once the film starts; focus goes to the film,

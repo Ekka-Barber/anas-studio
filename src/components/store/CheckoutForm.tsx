@@ -33,8 +33,11 @@ import {
   COUPON_KEY,
   digestText,
   fingerprintCreate,
+  MAX_COUPON,
+  normalizeCoupon,
   readIdempotency,
   readPendingOrder,
+  readSavedCoupon,
   readSessionValue,
   toApiLines,
   writeIdempotency,
@@ -57,6 +60,16 @@ type Field = 'email' | 'name' | 'phone' | 'city' | 'address' | 'consent'
 /** What a quote is for: the lines, city and coupon it priced. A quote with another key than the current one is stale. */
 const quoteKeyOf = (lines: CartLine[], city: string, coupon: string) => JSON.stringify([toApiLines(lines), city, coupon])
 
+/** What sits under a field that failed, here or at the function (whose own text is English). */
+const FIELD_ERRORS: Record<Field, string> = {
+  email: 'أدخل بريدًا إلكترونيًا صحيحًا.',
+  name: 'أدخل الاسم.',
+  phone: 'أدخل رقم جوال سعوديًا صحيحًا.',
+  city: 'اختر مدينة التوصيل.',
+  address: 'أدخل عنوان التوصيل.',
+  consent: 'يجب الموافقة على السياسات.',
+}
+
 const POLICY_LABELS: Record<string, string> = {
   store: 'سياسة المتجر',
   delivery: 'سياسة التوصيل',
@@ -70,6 +83,8 @@ export function CheckoutForm() {
   const [quoteKey, setQuoteKey] = useState('')
   const [quoteFailed, setQuoteFailed] = useState(false)
   const [cities, setCities] = useState<CityRate[]>([])
+  const [citiesState, setCitiesState] = useState<'loading' | 'failed' | 'loaded'>('loading')
+  const [citiesTry, setCitiesTry] = useState(0)
   const [city, setCity] = useState('')
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -77,6 +92,7 @@ export function CheckoutForm() {
   const [address, setAddress] = useState('')
   const [couponDraft, setCouponDraft] = useState('')
   const [coupon, setCoupon] = useState('')
+  const [couponNote, setCouponNote] = useState('')
   const [consent, setConsent] = useState(false)
   const [pending, setPending] = useState<PendingOrder | null>(null)
   const [orderTotal, setOrderTotal] = useState<number | null>(null)
@@ -114,21 +130,35 @@ export function CheckoutForm() {
       }
       const savedCity = readSessionValue(CITY_KEY)
       if (savedCity) setCity(savedCity)
-      const savedCoupon = readSessionValue(COUPON_KEY)
+      const { coupon: savedCoupon, tooLong } = readSavedCoupon()
       if (savedCoupon) {
         setCoupon(savedCoupon)
         setCouponDraft(savedCoupon)
       }
+      if (tooLong) setCouponNote('كود الخصم المحفوظ أطول من المسموح، فأُزيل. أعد إدخاله.')
     })
-    fetchCities().then(setCities).catch(() => setCities([]))
   }, [])
+
+  // The city list, loaded again by the «أعد المحاولة» button after a failure.
+  useEffect(() => {
+    fetchCities()
+      .then((rates) => {
+        setCities(rates)
+        setCitiesState('loaded')
+      })
+      .catch(() => setCitiesState('failed'))
+  }, [citiesTry])
 
   // The live quote, debounced like the cart's.
   const cart = cartState?.cart
   const ready = cartState?.ready ?? false
   const currentKey = cart ? quoteKeyOf(cart.lines, city, coupon) : ''
-  // Stale: the buyer changed the cart, city or coupon and the new quote is not in yet.
-  const stale = quote !== null && !quoteFailed && quoteKey !== currentKey
+  // Stale: the buyer changed the cart, city or coupon and the new quote is not in
+  // yet, or its refresh failed: the summary on screen is not the current one.
+  const stale = quote !== null && quoteKey !== currentKey
+  // A press that Turnstile answered with a failure is over: a later recovery
+  // must not submit it without a new press.
+  if (turnstileFailed && awaitingToken) setAwaitingToken(false)
   const waiting = awaitingToken && !turnstileFailed
   useEffect(() => {
     if (!ready || !cart) return
@@ -192,8 +222,9 @@ export function CheckoutForm() {
   }
 
   function applyCoupon() {
-    const applied = couponDraft.trim().toUpperCase()
+    const applied = normalizeCoupon(couponDraft)
     setCoupon(applied)
+    setCouponNote('')
     writeSessionValue(COUPON_KEY, applied)
   }
 
@@ -203,14 +234,14 @@ export function CheckoutForm() {
     // In the fields' own order, so the first one found is the first on screen.
     const found: Partial<Record<Field, string>> = {}
     const trimmedEmail = email.trim()
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(trimmedEmail)) found.email = 'أدخل بريدًا إلكترونيًا صحيحًا.'
-    if (!name.trim()) found.name = 'أدخل الاسم.'
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(trimmedEmail)) found.email = FIELD_ERRORS.email
+    if (!name.trim()) found.name = FIELD_ERRORS.name
     if (quote.physical) {
-      if (normalizeSaudiMobile(phone) === null) found.phone = 'أدخل رقم جوال سعوديًا صحيحًا.'
-      if (!city) found.city = 'اختر مدينة التوصيل.'
-      if (address.replace(/\s+/g, ' ').trim().length < 5) found.address = 'أدخل عنوان التوصيل.'
+      if (normalizeSaudiMobile(phone) === null) found.phone = FIELD_ERRORS.phone
+      if (!city) found.city = FIELD_ERRORS.city
+      if (address.replace(/\s+/g, ' ').trim().length < 5) found.address = FIELD_ERRORS.address
     }
-    if (!consent) found.consent = 'يجب الموافقة على السياسات.'
+    if (!consent) found.consent = FIELD_ERRORS.consent
     setErrors(found)
     const first = Object.keys(found)[0]
     if (first !== undefined) {
@@ -296,6 +327,7 @@ export function CheckoutForm() {
         // new total, or the cart's own errors) and ask the buyer to confirm.
         const fresh = priceSchema.parse(error.fields.quote)
         setQuote({ ...fresh, checkoutEnabled: quote.checkoutEnabled, policyRevisions: quote.policyRevisions })
+        setQuoteFailed(false)
         setSubmitError(error.message)
         return
       }
@@ -311,7 +343,7 @@ export function CheckoutForm() {
         const mapped: Partial<Record<Field, string>> = {}
         for (const field of ['email', 'name', 'phone', 'address'] as const) {
           const messages = fieldErrors[field]
-          if (Array.isArray(messages) && typeof messages[0] === 'string') mapped[field] = messages[0]
+          if (Array.isArray(messages) && messages.length > 0) mapped[field] = FIELD_ERRORS[field]
         }
         const firstInvalid = Object.keys(mapped)[0]
         if (firstInvalid !== undefined) {
@@ -380,14 +412,21 @@ export function CheckoutForm() {
   // A pending order this tab created: the hold view, with its cancel.
   if (pending !== null) {
     return (
-      <div ref={orderBoxRef} tabIndex={-1} role="group" aria-labelledby="checkout-order-number" className={styles.orderBox}>
+      <div
+        ref={orderBoxRef}
+        tabIndex={-1}
+        role="group"
+        aria-labelledby="checkout-order-number"
+        aria-describedby="checkout-order-state"
+        className={styles.orderBox}
+      >
         <p id="checkout-order-number" className={styles.orderNumber}>
           رقم الطلب: <span dir="ltr">{pending.orderNumber}</span>
         </p>
         {orderTotal !== null && <p>الإجمالي: {formatMoney(orderTotal)}</p>}
         {closed !== null ? (
           <>
-            <p className={styles.note} role="status">
+            <p id="checkout-order-state" className={styles.note} role="status">
               {closed === 'expired' ? 'انتهت مدة حجز الطلب.' : 'أُلغي الطلب.'}
             </p>
             <Link href="/cart" prefetch={false} className={styles.plainLink}>
@@ -396,7 +435,7 @@ export function CheckoutForm() {
           </>
         ) : (
           <>
-            <p className={styles.note}>حُجز طلبك لمدة 20 دقيقة. الدفع يُضاف في المرحلة القادمة، ولن يُخصم أي مبلغ الآن.</p>
+            <p id="checkout-order-state" className={styles.note}>حُجز طلبك لمدة 20 دقيقة. الدفع يُضاف في المرحلة القادمة، ولن يُخصم أي مبلغ الآن.</p>
             <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
               إلغاء الطلب
             </ActionButton>
@@ -435,12 +474,14 @@ export function CheckoutForm() {
     return <p className={styles.warning} role="note">الشراء غير متاح حاليًا، ويفتح قريبًا.</p>
   }
 
+  // A physical cart with no city to ship to cannot be ordered: the list loaded and is empty.
+  const noCities = quote.physical && citiesState === 'loaded' && cities.length === 0
   const clear = (field: Field) => setErrors((e) => (e[field] ? { ...e, [field]: undefined } : e))
   const described = (field: Field) =>
     errors[field] ? { 'aria-invalid': true, 'aria-describedby': `checkout-${field}-error` } : {}
   const problem = (field: Field) =>
     errors[field] && (
-      <span id={`checkout-${field}-error`} className={styles.fieldError}>
+      <span id={`checkout-${field}-error`} className={styles.fieldError} role="alert">
         {errors[field]}
       </span>
     )
@@ -481,6 +522,7 @@ export function CheckoutForm() {
             <input
               type="text"
               dir="ltr"
+              maxLength={MAX_COUPON}
               value={couponDraft}
               onChange={(e) => setCouponDraft(e.target.value)}
               onKeyDown={(e) => {
@@ -496,6 +538,11 @@ export function CheckoutForm() {
             تطبيق
           </ActionButton>
         </div>
+        {couponNote !== '' && (
+          <p className={styles.warning} role="alert">
+            {couponNote}
+          </p>
+        )}
         <dl className={styles.totals}>
           <div>
             <dt>المجموع الفرعي</dt>
@@ -540,6 +587,7 @@ export function CheckoutForm() {
               dir="ltr"
               inputMode="email"
               autoComplete="email"
+              maxLength={254}
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value)
@@ -578,6 +626,7 @@ export function CheckoutForm() {
                   dir="ltr"
                   inputMode="tel"
                   autoComplete="tel"
+                  maxLength={64}
                   value={phone}
                   onChange={(e) => {
                     setPhone(e.target.value)
@@ -609,6 +658,27 @@ export function CheckoutForm() {
                   ))}
                 </select>
                 {problem('city')}
+                {citiesState === 'failed' && (
+                  <div>
+                    <p className={styles.warning} role="alert">
+                      تعذّر تحميل قائمة المدن.
+                    </p>
+                    <ActionButton
+                      variant="outline"
+                      onClick={() => {
+                        setCitiesState('loading')
+                        setCitiesTry((n) => n + 1)
+                      }}
+                    >
+                      أعد المحاولة
+                    </ActionButton>
+                  </div>
+                )}
+                {noCities && (
+                  <p className={styles.warning} role="alert">
+                    لا نوصل إلى أي مدينة حاليًا.
+                  </p>
+                )}
               </div>
               <div className={styles.field}>
                 <label htmlFor="checkout-address">عنوان التوصيل</label>
@@ -661,16 +731,21 @@ export function CheckoutForm() {
         )}
 
         {quoteFailed && (
-          <p className={styles.warning} role="alert">
-            تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.
-          </p>
+          <div>
+            <p className={styles.warning} role="alert">
+              تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.
+            </p>
+            <ActionButton variant="outline" onClick={() => void refreshQuote()}>
+              أعد المحاولة
+            </ActionButton>
+          </div>
         )}
         {submitError !== '' && (
           <p className={styles.warning} role="alert">
             {submitError}
           </p>
         )}
-        <ActionButton type="submit" className={styles.submit} disabled={!turnstileAvailable || submitting || waiting || stale}>
+        <ActionButton type="submit" className={styles.submit} disabled={!turnstileAvailable || submitting || waiting || stale || noCities}>
           {submitting || waiting ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
         </ActionButton>
       </div>

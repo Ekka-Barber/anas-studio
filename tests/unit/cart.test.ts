@@ -13,22 +13,27 @@ import {
   CART_EVENT,
   CART_STORAGE_KEY,
   clearIdempotency,
+  COUPON_KEY,
   DEDICATIONS_KEY,
   digestText,
   EMPTY_CART,
   readIdempotency,
   writeIdempotency,
   fingerprintCreate,
+  MAX_COUPON,
   MAX_LINES,
   MAX_QUANTITY,
+  normalizeCoupon,
   parseCart,
   readCart,
+  readSavedCoupon,
   removeLine,
   removeLines,
   serializeCart,
   setDedication,
   setQuantity,
   toApiLines,
+  updateStoredCart,
   writeCart,
   type CartArea,
   type CartV1,
@@ -295,5 +300,51 @@ describe('fingerprintCreate', () => {
     expect(withExtras).not.toContain('turnstile')
     expect(withExtras).not.toContain('idempotency')
     expect(withExtras.length).toBeGreaterThan(0)
+  })
+})
+
+describe('audit 2: a stale tab and an over-long coupon', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('applies a change to the latest stored cart, so a line another tab added survives', () => {
+    const area = memoryArea()
+    writeCart(cart([VARIANT_A]), area)
+    const staleCopy = readCart(area).cart // what this tab loaded
+    writeCart(cart([VARIANT_A, VARIANT_B]), area) // another tab added B
+    const { cart: next, saved } = updateStoredCart((latest) => setQuantity(latest, VARIANT_A, 2), area)
+    expect(saved).toBe(true)
+    expect(next.lines).toEqual([
+      { variantId: VARIANT_A, quantity: 2 },
+      { variantId: VARIANT_B, quantity: 1 },
+    ])
+    expect(readCart(area).cart).toEqual(next)
+    // The old whole-snapshot write built on the stale copy would have dropped B.
+    expect(setQuantity(staleCopy, VARIANT_A, 2).lines.map((l) => l.variantId)).toEqual([VARIANT_A])
+  })
+
+  it('leaves the rest alone when the changed line is already gone', () => {
+    const area = memoryArea()
+    writeCart(cart([VARIANT_B]), area) // another tab removed A
+    expect(updateStoredCart((latest) => removeLine(latest, VARIANT_A), area).cart).toEqual(cart([VARIANT_B]))
+    expect(updateStoredCart((latest) => setQuantity(latest, VARIANT_A, 5), area).cart).toEqual(cart([VARIANT_B]))
+  })
+
+  it('caps a typed coupon at 64 characters, upper-cased', () => {
+    expect(normalizeCoupon('  demo10 ')).toBe('DEMO10')
+    expect(normalizeCoupon('a'.repeat(70))).toHaveLength(MAX_COUPON)
+    // Upper-casing expands ß to SS, which must not push the code past the limit.
+    expect(normalizeCoupon('ß'.repeat(64))).toHaveLength(MAX_COUPON)
+  })
+
+  it('drops a saved coupon longer than the function accepts, once, and says so', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    expect(readSavedCoupon()).toEqual({ coupon: '', tooLong: false })
+    session.setItem(COUPON_KEY, 'DEMO10')
+    expect(readSavedCoupon()).toEqual({ coupon: 'DEMO10', tooLong: false })
+    session.setItem(COUPON_KEY, 'X'.repeat(MAX_COUPON + 1))
+    expect(readSavedCoupon()).toEqual({ coupon: '', tooLong: true })
+    expect(session.store.get(COUPON_KEY)).toBe('')
+    expect(readSavedCoupon()).toEqual({ coupon: '', tooLong: false })
   })
 })

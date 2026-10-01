@@ -21,6 +21,14 @@
   background: var(--aub);
   color: var(--sand-50);
 }
+/* Forced colours erase the swap above; the pressed filter keeps a system highlight. */
+@media (forced-colors: active) {
+  .filter[aria-pressed='true'] {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+}
 /* The filter runs in script; without it every post stays listed. */
 @media (scripting: none) {
   .filters {

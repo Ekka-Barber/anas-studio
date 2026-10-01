@@ -36,12 +36,15 @@ const args = process.argv.slice(2)
 let mode = '--linked'
 let outArg
 for (let i = 0; i < args.length; i += 1) {
-  if (args[i] === '--local') mode = '--local'
+  if (args[i] === '--help' || args[i] === '-h') usage(0)
+  else if (args[i] === '--local') mode = '--local'
   else if (args[i] === '--linked') mode = '--linked'
-  else if (args[i] === '--out') outArg = args[++i]
-  else usage(args[i] === '--help' || args[i] === '-h' ? 0 : 2)
+  else if (args[i] === '--out') {
+    // An empty or missing value (an unset shell variable) must not fall back to the home directory.
+    outArg = args[++i]
+    if (!outArg || outArg.startsWith('-')) usage(2)
+  } else usage(2)
 }
-if (outArg === '') usage(2)
 
 // `storage cp` runs in the temp dir (its destination must be relative), where
 // the CLI cannot find the link file, so --linked hands it the project ref.

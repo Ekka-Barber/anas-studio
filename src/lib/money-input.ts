@@ -56,6 +56,17 @@ export function riyadhLocalToIso(localValue: string): string {
 }
 
 /**
+ * The same, but `null` for a value that is not a date and time: browsers let
+ * the year run past four digits (`20261-09-30T12:00`), which `riyadhLocalToIso`
+ * throws on.
+ */
+export function riyadhLocalToIsoOrNull(localValue: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(localValue)) return null
+  const time = new Date(`${localValue}:00+03:00`).getTime()
+  return Number.isNaN(time) ? null : new Date(time).toISOString()
+}
+
+/**
  * An ISO timestamp as the Riyadh wall-clock `<input type="datetime-local">`
  * value. Riyadh is UTC+3 all year, so shifting the instant by three hours
  * and reading it as UTC is exact.

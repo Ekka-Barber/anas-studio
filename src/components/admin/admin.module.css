@@ -101,6 +101,13 @@
   color: var(--aub);
 }
 
+/* A control that ignores clicks must not look live. aria-disabled is for the
+   buttons that stay reachable by keyboard (TableForm's save). */
+:is(.button, .buttonSecondary):is(:disabled, [aria-disabled='true']) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .message {
   color: var(--aub-muted);
 }

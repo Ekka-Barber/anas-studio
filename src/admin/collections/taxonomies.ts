@@ -12,6 +12,6 @@ export const taxonomyFields = [
     options: ['category', 'tag'],
     optionLabels: { category: 'تصنيف', tag: 'وسم' },
   },
-  { name: 'label', label: 'التسمية', type: 'text' },
+  { name: 'label', label: 'التسمية', type: 'text', nonBlank: true },
 ] as const satisfies Field[]
 export const taxonomySchema = schemaFromFields(taxonomyFields)

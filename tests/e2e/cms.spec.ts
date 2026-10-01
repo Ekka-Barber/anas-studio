@@ -359,6 +359,57 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   await restoredContext.close()
 })
 
+test('editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import)', async ({
+  page,
+}) => {
+  const email = await createOwner('محرر النسخة المحلية')
+  await signInByCode(page, email)
+
+  // Same key and shape as CollectionForm's autosave; no userId, like a copy
+  // written before the field existed, which is offered to whoever opens it.
+  const key = 'anasaq:draft:rooms:started'
+  const localLine = `سطر محلي ${Date.now()}`
+  const seed = () =>
+    page.evaluate(
+      ({ storageKey, line }) =>
+        window.localStorage.setItem(storageKey, JSON.stringify({ baseSeq: 1, data: { heroLine: line }, savedAt: Date.now() })),
+      { storageKey: key, line: localLine },
+    )
+  const stored = () => page.evaluate((storageKey) => window.localStorage.getItem(storageKey), key)
+  const offer = page.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })
+  const heroLine = page.getByLabel('سطر البداية')
+
+  await page.goto('/admin/content/rooms/edit?id=started')
+  await expect(heroLine).toBeVisible()
+  await seed()
+  await page.reload()
+  await expect(offer).toBeVisible()
+  // Nothing can be edited or saved over the copy while it is on offer.
+  await expect(heroLine).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'حفظ', exact: true })).toHaveCount(0)
+
+  // A reload is not an answer: the copy is offered again and still stored.
+  await page.reload()
+  await expect(offer).toBeVisible()
+  expect(await stored()).not.toBeNull()
+
+  // تجاهل removes the copy and opens the saved version.
+  await page.getByRole('button', { name: 'تجاهل', exact: true }).click()
+  await expect(offer).toHaveCount(0)
+  await expect(heroLine).toBeVisible()
+  await expect(heroLine).not.toHaveValue(localLine)
+  await expect.poll(stored).toBeNull()
+
+  // استرجاع opens the form with the copy's text; nothing is saved.
+  await seed()
+  await page.reload()
+  await expect(offer).toBeVisible()
+  await page.getByRole('button', { name: 'استرجاع', exact: true }).click()
+  await expect(offer).toHaveCount(0)
+  await expect(heroLine).toHaveValue(localLine)
+  await page.evaluate((storageKey) => window.localStorage.removeItem(storageKey), key)
+})
+
 test('social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import)', async ({
   page,
   browser,
@@ -400,7 +451,8 @@ test('social links: edit, add, reorder and publish; the footer and contact page 
   await items.nth(4).getByLabel('الشبكة').fill(added.network)
   await items.nth(4).getByLabel('المعرّف').fill(added.handle)
   await items.nth(4).getByLabel('الرابط').fill(added.href.replace('https:', 'http:'))
-  await expect(page.getByText(/^روابط التواصل: الرابط غير صالح./)).toBeVisible()
+  // The error names the item and its field (AUDIT-2 FIX-admin-3).
+  await expect(page.getByText(/^روابط التواصل › 5 › الرابط: الرابط غير صالح./)).toBeVisible()
   await items.nth(4).getByLabel('الرابط').fill(added.href)
   await expect(page.getByText('هناك مشاكل في البيانات:')).toHaveCount(0)
 

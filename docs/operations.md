@@ -31,11 +31,64 @@ Cloudflare Email Routing forwards to it.
    «لم يعمل بعد». «إرسال البريد» is the outbox, «بناء الموقع» the Pages
    deploy hook after a publish, «تنظيف الوسائط» the daily media sweep. A
    «فاشل» on «بناء الموقع» after five tries means the hook itself is broken
-   (see "Site rebuilds" below).
-3. **الإحصاءات** (owner only) — see below.
+   (see "Site rebuilds" below). Two more red lines say what is wrong in words:
+   - «بريد محجوز بسبب حدّ الإرسال. يُرسل تلقائيًا عند تجدّد الحد.» on
+     «إرسال البريد»: mail is due but a sending cap holds it (the day's
+     80-send mark, or Resend's daily or monthly quota). Nothing to do: it goes
+     when the cap renews (see "Quota"). It shows only while a row has been due
+     for more than 10 minutes.
+   - «رابط بناء الموقع غير مضبوط، فلن يُعاد بناء الموقع عند النشر.» on
+     «بناء الموقع»: a build is owed and no `pages_deploy_hook` is in Vault.
+     Publishing still works, but the site is not rebuilt until the secret is
+     created (see "Hosted setup" below).
+3. **المحتوى المجدول** (owner and editors) — how many documents wait for their
+   publish time. The owner also sees «تعذّر نشر N من المحتوى المجدول في آخر 7
+   أيام:» and one link per document (its collection and id, opening its
+   editor) when a scheduled publish failed in the last 7 days; the list comes
+   from the `content.publish_due_failed` audit rows, once per document. A
+   failed document has lost its schedule: fix the cause (usually a post slug
+   another live post uses) and schedule it again. If the audit read itself
+   fails the line says «تعذّر التحقق من نجاح النشر المجدول.».
+4. **الإحصاءات** (owner only) — see below. The visits line says «تعذّر
+   التحميل» when the stats call itself failed, and «غير متاحة» only when the
+   analytics report themselves unavailable.
 
-Operations members see the same email screen; editors do not (the email RPC
-is refused). No API role can read `public.contacts`, the owner included.
+Each role's home loads only what that role may read: the email and job lines
+for the owner and operations, the scheduled-content line for the owner and
+editors, the failed-publish list and the visits for the owner. Operations
+members see the same email screen; editors do not (the email RPC is refused).
+No API role can read `public.contacts`, the owner included.
+
+**Unsaved text in the editor.** Every edit in a content form is also kept as
+a local copy in this browser (`localStorage`, `anasaq:draft:<collection>:<id>`),
+so a closed tab or a conflict never loses typed text. When the document is
+opened again and a different local copy is waiting, a banner replaces the
+whole form: «يوجد تعديل غير محفوظ محليًا لهذا المستند.», with the time of the
+last local edit and two buttons. «استرجاع» puts the copy into the form;
+«تجاهل» deletes it and opens the last saved version. If a newer version was
+saved after the copy was made, the banner says so («هذه النسخة المحلية مبنية
+على النسخة N، والأحدث الآن M»), because restoring replaces what was saved
+after it. The form, «حفظ» and the publish bar stay hidden until the banner is
+answered, and nothing is autosaved over the copy meanwhile. A copy is offered
+only to the person who wrote it; one written before the author was recorded
+has no owner and is offered to anyone. «تسجيل الخروج», or another person
+signing in under an open tab, deletes every copy; an involuntary sign-out (an
+expired session) keeps them, on purpose.
+
+**Admin messages worth knowing.**
+
+- Email problems: after a replay the heading takes focus and says «أُعيدت
+  الرسالة إلى طابور الإرسال.». If the row changed after the list was loaded
+  (SQLSTATE 55000), the screen says «تغيّرت حالة الرسالة منذ تحميل القائمة.
+  حُدّثت القائمة، راجعها ثم أعد المحاولة.» and reloads the list.
+- Sign-in: a request that never reached the server says «تعذّر الاتصال. تحقق
+  من الشبكة وحاول مرة أخرى.»; the answers for an unknown address stay masked.
+- Statistics: a Cloudflare reply the function could not read says «غير متاح:
+  تعذّر قراءة بيانات الزيارات. جرّب بعد قليل.».
+- Team: a member who loses the owner role while the screen is open sees «لم
+  تعد تملك صلاحية عرض الفريق. أعد تحميل الصفحة.»; the team and settings
+  screens say «هذه الصفحة للمالك فقط.» to anyone else.
+- Media and store screens: see `docs/media-rights.md` and "Store admin" below.
 
 ## The contact flow
 
@@ -51,7 +104,17 @@ is refused). No API role can read `public.contacts`, the owner included.
    replaces any client value), else the LAST `x-forwarded-for` hop (earlier
    hops are client-chosen) — so no raw IP is ever stored or logged. With
    neither header the IP is the literal `local`; which headers the hosted
-   project delivers is checked at P11 (I32).
+   project delivers is checked at P11 (I32). An IPv6 caller is keyed by its
+   /64 only (one subscriber or VPS controls a whole /64, so the full address
+   would give a caller a fresh bucket on every request); IPv4, `local` and
+   IPv4-mapped addresses stay whole. Turnstile still receives the real address.
+   A Turnstile failure that is not the visitor's answers 503
+   `TURNSTILE_UNAVAILABLE` here and in checkout, never «تعذّر التحقق من أنك
+   إنسان.»: Cloudflare unreachable, siteverify answering
+   `missing-input-secret`, `invalid-input-secret` or `internal-error` (a
+   wrong `TURNSTILE_SECRET_KEY`; an unset one is 503 too), or a test secret on
+   a hosted `SITE_URL`. Only the error codes are logged, so a wrong secret does
+   not look like every visitor failing.
 3. `contact_submit(ip_hash, …)` commits, in one transaction: the throttle
    checks, the message row, and one `contact_notice` outbox row per **active
    owner or operations member**. Editors and inactive staff get no notice.
@@ -73,25 +136,40 @@ Fixed windows, enforced inside `contact_submit` (SQLSTATE 54000 → HTTP 429
 | --- | --- | --- |
 | `contact:ip` | 5 per hour | salted daily IP hash |
 | `contact:email` | 3 per hour | sha256 of the sender email |
-| `contact:all` | 200 per day | everyone |
+| `contact:all` | 40 per day | everyone |
 
 pg_cron purges the rate-limit windows nightly (`rate-limits-purge`).
 
+**Why 40 a day.** The cap is sized to the outbox, not to the form's traffic.
+Every message queues one priority-1 notice per active owner or operations
+member, and the outbox sends priority 1 only while the day's sends are under
+80 (see "Quota"). 40 messages for up to two notified recipients is at most 80
+notices, which one UTC day holds. The cap used to be 200 a day: at one
+recipient that queued 120 more notices a day than could be sent, so a flood
+backlogged the FIFO queue for days and a real visitor's notice waited behind
+spam. D31 makes the notice the only inbox, so a notice that waits is a message
+the owner has not seen. The number is fixed in `contact_submit`
+(`20260930140000_audit2_fixes.sql`): with a third notified member, 40 × 3 = 120
+notices a day no longer fits, so lower the cap there.
+
 **Residual abuse risk (accepted):** the `contact:all` cap is global, so an
-attacker who passes Turnstile can spend the whole 200/day budget (40 rotating
-IPs at 5/hour each) and lock the form for everyone else for the rest of the
-UTC day. Accepted because nothing is lost — messages already stored still
-reach the owner's mailbox, real visitors still have the published email
-address (`help@anas.studio`), and the
-window resets at the next UTC midnight. Manual mitigation when it happens:
-look at `public.contacts` for the burst, then delete the day's `contact:all`
-row from `finance.rate_limits` (its `key_hash` is 64 zeros) — the same
-deliberate manual-database-action standard as un-suppressing a recipient.
+attacker who passes Turnstile can spend the whole 40/day budget (8 rotating
+IPs at 5/hour each) and lock the form for everyone else until the next UTC
+midnight; real visitors get «أرسلت رسائل كثيرة؛ حاول لاحقًا.» and still have
+the published email address (`help@anas.studio`). The outbox does not back up:
+the flood's notices are at most 80, they fit the day, and the 20-send reserve
+stays free for sign-in codes. Receipts (P08, priority 0) count toward
+the same 80-send mark, so on a day with many receipts a notice can still wait
+for the next UTC midnight; the owner home then shows «بريد محجوز بسبب حدّ
+الإرسال…». Manual mitigation when a burst locks the form: look at
+`public.contacts` for the burst, then delete the day's `contact:all` row from
+`finance.rate_limits` (its `key_hash` is 64 zeros) — the same deliberate
+manual-database-action standard as un-suppressing a recipient.
 
 ## The outbox
 
 One row per message (`finance.email_outbox`). Priorities: **0** receipts,
-**1** staff notices, **2** availability notices (P07). Sign-in codes never
+**1** staff notices, **2** availability notices (P08). Sign-in codes never
 enter the outbox (Supabase Auth SMTP, I28).
 
 ```
@@ -129,15 +207,17 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   or `uncertain` row again. A suppressed recipient is refused, and so is a
   contact notice whose recipient is no longer an active owner or operations
   member (such a notice is exhausted with `RECIPIENT_INACTIVE` when it is
-  claimed, and cannot be replayed). An `uncertain` or `exhausted` row whose
+  claimed, and cannot be replayed; `outbox_attention` leaves it out, because
+  there is nothing to replay or fix, and it stays in the outbox and the audit
+  trail until the contacts purge removes it). An `uncertain` or `exhausted` row whose
   first attempt was more than 23 hours ago may already have been delivered,
   so replaying it requires `accept_duplicate_risk` and rotates the
   idempotency key (the dedupe key — the business identity — never changes).
   The action is written to `audit_events` as `email.replay`.
 - **Attention** (`outbox_attention`, owner or operations): rows that need a
   person — `exhausted`, `uncertain`, `suppressed`, or a terminal delivery
-  event — with `replay_needs_confirmation` set for uncertain or exhausted rows past the
-  23-hour window.
+  event, except a `RECIPIENT_INACTIVE` notice — with `replay_needs_confirmation`
+  set for uncertain or exhausted rows past the 23-hour window.
 
 ### Quota
 
@@ -161,6 +241,15 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   stay due in `finance.outbox_due_since()`, so `outbox_kick()` calls the
   function every minute until 00:00 UTC (an I35 residual: each call finds
   nothing to claim).
+- A run that claims nothing is recorded in `finance.job_runs` as `partial`
+  with the reason `QUOTA_HELD` (it used to read `ok` every minute, which hid
+  the hold). `outbox_kick()` calls the function only while a row is due, so an
+  empty claim almost always means a daily, reserve or monthly cap holds mail
+  back; the reason is inferred, because no SQL function `service_role` can
+  call says whether mail is due. One empty claim after a lease or suppression
+  change can record it too, so the owner home warns («بريد محجوز بسبب حدّ
+  الإرسال. يُرسل تلقائيًا عند تجدّد الحد.») only when the newest run has this
+  reason **and** a row has been due for more than 10 minutes.
 
 **Sign-in codes share the account but are not counted (residual risk):**
 sign-in emails travel through Supabase Auth's SMTP (I28), never through the
@@ -261,7 +350,9 @@ The owner home therefore does not judge the email job by its last run's age
 (I35): the job warns only when a row has been due for more than 10 minutes
 **and** no run finished inside those 10 minutes — «بريد ينتظر الإرسال منذ
 أكثر من 10 دقائق. تأكد من الجدولة.» — so a quiet site whose last run is
-hours old still shows «سليم».
+hours old still shows «سليم». A `QUOTA_HELD` run is not a sign of life: while
+mail stays due after one, the line says the mail is held instead (see
+"Quota").
 
 Hosted setup (P11): `supabase secrets set JOBS_SECRET=…`, then in the SQL
 editor `select vault.create_secret('<the same value>', 'jobs_secret')` and
@@ -279,10 +370,33 @@ kept about six hours). Each answered call is one `site_build` run in
 timeout, or no answer after ten minutes (the detail carries `httpStatus`,
 `timedOut`, `error`, `noAnswer` and `attempt`). A failed call is re-armed
 and tried again the next minute, up to five times in a row; after the fifth
-the owner home shows «بناء الموقع: فاشل» and the next publish tries once
-more. A 2xx only means Cloudflare accepted the hook: a build that then
-breaks is visible only in the Pages dashboard, so check it after the first
+the owner home shows «بناء الموقع: فاشل». Every new request (a publish, an
+archive, a scheduled go-live or a catalog change) starts its own five tries:
+`site_build_request()` resets the failure count, which used to go back to
+zero only after a success, so one failing episode left every later publish
+with a single try. A 2xx only means Cloudflare accepted the hook: a build that
+then breaks is visible only in the Pages dashboard, so check it after the first
 publishes.
+
+With no `pages_deploy_hook` in Vault a build is owed but nothing can be
+called: one `site_build` run is recorded as `skipped` with the reason
+`NO_HOOK` (once per episode, not again while it is the newest `site_build`
+run), and the owner home says the site will not be rebuilt on publish. Create
+the secret (see "Hosted setup" above) and the next minute's run calls the hook.
+
+A catalog change asks for a rebuild only when a public field changes. For a
+variant the row trigger compares the product, SKU, title, fulfillment, price,
+enabled flag and sort order; stock, the low-stock threshold and the digital
+asset are not public. Before, every variant save (a stock correction, an
+unchanged save, even a lost version conflict) started a Pages build, which
+counts against the 500 builds a month of the Free plan (docs/costs.md).
+Inserts and deletes of variants still rebuild.
+
+**Order on the hosted project:** the build reads each library image's alt text
+(`alt_ar`) as `anon`, which migration `20260930140000_audit2_fixes.sql` grants
+(`grant select (alt_ar) on public.media to anon`). Apply the migration to the
+hosted database before the next build, or every page with a library image
+fails to build (the last good deploy stays live, D32).
 
 ### Media sweep (I29)
 
@@ -301,12 +415,23 @@ is an orphaned original under `media-private/originals/`.
 ### Scheduled publishing
 
 `publish_due()` (pg_cron, every minute) publishes each due scheduled version
-in its own subtransaction, so one failing document (for example a post slug
-that is already taken) does not stop the others. A document that fails loses
-its schedule and is written to `audit_events` as `content.publish_due_failed`,
-so the owner can see it. A stale admin tab cannot publish or schedule a
-version older than the latest: the Data API answers 409 and the editor keeps
-its text.
+in its own subtransaction, so one failing document does not stop the others.
+Like every other writer of a document it takes the document's advisory lock
+first: a document being published, scheduled, cancelled or archived at that
+moment is left for the next minute, and a version whose schedule a publish or
+a cancel cleared meanwhile never goes live over a newer one (`publish_due`
+checks that the version is still due after taking the lock). A document that
+fails loses its schedule and is written to `audit_events` as
+`content.publish_due_failed`; the owner home lists it for 7 days (see "The
+owner's routine"). Scheduling a post whose slug another live post uses is
+refused at once, in the editor (unique_violation on
+`published_documents_post_slug`: «معرّف المقال مستخدم في مقال منشور آخر؛ غيّره
+ثم أعد المحاولة.»), so a slug clash rarely reaches the due time. Archiving a
+post or taxonomy keeps its first publication date
+(`finance.content_first_published`): publishing it again does not start a new
+date, which the journal shows and sorts by. A stale admin tab cannot publish or
+schedule a version older than the latest: the Data API answers 409 and the
+editor keeps its text.
 
 ### Uncertain-send reconciliation, in one paragraph
 
@@ -319,6 +444,31 @@ gone, so the row appears in `outbox_attention` with
 (`https://resend.com/emails`) for the recipient, then either lets it go or
 replays with `accept_duplicate_risk`.
 
+### Every pg_cron job (the restore checklist)
+
+Ten jobs exist, each created by a `select cron.schedule('<name>', ...)` in a
+migration; the times are UTC. `pnpm restore-check` derives the same list from
+`supabase/migrations` (every `cron.schedule('<name>'` call; a name scheduled
+twice, `job-runs-purge`, keeps the later definition), so a new job is checked
+without editing the script. Keep this table in step.
+
+| Job | Schedule | What it runs | Created in |
+| --- | --- | --- | --- |
+| `content-publish-due` | every minute | `public.publish_due()` | `20260925120000_content_versions_and_publishing` |
+| `site-build-trigger` | every minute | `public.site_build_trigger()` | `20260927090000_static_site_and_functions` |
+| `email-outbox` | every minute | `public.outbox_kick()` | `20260927090000_static_site_and_functions` |
+| `checkout-expire` | every minute | `finance.checkout_expire()` | `20260927160000_catalog_and_checkout` |
+| `rate-limits-purge` | 03:17 daily | deletes `finance.rate_limits` windows older than 2 days | `20260926120000_contacts_and_email` |
+| `job-runs-purge` | 03:23 daily | deletes `finance.job_runs` older than 30 days, except each job's newest run | `20260926120000_contacts_and_email`, replaced in `20260930120000_audit_fixes` |
+| `contacts-purge` | 03:29 daily | `finance.contacts_purge()` | `20260927140000_privacy_requests` |
+| `cron-run-details-purge` | 03:31 daily | deletes `cron.job_run_details` older than 7 days | `20260930140000_audit2_fixes` |
+| `media-sweep` | 03:41 daily | `public.media_sweep_kick()` | `20260927120000_rebuild_delivery_and_media_sweep` |
+| `buyer-retention` | 03:53 daily | `finance.buyer_retention_purge()` | `20260930130000_buyer_retention` |
+
+pg_cron records every run in `cron.job_run_details` and never purges it; four
+jobs run every minute, about 2 million rows a year. `cron-run-details-purge`
+keeps the last seven days.
+
 ## Statistics: sources and the E11 gate
 
 `/admin/stats` (owner only) calls the `admin` Edge Function's `stats`
@@ -329,19 +479,32 @@ is `cache-control: no-store` and carries no PII).
 - **Visits and top pages** come from the Cloudflare GraphQL Analytics API
   (`httpRequestsAdaptiveGroups`, `sum.visits` and path counts, filtered to
   `requestSource: "eyeball"` and the production host, a 7-day UTC window).
-  The top pages count only 2xx answers; the HTML content-type filter is not
+  The top pages count only 200 and 304 answers (a returning visitor's
+  revalidation is a 304 and is a page view; scanner probes, redirects and
+  blocked requests are not), and the query asks for up to 10,000 groups,
+  because the asset filter runs in code and a static export's fonts, chunks and
+  images far outnumber its pages. The HTML content-type filter is not
   applied yet: at E11 confirm `edgeResponseContentTypeName` on the live schema
-  and add it to `TOP_PATHS_QUERY`.
+  and add it to `TOP_PATHS_QUERY`. Also at E11 confirm the zone's
+  `maxPageSize` for `httpRequestsAdaptiveGroups` (Cloudflare's docs say it
+  depends on the plan; their example shows 10000): if it is lower, the query
+  answers a GraphQL error and the screen says «غير متاح: ردّ الإحصاءات يحتوي
+  على خطأ.» rather than showing wrong numbers.
   A sampled answer (`avg.sampleInterval` above 1) is refused, not estimated.
-  It needs the function secrets `ANALYTICS_TOKEN` and `CLOUDFLARE_ZONE_ID`; with either missing the screen says
-  «غير متاح — غير مُعدّة بعد», never 0. **The live account proof is gate
-  E11 (P11)**: until the real zone is queried against the live account, the
-  numbers are proven only against fixtures, and the schema/dimension names
+  It needs the function secrets `ANALYTICS_TOKEN` and `CLOUDFLARE_ZONE_ID`, and
+  a `SITE_URL` with a host (the production-host filter); with any of them
+  missing the screen says «غير متاح: الإحصاءات غير مُعدّة بعد. تحتاج إلى
+  ANALYTICS_TOKEN و CLOUDFLARE_ZONE_ID.», never 0 (the text names the first two;
+  a missing `SITE_URL` host gives the same screen). The settings screen's
+  analytics line follows the same three-part test. **The live account proof is
+  gate E11 (P11)**: until the real zone is queried against the live account,
+  the numbers are proven only against fixtures, and the schema/dimension names
   are re-checked then.
-- **Commerce** says «غير مُعدّ بعد — يبدأ مع المتجر» until the order and
-  payment tables exist (P07/P08); the exact paid/refund/net/customer SQL
-  counts land with them (`// P08:` in `supabase/functions/_shared/stats.ts`). No invented
-  zeros.
+- **Commerce** (the «المتجر» block) says «غير مُعدّ بعد. تظهر أرقامه عند
+  افتتاح المتجر.» until P08: the order tables exist since P07, but
+  `stats.ts` reports `not_configured` until the exact paid/refund/net/customer
+  SQL counts land with P08 (`// P08:` in `supabase/functions/_shared/stats.ts`).
+  No invented zeros.
 
 ## Commerce settings
 
@@ -359,10 +522,32 @@ the owner role is rechecked inside). Saving goes through the `admin` Edge
 Function's `commerce-settings-save` action: an active owner at aal2 with a
 TOTP verification from the last five minutes, then `commerce_settings_save()`
 as `service_role`. The browser sends the row version it read; if another
-session saved first, SQL raises 40001 and the function answers 409
-(«تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.»). Every save appends
+session saved first, SQL raises a `unique_violation` (SQLSTATE 23505, the
+code publish and schedule use for a stale version; not 40001) and the function
+answers 409 («تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.»). Every save appends
 one `commerce.settings` audit event naming the changed fields, never their
 values. No API role has any grant on `finance.commerce_settings`.
+
+## Team invites and admin function errors
+
+- **Invite** (`staff-admin`). It creates the Auth user, then the staff row. If
+  the second step fails and the rollback delete fails too, the address is left
+  as a confirmed Auth user with no staff row, which would answer
+  `USER_EXISTS` for ever. The next invite of that address adopts it (the
+  function looks the address up among the first 1000 Auth users and reuses the
+  id when there is no staff row). A real member, revoked ones included, still
+  answers 409 «هذا البريد مسجّل مسبقًا.».
+- **A request body that is not a JSON object** (`null`, an array, a number or
+  a string) answers 400 `BAD_JSON` from `staff-admin`.
+- **An Auth outage** (a network failure or a 5xx while a function verifies the
+  bearer token) answers a server error, not 401: only a missing, bad or
+  expired token is 401, so the admin does not read an outage as a sign-out.
+- **Media completion** (`media-complete`). It blames the upload (422) only
+  when a part is really missing from Storage (a not-found answer); any other
+  Storage failure answers 500, so retry later instead of uploading again.
+- **Settings status** (`/admin/settings`). Analytics shows as configured only
+  when `ANALYTICS_TOKEN`, `CLOUDFLARE_ZONE_ID` and a `SITE_URL` host are all
+  set, the same test the stats call applies.
 
 ## Checkout holds and limits (P07)
 
@@ -424,7 +609,14 @@ decide (a config that wrote a column the migration never grants is caught by
 rates and customers, sees values without inputs, and has no «جديد» button.
 The owner edits a customer's `name` and `phone` only; customers are written
 by checkout, never created by hand, and `email` is read-only because every
-order keeps its own contact snapshot.
+order keeps its own contact snapshot. A phone that `normalizeSaudiMobile`
+cannot read as a Saudi mobile is refused in the form («أدخل رقم جوال سعوديًا
+صحيحًا.»); the table's own check (`customers.phone` matches `^9665[0-9]{8}$`)
+stays the last line.
+
+**Invalid values.** While a store form has a problem, «حفظ» stays reachable
+by keyboard (`aria-disabled`, not `disabled`) and pressing it moves focus to
+the list «هناك مشاكل في البيانات:», one line per field.
 
 **Retire, never delete.** There is no delete button anywhere: orders
 reference rows. A product is retired with `الحالة = مؤرشف`, a variant, rate
@@ -456,7 +648,7 @@ records the published revisions of سياسة المتجر, سياسة التو�
 `finance.commerce_settings.policy_revisions`, bumps the settings version and
 writes one audit row. Unpublished required policies answer «انشر سياسات
 المتجر والتوصيل والاسترجاع أولًا.», and a version changed in another
-session answers 409 like the seller save. The checkout compares the buyer's
+session answers 409 like the seller save (the SQL raises the same 23505). The checkout compares the buyer's
 accepted revisions with the approved ones and refuses a mismatch. Buying
 itself opens only after the payment gateway is linked (P08). Publishing a new
 seq of an approved policy, or removing it, resets the approval (audit
@@ -476,10 +668,16 @@ pages").
 
 - **The browser cart** stores only variant ids, quantities and the schema
   version (`localStorage['anasaq:cart:v1']`, at most 50 lines, quantity 1–20,
-  duplicate variants merged). Dedications live in
+  duplicate variants merged). A change is applied to the latest stored cart
+  (read, change, write), and the page re-reads storage when another tab
+  writes, so an item added in one tab is not lost when a quantity changes in
+  another. Dedications live in
   `sessionStorage['anasaq:dedications']` and go with the tab. No price, total, name or address is ever
   stored; every shown price comes from a live `quote` call to the `checkout`
-  function, debounced ~300 ms. The city and coupon live in sessionStorage.
+  function, debounced ~300 ms. The city and coupon live in sessionStorage. A coupon code
+  is trimmed, upper-cased and cut at 64 characters, the most the checkout
+  function accepts; a saved code longer than that (from before the cap) is
+  dropped with an alert.
   When the browser blocks storage, the cart lives in memory for the tab and
   the page says «السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.»
 - **Checkout** sends `create` with one `checkoutSession` per tab and an
@@ -519,9 +717,22 @@ off the machine by us, and only Anas holds the passphrase.
 
 What a file deliberately does **not** hold: Vault secrets (`functions_url`,
 `jobs_secret`, `pages_deploy_hook`), Edge Function secrets (`supabase
-secrets`), Auth settings and email templates, the project's encryption root
-key, and the database password. All of these are re-created by hand after a
-real restore (below).
+secrets`; step 5 below names every one, and `TOKEN_HASH_PEPPER` is in no
+backup at all), Auth settings and email templates, the project's encryption
+root key, and the database password. All of these are re-created by hand after
+a real restore (below).
+
+What a file cannot be trusted to bring back: the **pg_cron schedules**. They
+exist only as `cron.schedule(...)` calls inside the migrations, and the
+restored migration history marks every migration applied without running it.
+Whether `data.sql` carries the `cron.job` rows depends on the CLI: in the CLI
+source read on 2026-10-01 (`supabase/cli`, branch `develop`,
+`apps/cli-go/pkg/migration/dump.go`), the schema dump excludes the `cron`
+schema, and the data dump excludes `vault` but, unlike the other extension
+schemas, no longer excludes `cron`. A newer CLI's `data.sql` may therefore
+carry the rows and an older one not; this was not checked against the pinned
+2.106.0 (docs/development.md). The runbook never assumes either: step 4 lists
+the jobs and re-creates the missing ones.
 
 ### Format, in short
 
@@ -547,7 +758,9 @@ running during `pnpm backup`: the CLI runs `pg_dump` in a container.
 - `pnpm backup` — the five dumps of the linked project plus both buckets'
   objects, written to `~/ANASAQ-backups/anasaq-backup-<UTC yyyymmdd-hhmmss>.enc`
   (created if missing). `--linked`, the default, needs `supabase link` first
-  (or `SUPABASE_PROJECT_ID`) and stops before writing anything without it.
+  (or `SUPABASE_PROJECT_ID` exported in the shell: the script does not read
+  `.env`, and the variable takes precedence over the link) and stops before
+  writing anything without one of them.
   `--local` backs up the development stack instead;
   `--out <dir>` picks another directory (never inside the repository). The
   passphrase is typed twice, hidden (minimum 12 characters), or read from
@@ -560,8 +773,14 @@ running during `pnpm backup`: the CLI runs `pg_dump` in a container.
   moved by +1000, studio/inbucket/analytics/realtime/edge runtime off; the
   development stack is untouched), reloads every table with the guide's psql
   invocation, re-uploads every object with its original content type, then
-  compares every table's row count and every object's sha256 and prints the
-  elapsed time. `--extract <dir>` only decrypts the files for a manual
+  compares every table's row count and every object's sha256, and prints the
+  elapsed time. It then re-runs every `cron.schedule(...)` statement of
+  `supabase/migrations` (printed as «Caveat applied (runbook)», with how many
+  of the ten jobs `cron.job` already held, which shows whether the dump
+  carried them) and requires all ten in `cron.job`, listing each as `ok` or
+  `MISSING`: a missing job, or pg_cron missing from the restored database,
+  fails the rehearsal. The ten names are derived from the migrations (see
+  "Every pg_cron job"). `--extract <dir>` only decrypts the files for a manual
   restore. The files are unencrypted, so it refuses a directory inside the
   repository: use a folder outside the project.
 
@@ -579,22 +798,62 @@ running during `pnpm backup`: the CLI runs `pg_dump` in a container.
 3. Re-create the Vault secrets: `select vault.create_secret(...)` for
    `functions_url`, `jobs_secret` and `pages_deploy_hook`
    (docs/operations.md, "The outbox schedule").
-4. Re-set the Edge Function secrets with `supabase secrets set`
-   (`JOBS_SECRET`, `RESEND_WEBHOOK_SECRET`, and the rest).
-5. Re-apply the Auth settings (I28): SMTP for Resend, redirect URLs, the
+4. Check the pg_cron jobs. A restore never runs a migration's
+   `cron.schedule(...)` call again, and `data.sql` may or may not carry the
+   `cron.job` rows (see "What a file holds"). List what the new project has:
+   `select jobname, schedule from cron.job order by 1;` and compare it with
+   the ten names of "Every pg_cron job": `content-publish-due`,
+   `rate-limits-purge`, `job-runs-purge`, `cron-run-details-purge`,
+   `contacts-purge`, `media-sweep`, `buyer-retention`, `checkout-expire`,
+   `site-build-trigger` and `email-outbox`. For every missing one (with an
+   empty `cron.job`, all ten) run its `select cron.schedule(...)` statement
+   from `supabase/migrations`; for a name scheduled twice (`job-runs-purge`)
+   take the later migration's. From the repository root, this prints all ten,
+   ready for psql (node writes the file itself: a shell `>` redirect would
+   save UTF-16 under Windows PowerShell 5.1, which psql cannot read):
+   `node -e "import('./scripts/lib/cron-jobs.mjs').then(m => require('fs').writeFileSync('cron-schedules.sql', [...m.cronScheduleStatements('supabase/migrations').values()].join('\n')))"`
+   then `psql "<connection string>" --single-transaction --variable
+   ON_ERROR_STOP=1 --file cron-schedules.sql`, and delete `cron-schedules.sql`
+   (it lands in the repository root). Scheduling a name that already
+   exists replaces its schedule and command (the migration
+   `20260930120000_audit_fixes.sql` relies on this for `job-runs-purge`), so
+   running all ten is safe. Repeat the `select` and expect ten rows.
+   `pnpm restore-check` does the same in its rehearsal and fails while any job
+   is missing. Without the jobs the project has every function and no schedule:
+   no email is sent, no publish triggers a rebuild, scheduled posts never go
+   live, holds never expire and the 90-day retention purges never run, while
+   the owner home only says «لم يعمل بعد».
+5. Re-set the Edge Function secrets with `supabase secrets set`, every one of
+   them, because no backup holds any: `SITE_URL`, `JOBS_SECRET` (the same value
+   as the Vault `jobs_secret` of step 3), `TOKEN_HASH_PEPPER`, `RESEND_API_KEY`,
+   `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`, `TURNSTILE_SECRET_KEY`,
+   `ANALYTICS_TOKEN` and `CLOUDFLARE_ZONE_ID` (and `PAYMENTS_MODE` with the
+   payment gateway's secrets, once P08 adds them). **`TOKEN_HASH_PEPPER` is not
+   a throwaway value: reuse the original, and keep a copy with the backup
+   passphrase.** It salts the throttles' caller keys and derives each order's
+   access token, of which the database keeps only a peppered hash
+   (`orders.access_token_hash`); a new pepper makes every stored order link and
+   cancel call stop matching (404), and the P08 download links with them. A
+   missing `TOKEN_HASH_PEPPER` makes `contact` answer 500 and `checkout` 503,
+   and a missing `SITE_URL` makes `contact` answer 403 to every origin, so
+   finish with a smoke test: send one real message through the contact form
+   from the site. It must answer «received» (201), and the notice must reach
+   the mailbox within a few minutes (this proves Turnstile, the secrets,
+   Resend, the outbox and the step 4 jobs together).
+6. Re-apply the Auth settings (I28): SMTP for Resend, redirect URLs, the
    Arabic email templates, the Custom Access Token hook
    (`public.deny_password_tokens`) and `secure_password_change = true`;
    re-check with a password grant, which must return 403.
-6. Upload the objects from `storage/<bucket>/...` back to their buckets with
+7. Upload the objects from `storage/<bucket>/...` back to their buckets with
    their original content types (read from
    `storage.objects.metadata->>'mimetype'` in the restored data) — exactly
    what `pnpm restore-check` does in its rehearsal.
-7. Reapply the deletion ledger before the site reopens
+8. Reapply the deletion ledger before the site reopens
    (docs/privacy-data-map.md, "The deletion ledger and restores"): first
    re-revoke in the team screen every member a `revoke` line lists, then
    re-run every erase line. A restored older backup brings revoked members
    back active and erased contacts and staff data back.
-8. Once the restore is verified, delete the extracted directory. It is
+9. Once the restore is verified, delete the extracted directory. It is
    unencrypted and holds every personal record and the Auth secrets.
 
 ### Accepted risks (D35)

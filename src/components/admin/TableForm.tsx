@@ -24,7 +24,8 @@ import { formatRiyalsInput } from '@/lib/money-input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { defaultsForFields, FieldInput } from './FieldInput'
-import { cellText, type StaffRole } from './TableList'
+import { useStaffRole } from './AdminShell'
+import { cellText } from './TableList'
 import styles from './admin.module.css'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -105,7 +106,7 @@ export function TableForm({ table }: { table: TableKey }) {
   const idParam = params.get('id') ?? ''
   const productParam = params.get('product') ?? ''
 
-  const [role, setRole] = useState<StaffRole | null>(null)
+  const role = useStaffRole()
   const [values, setValues] = useState<Record<string, unknown> | null>(null)
   const [rowId, setRowId] = useState<string | null>(null)
   const [productId, setProductId] = useState<string | null>(null)
@@ -123,9 +124,6 @@ export function TableForm({ table }: { table: TableKey }) {
     let active = true
     void (async () => {
       const supabase = getSupabaseBrowserClient()
-      const { data: roleData } = await supabase.rpc('current_staff_role')
-      if (!active) return
-      setRole((roleData as StaffRole | null) ?? null)
 
       const isNew = idParam === 'new'
       if (isNew) {
@@ -244,7 +242,6 @@ export function TableForm({ table }: { table: TableKey }) {
     setMessage('تم الحفظ.')
   }
 
-  if (role === null) return <p className={styles.message}>يحمّل...</p>
   // Mirrors TableList: editors see nothing of the store, operations cannot read coupons (RLS).
   if (role === 'editor' || (config.read === 'owner' && role !== 'owner')) {
     return <p className={styles.error}>{NO_ACCESS_MESSAGE}</p>
@@ -258,6 +255,14 @@ export function TableForm({ table }: { table: TableKey }) {
   // Only what the form shows is checked: a hidden field's stale value is not sent (`toRow`).
   const schema = schemaFromFields(visibleFields)
   const parsed = schema.safeParse(values)
+  const fieldLabel = (name: PropertyKey | undefined) => config.fields.find((field) => field.name === name)?.label
+  const problems = [
+    ...(parsed.success
+      ? []
+      : parsed.error.issues.map((issue) => ({ label: fieldLabel(issue.path[0]) ?? issue.path.join('.'), message: issue.message }))),
+    // What a field's own schema cannot state (the customer's phone spellings).
+    ...(config.validate?.(values) ?? []).map((issue) => ({ label: fieldLabel(issue.field) ?? issue.field, message: issue.message })),
+  ]
   // The record's own name: a product or variant title, a city, a code or a customer.
   const named = [values.title, values.name_ar, values.code, values.name].find(
     (candidate): candidate is string => typeof candidate === 'string' && candidate !== '',
@@ -328,23 +333,43 @@ export function TableForm({ table }: { table: TableKey }) {
         })}
       </div>
 
-      {owner && !parsed.success && (
-        <div>
-          <p className={styles.error}>هناك مشاكل في البيانات:</p>
-          <ul>
-            {parsed.error.issues.map((issue, index) => (
-              <li key={index} className={styles.error}>
-                {config.fields.find((field) => field.name === issue.path[0])?.label ?? issue.path.join('.')}: {issue.message}
-              </li>
-            ))}
-          </ul>
+      {/* Always mounted, so the reasons are announced as they appear and change. */}
+      {owner && (
+        <div id="table-form-problems" role="status" tabIndex={-1}>
+          {problems.length > 0 && (
+            <>
+              <p className={styles.error}>هناك مشاكل في البيانات:</p>
+              <ul>
+                {problems.map((problem, index) => (
+                  <li key={index} className={styles.error}>
+                    {problem.label}: {problem.message}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
 
       {owner && (
         <div className={styles.row}>
-          {/* No drafts here: a save is live, so it waits for valid values. */}
-          <button type="button" className={styles.button} disabled={saving || !parsed.success} onClick={() => void save()}>
+          {/* No drafts here: a save is live, so it waits for valid values. While the
+              values are invalid the button is aria-disabled, not disabled: a keyboard
+              can still reach it, and pressing it moves focus to the reasons. */}
+          <button
+            type="button"
+            className={styles.button}
+            disabled={saving}
+            aria-disabled={problems.length > 0 || undefined}
+            aria-describedby={problems.length > 0 ? 'table-form-problems' : undefined}
+            onClick={() => {
+              if (problems.length > 0) {
+                document.getElementById('table-form-problems')?.focus()
+                return
+              }
+              void save()
+            }}
+          >
             حفظ
           </button>
           <p role="status" className={styles.message}>

@@ -11,10 +11,10 @@
 import { useState } from 'react'
 
 import type { Collection } from '@/admin/collections'
-import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument } from '@/lib/admin-publish'
-import { formatRiyadh } from '@/lib/format'
-
-import { riyadhLocalToIso } from '../../lib/money-input'
+// Relative, like the money-input import: the unit tests render this bar, and they do not resolve `@/`.
+import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument, scheduleIsBehind } from '../../lib/admin-publish'
+import { formatRiyadh } from '../../lib/format'
+import { riyadhLocalToIsoOrNull } from '../../lib/money-input'
 
 import styles from './admin.module.css'
 
@@ -24,6 +24,8 @@ interface PublishBarProps {
   seq: number
   liveSeq: number | null
   scheduledAt: string | null
+  /** The version the pending schedule will publish; null when nothing is scheduled. */
+  scheduledSeq: number | null
   canPublish: boolean
   canArchive: boolean
   previewPath: string | null
@@ -36,6 +38,7 @@ export function PublishBar({
   seq,
   liveSeq,
   scheduledAt,
+  scheduledSeq,
   canPublish,
   canArchive,
   previewPath,
@@ -53,7 +56,8 @@ export function PublishBar({
   ) {
     setBusy(true)
     setMessage(null)
-    const result = await task()
+    // A task that throws must not leave every button disabled.
+    const result = await task().catch(() => ({ ok: false, error: { message: 'تعذّر إكمال الإجراء.' } }))
     setBusy(false)
     if (result.ok) {
       setMessage(rebuilds ? `${label}: تم بنجاح. يظهر التعديل على الموقع خلال دقائق.` : `${label}: تم بنجاح.`)
@@ -62,6 +66,22 @@ export function PublishBar({
       setMessage(`${label}: ${result.error?.message ?? 'تعذّر إكمال الإجراء.'}`)
     }
   }
+
+  // The bar says why a schedule does not go ahead instead of disabling the button.
+  function schedule() {
+    const at = riyadhLocalToIsoOrNull(scheduleValue)
+    if (at === null) {
+      setMessage('جدولة: اكتب موعدًا صالحًا، بسنة من أربع خانات.')
+      return
+    }
+    if (Date.parse(at) <= Date.now()) {
+      setMessage('جدولة: يجب أن يكون موعد الجدولة في المستقبل.')
+      return
+    }
+    void run('جدولة', () => scheduleDocument(collection, docId, seq, at))
+  }
+
+  const behind = scheduledAt !== null && scheduleIsBehind(scheduledSeq, seq)
 
   return (
     <div className={styles.field}>
@@ -107,9 +127,7 @@ export function PublishBar({
           type="button"
           className={styles.buttonSecondary}
           disabled={busy || !canPublish || !scheduleValue}
-          onClick={() =>
-            run('جدولة', () => scheduleDocument(collection, docId, seq, riyadhLocalToIso(scheduleValue)))
-          }
+          onClick={schedule}
         >
           جدولة
         </button>
@@ -125,7 +143,28 @@ export function PublishBar({
         )}
       </div>
       {liveSeq !== null && <p className={styles.message}>منشور حاليًا: نسخة {liveSeq}.</p>}
-      {scheduledAt && <p className={styles.message}>مجدول في {formatRiyadh(scheduledAt)}.</p>}
+      {scheduledAt && (
+        <p className={styles.message}>
+          {scheduledSeq !== null ? `مجدول: نسخة ${scheduledSeq} في ` : 'مجدول في '}
+          {formatRiyadh(scheduledAt)}.
+        </p>
+      )}
+      {scheduledAt && behind && (
+        // One click moves the schedule to the latest version, at the same time.
+        <div className={styles.row}>
+          <p role="alert" className={styles.error}>
+            الجدولة على نسخة أقدم: ستُنشر النسخة {scheduledSeq} في الموعد، وآخر نسخة محفوظة هي {seq}.
+          </p>
+          <button
+            type="button"
+            className={styles.buttonSecondary}
+            disabled={busy || !canPublish}
+            onClick={() => void run('جدولة', () => scheduleDocument(collection, docId, seq, scheduledAt))}
+          >
+            جدولة النسخة {seq} في الموعد نفسه
+          </button>
+        </div>
+      )}
       <p role="status" className={styles.message}>
         {message}
       </p>

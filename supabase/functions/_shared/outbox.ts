@@ -178,12 +178,23 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
       // attempt (outbox_result).
       if (outcome.outcome === 'retry' && outcome.error === 'QUOTA') break
     }
-    summary.status =
-      summary.claimed === 0 || summary.accepted === summary.claimed ? 'ok' : summary.accepted > 0 ? 'partial' : 'failed'
+    if (summary.claimed === 0) {
+      // `outbox_kick` calls this function only while a row is due, so an empty
+      // claim means a daily, reserve or monthly cap is holding mail back. An
+      // 'ok' run every minute hid that from the owner home: record it as a
+      // partial run with a reason the home can read.
+      // ponytail: inferred from the empty claim (no service_role-readable due
+      // predicate); AdminHome pairs the reason with `outbox_due_since`, so a
+      // one-off empty claim after a lease flip cannot warn by itself.
+      summary.status = 'partial'
+      summary.reason = 'QUOTA_HELD'
+    } else {
+      summary.status = summary.accepted === summary.claimed ? 'ok' : summary.accepted > 0 ? 'partial' : 'failed'
+    }
     await rpc('job_run_record', {
       p_job: 'email_outbox',
       p_status: summary.status,
-      p_detail: counts(summary),
+      p_detail: summary.reason ? { ...counts(summary), reason: summary.reason } : counts(summary),
       p_started_at: startedAt.toISOString(),
     })
   } catch {

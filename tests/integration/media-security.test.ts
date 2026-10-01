@@ -138,6 +138,42 @@ describe('media_ticket', () => {
     expect(await sqlstate(() => claimTicket(userId, ticket))).toBe('55000')
   })
 
+  // The row lock in media_claim is the exactly-once guarantee. One session holds
+  // a claim open; the second must wait for it, then find the ticket used. Without
+  // the lock the second would claim it too, and return at once.
+  it('two claims of one ticket at the same time: exactly one wins, the other waits and gets 55000', async () => {
+    const { userId } = await createStaff('editor')
+    const ticket = await createTicket(userId)
+    const first = await serviceRoleDb()
+    const second = await serviceRoleDb()
+    try {
+      await first.query('begin')
+      await first.query('select public.media_claim($1, $2)', [userId, ticket])
+      let settled = false
+      const loser = second.query('select public.media_claim($1, $2)', [userId, ticket]).then(
+        () => {
+          settled = true
+          return undefined
+        },
+        (error: { code?: string }) => {
+          settled = true
+          return error.code
+        },
+      )
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        expect(settled).toBe(false)
+      } finally {
+        await first.query('commit')
+      }
+      expect(await loser).toBe('55000')
+    } finally {
+      await first.query('rollback').catch(() => undefined)
+      await first.end()
+      await second.end()
+    }
+  })
+
   it("another actor cannot claim a ticket (P0002), and an expired ticket cannot be claimed (55000)", async () => {
     const first = await createStaff('editor')
     const second = await createStaff('editor')
@@ -232,6 +268,35 @@ describe('RLS through real JWTs', () => {
     expect(secretColumn.error).not.toBeNull()
   })
 
+  it('anon reads alt_ar of a published image, never its name, folder, rights or caption, and nothing of an unpublished one (AUDIT-2)', async () => {
+    const editor = await createStaff('editor')
+    const published = await createTicket(editor.userId)
+    await completeTicket(editor.userId, published)
+    const unpublished = await createTicket(editor.userId)
+    await completeTicket(editor.userId, unpublished)
+    const docId = randomUUID()
+    await postgres.query(
+      "insert into public.content_versions (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
+      [docId, JSON.stringify({ cover: published, visible: true })],
+    )
+    await postgres.query(
+      "insert into public.published_documents (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
+      [docId, JSON.stringify({ cover: published, visible: true })],
+    )
+
+    const anon = anonClient()
+    const alt = await anon.from('media').select('id,alt_ar').eq('id', published)
+    expect(alt.error).toBeNull()
+    expect(alt.data).toEqual([{ id: published, alt_ar: 'وصف عربي' }])
+    for (const column of ['name', 'folder', 'rights', 'caption']) {
+      const read = await anon.from('media').select(column).eq('id', published)
+      expect(read.error, column).not.toBeNull()
+    }
+    const hidden = await anon.from('media').select('id,alt_ar').eq('id', unpublished)
+    expect(hidden.error).toBeNull()
+    expect(hidden.data).toEqual([])
+  })
+
   it('an editor may update the descriptive columns but not keys or derivatives', async () => {
     const editor = await createStaff('editor')
     const ticket = await createTicket(editor.userId)
@@ -263,12 +328,17 @@ describe('RLS through real JWTs', () => {
     const docId = randomUUID()
     await postgres.query(
       "insert into public.content_versions (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
-      [docId, JSON.stringify({ cover: ticket })],
+      [docId, JSON.stringify({ cover: ticket, visible: true })],
     )
     await postgres.query(
       "insert into public.published_documents (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
-      [docId, JSON.stringify({ cover: ticket })],
+      [docId, JSON.stringify({ cover: ticket, visible: true })],
     )
+
+    // The image is public (a post without visible: true would not count), so an
+    // empty read for operations is the policy's answer, not an unpublished fixture.
+    const publicRead = await anonClient().from('media').select('id').eq('id', ticket)
+    expect(publicRead.data).toEqual([{ id: ticket }])
 
     const operations = await createStaff('operations')
     const client = await signIn(operations.email)
@@ -293,7 +363,7 @@ describe('RLS through real JWTs', () => {
 })
 
 describe('usage and delete', () => {
-  it('media_where_used reports live, draft and scheduled usage', async () => {
+  it('media_where_used reports each document once per state: live, draft, scheduled, and a live document with a newer draft', async () => {
     const editor = await createStaff('editor')
     const ticket = await createTicket(editor.userId)
     await completeTicket(editor.userId, ticket)
@@ -302,6 +372,7 @@ describe('usage and delete', () => {
     const liveDoc = randomUUID()
     const draftDoc = randomUUID()
     const scheduledDoc = randomUUID()
+    const editedDoc = randomUUID()
     await postgres.query(
       "insert into public.content_versions (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
       [liveDoc, JSON.stringify({ cover: ticket })],
@@ -319,12 +390,29 @@ describe('usage and delete', () => {
       [scheduledDoc, JSON.stringify({ cover: ticket })],
     )
 
+    // Published at seq 1, then edited: the live copy and the newer draft both use it.
+    await postgres.query(
+      "insert into public.content_versions (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb), ('posts', $1, 2, $2::jsonb)",
+      [editedDoc, JSON.stringify({ cover: ticket })],
+    )
+    await postgres.query(
+      "insert into public.published_documents (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)",
+      [editedDoc, JSON.stringify({ cover: ticket })],
+    )
+
     const { data: usage, error: usageError } = await client.rpc('media_where_used', { p_id: ticket })
     expect(usageError).toBeNull()
-    const states = (usage as Array<{ doc_id: string; state: string }>).map((row) => [row.doc_id, row.state])
-    expect(states).toContainEqual([liveDoc, 'live'])
-    expect(states).toContainEqual([draftDoc, 'draft'])
-    expect(states).toContainEqual([scheduledDoc, 'scheduled'])
+    const states = (usage as Array<{ doc_id: string; state: string }>).map((row) => `${row.doc_id} ${row.state}`)
+    // The exact set: a published document that was not edited since is not also a draft.
+    expect(states.sort()).toEqual(
+      [
+        `${liveDoc} live`,
+        `${draftDoc} draft`,
+        `${scheduledDoc} scheduled`,
+        `${editedDoc} live`,
+        `${editedDoc} draft`,
+      ].sort(),
+    )
   })
 
   it('media_delete refuses used media (23503) and deletes unused media with its keys', async () => {
@@ -363,6 +451,31 @@ describe('usage and delete', () => {
       ])
     ).rows
     expect(events.map((event) => event.action)).toContain('media.delete')
+  })
+})
+
+describe('operations and inactive staff get nothing from the library functions', () => {
+  it('media_where_used is refused (42501) for operations and for an inactive editor', async () => {
+    for (const member of [await createStaff('operations'), await createStaff('editor', { active: false })]) {
+      const client = await signIn(member.email)
+      const { error } = await client.rpc('media_where_used', { p_id: randomUUID() })
+      expect(error?.code).toBe('42501')
+    }
+  })
+
+  it('media_rename_folder changes nothing for operations: zero rows, the folder unchanged', async () => {
+    const editor = await createStaff('editor')
+    const folder = `حماية-${Date.now()}`
+    const ticket = await createTicket(editor.userId, { ...declared(), folder })
+    await completeTicket(editor.userId, ticket)
+
+    const operations = await createStaff('operations')
+    const client = await signIn(operations.email)
+    const { data, error } = await client.rpc('media_rename_folder', { p_from: folder, p_to: `${folder}-جديد` })
+    expect(error).toBeNull()
+    expect(data).toBe(0)
+    const row = await postgres.query<{ folder: string }>('select folder from public.media where id = $1', [ticket])
+    expect(row.rows[0]!.folder).toBe(folder)
   })
 })
 

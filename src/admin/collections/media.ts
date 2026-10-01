@@ -44,7 +44,8 @@ export const mediaMetaSchema = z.strictObject({
     .trim()
     .min(1, 'الحقوق مطلوبة.')
     .max(300, 'الحقوق أطول من 300 حرف.'),
-  folder: z.string().refine((folder) => !folderIsInvalid(folder), {
+  // Trimmed like the rename tool's path, so « a/b » and a blank folder are not new folders.
+  folder: z.string().trim().refine((folder) => !folderIsInvalid(folder), {
     message: 'مسار مجلد غير صالح.',
   }),
 })

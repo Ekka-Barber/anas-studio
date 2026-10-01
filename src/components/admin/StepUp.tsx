@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
+import { otpDigits } from '@/lib/digits'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
@@ -56,7 +57,17 @@ export function StepUp({
   }
 
   return (
-    <dialog ref={dialogRef} className={styles.dialog} aria-label="التحقق بتطبيق المصادقة" onClose={onClose}>
+    <dialog
+      ref={dialogRef}
+      className={styles.dialog}
+      aria-label="التحقق بتطبيق المصادقة"
+      onClose={() => {
+        // Escape, cancel and a finished check all end here: the next opening starts clean.
+        setCode('')
+        setError(null)
+        onClose()
+      }}
+    >
       <form className={styles.form} onSubmit={submit}>
         <p>يلزم رمز تطبيق المصادقة لإكمال هذا الإجراء.</p>
         <div className={styles.field}>
@@ -68,10 +79,9 @@ export function StepUp({
             className={styles.input}
             inputMode="numeric"
             autoComplete="one-time-code"
-            maxLength={6}
             required
             value={code}
-            onChange={(event) => setCode(event.target.value)}
+            onChange={(event) => setCode(otpDigits(event.target.value))}
           />
         </div>
         <div className={styles.row}>

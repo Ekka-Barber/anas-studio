@@ -2,11 +2,12 @@
 
 One current handoff. Earlier handoffs are in Git history; what was accepted, and how, is in `PLANS/EXECUTION-STATUS.md`.
 
-## State (2026-09-30)
+## State (2026-10-01)
 
-- **Repository.** `main` is the only branch, locally and on GitHub, and the single source of truth. It holds every accepted package through P07, DESIGN-B, P02, CLEANUP-1, AUDIT-1 and the owner's D41 and D42 decisions. No lock is held.
+- **Repository.** `main` is the only branch, locally and on GitHub, and the single source of truth. It holds every accepted package through P07, DESIGN-B, P02, CLEANUP-1, AUDIT-1, AUDIT-2 and the owner's D41 to D43 decisions. No lock is held.
 - **History was rewritten (D42).** The WhatsApp export is gone from every commit. Any clone made before 2026-09-30 must be re-cloned, not pulled, or the old history comes back. `../anas-studio-backup-2026-09-30/` (outside the repository) holds bundles of the old history and a copy of the folder, until the owner deletes it.
-- **What is open.** `PLANS/ISSUES.md` (I24, I28, I32–I34, I40, I41, I43–I47); the full audit record is `artifacts/acceptance/AUDIT-1/REPORT.md`.
+- **What is open.** `PLANS/ISSUES.md` (I24, I28, I32–I34, I40, I41, I43–I49); the latest audit record is `artifacts/acceptance/AUDIT-2/REPORT.md` (AUDIT-1's is beside it).
+- **graft.** Its session-start upkeep rewrites the agent configuration when its wiring stamp (`graft/.cache/wiring-stamp.json`) names another version than the running one. Upgrade the global CLI and the `.mcp.json` pin together, and keep the stamp's version equal to them (AUDIT-2, 4.12).
 
 ## Branches
 
@@ -14,15 +15,16 @@ Work on a short-lived `agent/<package>` branch cut from `main`. When the owner a
 
 ## Local stack
 
-- Every migration through `20260930130000_buyer_retention.sql` is applied. The content is imported and the demo catalog seeded (`pnpm db:import`, `pnpm db:demo-catalog`; `DATABASE_URL` is `DB_URL` from `supabase status -o json`).
-- If the functions answer 503, the edge runtime has exited: `docker start supabase_edge_runtime_ANASAQ.ME`.
+- Every migration through `20260930140000_audit2_fixes.sql` is applied. The content is imported and the demo catalog seeded (`pnpm db:import`, `pnpm db:demo-catalog`; `DATABASE_URL` is `DB_URL` from `supabase status -o json`).
+- If the functions answer 503, the edge runtime has exited: `docker start supabase_edge_runtime_ANASAQ.ME`. `pnpm test:db` needs it too (its staff-admin tests read `FUNCTIONS_URL`).
+- If sign-in e2e tests fail with `fetch failed: other side closed`, Mailpit's forwarded port died after a Docker restart while the container still runs: `docker restart supabase_inbucket_ANASAQ.ME`.
 - After a change to `supabase/config.toml` (the Auth hook lives there), restart with plain `supabase stop` then `supabase start`, never `--no-backup`.
 - Test runs add staff every time; past about 1,000 staff rows the team screen (PostgREST `max_rows`) hides a new invite and `auth.spec` fails. Before an acceptance battery, check that every local row is test data, then `supabase db reset` followed by the two imports.
 - Before a full e2e run, check free memory: at about 6 GB free it crashes; 10 GB or more is safe.
 
 ## How sessions run
 
-- The orchestrator (Opus 5.5) plans, audits, fixes and designs. Every sub-agent is Sonnet 5.5 (D41). Workflow `agent()` calls do not get the model that `.claude/settings.json` forces, so set `model: 'sonnet'` on each.
+- The orchestrator (Opus 5.5) plans, audits, fixes and designs. Every sub-agent is Sonnet 5.5 (D41). The orchestrator audits every worker diff itself before acceptance; the Sonnet `auditor` is a pre-audit only (D43). Workflow `agent()` calls do not get the model that `.claude/settings.json` forces, so set `model: 'sonnet'` on each.
 - Never `/compact` while a background Workflow runs: it never returns.
 - One writer at a time under `.anasaq-execution.lock`. Use a fresh worker per round, no polling, and the dev server for UI work (I24).
 
@@ -36,7 +38,8 @@ Work on a short-lived `agent/<package>` branch cut from `main`. When the owner a
    - the notify routes (D31);
    - refunds with owner step-up;
    - digital delivery;
-   - preorder (moved from P07 by D42).
+   - preorder (moved from P07 by D42);
+   - the checkout items AUDIT-2 left for it (I48).
 
    E02 stays open until the real sandbox.
 2. **Owner and Anas inputs:**

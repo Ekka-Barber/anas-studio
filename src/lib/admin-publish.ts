@@ -30,7 +30,15 @@ function sqlErrorResult(error: { code?: string; message?: string } | null): Publ
     return { ok: false, error: { code: 'FORBIDDEN', message: 'هذا الإجراء متاح فقط لمالك أو محرر نشِط.' } }
   }
   if (code === '22023') {
-    return { ok: false, error: { code: 'INVALID', message: 'قيمة غير صالحة لهذا الإجراء.' } }
+    // schedule_version refuses a time that is not in the future.
+    const future = error?.message?.includes('must be in the future')
+    return {
+      ok: false,
+      error: {
+        code: 'INVALID',
+        message: future ? 'يجب أن يكون موعد الجدولة في المستقبل.' : 'قيمة غير صالحة لهذا الإجراء.',
+      },
+    }
   }
   if (code === 'P0002') {
     return { ok: false, error: { code: 'NOT_FOUND', message: 'النسخة غير موجودة.' } }
@@ -44,12 +52,37 @@ function sqlErrorResult(error: { code?: string; message?: string } | null): Publ
       error: {
         code: 'CONFLICT',
         message: slug
-          ? 'معرّف المقال مستخدم في مقال منشور آخر؛ غيّره ثم انشر.'
+          ? 'معرّف المقال مستخدم في مقال منشور آخر؛ غيّره ثم أعد المحاولة.'
           : 'تغيّر هذا المستند منذ فتحته؛ حمّل آخر نسخة ثم أعد المحاولة.',
       },
     }
   }
   return { ok: false, error: { code: 'FAILED', message: 'تعذّر إكمال الإجراء.' } }
+}
+
+/** A pending schedule is behind when the latest saved version is newer than the one it will publish. */
+export function scheduleIsBehind(scheduledSeq: number | null, latestSeq: number): boolean {
+  return scheduledSeq !== null && scheduledSeq < latestSeq
+}
+
+// Cloudflare, which fronts hosted Supabase, refuses a URL past 16 KB; a uuid
+// costs about 39 characters, so 100 ids per request (as `mediaById` in
+// `src/lib/content.ts` does for the build).
+const MEDIA_CHUNK = 100
+
+/**
+ * `columns` of the media rows with these ids, read in chunks of
+ * `MEDIA_CHUNK`. The first failed chunk is the error.
+ */
+export async function selectMediaRows(columns: string, ids: string[]) {
+  const supabase = getSupabaseBrowserClient()
+  const rows: unknown[] = []
+  for (let start = 0; start < ids.length; start += MEDIA_CHUNK) {
+    const { data, error } = await supabase.from('media').select(columns).in('id', ids.slice(start, start + MEDIA_CHUNK))
+    if (error) return { data: null, error }
+    rows.push(...(data ?? []))
+  }
+  return { data: rows, error: null }
 }
 
 /**
@@ -84,9 +117,9 @@ async function validateVersion(collection: Collection, docId: string, seq: numbe
   // library fails closed.
   const ids = collectMediaIds(parsed.data)
   if (ids.length > 0) {
-    const media = await supabase.from('media').select('id').in('id', ids)
+    const media = await selectMediaRows('id', ids)
     if (media.error) return { ok: false, error: { code: 'FAILED', message: 'تعذّر التحقق من صور المكتبة.' } }
-    const present = new Set((media.data ?? []).map((row: { id: string }) => row.id))
+    const present = new Set((media.data as Array<{ id: string }>).map((row) => row.id))
     const missing = ids.filter((id) => !present.has(id))
     if (missing.length > 0) {
       return { ok: false, error: { code: 'INVALID', message: 'صورة من المكتبة لم تعد موجودة.', fields: { missing } } }

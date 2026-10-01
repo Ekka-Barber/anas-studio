@@ -16,7 +16,7 @@
  *   decode or a metadata-sterilization guarantee.
  * - `media-delete` (owner/editor): `media_delete` (where-used guard in SQL),
  *   then the objects.
- * - `stats` (owner): the owner statistics; 5-minute per-isolate cache.
+ * - `stats` (owner): the owner statistics; per-isolate cache (5 minutes, 30 seconds for a failed answer).
  * - `status` (owner): configuration booleans, never a secret's value.
  * - `commerce-settings-save` (owner, fresh TOTP): the store's seller details
  *   through `commerce_settings_save`; a stale version answers 409 so the
@@ -60,11 +60,12 @@ const MAX_BODY_BYTES = 16_384
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const CORS = corsHeaders('*')
 const STATS_TTL_MS = 5 * 60 * 1000
+const STATS_RETRY_TTL_MS = 30 * 1000
 
 /** The storage operations this handler needs; the default is Supabase Storage. */
 export interface MediaStore {
   signedUpload(bucket: string, key: string): Promise<{ path: string; token: string }>
-  /** The whole object, or null when it does not exist. */
+  /** The whole object, or null when it does not exist; any other Storage failure throws. */
   read(bucket: string, key: string): Promise<Uint8Array | null>
   write(bucket: string, key: string, bytes: Uint8Array, contentType: string): Promise<void>
   move(bucket: string, from: string, to: string): Promise<void>
@@ -90,7 +91,14 @@ export function storageStore(): MediaStore {
     },
     async read(bucket, key) {
       const { data, error } = await storage().from(bucket).download(key)
-      if (error || !data) return null
+      if (error) {
+        // Only a missing object means "never uploaded"; a Storage 5xx or a
+        // network failure is a server fault and must not be blamed on the upload.
+        const { status, statusCode } = error as { status?: number; statusCode?: string }
+        if (status === 404 || statusCode === '404') return null
+        throw new Error('READ_FAILED')
+      }
+      if (!data) throw new Error('READ_FAILED')
       return new Uint8Array(await data.arrayBuffer())
     },
     async write(bucket, key, bytes, contentType) {
@@ -367,7 +375,8 @@ async function commerceSettingsSave(deps: AdminDeps, actor: string, body: Record
     })
     return ok({ version })
   } catch (error) {
-    if ((error as { code?: string } | null)?.code === '40001') {
+    // The SQL raises unique_violation (23505) for a stale version: PostgREST retries a 40001 without bound.
+    if ((error as { code?: string } | null)?.code === '23505') {
       return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
     }
     return sqlFail(error)
@@ -386,7 +395,7 @@ async function commercePoliciesApprove(deps: AdminDeps, actor: string, body: Rec
     return ok(result)
   } catch (error) {
     const code = (error as { code?: string } | null)?.code
-    if (code === '40001') {
+    if (code === '23505') {
       return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
     }
     if (code === 'P0001') {
@@ -396,15 +405,19 @@ async function commercePoliciesApprove(deps: AdminDeps, actor: string, body: Rec
   }
 }
 
-let cachedStats: { at: number; value: OwnerStats } | null = null
+let cachedStats: { at: number; ttl: number; value: OwnerStats } | null = null
 // ponytail: a per-isolate single-entry cache for at most 5 minutes. Not a
 // shared store; authorization always runs first, so a cached entry can never
 // reach a caller that could not have fetched it.
 
 async function stats(): Promise<Response> {
-  if (cachedStats && Date.now() - cachedStats.at < STATS_TTL_MS) return ok(cachedStats.value)
+  if (cachedStats && Date.now() - cachedStats.at < cachedStats.ttl) return ok(cachedStats.value)
   const value = await ownerStats()
-  cachedStats = { at: Date.now(), value }
+  // A good answer is kept five minutes. Any other (a failure, or «not
+  // configured» just before the owner sets the token) only 30 seconds: long
+  // enough to spare a failing analytics API a call per page, short enough
+  // that a fix shows at once.
+  cachedStats = { at: Date.now(), ttl: value.analytics.status === 'ok' ? STATS_TTL_MS : STATS_RETRY_TTL_MS, value }
   return ok(value)
 }
 
@@ -445,6 +458,8 @@ export function settingsStatus(): SettingsStatus {
     webhook: optionalEnv('RESEND_WEBHOOK_SECRET') !== undefined,
     jobs: optionalEnv('JOBS_SECRET') !== undefined,
     siteHost,
-    analytics: optionalEnv('ANALYTICS_TOKEN') !== undefined && optionalEnv('CLOUDFLARE_ZONE_ID') !== undefined,
+    // The same gate as `fetchAnalytics`: it also needs a SITE_URL host.
+    analytics:
+      optionalEnv('ANALYTICS_TOKEN') !== undefined && optionalEnv('CLOUDFLARE_ZONE_ID') !== undefined && siteHost !== '',
   }
 }

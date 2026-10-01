@@ -8,6 +8,7 @@ import { tables } from '../../src/admin/tables'
 import { replayableCount } from '../../src/components/admin/AdminHome'
 
 // AdminHome imports through the `@/` alias, which the unit config does not resolve.
+vi.mock('@/admin/collections', () => ({ COLLECTION_LABELS: {} }))
 vi.mock('@/lib/format', () => ({ formatNumber: String, formatRiyadh: String }))
 vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowserClient: () => ({}) }))
 vi.mock('@/lib/supabase/functions', () => ({ callFunction: async () => ({}) }))

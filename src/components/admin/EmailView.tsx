@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { formatRiyadh } from '@/lib/format'
+import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 
 interface AttentionRow {
@@ -36,6 +37,12 @@ const DELIVERY_LABEL: Record<string, string> = { bounced: 'ارتد', complained
 const NONE = 'لا يوجد'
 const SUPPRESSED_MESSAGE = 'المستلم محظور بعد ارتداد أو شكوى؛ لا يمكن الإرسال إليه.'
 const INACTIVE_MESSAGE = 'المستلم لم يعد عضوًا نشطًا في فريق المالك أو العمليات؛ لا يمكن الإرسال إليه.'
+const REPLAYED_MESSAGE = 'أُعيدت الرسالة إلى طابور الإرسال.'
+/** `outbox_replay()` raises 55000 for a row that changed after the list loaded:
+ * another session replayed it, or it crossed the 23-hour line that needs the
+ * confirmation. The list is reloaded so the row shows what the database holds. */
+const STALE_MESSAGE = 'تغيّرت حالة الرسالة منذ تحميل القائمة. حُدّثت القائمة، راجعها ثم أعد المحاولة.'
+const NO_ACCESS_MESSAGE = 'لا تملك صلاحية الوصول'
 /** `outbox_replay()` refuses anything but exhausted/uncertain rows (the
  * suppressed are hard-blocked), so the replay button only appears for them. */
 const REPLAYABLE_STATUSES = new Set(['exhausted', 'uncertain'])
@@ -51,6 +58,11 @@ const PROBLEM_FILTERS: ProblemFilter[] = ['all', 'attention', 'ended']
 const PROBLEM_FILTER_LABEL: Record<ProblemFilter, string> = { all: 'الكل', attention: 'تحتاج تدخل', ended: 'انتهت' }
 
 export function EmailView() {
+  const role = useStaffRole()
+  // The mail screens are for the owner and operations (the nav hides them from editors).
+  const allowed = role === 'owner' || role === 'operations'
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [rows, setRows] = useState<AttentionRow[] | null>(null)
   const [problemFilter, setProblemFilter] = useState<ProblemFilter>('all')
   const [loadError, setLoadError] = useState(false)
@@ -72,22 +84,31 @@ export function EmailView() {
   }
 
   useEffect(() => {
-    void Promise.resolve().then(load)
-  }, [])
+    if (allowed) void Promise.resolve().then(load)
+  }, [allowed])
 
   async function replay(id: number, acceptDuplicateRisk: boolean) {
     setBusyId(id)
     setRowError(null)
+    setNotice(null)
     const supabase = getSupabaseBrowserClient()
     const { error } = await supabase.rpc('outbox_replay', { p_id: id, p_accept_duplicate_risk: acceptDuplicateRisk })
     setBusyId(null)
     if (error) {
+      if (error.code === '55000') {
+        setNotice(STALE_MESSAGE)
+        await load()
+        return
+      }
       const message =
         error.code === '23514' ? SUPPRESSED_MESSAGE : error.code === '22023' ? INACTIVE_MESSAGE : 'تعذّرت إعادة الإرسال.'
       setRowError({ id, message })
       return
     }
     await load()
+    // The row and its focused button are gone: focus and announce the result here.
+    setNotice(REPLAYED_MESSAGE)
+    headingRef.current?.focus()
   }
 
   function startReplay(row: AttentionRow) {
@@ -117,11 +138,26 @@ export function EmailView() {
             problemFilter === 'attention' ? REPLAYABLE_STATUSES.has(row.status) : !REPLAYABLE_STATUSES.has(row.status),
           )
 
+  if (!allowed) {
+    return (
+      <div>
+        <h1>البريد</h1>
+        <p className={styles.error}>{NO_ACCESS_MESSAGE}</p>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <h1>البريد</h1>
+      <h1 ref={headingRef} tabIndex={-1}>
+        البريد
+      </h1>
       <p className={styles.message}>
         قبول المزوّد للرسالة لا يعني وصولها؛ الوصول يتأكد فقط بحدث التسليم من المزوّد.
+      </p>
+      {/* Always mounted, so a replay's result is announced after its row is gone. */}
+      <p role="status" className={styles.message}>
+        {notice}
       </p>
 
       {rows !== null && rows.length > 0 && (
@@ -164,7 +200,9 @@ export function EmailView() {
                 <th>المحاولات</th>
                 <th>آخر خطأ</th>
                 <th>تاريخ المحاولة الأولى</th>
-                <th></th>
+                <th>
+                  <span className="visually-hidden">إجراء</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -201,6 +239,7 @@ export function EmailView() {
                       <button
                         type="button"
                         className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
+                        aria-label={`إعادة الإرسال: ${row.recipient}`}
                         disabled={busyId === row.id}
                         onClick={() => startReplay(row)}
                       >

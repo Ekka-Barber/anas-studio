@@ -4,7 +4,7 @@ import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, NO_STORE, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
-import { verifyTurnstile } from './turnstile.ts'
+import { isTurnstileUnavailable, verifyTurnstile } from './turnstile.ts'
 
 /**
  * The public contact form endpoint: the `contact` Edge Function (P06 round 1,
@@ -134,7 +134,7 @@ export async function handleContact(request: Request, rpc: Rpc = serviceRpc()): 
     expectedHostname: new URL(siteUrl).hostname,
   })
   if (!verdict.ok) {
-    if (verdict.code === 'UNREACHABLE') return fail(503, 'TURNSTILE_UNAVAILABLE', 'تعذّر التحقق من النموذج.')
+    if (isTurnstileUnavailable(verdict.code)) return fail(503, 'TURNSTILE_UNAVAILABLE', 'تعذّر التحقق من النموذج.')
     return fail(400, 'TURNSTILE', 'تعذّر التحقق من أنك إنسان.')
   }
 

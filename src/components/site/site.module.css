@@ -180,9 +180,20 @@
     animation: menu-weave var(--dur-base) var(--ease-weave) calc(var(--i, 0) * 45ms) backwards;
   }
 }
+/* Forced colours replace a background with the page colour, which would hide the triangle. */
+@media (forced-colors: active) {
+  .here,
+  .menuHere {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+}
 @keyframes menu-weave {
   from {
     clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 

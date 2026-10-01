@@ -369,6 +369,8 @@ describe('Turnstile (create only)', () => {
 
   it.each([
     ['an unreachable siteverify', { ok: false, code: 'UNREACHABLE' }, 503, 'TURNSTILE_UNAVAILABLE'],
+    ['a siteverify that refused our secret', { ok: false, code: 'MISCONFIGURED' }, 503, 'TURNSTILE_UNAVAILABLE'],
+    ['a test secret on a hosted site', { ok: false, code: 'TEST_SECRET_IN_PRODUCTION' }, 503, 'TURNSTILE_UNAVAILABLE'],
     ['an invalid token', { ok: false, code: 'INVALID_TOKEN' }, 400, 'TURNSTILE'],
     ['an action mismatch', { ok: false, code: 'ACTION_MISMATCH' }, 400, 'TURNSTILE'],
     ['a hostname mismatch', { ok: false, code: 'HOSTNAME_MISMATCH' }, 400, 'TURNSTILE'],

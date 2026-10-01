@@ -1,5 +1,5 @@
 import { RoomHero } from '@/components/public/RoomHero'
-import { classify, toBlocks, type Para } from '@/components/public/story/flow'
+import { classify, storyPictures, toBlocks, type Para } from '@/components/public/story/flow'
 import { StatementBand, StoryFigure, StoryText } from '@/components/public/story/Story'
 import { Picture } from '@/components/public/Picture'
 import { Band } from '@/components/weave/Band'
@@ -30,9 +30,10 @@ const PRODUCT_BRANDS: Record<string, string> = {
 
 export function PassedRoomView({ room }: { room: PassedRoom }) {
   const gallery = room.media.gallery
-  const pictures = STORY_PICTURES.filter((id) => gallery.some((photo) => photo.id === id))
   const paras: Para[] = [{ text: room.heroLine, kind: 'display' }, ...classify(room.paragraphs, room.pullLines, room.bandLines)]
   const blocks = toBlocks(paras)
+  // A picture stands beside a text block; one with no block left stays with the products.
+  const pictures = storyPictures(STORY_PICTURES, gallery, blocks)
   const brand = room.media.brandWall.find((entry) => entry.id === FILM_BRAND)
   const shownProducts = gallery.filter((photo) => !pictures.includes(photo.id))
   let text = 0
@@ -60,13 +61,14 @@ export function PassedRoomView({ room }: { room: PassedRoom }) {
           {blocks.map((block, i) => {
             if (block.kind === 'band') return <StatementBand key={i} text={block.text} heading />
             const figure = pictures[text++]
+            const photo = gallery.find((p) => p.id === figure)
             return (
               <Band key={i} tone="sand" pad={i === 0 ? 'xs' : 'l'} padEnd="xs">
                 <div className={layout.split}>
                   <div className={layout.text}>
                     <StoryText paras={block.paras} />
                   </div>
-                  <StoryFigure id={figure} room="/passed" />
+                  <StoryFigure id={figure} alt={photo?.alt} room="/passed" />
                 </div>
               </Band>
             )

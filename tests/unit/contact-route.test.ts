@@ -111,6 +111,16 @@ describe('contact Turnstile action and hostname (a live secret checks both)', ()
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe('TURNSTILE')
     expect(recorded.params).toHaveLength(0)
   })
+
+  it('a siteverify that refuses our secret is 503, not "you are not human", and stores nothing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    siteverify({ success: false, 'error-codes': ['invalid-input-secret'] })
+    const response = await contactPost(contactRequest('guest@example.com'))
+    expect(response.status).toBe(503)
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe('TURNSTILE_UNAVAILABLE')
+    expect(recorded.params).toHaveLength(0)
+    warn.mockRestore()
+  })
 })
 
 describe('contact function origin (D32: the form posts cross-origin)', () => {

@@ -64,12 +64,23 @@
     text-decoration: underline;
   }
 }
+/* The scroller clips what lies outside the 54px strip: the ring goes inside. */
+.link:focus-visible {
+  outline-offset: -6px;
+}
 .here {
   flex: none;
   inline-size: 12px;
   block-size: 10px;
   background: var(--coral);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+/* Forced colours replace a background with the page colour, which would hide the triangle. */
+@media (forced-colors: active) {
+  .here {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
 }
 .link:not([aria-current]) .here {
   visibility: hidden;

@@ -1,8 +1,11 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
   <body style="font-family: sans-serif; line-height: 1.8">
-    <p>رمز الدخول إلى لوحة أنس:</p>
-    <p style="font-size: 28px; letter-spacing: 6px; direction: ltr; unicode-bidi: isolate"><strong>{{ .Token }}</strong></p>
-    <p>صالح لعشر دقائق. إن لم تطلبه، تجاهل هذه الرسالة.</p>
+    <!-- Gmail drops the attributes of <html> and <body>, so the direction is set on a wrapper too. -->
+    <div dir="rtl" style="text-align: right">
+      <p>رمز الدخول إلى لوحة أنس:</p>
+      <p style="font-size: 28px; letter-spacing: 6px; direction: ltr; text-align: right; unicode-bidi: isolate"><strong>{{ .Token }}</strong></p>
+      <p>صالح لعشر دقائق. إن لم تطلبه، تجاهل هذه الرسالة.</p>
+    </div>
   </body>
 </html>

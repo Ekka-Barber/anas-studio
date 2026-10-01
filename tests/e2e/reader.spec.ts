@@ -230,6 +230,8 @@ test.describe('the book preview', () => {
 
   test('the reading view opens at the page in view and ends with the way to the editions', async ({ page }) => {
     await openBook(page)
+    // The book opens itself after a moment: the turn starts from the first page.
+    await expect(where(page)).toHaveText(/1 \/ 5/)
     await page.keyboard.press('ArrowLeft')
     await expect(where(page)).toHaveText(/2 \/ 5/)
     await page.getByRole('button', { name: 'عرض للقراءة' }).click()

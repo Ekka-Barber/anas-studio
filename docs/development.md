@@ -98,7 +98,9 @@ Functions read `supabase/functions/.env` when the stack starts, so after the
 first `db:env` restart the stack (`supabase stop && pnpm db:start`) or run
 `supabase functions serve` in a second terminal.
 `bootstrap:owner` refuses once any `staff` row exists — after that, invite
-further members from `/admin/team`.
+further members from `/admin/team`. A failed invite can leave an Auth user with
+no staff row; the next invite of that address adopts it (docs/operations.md,
+"Team invites and admin function errors").
 
 Sign in at `/admin/sign-in` with the bootstrapped email; the 6-digit code
 arrives at Mailpit, `http://127.0.0.1:54324` (`MAILPIT_URL`), not a real inbox.
@@ -175,7 +177,20 @@ allowlists). "حفظ" appends the next `content_versions` row; a save based on a
 document someone else changed since it was opened fails with a conflict
 message and keeps the typed text — reload to see the newer version. Once the
 saved draft validates, "نشر" publishes it; a document can also be scheduled
-for a future Riyadh time, unscheduled, and (for `posts`/`taxonomies`) archived.
+for a future Riyadh time (a year of four digits, in the future), unscheduled,
+and (for `posts`/`taxonomies`) archived. A schedule belongs to one version: the
+list says «مجدول في <date>», and when a later save exists it adds
+«: نسخة N، وهناك تعديلات أحدث غير مجدولة». The publish bar says
+«مجدول: نسخة N في <date>.»; when the schedule is behind the latest save it also
+says which version will go live and offers «جدولة النسخة M في الموعد نفسه».
+A post slug another live post uses is refused at schedule or publish time with
+«معرّف المقال مستخدم في مقال منشور آخر؛ غيّره ثم أعد المحاولة.». Unsaved text
+is kept as a local copy and offered back in a banner («استرجاع» / «تجاهل»);
+the rules are in `docs/operations.md`, "The owner's routine". The admin screens
+sit under `src/app/(admin)/admin/(shell)/`, whose layout mounts `AdminShell`
+once (nav, focus and the role are kept between screens; the role is read once
+and shared through `useStaffRole()`); the sign-in page and the full-width
+preview stay outside the group, and the URLs do not change.
 "معاينة" opens `/admin/preview?id=<room>` (a journal post:
 `/admin/preview?collection=posts&id=<post>`) in a new tab: the latest saved
 draft, read under RLS and drawn with the public view component of the room or
@@ -203,8 +218,14 @@ The upload runs through the `admin` Edge Function
 (`supabase/functions/_shared/admin.ts`): `media-ticket` creates a 5-minute
 ticket and one signed upload URL per part, the browser uploads each part
 straight to Storage (`uploadToSignedUrl`), and `media-complete` checks and
-promotes them; the ticket id becomes the media id. Public pages resolve media
-ids to derivatives through `src/lib/content.ts`, and publishing a document
+promotes them; the ticket id becomes the media id. A Storage failure other
+than a missing part answers 500 from `media-complete`, never 422 (that would
+blame the upload). Public pages resolve media ids to derivatives, and to the
+image's alt text (`alt_ar`, carried inside the media reference), through
+`src/lib/content.ts`; `anon` may read only `id`, `derivatives` and `alt_ar` of a
+published image, and the `alt_ar` grant comes with migration
+`20260930140000_audit2_fixes.sql`, which must be applied before a build
+that reads it. Publishing a document
 that references a deleted library image is refused. Staff-facing rules are in
 `docs/media-rights.md`.
 

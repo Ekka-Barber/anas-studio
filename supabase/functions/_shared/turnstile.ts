@@ -11,6 +11,12 @@
  * Fails closed: an unreachable or malformed siteverify answer is "not
  * verified", never "assume ok" — the caller answers 503 for that case so a
  * Cloudflare outage cannot become an open form.
+ *
+ * Error codes (fetched 2026-09-30, same page): `missing-input-secret`,
+ * `invalid-input-secret` and `internal-error` are the operator's or
+ * Cloudflare's fault, not the visitor's. They are MISCONFIGURED, which callers
+ * answer 503 like UNREACHABLE (`isTurnstileUnavailable`), and are logged
+ * (codes only) so a wrong secret does not look like every visitor failing.
  */
 
 import { isHostedSite } from './env.ts'
@@ -39,9 +45,16 @@ export type TurnstileFailureCode =
   | 'ACTION_MISMATCH'
   | 'HOSTNAME_MISMATCH'
   | 'TEST_SECRET_IN_PRODUCTION'
+  | 'MISCONFIGURED'
   | 'UNREACHABLE'
 
 export type TurnstileResult = { ok: true } | { ok: false; code: TurnstileFailureCode }
+
+const SERVER_SIDE_ERROR_CODES = new Set(['missing-input-secret', 'invalid-input-secret', 'internal-error'])
+
+/** Failures that are not the visitor's: callers answer 503, never "you are not human". */
+export const isTurnstileUnavailable = (code: TurnstileFailureCode): boolean =>
+  code === 'UNREACHABLE' || code === 'MISCONFIGURED' || code === 'TEST_SECRET_IN_PRODUCTION'
 
 export async function verifyTurnstile(params: {
   token: string
@@ -54,6 +67,7 @@ export async function verifyTurnstile(params: {
   // A test secret always passes, so it is refused for a hosted site (D32:
   // "hosted" replaces the Worker's NODE_ENV check).
   if (isTestSecret && isHostedSite()) {
+    console.warn('turnstile: a test secret is configured for a hosted site')
     return { ok: false, code: 'TEST_SECRET_IN_PRODUCTION' }
   }
 
@@ -79,8 +93,15 @@ export async function verifyTurnstile(params: {
   } catch {
     return { ok: false, code: 'UNREACHABLE' }
   }
-  const verified = result as { success?: unknown; action?: unknown; hostname?: unknown }
+  const verified = result as { success?: unknown; action?: unknown; hostname?: unknown; 'error-codes'?: unknown }
   if (typeof verified !== 'object' || verified === null || verified.success !== true) {
+    const codes = Array.isArray(verified?.['error-codes']) ? (verified['error-codes'] as unknown[]) : []
+    const serverSide = codes.filter((code): code is string => typeof code === 'string' && SERVER_SIDE_ERROR_CODES.has(code))
+    if (serverSide.length > 0) {
+      // The codes only: never the token or the address.
+      console.warn('turnstile: siteverify refused the server side', serverSide)
+      return { ok: false, code: 'MISCONFIGURED' }
+    }
     return { ok: false, code: 'INVALID_TOKEN' }
   }
   if (isTestSecret) {

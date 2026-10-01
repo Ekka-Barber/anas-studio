@@ -38,7 +38,7 @@
   }
 
   @supports (animation-timeline: view()) {
-    .motion-scrub > * {
+    .motion-scrub > picture {
       animation: motion-scrub linear both;
       animation-timeline: view();
     }
@@ -51,7 +51,9 @@
 }
 
 /* The keyframes hold only the starting state; the element's own styles are
-   the end state, so an animation that never runs leaves it as designed. */
+   the end state, so an animation that never runs leaves it as designed. The
+   wipes also name their end: `clip-path: none` does not interpolate with
+   `inset()`, so without it they would hold and flip at the halfway point. */
 @keyframes motion-rise {
   from {
     opacity: 0;
@@ -61,6 +63,9 @@
 @keyframes motion-band {
   from {
     clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 @keyframes motion-fade {
@@ -72,10 +77,16 @@
   from {
     clip-path: inset(100% 0 0 0);
   }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
 }
 @keyframes motion-sign {
   from {
     clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }
 @keyframes motion-scrub {

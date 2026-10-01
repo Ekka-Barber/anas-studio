@@ -14,8 +14,12 @@
  * psql invocation inside the scratch database container; only the guide's
  * documented caveats are ever applied (and each one is printed). Storage
  * objects are uploaded back with their original content types, then every
- * table's row count and every object's sha256 are compared. The scratch stack
- * is stopped with `--no-backup` and the temp dirs removed on the way out.
+ * table's row count and every object's sha256 are compared. The dumps are
+ * not relied on to carry `cron.job` (it depends on the CLI version), so the
+ * runbook step follows: every `cron.schedule(...)` call
+ * of supabase/migrations is re-run (printed as an applied caveat), and every
+ * schedule must then be in `cron.job`. The scratch stack is stopped with
+ * `--no-backup` and the temp dirs removed on the way out.
  */
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -27,6 +31,7 @@ import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 
 import { readBackup } from './lib/backup-format.mjs'
+import { cronScheduleStatements, missingCronJobs } from './lib/cron-jobs.mjs'
 import { promptHidden } from './lib/passphrase.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -43,11 +48,16 @@ const args = process.argv.slice(2)
 let backupFile
 let extractArg
 for (let i = 0; i < args.length; i += 1) {
-  if (args[i] === '--extract') extractArg = args[++i]
-  else if (!backupFile) backupFile = args[i]
-  else usage(args[i] === '--help' || args[i] === '-h' ? 0 : 2)
+  const arg = args[i]
+  if (arg === '--help' || arg === '-h') usage(0)
+  else if (arg === '--extract') {
+    // An empty or missing value (an unset shell variable) must not fall back to the full rehearsal.
+    extractArg = args[++i]
+    if (!extractArg || extractArg.startsWith('-')) usage(2)
+  } else if (arg.startsWith('-') || backupFile) usage(2)
+  else backupFile = arg
 }
-if (!backupFile || extractArg === '') usage(2)
+if (!backupFile) usage(2)
 backupFile = resolve(backupFile)
 
 // The extracted files are plaintext (auth password hashes, TOTP secrets,
@@ -77,6 +87,16 @@ function mustSucceed(result, what) {
     throw new Error(what)
   }
   return result
+}
+
+/** readBackup, with its expected failures (wrong passphrase, damaged or missing file, a destination that is not empty) as one line, not a stack trace. */
+async function readBackupOrExit(passphrase, destDir) {
+  try {
+    return await readBackup(backupFile, passphrase, destDir)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exit(1)
+  }
 }
 
 async function getPassphrase() {
@@ -283,6 +303,24 @@ function restoredRowCounts(tables) {
   return counts
 }
 
+/** jobname of every row in the restored `cron.job`, or null when it cannot be read (no pg_cron). */
+function restoredCronJobs() {
+  const result = docker(
+    ['exec', CONTAINER, 'psql', '-U', 'postgres', '--dbname', 'postgres', '-At', '-c', 'select jobname from cron.job'],
+    { encoding: 'utf8', timeout: 120000 },
+  )
+  if (result.status !== 0) return null
+  return result.stdout.split(/\r?\n/).filter((line) => line !== '')
+}
+
+/** The runbook step: a restore does not run migrations, and the dumps may not carry the `cron.job` rows. Runs every cron.schedule(...) statement in one transaction (idempotent: the job name is the key). */
+function applyCronSchedules(statements) {
+  return docker(
+    ['exec', '-i', CONTAINER, 'psql', '-U', 'postgres', '--dbname', 'postgres', '--single-transaction', '--variable', 'ON_ERROR_STOP=1', '--file', '-'],
+    { input: [...statements.values()].join('\n'), encoding: 'utf8', timeout: 120000 },
+  )
+}
+
 /** Downloads every object back and compares sha256 with the manifest. */
 async function verifyObjects(client, manifest) {
   const perBucket = new Map()
@@ -318,7 +356,7 @@ async function main() {
 
   if (extractArg) {
     const destDir = resolve(extractArg)
-    const manifest = await readBackup(backupFile, passphrase, destDir)
+    const manifest = await readBackupOrExit(passphrase, destDir)
     console.log(`Extracted ${manifest.files.length + 1} files to ${destDir} (manifest.json + the files below):`)
     for (const file of manifest.files) console.log(`  ${file.size.toString().padStart(10)}  ${file.path}`)
     console.log('These are the files for a real restore (see docs/operations.md, "Backups (D35)").')
@@ -348,18 +386,18 @@ async function main() {
   const startedAt = Date.now()
   let exitCode = 1
   try {
+    // Decrypt first: a wrong passphrase or a damaged file should fail in
+    // seconds, before any CLI call or container is started.
+    console.log('Decrypting the backup...')
+    const manifest = await readBackupOrExit(passphrase, extractDir)
+    console.log(`Backup from ${manifest.createdAt} (source: ${manifest.source}), ${manifest.files.length} files.`)
+
     // A rehearsal that crashed earlier can leave its containers behind; clear
     // them by project id (never the development stack's id).
     supabase(['stop', '--no-backup', '--project-id', PROJECT_ID], { stdio: 'ignore', timeout: 300000 })
     console.log(`Rehearsal scratch stack: ${scratch}`)
     mustSucceed(supabase(['init', '--workdir', scratch], { stdio: 'inherit', timeout: 120000 }), 'supabase init')
     patchConfig(join(scratch, 'supabase', 'config.toml'))
-
-    // Decrypt first: a wrong passphrase or a damaged file should fail in
-    // seconds, before any container is started.
-    console.log('Decrypting the backup...')
-    const manifest = await readBackup(backupFile, passphrase, extractDir)
-    console.log(`Backup from ${manifest.createdAt} (source: ${manifest.source}), ${manifest.files.length} files.`)
 
     console.log('Starting the throwaway stack (this can take a few minutes)...')
     mustSucceed(supabase(['start', '--workdir', scratch], { stdio: 'inherit', timeout: 600000 }), 'supabase start')
@@ -404,13 +442,38 @@ async function main() {
     }
     for (const failure of objects.failures) problems.push(failure)
 
+    // The schedules are created by migrations, not carried by the dumps: re-run
+    // them (after the counts above, so a purge job cannot touch the compared
+    // rows), then require every one in cron.job.
+    const cronStatements = cronScheduleStatements(join(repoRoot, 'supabase', 'migrations'))
+    const expectedJobs = [...cronStatements.keys()]
+    const heldBefore = restoredCronJobs()
+    const applied = applyCronSchedules(cronStatements)
+    if (applied.status === 0) {
+      const held = heldBefore === null ? 0 : expectedJobs.length - missingCronJobs(expectedJobs, heldBefore).length
+      console.log(`\nCaveat applied (runbook): re-ran ${expectedJobs.length} cron.schedule(...) statements from supabase/migrations (cron.job held ${held} of them before).`)
+    } else {
+      problems.push(`re-running the cron.schedule(...) statements failed (exit ${applied.status}): ${(applied.stderr ?? '').trim()}`)
+    }
+    const presentJobs = restoredCronJobs()
+    console.log('\npg_cron schedules (every cron.schedule in supabase/migrations):')
+    if (presentJobs === null) {
+      problems.push('cron.job cannot be read in the restored database (pg_cron missing): no schedule exists')
+    } else {
+      const missingJobs = missingCronJobs(expectedJobs, presentJobs)
+      for (const name of expectedJobs) console.log(`  ${name.padEnd(width)}  ${missingJobs.includes(name) ? 'MISSING' : 'ok'}`)
+      if (missingJobs.length > 0) {
+        problems.push(`cron.job still misses ${missingJobs.length} of ${expectedJobs.length} schedules after re-running the cron.schedule(...) statements: ${missingJobs.join(', ')}`)
+      }
+    }
+
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
     if (problems.length > 0) {
       console.error('\nDifferences found:')
       for (const problem of problems) console.error(`  ${problem}`)
       console.error(`FAILED after ${elapsed}s (start to verified).`)
     } else {
-      console.log(`\nOK: ${dumpCounts.size} tables, ${objects.expected} objects verified in ${elapsed}s (start to verified).`)
+      console.log(`\nOK: ${dumpCounts.size} tables, ${objects.expected} objects, ${expectedJobs.length} schedules verified in ${elapsed}s (start to verified).`)
       exitCode = 0
     }
   } finally {

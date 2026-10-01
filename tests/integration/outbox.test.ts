@@ -252,6 +252,30 @@ describe('claiming', () => {
     }
     for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
   })
+
+  // Nothing can be replayed or fixed for such a notice, so it must not sit in the
+  // owner's «تحتاج انتباهًا» list for months (AUDIT-2).
+  it('a notice swept as RECIPIENT_INACTIVE is left out of outbox_attention; another exhausted row stays', async () => {
+    await parkOthers()
+    const owner = await createStaff('owner')
+    const gone = await createStaff('operations')
+    const swept = await insertRow({ label: 'attention-gone', kind: 'contact_notice', recipient: gone.email })
+    const real = await insertRow({ label: 'attention-real', status: 'exhausted' })
+    await postgres.query("update finance.email_outbox set last_error = 'RATE_LIMIT' where id = $1", [real.id])
+    await postgres.query('update public.staff set active = false where user_id = $1', [gone.userId])
+
+    const claimed = await claim(10)
+    expect(claimed.map((r) => r.id)).not.toContain(swept.id)
+    expect(await rowState(swept.id)).toMatchObject({ status: 'exhausted', last_error: 'RECIPIENT_INACTIVE' })
+
+    const client = await signIn(owner.email)
+    const { data, error } = await client.rpc('outbox_attention')
+    expect(error).toBeNull()
+    const ids = (data as Array<{ id: number }>).map((r) => r.id)
+    expect(ids).toContain(Number(real.id))
+    expect(ids).not.toContain(Number(swept.id))
+    for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
+  })
 })
 
 describe('outbox_result', () => {
@@ -331,6 +355,31 @@ describe('outbox_result: quota and early delivery events', () => {
     expect(wait.rows[0]!.ok).toBe(true)
   })
 
+  it('a QUOTA refusal of the first attempt starts no idempotency window: a long wait does not age a later uncertain send (AUDIT-2)', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'quota-window' })
+    const first = await claim(1)
+    expect(first.map((r) => r.id)).toEqual([row.id])
+    // By the time the quota resets, the refused claim is days old.
+    await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '20 days' where id = $1", [row.id])
+    expect(await result(row.id, first[0]!.lease_id, 'retry', null, 'QUOTA')).toBe(true)
+    const cleared = await postgres.query<{ first_attempt_at: Date | null }>(
+      'select first_attempt_at from finance.email_outbox where id = $1',
+      [row.id],
+    )
+    expect(cleared.rows[0]!.first_attempt_at).toBeNull()
+
+    // The first real attempt is ambiguous, and is retried inside its own 23 hours.
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+    const second = await claim(1)
+    expect(second.map((r) => r.id)).toEqual([row.id])
+    expect(await result(row.id, second[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+    const third = await claim(1)
+    expect(third.map((r) => r.id)).toEqual([row.id])
+    await result(row.id, third[0]!.lease_id, 'accepted', 'test-provider-id')
+  })
+
   // The fixture is anchored to the next UTC midnight (the QUOTA wait), not to now(),
   // so the outcome does not depend on the time of day the suite runs.
   it.each([
@@ -388,6 +437,52 @@ describe('outbox_result: quota and early delivery events', () => {
   })
 })
 
+describe('a delivery event from a webhook transaction that overlaps the accept', () => {
+  // Both statements read the other's write with their own snapshot, so they
+  // serialize on a per-message lock. The webhook holds it, uncommitted, with
+  // the event stored; the accept must wait for it and then see the event.
+  it('is applied to the row, not lost (S04.4 race)', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'overlap' })
+    const messageId = uniqueKey('msg-overlap')
+    const webhook = await serviceRoleDb()
+    try {
+      const claimed = await claim(1)
+      expect(claimed.map((r) => r.id)).toEqual([row.id])
+      await webhook.query('begin')
+      await webhook.query('select public.email_event_record($1, $2, $3, $4, $5, $6)', [
+        uniqueKey('evt'),
+        'email.delivered',
+        messageId,
+        null,
+        new Date().toISOString(),
+        {},
+      ])
+      let settled = false
+      const accepting = result(row.id, claimed[0]!.lease_id, 'accepted', messageId).then((ok) => {
+        settled = true
+        return ok
+      })
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 500))
+        expect(settled).toBe(false)
+      } finally {
+        await webhook.query('commit')
+      }
+      expect(await accepting).toBe(true)
+      const state = await postgres.query<{ delivery: string | null; status: string }>(
+        'select delivery, status from finance.email_outbox where id = $1',
+        [row.id],
+      )
+      expect(state.rows[0]).toEqual({ delivery: 'delivered', status: 'sent' })
+    } finally {
+      await webhook.query('rollback').catch(() => undefined)
+      await webhook.end()
+      await postgres.query('delete from finance.email_delivery_events where provider_message_id = $1', [messageId])
+    }
+  })
+})
+
 describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts sources)', () => {
   it('at quota − reserve only priority 0 (receipts) still goes, so sign-in codes keep the reserve; at the quota nothing is claimed', async () => {
     await parkOthers()
@@ -417,7 +512,10 @@ describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts source
     expect((await rowState(low.id)).status).toBe('pending')
     for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
 
-    // Fill to exactly the quota: nothing is claimed at all.
+    // Fill to exactly the quota: nothing is claimed at all, not even a
+    // priority-0 row (only the hard `v_sent_today < p_daily_quota` clause
+    // holds that one back; the reserve clause exempts priority 0).
+    const blocked = await insertRow({ label: 'quota-p0-blocked', priority: 0 })
     const nowSent = await todayCount()
     await postgres.query(
       `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, sent_at, provider_id)
@@ -428,6 +526,7 @@ describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts source
     expect(await todayCount()).toBe(100)
     claimed = await claim(10)
     expect(claimed).toEqual([])
+    expect((await rowState(blocked.id)).status).toBe('pending')
     // Leave the shared local database with a free quota for later suites.
     await postgres.query('delete from finance.email_outbox where dedupe_key like $1', [`${MY_PREFIX}quota%`])
   })

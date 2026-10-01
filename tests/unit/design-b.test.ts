@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 
 import content from '../../content/initial-content.json'
-import { classify, splitAfterFirstDisplay, toBlocks } from '../../src/components/public/story/flow'
+import { classify, posterBlock, splitAfterFirstDisplay, storyPictures, toBlocks } from '../../src/components/public/story/flow'
 import { typeset } from '../../src/lib/format'
 import { readingTime } from '../../src/lib/journal'
 
@@ -18,6 +18,26 @@ describe('a room text becomes B’s rhythm', () => {
     expect(blocks.map((b) => b.kind)).toEqual(['text', 'band', 'text'])
     expect(blocks[1]).toEqual({ kind: 'band', text: 'band' })
     expect(toBlocks(classify(['x'], [], ['x']))).toEqual([{ kind: 'band', text: 'x' }])
+  })
+
+  it('draws the room picture once: beside the first text after the band, else the last text', () => {
+    const blocks = (paragraphs: string[]) => toBlocks(classify(paragraphs, [], ['band']))
+    expect(posterBlock(blocks(['a', 'band', 'b']))).toBe(2)
+    expect(posterBlock(blocks(['a', 'b']))).toBe(0)
+    // The owner makes the last paragraph a band: no text follows it, so the picture goes beside the text before it.
+    expect(posterBlock(blocks(['a', 'band']))).toBe(0)
+    expect(posterBlock(blocks(['band']))).toBeUndefined()
+  })
+
+  it('seats a picture beside a text block only while a block is left, else it stays with the products', () => {
+    const gallery = [{ id: 'one' }, { id: 'two' }, { id: 'other' }]
+    const blocks = (paragraphs: string[]) => toBlocks(classify(paragraphs, [], ['band']))
+    // One text block, two matching pictures: the second is not drawn beside text, so the products list keeps it.
+    expect(storyPictures(['one', 'two'], gallery, blocks(['a']))).toEqual(['one'])
+    expect(storyPictures(['one', 'two'], gallery, blocks(['a', 'band', 'b']))).toEqual(['one', 'two'])
+    // A band is not a text block, and a picture the gallery no longer has is skipped.
+    expect(storyPictures(['one', 'two'], gallery, blocks(['band']))).toEqual([])
+    expect(storyPictures(['gone', 'two'], gallery, blocks(['a', 'band', 'b']))).toEqual(['two'])
   })
 
   it('puts the films after the first large line', () => {

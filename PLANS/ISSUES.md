@@ -1,6 +1,6 @@
 # Issues
 
-Open items only. Closed items are listed at the end in one line each; their full records are in Git history. Revised 2026-09-30 after the AUDIT-1 deep audit (`artifacts/acceptance/AUDIT-1/REPORT.md`).
+Open items only. Closed items are listed at the end in one line each; their full records are in Git history. Revised 2026-10-01 after the AUDIT-2 audit and fixes (`artifacts/acceptance/AUDIT-2/REPORT.md`).
 
 ## I24 — token discipline
 
@@ -42,7 +42,7 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## I45: owner and Anas inputs the code waits for
 
-**From AUDIT-1.** (1) X5.7: the home's door order and facts, the book page's words (`src/content/book.ts`) and the services (`src/content/contact.ts`) are code, not CMS fields; C03, C12, C13 and C14 are partial until Anas asks for these fields (COVERAGE). (2) The earlier open question from I25: Tabuk imagery (real reference photos and film frames are preferred to generated ones). The seeded social links stay as they are (D42); the owner edits them in «الإعدادات» → «روابط التواصل».
+**From AUDIT-1.** (1) X5.7: the home's door order and facts, the book page's words (`src/content/book.ts`) and the services (`src/content/contact.ts`) are code, not CMS fields; C03, C12, C13 and C14 are partial until Anas asks for these fields (COVERAGE). (2) The earlier open question from I25: Tabuk imagery (real reference photos and film frames are preferred to generated ones). The seeded social links stay as they are (D42); the owner edits them in «الإعدادات» → «روابط التواصل». (3) From AUDIT-2 (ADMIN-editor-8, PUBLIC-data-6): «بريد التواصل» in the site settings is validated and published, but no page shows it; whether the site shows a contact e-mail beside the form is Anas's choice.
 
 ## I46: security headers beyond the safe baseline (P10)
 
@@ -51,6 +51,14 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 ## I47: the /book visual baseline outside the reader (P10)
 
 **From AUDIT-1 (X5.5).** P02's proof "outside the reader the book visual baseline remains unchanged" has no evidence: the visual suite captures and checks overflow but never compares, and the committed /book baselines predate the reader, which moves everything below it by 1,100 to 1,500 px. P10's visual regression makes a masked comparison of the regions above and below the reader stage at 360 and 1440.
+
+## I48: checkout work P08 must finish before the switch opens
+
+**From AUDIT-2** (section 5 of its report; checkout is off, so each is latent). (1) Policy consent (DB-commerce-set-1, X-CONTRACT-2, DB-auditfix-1, GAP-G5-3): approval records the database's published revisions, while the buyer reads the policy page of the last static build, so an approval made before the rebuild lands binds the order to a revision the buyer was not shown; the build should embed the revision it rendered and the checkout send that one. (2) The quote reports checkout open while `checkout_create` would refuse an unconfigured seller or unapproved policies (STORE-checkout-1, X-MONEY-1): fold that readiness into `checkoutEnabled`. (3) Holds: ACTIVE_HOLD asks the buyer to complete or cancel an order the page cannot reach (EF-money-2, FIX-public-4, STORE-checkout-10); anyone can hold a known address and the reply confirms a live order exists (X-SEC-4); the hold view still claims a live hold after it expired (X-MONEY-3); a stored pending order clears only on a successful cancel (STORE-checkout-9). (4) A coupon can bring the total to 0, creating an order nothing can pay (DB-catalog-2, split verdict). (5) The function does not refuse control characters in the buyer's name that `checkout_create` refuses, so the error names no field (GAP-G4-4).
+
+## I49: AUDIT-2 residuals
+
+(1) X-SEC-6: `media-ticket` has no rate or byte cap, so a signed-in editor's token can fill Storage faster than the daily sweep (1,000 objects) empties it; a ticket-count cap would also block the owner's bulk uploads, so it needs a bytes-per-actor cap and a sweep that loops. (2) ADMIN-media-7: an AVIF, WebP or PNG whose rotation is stored in the file fails `DIMENSION_MISMATCH` (the server only reads JPEG orientation); the admin now explains it and asks for a re-export, and the server-side read is not built. (3) TOOLING-9: `pnpm lint` now covers `supabase/functions`, but nothing type-checks them in CI; a `deno check` step needs Deno on the runner. (4) Optional hardening: `check:export` could also look for a Postgres connection string, a Supabase access token and the Turnstile secret shape. (5) The largest page's initial JavaScript is 147.4 of its 150 KiB budget (P10).
 
 ## Closed
 

@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 
+import { otpDigits } from '@/lib/digits'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
+import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 
 type Enrollment = { factorId: string; qrCode: string; secret: string }
@@ -20,7 +22,9 @@ type State =
  */
 export function MfaEnroll() {
   const [state, setState] = useState<State>({ status: 'loading' })
-  const [role, setRole] = useState<string | null>(null)
+  const role = useStaffRole()
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const [justEnabled, setJustEnabled] = useState(false)
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -29,12 +33,8 @@ export function MfaEnroll() {
     let active = true
     async function load() {
       const supabase = getSupabaseBrowserClient()
-      const [{ data: roleData }, { data: factorData, error: factorError }] = await Promise.all([
-        supabase.rpc('current_staff_role'),
-        supabase.auth.mfa.listFactors(),
-      ])
+      const { data: factorData, error: factorError } = await supabase.auth.mfa.listFactors()
       if (!active) return
-      setRole((roleData as string) ?? null)
       if (factorError) {
         setState({ status: 'error' })
         return
@@ -81,63 +81,64 @@ export function MfaEnroll() {
       return
     }
     setState({ status: 'enrolled' })
+    setJustEnabled(true)
+    // The form vanishes with this state: focus goes to the heading, not to <body>.
+    headingRef.current?.focus()
   }
 
   if (state.status === 'loading') return null
 
-  if (state.status === 'error') {
-    return (
-      <div>
-        <h1>الأمان</h1>
-        <p className={styles.error}>تعذّر تحميل بيانات المصادقة. حاول مرة أخرى.</p>
-      </div>
-    )
-  }
-
-  if (state.status === 'enrolled') {
-    return (
-      <div>
-        <h1>الأمان</h1>
-        <p>تطبيق المصادقة مفعّل.</p>
-        {role === 'owner' && <p className={styles.message}>مطلوب لتفعيل إجراءات الفريق: الدعوة وتغيير الدور والإيقاف.</p>}
-      </div>
-    )
-  }
-
   return (
     <div>
-      <h1>الأمان</h1>
-      <p>امسح رمز الاستجابة السريعة بتطبيق المصادقة، أو أدخل الرمز السري يدويًا.</p>
-      {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32); the QR code is a data URL */}
-      <img className={styles.qr} src={state.enrollment.qrCode} alt="رمز الاستجابة السريعة لتطبيق المصادقة" />
-      <p>
-        <span className={styles.secret}>{state.enrollment.secret}</span>
+      <h1 ref={headingRef} tabIndex={-1}>
+        الأمان
+      </h1>
+      {/* Mounted in every state: the form it reports on vanishes on success, and a
+          region inserted together with its text is not reliably announced. */}
+      <p role="status" className={styles.message}>
+        {justEnabled ? 'تم تفعيل تطبيق المصادقة.' : null}
       </p>
-      <form className={styles.form} onSubmit={verify}>
-        <div className={styles.field}>
-          <label className={styles.label} htmlFor="totp-code">
-            رمز التحقق
-          </label>
-          <input
-            id="totp-code"
-            className={styles.input}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            required
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-          />
-        </div>
-        <button type="submit" className={styles.button} disabled={busy}>
-          تفعيل
-        </button>
-        {error && (
-          <p role="alert" className={styles.error}>
-            {error}
+      {state.status === 'error' && <p className={styles.error}>تعذّر تحميل بيانات المصادقة. حاول مرة أخرى.</p>}
+      {state.status === 'enrolled' && (
+        <>
+          <p>تطبيق المصادقة مفعّل.</p>
+          {role === 'owner' && <p className={styles.message}>مطلوب لتفعيل إجراءات الفريق: الدعوة وتغيير الدور والإيقاف.</p>}
+        </>
+      )}
+      {state.status === 'enrolling' && (
+        <>
+          <p>امسح رمز الاستجابة السريعة بتطبيق المصادقة، أو أدخل الرمز السري يدويًا.</p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static export, no image optimizer (D15, D32); the QR code is a data URL */}
+          <img className={styles.qr} src={state.enrollment.qrCode} alt="رمز الاستجابة السريعة لتطبيق المصادقة" />
+          <p>
+            <span className={styles.secret}>{state.enrollment.secret}</span>
           </p>
-        )}
-      </form>
+          <form className={styles.form} onSubmit={verify}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="totp-code">
+                رمز التحقق
+              </label>
+              <input
+                id="totp-code"
+                className={styles.input}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                required
+                value={code}
+                onChange={(event) => setCode(otpDigits(event.target.value))}
+              />
+            </div>
+            <button type="submit" className={styles.button} disabled={busy}>
+              تفعيل
+            </button>
+            {error && (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            )}
+          </form>
+        </>
+      )}
     </div>
   )
 }

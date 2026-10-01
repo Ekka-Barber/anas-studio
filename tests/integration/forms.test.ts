@@ -29,9 +29,13 @@ beforeAll(async () => {
     connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
   })
   await postgres.connect()
+  // The whole-store daily bucket (40 a day) is shared by every run on this
+  // machine; this file uses about ten per run, so reruns would trip it.
+  await postgres.query("delete from finance.rate_limits where bucket = 'contact:all'")
 })
 
 afterAll(async () => {
+  await postgres.query("delete from finance.rate_limits where bucket = 'contact:all'")
   await app.end()
   await postgres.end()
 })
@@ -148,6 +152,28 @@ describe('contact_submit', () => {
     const sixth = await submit({ ipHash: hash })
     expect(sixth.sqlstate).toBe('54000')
   })
+
+  // Every message queues a notice per recipient, and the outbox sends priority
+  // 1 only under quota - reserve = 80 a day, so the day's intake stays under it (AUDIT-2).
+  it('throttles: 40 messages a day in total; the 41st raises 54000', async () => {
+    await postgres.query('begin')
+    try {
+      await postgres.query("delete from finance.rate_limits where bucket = 'contact:all'")
+      const send = () =>
+        postgres.query('select public.contact_submit($1, $2, $3, $4, $5, $6)', [
+          ipHash(),
+          'زائر',
+          `${unique('cap')}@example.com`,
+          'رسالة اختبار',
+          randomUUID(),
+          null,
+        ])
+      for (let i = 0; i < 40; i += 1) await send()
+      await expect(send()).rejects.toMatchObject({ code: '54000' })
+    } finally {
+      await postgres.query('rollback')
+    }
+  }, 60_000)
 
   it('throttles: 3 per hour per email', async () => {
     const email = `${unique('throttled')}@example.com`

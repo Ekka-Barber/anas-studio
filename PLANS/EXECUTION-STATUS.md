@@ -2,14 +2,14 @@
 
 What has actually been run and accepted, not what is planned. Orchestrator per D28; one writer at a time under `.anasaq-execution.lock`. Preparation, account existence and passing structural checks never close a runtime, payment, rights, launch, training or support gate. Earlier detail (P00 measurements, the Oracle VM episode, audits) is in Git history before 2026-09-24.
 
-## Current state (2026-09-30)
+## Current state (2026-10-01)
 
 | Field | Value |
 |---|---|
 | Branch | `main`, the only branch locally and on GitHub (REPO-SWEEP, 2026-09-30): the five older branches (`agent/design-b`, `sync/local-2026-09-26`, `agent/p00-runtime-spike` and two cloud-session branches) were wholly contained in it and are deleted. **History rewritten on 2026-09-30 (D42)** to remove the WhatsApp export: every commit id changed, and the ids in these documents are the rewritten ones (commit messages were remapped too). A clone made before then must be re-cloned, not pulled. |
-| Last commit | The D42 docs commit on top of `9f6f37f` (AUDIT-1 evidence); AUDIT-1 code and docs `f38f04d`, D42 untrack `397f4d3`, D41 `c222225`. |
-| Packages | P00 (D29 `3c88331`; D32 `eb41c2e`, locally verified on the full stack 2026-09-27), P01 part 1 `70be5c9` with DESIGN-B `2f54f85`/`379790e`, P02 `42708f3`/`4e04ac1`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (built and audited 2026-09-30, not committed): see the package ledger. P08–P12 not started. |
-| Lock | None: AUDIT-1 released `.anasaq-execution.lock` on 2026-09-30 after the commits and the push. |
+| Last commit | AUDIT-2 (the audit, its fixes and D43) on top of `4f22b78` (REPO-SWEEP); AUDIT-1 code and docs `f38f04d`, its evidence `9f6f37f`, D42 untrack `397f4d3`, D41 `c222225`. |
+| Packages | P00 (D29 `3c88331`; D32 `eb41c2e`, locally verified on the full stack 2026-09-27), P01 part 1 `70be5c9` with DESIGN-B `2f54f85`/`379790e`, P02 `42708f3`/`4e04ac1`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (committed `f38f04d`, pushed), AUDIT-2 (audit and fixes, 2026-10-01): see the package ledger. P08–P12 not started. |
+| Lock | None: AUDIT-2-FIX released `.anasaq-execution.lock` on 2026-10-01 after the commit. |
 | Hosted resources | Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). Unused since D32 and the owner's to delete once the Pages site works (irreversible, his own action): Worker `anas-studio` (test), R2 `anas-studio-media-test`, Hyperdrive `anasaq-cms`, D1 `anas-studio-tag-cache`. No deploys until P11 (local-first). |
 
 ## DESIGN-B: direction B in the product (D39, orchestrator, 2026-09-28)
@@ -306,6 +306,27 @@ the cloud's own D13 fix and fixed it in `3fef85b` (D18, same file).
 
 **Open.** I43 (the contact form and the privacy policy, E08), I44 (policy-approval and throttle residuals), I45 (Anas inputs), I46, I47. Nothing hosted was changed: I28 now also lists the password hook and "Secure password change" for P11.
 
+## AUDIT-2: the open-code-review audit and its fixes (orchestrator, 2026-09-30 to 10-01)
+
+**Scope.** The owner (2026-09-30): find Alibaba's open-code-review skill "then we want to use it to deep audit our current app status", then "do all needed work, you decide for me". The tree after AUDIT-1 (`4f22b78`) was audited. The report is `artifacts/acceptance/AUDIT-2/REPORT.md`; every finding with both verification verdicts is in `findings.json`, and the fix rounds' briefs in `rounds/`.
+
+**Audit.** open-code-review (`ocr` v1.12.2) in delegation mode, because its own model setting is GLM (D41):
+- `ocr scan --preview` chose 265 source files (about 33,700 lines) and `ocr delegate rule` their rules; `ocr delegate preview -c f38f04d` chose the 123 files of the AUDIT-1 fix commit for a regression hunt.
+- A read-only workflow (`wf_2dbde205-515`, 247 agent runs over two runs): 27 OCR slices and 5 lenses (security, money, data contracts, accessibility and RTL, health checks), a completeness critic and 5 gap auditors, then adversarial verification; the second run re-verified about 60 findings independently, and the orchestrator ruled where the two disagreed.
+- Result: 254 raw findings, **0 critical or high**, 11 distinct mediums, 147 low entries, 14 latent until P08 opens checkout, 16 split verdicts, 5 environment findings, 56 refuted. Two mediums were incomplete AUDIT-1 fixes: the stale-version 40001 that PostgREST retries forever (commerce settings and policy approval) and the S08.2 autosave path through «حفظ».
+- Environment: graft's session-start upkeep rewrote six committed files and recreated the nine agent-config paths `4f22b78` deleted, because the global CLI (0.16.0) and the pinned MCP (0.21.1) disagreed with its wiring stamp. Fixed outside the repository: the global CLI is 0.21.1, the stamp lists only Claude and AGENTS.md, and the hook and MCP start were shown to leave the tree clean.
+
+**Fixes (AUDIT-2-FIX).** Under the lock, a workflow (`wf_c600ebdd-922`, 34 agents, about 7 hours) ran 11 sequential rounds of one `sonnet-worker` each, with a Sonnet pre-audit and up to two re-fix rounds (R03, R08, R10 and R11 needed them). 177 findings were handled: 166 fixed in the rounds, 3 already fixed, 8 handed to the orchestrator. Then, per the owner's rule of 2026-10-01 (D43), the orchestrator audited the whole diff itself and fixed what it found:
+- the typecheck and build failed on a stale `.next` type file and the git-excluded `BOOK_ASSETS/` site copy (now excluded in `tsconfig.json`);
+- `check:copy` failed on an Arabic-Indic example in a comment;
+- the admin's date field threw on a five-digit year; a media folder of spaces became a new folder; failed statistics were cached for five minutes (now 30 seconds);
+- the draft preview showed no library alt text and the stock journal name; blank home and room titles could be published; the built room's movement image fields were edited but never shown (removed); half-filled lattices painted a solid line-colour cell at tablet width;
+- signing out deleted unsaved local copies without a word (now it asks);
+- the reader's turn guard dropped an arrow pressed during the opening turn (the e2e caught it); a move asked for during a turn now waits for it.
+Left open: I48 (the checkout items for P08), I49 (upload byte cap, rotated AVIF/WebP/PNG, Edge Function type check in CI, optional export patterns, budget headroom), and I45 (3) (whether the site shows a contact e-mail).
+
+**Evidence** (`artifacts/acceptance/AUDIT-2/commands.txt`): lint and typecheck 0; unit **632/632** (486 before); check:copy and check:frozen OK; `supabase db reset` applies every migration including `20260930140000_audit2_fixes.sql`; test:db **230/230** with the edge runtime running (207 before); build, check:export (51 required files, no secret, no child-film file) and check:budgets (largest 147.4 KiB of 150); e2e **169/169** on each suite's last run (on the way: an environment failure, Mailpit's dead forwarded port; one reader regression, fixed in the code; four tests that encoded the old behaviour, updated; see `commands.txt`); screenshots of the changed lattice at 360, 768 and 1440.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -321,12 +342,13 @@ the cloud's own D13 fix and fixed it in `3fef85b` (D18, same file).
 | P06 | accepted by the owner (2026-09-27, "yes commit changes"): acceptance battery green at `a192e3f` (2026-09-27: test:db 141, unit 237, e2e 71/71, build, export, budgets, Linux CI), round 3 done, phase 2 walk-through done (`a192e3f`); earlier: rounds 1–2 in `4518520` (round 1 audited by the orchestrator); fix passes `36235e0`/`518fe19`; cloud audit fixes `8935c62`…`25b90c0` locally verified (db 93, unit 215, e2e 22/22, screenshots reviewed; one TZ-dependent test fixed on top); card-label fix `3fef85b` locally verified (17/17, computed-content probe, screenshots re-captured); round 2 closed except the Linux build items; D31 no-inbox change `979bfcc`/`cfe6bed` and the D32 replatform locally verified 2026-09-27 | `artifacts/acceptance/P06/` |
 | P07 | accepted by the owner (2026-09-28: "I accept p07 for now"); acceptance record at `92c69da`; C20 closes only after P08, and E02/E03 stay open (D37, D38). History: round 1 done (2026-09-27): the orchestrator's catalog and checkout migration (`4c80459`), then glm-worker's `checkout` function, demo catalog seed (D37) and tests, audited with six fixes (unit 327, test:db 172, e2e 24/24); round 2 done (2026-09-27): the store admin (products with variants, delivery, coupons, customers) and owner-approved policies, built by glm-worker, audited with five fixes (unit 356, test:db 177, e2e 16/16); round 3 built by glm-worker (store, product, cart, checkout, policy pages), audited in two sessions (budget, lint, em dashes, the empty-catalog build, I39 with the owner's approval; then `7607a17`: eight fixes, among them the spent Turnstile token that failed every retry, cart-checkout e2e 11/11, I38's cause found); acceptance battery green: at `7607a17` every step (build empty and seeded, test:db 178, unit 375, export, budgets), and the e2e, cut short there by a memory crash, rerun to completion on 2026-09-28 at `7d6c766`: 95/95; one test-isolation fix on top (P06's owner-operations spec now restores the settings row, 20/20); proof map in `commands.txt` | `artifacts/acceptance/P07/` |
 | AUDIT-1 | committed and pushed on the owner's word (2026-09-30: "yes"): the deep audit (253 confirmed findings) and 241 fixes, independently audited round by round, `f38f04d` (with D42) and the evidence `9f6f37f`; acceptance battery in `commands.txt`; lock released | `artifacts/acceptance/AUDIT-1/` |
+| AUDIT-2 | the open-code-review audit (0 critical or high, 11 medium) and AUDIT-2-FIX (177 findings handled in 11 rounds, then the orchestrator's own audit per D43); acceptance battery green (unit 632, test:db 230, e2e 169/169, build, export, budgets); committed on the owner's word (2026-09-30: "do all needed work, you decide for me"); lock released | `artifacts/acceptance/AUDIT-2/` |
 | P08–P12 | not_started | — |
 
 ## Next work, in order
 
-**Now (2026-09-30, after AUDIT-1).**
-1. DONE 2026-09-30: AUDIT-1 and the owner's D42 decisions (committed, history rewritten, pushed), then REPO-SWEEP: `main` is the only branch, the redundant branches and the Codex app's local checkpoint refs are deleted, and the configuration files for other AI tools (Cursor, Gemini, Grok, Kiro, Windsurf, Adal, Copilot, OpenCode, ZCode) are removed, because `AGENTS.md` and `CLAUDE.md` are the only agent instructions.
+**Now (2026-10-01, after AUDIT-2).**
+1. DONE 2026-10-01: AUDIT-2, the open-code-review audit and its fixes, with D43 (the orchestrator audits every worker diff itself) and the graft wiring repair. DONE 2026-09-30: AUDIT-1 and the owner's D42 decisions (committed, history rewritten, pushed), then REPO-SWEEP: `main` is the only branch, the redundant branches and the Codex app's local checkpoint refs are deleted, and the configuration files for other AI tools (Cursor, Gemini, Grok, Kiro, Windsurf, Adal, Copilot, OpenCode, ZCode) are removed, because `AGENTS.md` and `CLAUDE.md` are the only agent instructions.
 2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox. With it: preorder (moved from P07 by D42).
 3. Owner and Anas inputs that reopen small admin work when they arrive: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40), the services in the CMS.
 4. P11 when the owner authorizes hosting: I28 (with the password hook), I32, I33, I40 and I41 in ISSUES; then the owner deletes the old Worker, Hyperdrive, D1 and R2 test resources himself.

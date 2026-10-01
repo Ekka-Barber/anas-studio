@@ -228,6 +228,43 @@ describe('site rebuilds (D32)', () => {
     })
   })
 
+  it('a build that is owed with no deploy hook in Vault is recorded once as skipped, reason NO_HOOK (AUDIT-2)', async () => {
+    await rolledBack(async () => {
+      await postgres.query("delete from vault.secrets where name = 'pages_deploy_hook'")
+      await postgres.query('delete from finance.job_runs where job = $1', ['site_build'])
+      await postgres.query('update finance.site_builds set requested_at = null, triggered_at = null, request_id = null, failures = 0')
+      // Nothing requested: nothing to report.
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      expect(await lastRun()).toBeUndefined()
+
+      await postgres.query('select public.site_build_request()')
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      expect(await lastRun()).toMatchObject({ status: 'skipped', detail: { reason: 'NO_HOOK' } })
+      // The job runs every minute: still one row.
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(false)
+      expect(await scalar<number>("(select count(*)::int from finance.job_runs where job = 'site_build')")).toBe(1)
+    })
+  })
+
+  it('every request gets its own five attempts: a new request resets the failure count (AUDIT-2)', async () => {
+    await rolledBack(async () => {
+      await postgres.query("delete from vault.secrets where name = 'pages_deploy_hook'")
+      await postgres.query("select vault.create_secret('http://127.0.0.1:9/deploy-hook', 'pages_deploy_hook')")
+      // An earlier episode ended with five failures and was dropped.
+      await postgres.query(
+        `update finance.site_builds
+         set requested_at = now() - interval '2 hours', triggered_at = now() - interval '1 hour', request_id = null, failures = 5`,
+      )
+      await postgres.query('select public.site_build_request()')
+      expect((await builds()).failures).toBe(0)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+      // This request's first attempt fails: it is re-armed, not dropped.
+      await answer(502, false)
+      expect(await scalar<boolean>('public.site_build_trigger()')).toBe(true)
+      expect((await builds()).failures).toBe(1)
+    })
+  })
+
   it('scheduled publishing asks for a rebuild only when something went live', async () => {
     await rolledBack(async () => {
       await postgres.query(

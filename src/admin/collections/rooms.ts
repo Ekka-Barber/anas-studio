@@ -14,6 +14,10 @@ import { type Field, schemaFromFields } from '../fields'
  * the home page; `pullLines` and `bandLines` name the paragraphs set as a
  * large line or as a full-width coloured band (each must repeat a paragraph
  * exactly). The field keeps its v1 name so stored documents stay valid.
+ *
+ * The rooms have no `slug` field: their routes are fixed and nothing reads a
+ * room's slug. Stored documents that still carry one stay valid (the schema
+ * drops unknown keys) and the form keeps the key when it saves.
  */
 export const jewelSchema = z.enum(['coral', 'aub', 'saffron', 'paper'])
 const JEWEL_FIELD = {
@@ -50,9 +54,8 @@ export const startedMovementFields = [
 export const startedMovementSchema = schemaFromFields(startedMovementFields)
 
 export const startedRoomFields = [
-  { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
-  { name: 'title', label: 'العنوان', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
   TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'heroLine', label: 'سطر البداية', type: 'text' },
@@ -73,16 +76,13 @@ export const startedRoomSchema = schemaFromFields(startedRoomFields)
 // --- بنيتُ هنا ----------------------------------------------------------
 export const builtMovementFields = [
   { name: 'label', label: 'العنوان', type: 'text' },
-  { name: 'vignette', label: 'الصورة', type: 'image', nullable: true },
-  { name: 'vignetteWide', label: 'صورة عريضة', type: 'boolean', required: false },
   { name: 'paragraphs', label: 'الفقرات', type: 'paragraphs' },
 ] as const satisfies Field[]
 export const builtMovementSchema = schemaFromFields(builtMovementFields)
 
 export const builtRoomFields = [
-  { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
-  { name: 'title', label: 'العنوان', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
   TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'heroLine', label: 'سطر البداية', type: 'text' },
@@ -138,9 +138,8 @@ export const brandFields = [
 export const brandSchema = schemaFromFields(brandFields)
 
 export const passedRoomFields = [
-  { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
-  { name: 'title', label: 'العنوان', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
   TAGLINE_FIELD,
   JEWEL_FIELD,
   { name: 'heroLine', label: 'سطر البداية', type: 'text' },
@@ -206,9 +205,8 @@ export const boutiqueItemFields = [
 export const boutiqueItemSchema = schemaFromFields(boutiqueItemFields)
 
 export const shelfRoomFields = [
-  { name: 'slug', label: 'المعرّف', type: 'slug' },
   { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
-  { name: 'title', label: 'العنوان', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
   TAGLINE_FIELD,
   JEWEL_FIELD,
   {
@@ -231,3 +229,50 @@ export const roomSchemas = {
   shelf: shelfRoomSchema,
 } as const
 export type RoomSlug = keyof typeof roomSchemas
+
+/**
+ * The publish rule for `pullLines` and `bandLines`: the public page matches
+ * them to a paragraph by exact text (`classify`, story/flow.ts), so a line
+ * that no longer repeats one, after a typo fix in the paragraph, is silently
+ * set as plain text. Only the form and the publish gate (`schemaFor`) run it;
+ * the loaders keep the lenient schemas above, so a mismatch never stops the build.
+ */
+export const LINE_NOT_A_PARAGRAPH_ERROR = 'هذا السطر لا يطابق أي فقرة حرفيًا.'
+
+function repeatsAParagraph(
+  ctx: z.RefinementCtx,
+  path: (string | number)[],
+  lines: readonly string[] | undefined,
+  paragraphs: readonly string[],
+) {
+  const known = new Set(paragraphs)
+  lines?.forEach((line, index) => {
+    if (!known.has(line)) ctx.addIssue({ code: 'custom', path: [...path, index], message: LINE_NOT_A_PARAGRAPH_ERROR })
+  })
+}
+
+export const roomPublishSchemas = {
+  started: startedRoomSchema.superRefine((room, ctx) => {
+    const paragraphs = room.movements.flatMap((movement) => movement.paragraphs)
+    repeatsAParagraph(ctx, ['pullLines'], room.pullLines, paragraphs)
+    repeatsAParagraph(ctx, ['bandLines'], room.bandLines, paragraphs)
+  }),
+  built: builtRoomSchema.superRefine((room, ctx) => {
+    const paragraphs = [
+      ...room.intro.paragraphs,
+      ...room.movements.flatMap((movement) => movement.paragraphs),
+      ...room.closing.paragraphs,
+    ]
+    repeatsAParagraph(ctx, ['pullLines'], room.pullLines, paragraphs)
+    repeatsAParagraph(ctx, ['bandLines'], room.bandLines, paragraphs)
+  }),
+  passed: passedRoomSchema.superRefine((room, ctx) => {
+    repeatsAParagraph(ctx, ['pullLines'], room.pullLines, room.paragraphs)
+    repeatsAParagraph(ctx, ['bandLines'], room.bandLines, room.paragraphs)
+  }),
+  shelf: shelfRoomSchema.superRefine((room, ctx) => {
+    const { moonlightCup, boutique } = room.items
+    repeatsAParagraph(ctx, ['items', 'moonlightCup', 'pullLines'], moonlightCup.pullLines, moonlightCup.paragraphs)
+    repeatsAParagraph(ctx, ['items', 'boutique', 'bandLines'], boutique.bandLines, boutique.paragraphs)
+  }),
+} as const

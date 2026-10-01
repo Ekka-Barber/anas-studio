@@ -100,9 +100,13 @@ describe('analytics request shape', () => {
     expect(TOP_PATHS_QUERY).toContain('orderBy: [count_DESC]')
   })
 
-  it('the top-paths query counts 2xx answers only, so probes and redirects never rank', () => {
-    expect(TOP_PATHS_QUERY).toContain('edgeResponseStatus_geq: 200')
-    expect(TOP_PATHS_QUERY).toContain('edgeResponseStatus_lt: 300')
+  it('the top-paths query counts 200 and 304 only: probes and redirects never rank, repeat visits do', () => {
+    expect(TOP_PATHS_QUERY).toContain('edgeResponseStatus_in: [200, 304]')
+    expect(TOP_PATHS_QUERY).not.toContain('edgeResponseStatus_lt')
+  })
+
+  it('the top-paths window is the node maximum, not 100: on a static export assets outnumber pages', () => {
+    expect(TOP_PATHS_QUERY).toContain('limit: 10000')
   })
 })
 
@@ -270,6 +274,21 @@ describe('parsers against raw shapes', () => {
     expect(parseTopPaths({ data: { viewer: { zones: [null] } }, errors: null })).toBeNull()
     expect(parseTopPaths({ data: { viewer: { zones: ['x'] } }, errors: null })).toBeNull()
     expect(parseTopPaths({})).toBeNull()
+  })
+
+  it('parseTopPaths keeps the pages when 150 asset groups outrank them all', () => {
+    const assets = Array.from({ length: 150 }, (_, index) => ({
+      count: 1000 - index,
+      avg: { sampleInterval: 1 },
+      dimensions: { clientRequestPath: `/_next/static/chunk-${index}.js` },
+    }))
+    const pages = Array.from({ length: 12 }, (_, index) => ({
+      count: 50 - index,
+      avg: { sampleInterval: 1 },
+      dimensions: { clientRequestPath: `/page-${index}` },
+    }))
+    const parsed = parseTopPaths(topPathsBody([...assets, ...pages]))
+    expect(parsed!.topPaths.map((entry) => entry.path)).toEqual(Array.from({ length: 10 }, (_, index) => `/page-${index}`))
   })
 
   it('parseTopPaths drops assets and admin/api/_next paths, then takes the top 10', () => {

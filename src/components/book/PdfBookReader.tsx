@@ -8,6 +8,7 @@ import { describe, empty, leafPlan, PREVIEW_URL, progress, renderWindow, section
 import type { ImageSources } from '@/lib/images'
 
 import { ClosedBook, Opening } from './ClosedBook'
+import { bookKey } from './keys'
 import { openPreview, PageSurface, referenceText, type Frame, type Pdfjs } from './pdf'
 import { StaticPdfReader } from './StaticPdfReader'
 import styles from './reader.module.css'
@@ -85,7 +86,11 @@ function makeLeaf(leaf: Leaf, cover: ImageSources): HTMLElement {
     // The arrow is a glyph, not a word; a child span would swallow the click.
     link.setAttribute('aria-label', 'النسخ')
     link.addEventListener('click', toEditions)
-    el.append(first, second, link)
+    // page-flip writes display: block on the leaf itself: the wrapper centres.
+    const body = document.createElement('div')
+    body.className = cls('endBody')
+    body.append(first, second, link)
+    el.append(body)
   }
   return el
 }
@@ -122,14 +127,24 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
   const pressRef = useRef<{ x: number; y: number } | null>(null)
   const pressTurnRef = useRef<0 | 1 | -1>(0)
   const skipRef = useRef<number | null>(null)
+  // page-flip's state ('flipping' while a turn runs, 'user_fold' while a page is
+  // held or let go of by hand), kept from its changeState events.
+  const stateRef = useRef<string | number>('read')
+  // The last move asked for while a turn runs, made once page-flip is back at
+  // rest: started at once it would be measured from the wrong spread, and
+  // dropped it would lose the press (an arrow during the opening turn).
+  const pendingRef = useRef<{ go: number } | { turn: 1 | -1 } | null>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const statusRef = useRef<HTMLDivElement>(null)
+  const retryRef = useRef<HTMLButtonElement>(null)
   const refocusToggleRef = useRef(false)
   const [loaded, setLoaded] = useState<Loaded | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [mode, setMode] = useState<'book' | 'pages'>('book')
   const [index, setIndex] = useState(0)
+  // The part picked in «انتقل إلى», shown at once while its turn runs.
+  const [picked, setPicked] = useState<number | null>(null)
   const [portrait, setPortrait] = useState(false)
   const [sizeTick, setSizeTick] = useState(0)
   const fullscreen = useSyncExternalStore(
@@ -163,9 +178,10 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
 
   useEffect(() => () => void loaded?.doc.loadingTask.destroy(), [loaded])
 
-  // A retry replaces the focused «إعادة المحاولة» with the loading status: focus follows it.
+  // A retry replaces the focused «إعادة المحاولة» with the loading status, and a
+  // second failure replaces the status with a new «إعادة المحاولة»: focus follows each.
   useEffect(() => {
-    if (attempt > 0 && !loaded && !failed) statusRef.current?.focus()
+    if (attempt > 0 && !loaded) (failed ? retryRef : statusRef).current?.focus()
   }, [attempt, loaded, failed])
 
   /** Where the book is for a reading index: closed on either cover, or open. */
@@ -185,17 +201,24 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     }, FADE_MS)
   }, [])
 
+  // A turn moves page-flip's own spread index at once and corrects it when it ends:
+  // a second turn started meanwhile would be measured from the wrong spread.
   const go = useCallback(
     (target: number) => {
       const flip = flipRef.current
       const block = blockRef.current
-      if (!flip || !block || total === 0) return
+      if (!flip || !block || total === 0) return false
+      if (stateRef.current === 'flipping') {
+        pendingRef.current = { go: target }
+        return true
+      }
       const at = Math.min(Math.max(target, 0), total - 1)
       pressTurnRef.current = 0
       // The stage moves with the turn: the book slides to the middle as it closes.
       block.dataset.at = atFor(at)
       if (reducedMotion()) fade(() => flip.turnToPage(toFlip(at, total)))
       else flip.flip(toFlip(at, total), 'bottom')
+      return true
     },
     [total, atFor, fade],
   )
@@ -205,6 +228,10 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
       const flip = flipRef.current
       const block = blockRef.current
       if (!flip || !block) return
+      if (stateRef.current === 'flipping') {
+        pendingRef.current = { turn: direction }
+        return
+      }
       const shown = visibleLeaves(indexRef.current, total, portraitRef.current)
       let target = direction === 1 ? (shown[shown.length - 1] ?? 0) + 1 : (shown[0] ?? 0) - 1
       // One page at a time, a blank back or an endpaper would be an empty
@@ -223,12 +250,18 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     },
     [total, atFor, fade, leaves, go],
   )
+  // The handlers page-flip calls are bound once per book: they reach the latest moves here.
+  const movesRef = useRef({ go, turn })
+  useEffect(() => {
+    movesRef.current = { go, turn }
+  }, [go, turn])
 
   // Build the book once the pages are in: page-flip gets the leaves reversed.
   useEffect(() => {
     const host = hostRef.current
     if (!loaded || mode !== 'book' || !host) return
     let cancelled = false
+    pendingRef.current = null
     const plan = leafPlan(loaded.doc.numPages)
     const block = document.createElement('div')
     block.className = cls('flip')
@@ -306,13 +339,19 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
         if (portraitRef.current && at > 0 && at < plan.length - 1 && empty(plan[at])) {
           let target = at
           while (target > 0 && target < plan.length - 1 && empty(plan[target])) target += at > from ? 1 : -1
-          skipRef.current = target
+          // A turn ends with a change to 'read', which takes the skip. An update
+          // (a resize, a rotation) ends no turn: nothing would take it there.
+          if (stateRef.current === 'flipping' || stateRef.current === 'user_fold') skipRef.current = target
+          else requestAnimationFrame(() => !cancelled && go(target))
           return
         }
+        setPicked(null)
         setIndex(at)
       })
       flip.on('changeOrientation', (event) => place(event.data === 'portrait'))
+      stateRef.current = 'read'
       flip.on('changeState', (event) => {
+        stateRef.current = event.data
         if (event.data === 'read') {
           pressTurnRef.current = 0
           const skip = skipRef.current
@@ -331,6 +370,16 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
           }
           delete block.dataset.turning
           block.dataset.at = atFor(indexRef.current)
+          const pending = pendingRef.current
+          pendingRef.current = null
+          // Like the skip above: after page-flip's own end of turn.
+          if (pending) {
+            requestAnimationFrame(() => {
+              if (cancelled) return
+              if ('go' in pending) movesRef.current.go(pending.go)
+              else movesRef.current.turn(pending.turn)
+            })
+          }
           return
         }
         block.dataset.turning = ''
@@ -439,16 +488,12 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
   }, [mode])
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const actions: Record<string, () => void> = {
-      ArrowLeft: () => turn(1),
-      ArrowRight: () => turn(-1),
-      Home: () => go(0),
-      End: () => go(endLeaf),
-    }
-    const action = actions[event.key]
-    if (!action) return
+    const key = bookKey(event)
+    if (!key) return
     event.preventDefault()
-    action()
+    if (key.held) return
+    const actions = { next: () => turn(1), previous: () => turn(-1), first: () => go(0), last: () => go(endLeaf) }
+    actions[key.action]()
   }
 
   function toggleFullscreen() {
@@ -466,6 +511,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
           <p className={styles.status}>تعذّر فتح الصفحات.</p>
           <p className={styles.messageActions}>
             <button
+              ref={retryRef}
               type="button"
               className={styles.control}
               onClick={() => {
@@ -508,7 +554,14 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
       {mode === 'book' && (
         <label className={styles.jump}>
           <span>انتقل إلى</span>
-          <select value={part.index} onChange={(event) => go(Number(event.target.value))}>
+          <select
+            value={picked ?? part.index}
+            onChange={(event) => {
+              const target = Number(event.target.value)
+              // A pick made during a turn is not taken: the select keeps what is turning.
+              if (go(target)) setPicked(target)
+            }}
+          >
             {parts.map((section) => (
               <option key={section.index} value={section.index}>
                 {section.label}
@@ -523,6 +576,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
         className={styles.tool}
         onClick={() => {
           refocusToggleRef.current = true
+          setPicked(null)
           setMode(mode === 'book' ? 'pages' : 'book')
         }}
       >

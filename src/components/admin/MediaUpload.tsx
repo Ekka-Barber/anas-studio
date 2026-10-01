@@ -35,6 +35,11 @@ const CANVAS_ERROR = 'تعذّر تجهيز أداة الرسم في هذا ال
 const WEBP_ERROR =
   'هذا المتصفح لا يستطيع إنشاء صور WebP. استخدم نسخة حديثة من Chrome أو Edge أو Firefox.'
 const DERIVATIVE_SIZE_ERROR = 'حجم أحد المقاسات بعد التحويل أكبر من 4 ميغابايت؛ جرّب اقتصاصًا أصغر أو صورة أبسط.'
+// The server swaps width and height for a rotated JPEG only; an AVIF, WebP or
+// PNG with a rotation stored in the file reads back unrotated, and a retry with
+// the same file fails the same way.
+const DIMENSION_ERROR =
+  'أبعاد الصورة الفعلية لا تطابق المُعلَن، غالبًا لأن الملف يحمل تدويرًا مضمَّنًا (AVIF أو WebP أو PNG). أعد تصديره بلا تدوير أو حوّله إلى JPEG، ثم اختر الملف من جديد.'
 
 // react-easy-crop needs one fixed aspect, so «الأصل» offers the image's own
 // ratio instead of a free-form crop.
@@ -262,7 +267,9 @@ export function MediaUpload({
       if (error) return { message: 'تعذّر رفع الصورة.' }
     }
     const finished = await callFunction<{ id: string }>('admin', { action: 'media-complete', ticketId: ticket.data.ticketId })
-    if (!finished.ok) return { message: finished.error.message }
+    if (!finished.ok) {
+      return { message: finished.error.code === 'DIMENSION_MISMATCH' ? DIMENSION_ERROR : finished.error.message }
+    }
     return { id: finished.data.id }
   }
 

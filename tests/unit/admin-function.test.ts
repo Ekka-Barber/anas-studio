@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { handleAdmin, type MediaStore, PRIVATE_BUCKET, PUBLIC_BUCKET } from '../../supabase/functions/_shared/admin.ts'
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { handleJobs } from '../../supabase/functions/_shared/jobs.ts'
+import { runOutbox } from '../../supabase/functions/_shared/outbox.ts'
 import type { StaffIdentity } from '../../supabase/functions/_shared/staff.ts'
 
 afterEach(() => {
@@ -148,6 +149,19 @@ describe('admin function: who may do what', () => {
     expect(text).not.toContain('whsec_')
     expect(text).not.toContain('1x0000')
     expect(JSON.parse(text).data).toMatchObject({ turnstile: { configured: true, testSecret: true }, webhook: true, siteHost: 'localhost' })
+  })
+
+  it('analytics is configured only when fetchAnalytics would run: it needs a SITE_URL host too', async () => {
+    vi.stubEnv('ANALYTICS_TOKEN', 'token')
+    vi.stubEnv('CLOUDFLARE_ZONE_ID', 'zone-123')
+    const analytics = async () => {
+      const response = await handleAdmin(post({ action: 'status' }), { rpc, staff: staffAs('owner'), store: memoryStore() })
+      return ((await response.json()) as { data: { analytics: boolean } }).data.analytics
+    }
+    vi.stubEnv('SITE_URL', 'anas.studio')
+    expect(await analytics()).toBe(false)
+    vi.stubEnv('SITE_URL', 'https://anas.studio')
+    expect(await analytics()).toBe(true)
   })
 })
 
@@ -312,9 +326,9 @@ describe('admin function: commerce settings save (P06 round 3, D34)', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
-  it('a stale version (SQL 40001) answers 409 CONFLICT with the reload message', async () => {
+  it('a stale version (SQL unique_violation 23505) answers 409 CONFLICT with the reload message', async () => {
     const rpc: Rpc = async () => {
-      throw Object.assign(new Error('stale version'), { code: '40001' })
+      throw Object.assign(new Error('stale version'), { code: '23505' })
     }
     const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
     expect(response.status).toBe(409)
@@ -380,9 +394,9 @@ describe('admin function: commerce policies approve (P07 round 2)', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
-  it('a stale version (SQL 40001) answers 409 CONFLICT', async () => {
+  it('a stale version (SQL unique_violation 23505) answers 409 CONFLICT', async () => {
     const rpc: Rpc = async () => {
-      throw Object.assign(new Error('stale version'), { code: '40001' })
+      throw Object.assign(new Error('stale version'), { code: '23505' })
     }
     const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
     expect(response.status).toBe(409)
@@ -413,6 +427,59 @@ describe('admin function: commerce policies approve (P07 round 2)', () => {
     expect(calls).toEqual([
       ['commerce_policies_approve', { p_actor: '11111111-1111-4111-8111-111111111111', p_expected_version: 3 }],
     ])
+  })
+})
+
+describe('runOutbox: a run that claims nothing while mail is due is a held run (EF-comms-1)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function configureResend() {
+    vi.stubEnv('RESEND_API_KEY', 're_test_key')
+    vi.stubEnv('EMAIL_FROM', 'Anas <noreply@anas.studio>')
+    vi.stubEnv('SITE_URL', 'https://anas.studio')
+    vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
+  }
+
+  it('records partial with QUOTA_HELD, so the owner home cannot read it as a healthy run', async () => {
+    configureResend()
+    const runs: Array<Record<string, unknown>> = []
+    const rpc: Rpc = async (fn, args) => {
+      if (fn === 'job_run_record') runs.push(args)
+      return fn === 'outbox_claim' ? [] : null
+    }
+    const summary = await runOutbox(rpc)
+    expect(summary).toMatchObject({ status: 'partial', claimed: 0, reason: 'QUOTA_HELD' })
+    expect(runs).toEqual([
+      expect.objectContaining({
+        p_job: 'email_outbox',
+        p_status: 'partial',
+        p_detail: { claimed: 0, accepted: 0, retry: 0, permanent: 0, uncertain: 0, reason: 'QUOTA_HELD' },
+      }),
+    ])
+  })
+
+  it('a run that sent what it claimed is still ok, with no reason', async () => {
+    configureResend()
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ id: 'prov-1' }), { status: 200 })))
+    const runs: Array<Record<string, unknown>> = []
+    let claims = 0
+    const rpc: Rpc = async (fn, args) => {
+      if (fn === 'job_run_record') runs.push(args)
+      if (fn === 'outbox_claim') {
+        claims += 1
+        return claims === 1
+          ? [{ id: '1', lease_id: 'lease', kind: 'contact_notice', recipient: 'owner@example.com', payload: { contactId: 'c1' }, idempotency_key: 'k', attempts: 1 }]
+          : []
+      }
+      if (fn === 'contact_for_notice') return [{ name: 'زائر', email: 'guest@example.com', message: 'مرحبا', created_at: new Date().toISOString() }]
+      return null
+    }
+    const summary = await runOutbox(rpc)
+    expect(summary).toMatchObject({ status: 'ok', claimed: 1, accepted: 1 })
+    expect(summary.reason).toBeUndefined()
+    expect(runs[0]).toMatchObject({ p_status: 'ok', p_detail: { claimed: 1, accepted: 1 } })
   })
 })
 

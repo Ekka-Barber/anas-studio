@@ -1,6 +1,9 @@
+import type { Metadata } from 'next'
 import { Suspense } from 'react'
 
 import { RoomPreview } from '@/components/admin/RoomPreview'
+
+export const metadata: Metadata = { title: 'معاينة' }
 
 /**
  * `/admin/preview?id=<room>` or `?collection=posts&id=<post>`: the latest draft,

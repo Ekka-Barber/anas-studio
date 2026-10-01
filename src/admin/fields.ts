@@ -114,17 +114,157 @@ export function equalData(a: unknown, b: unknown): boolean {
   return JSON.stringify(a, sorted) === JSON.stringify(b, sorted)
 }
 
+/** A field list's empty starting value, computed from the config itself. */
+export function defaultsForFields(fields: readonly Field[]): Record<string, unknown> {
+  const value: Record<string, unknown> = {}
+  for (const field of fields) value[field.name] = defaultForField(field)
+  return value
+}
+
+/**
+ * `loaded` with what it lacks filled from the field defaults, so a stored
+ * document without a whole group (the seeded settings have no `contact` or
+ * `seo`) opens with that group's values in place, and typing into one child
+ * cannot leave its siblings undefined. Loaded values always win, a group in
+ * both is merged key by key, and an optional field that is not a group stays
+ * absent: an unset value must stay unset, not become '' (`galleryLine ?? …`).
+ */
+export function withDefaults(fields: readonly Field[], loaded: Record<string, unknown>): Record<string, unknown> {
+  const value = { ...loaded }
+  for (const field of fields) {
+    const current = loaded[field.name]
+    if (field.type === 'group' && current !== null && typeof current === 'object' && !Array.isArray(current)) {
+      value[field.name] = withDefaults(field.fields, current as Record<string, unknown>)
+    } else if (current === undefined && (field.type === 'group' || field.required !== false)) {
+      const fallback = defaultForField(field)
+      if (fallback !== undefined) value[field.name] = fallback
+    }
+  }
+  return value
+}
+
+function defaultForField(field: Field): unknown {
+  if (field.nullable) return null
+  // An optional (not nullable) image/video has no valid "empty" id, so an
+  // empty default must be an absent key, not '' (which would fail the id
+  // schema). `posts.cover` is the only field like this today.
+  if (field.required === false && (field.type === 'image' || field.type === 'video')) return undefined
+  switch (field.type) {
+    case 'text':
+    case 'textarea':
+    case 'slug':
+    case 'image':
+    case 'video':
+      return ''
+    case 'paragraphs':
+    case 'relation':
+      return []
+    case 'boolean':
+      return false
+    case 'select':
+      return field.options[0] ?? ''
+    // P07 round 2: nullable number/money/datetime default to null (handled
+    // above), otherwise a number starts at 0 and a timestamp as ''.
+    case 'number':
+    case 'money':
+      return 0
+    case 'datetime':
+      return ''
+    case 'richtext':
+      return { root: { type: 'root', children: [] } }
+    case 'group':
+      return defaultsForFields(field.fields)
+    case 'list':
+      return []
+  }
+}
+
+/** The unsaved copy the editor keeps in `localStorage` (CollectionForm's autosave). */
+export interface StoredDraft {
+  baseSeq: number
+  data: unknown
+  savedAt: number
+  /** Who wrote the copy. Absent on copies written before this was recorded. */
+  userId?: string
+}
+
+/**
+ * What a loaded document offers back from its stored local copy. A copy another
+ * signed-in user left on this browser is not offered (this user may not even be
+ * allowed to read the document); one without a `userId` predates the field and
+ * is. The copy is read as the form would hold it (defaults merged), and is not
+ * offered when that is the loaded data. `staleBase` is the version the copy was
+ * made from, when a newer one is saved now.
+ */
+export function draftOffer(
+  stored: StoredDraft | null,
+  userId: string | undefined,
+  loadedData: Record<string, unknown>,
+  loadedSeq: number,
+  fields: readonly Field[],
+): { offered: Record<string, unknown> | null; staleBase: number | null; savedAt: number | null } {
+  const own = stored && (stored.userId === undefined || stored.userId === userId) ? stored : null
+  const data = own?.data
+  const merged =
+    data !== null && typeof data === 'object' && !Array.isArray(data)
+      ? withDefaults(fields, data as Record<string, unknown>)
+      : null
+  const offered = merged && !equalData(merged, loadedData) ? merged : null
+  return {
+    offered,
+    staleBase: own && own.baseSeq < loadedSeq ? own.baseSeq : null,
+    savedAt: offered && own ? own.savedAt : null,
+  }
+}
+
+/**
+ * What the editor does with its local copy after a change: nothing while a
+ * copy is on offer (it stays until the user answers it, whether the form was
+ * saved or typed in), else remove it when the form equals the saved version,
+ * else write the form as the copy. Save does not touch the copy itself; this
+ * rule runs again after it (AUDIT-2 ADMIN-editor-2, FIX-admin-1).
+ */
+export function draftStorageAction(offerPending: boolean, data: unknown, saved: unknown): 'keep' | 'remove' | 'write' {
+  return offerPending ? 'keep' : equalData(data, saved) ? 'remove' : 'write'
+}
+
+/**
+ * A validation issue's path in words for the form's error list (FIX-admin-3):
+ * the top-level label, the 1-based number of a list item or paragraph, then the
+ * inner field's label, like «المشاهد › 17 › التعليق».
+ */
+export function fieldPathLabel(fields: readonly Field[], path: readonly PropertyKey[]): string {
+  const parts: string[] = []
+  let scope: readonly Field[] = fields
+  for (const segment of path) {
+    if (typeof segment === 'number') {
+      parts.push(String(segment + 1))
+      continue
+    }
+    const field = scope.find((candidate) => candidate.name === segment)
+    parts.push(field?.label ?? String(segment))
+    scope = field?.type === 'group' || field?.type === 'list' ? field.fields : []
+  }
+  return parts.join(' › ')
+}
+
 const imageManifest = imageManifestRaw as unknown as Record<string, unknown>
 const videoManifest = (mediaManifestRaw as unknown as { videos: Record<string, unknown> }).videos
 
 // P05: an image field accepts a manifest id (the committed originals) or a
 // media-library id (uploaded through the `admin` Edge Function). Videos stay
 // manifest-only.
+// Own keys only: `in` would accept `constructor` and `toString`, names the
+// manifests inherit from Object.prototype (the same rule as `isRoomSlug`).
 const imageIdSchema = z
   .string()
-  .refine((id) => id in imageManifest || isMediaId(id), { message: 'معرّف صورة غير معروف.' })
-const videoIdSchema = z.string().refine((id) => id in videoManifest, { message: 'معرّف فيديو غير معروف.' })
-const slugSchema = z.string().regex(/^[a-z0-9-]+$/, { message: 'يجب أن يتكوّن من حروف لاتينية صغيرة وأرقام وشرطات.' })
+  .refine((id) => Object.hasOwn(imageManifest, id) || isMediaId(id), { message: 'معرّف صورة غير معروف.' })
+const videoIdSchema = z.string().refine((id) => Object.hasOwn(videoManifest, id), { message: 'معرّف فيديو غير معروف.' })
+// The rule every slug in the database follows (`content_versions.doc_id`, products):
+// it is a static route segment, so its length and first character matter.
+const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/, {
+  message: 'حروف لاتينية صغيرة وأرقام وشرطات، حتى 80 حرفًا، ولا يبدأ بشرطة.',
+})
 const isoDateSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), { message: 'تاريخ غير صالح.' })
 
 const HIDDEN_FIELD: Field = { name: 'hidden', label: 'مخفي', type: 'boolean', required: false }
@@ -137,7 +277,13 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
       let schema = field.type === 'slug' && !field.pattern ? slugSchema : z.string()
       if (field.pattern) schema = schema.regex(field.pattern.regex, { message: field.pattern.message })
       if (field.maxLength !== undefined) schema = schema.max(field.maxLength, `الحد الأقصى ${field.maxLength} حرفًا.`)
-      return field.nonBlank ? schema.refine((value) => value.trim() !== '', { message: 'لا يمكن أن يكون فارغًا.' }) : schema
+      // `nonBlank` marks a single-line name whose table also checks `btrim(x) <> ''`
+      // and `x !~ '[[:cntrl:]]'`, so a pasted tab is named here, not by a 23514.
+      return field.nonBlank
+        ? schema
+            .refine((value) => value.trim() !== '', { message: 'لا يمكن أن يكون فارغًا.' })
+            .refine((value) => !/[\u0000-\u001F\u007F-\u009F]/.test(value), { message: 'لا يُقبل نص فيه رموز تحكم.' })
+        : schema
     }
     case 'paragraphs':
       return z.array(z.string())
@@ -154,10 +300,16 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
     case 'datetime':
       return isoDateSchema
     case 'number': {
-      let schema = z.number({ message: 'أدخل رقمًا.' }).int('أدخل عددًا صحيحًا.')
-      if (field.min !== undefined) schema = schema.min(field.min, `أقل قيمة ${field.min}.`)
-      if (field.max !== undefined) schema = schema.max(field.max, `أكبر قيمة ${field.max}.`)
-      return schema
+      // Every catalog number is a Postgres `integer`: without these bounds an
+      // overflow (22003) would reach the owner as «تعذّر الحفظ.», naming nothing.
+      const min = field.min ?? -2_147_483_648
+      const max = field.max ?? 2_147_483_647
+      return z
+        .number({ message: 'أدخل رقمًا.' })
+        .int('أدخل عددًا صحيحًا.')
+        // LRM before a negative number keeps its minus on its left; without it the sign is drawn after the digits.
+        .min(min, `أقل قيمة ${min < 0 ? '‎' : ''}${min}.`)
+        .max(max, `أكبر قيمة ${max}.`)
     }
     case 'money': {
       const min = field.min ?? 1

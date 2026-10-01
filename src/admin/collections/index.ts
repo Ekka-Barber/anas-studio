@@ -2,7 +2,7 @@ import type { z } from 'zod'
 
 import { POLICY_DOC_IDS, POLICY_DOC_LABELS, policyFields, policySchema, type PolicyDocId } from './policies'
 import { postFields, postSchema } from './posts'
-import { roomSchemas, type RoomSlug } from './rooms'
+import { roomPublishSchemas, roomSchemas, type RoomSlug } from './rooms'
 import * as rooms from './rooms'
 import { scenesFields, scenesSchema } from './scenes'
 import { siteSettingsFields, siteSettingsSchema } from './site-settings'
@@ -88,7 +88,7 @@ export function schemaFor(collection: Collection, docId: string): z.ZodTypeAny {
       return siteSettingsSchema
     case 'rooms':
       if (!isRoomSlug(docId)) throw new Error(`Unknown room: ${docId}`)
-      return roomSchemas[docId]
+      return roomPublishSchemas[docId]
     case 'posts':
       return postSchema
     case 'taxonomies':

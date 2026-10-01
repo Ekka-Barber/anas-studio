@@ -55,21 +55,30 @@ export interface MediaDerivative {
   height: number
 }
 
+/** What the build reads of a media row: its derivatives and the alt text written at upload. */
+export interface MediaInfo {
+  derivatives: MediaDerivative[]
+  alt?: string
+}
+
+/** Media rows by id. A bare derivative list (the admin preview's) carries no alt. */
+export type MediaLookup = ReadonlyMap<string, MediaDerivative[] | MediaInfo>
+
 // Ids per request: each UUID adds about 39 characters to the GET URL, and
 // Cloudflare, which fronts hosted Supabase, refuses one past 16 KB.
 const MEDIA_CHUNK = 100
 
 /**
- * The derivatives of each media row, read with the publishable key in chunks
- * of `MEDIA_CHUNK` ids. An id anon may not read (no published document
- * references it) has no entry — an unreadable library is an error. The one
- * media read of every build-time loader.
+ * The derivatives and alt text of each media row, read with the publishable
+ * key in chunks of `MEDIA_CHUNK` ids. An id anon may not read (no published
+ * document references it) has no entry — an unreadable library is an error.
+ * The one media read of every build-time loader.
  */
-export async function mediaById(ids: string[]): Promise<Map<string, MediaDerivative[]>> {
-  const byId = new Map<string, MediaDerivative[]>()
+export async function mediaById(ids: string[]): Promise<Map<string, MediaInfo>> {
+  const byId = new Map<string, MediaInfo>()
   for (let start = 0; start < ids.length; start += MEDIA_CHUNK) {
     const params = new URLSearchParams({
-      select: 'id,derivatives',
+      select: 'id,derivatives,alt_ar',
       id: `in.(${ids.slice(start, start + MEDIA_CHUNK).join(',')})`,
     })
     const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/media?${params}`, {
@@ -78,8 +87,8 @@ export async function mediaById(ids: string[]): Promise<Map<string, MediaDerivat
     if (!response.ok) {
       throw new Error(`Failed to fetch media: ${response.status}`)
     }
-    const rows = (await response.json()) as Array<{ id: string; derivatives: MediaDerivative[] }>
-    for (const row of rows) byId.set(row.id, row.derivatives)
+    const rows = (await response.json()) as Array<{ id: string; derivatives: MediaDerivative[]; alt_ar: string }>
+    for (const row of rows) byId.set(row.id, { derivatives: row.derivatives, alt: row.alt_ar })
   }
   return byId
 }
@@ -94,11 +103,13 @@ async function resolveMedia<T>(data: T): Promise<T> {
   return replaceMediaIds(data, await mediaById(ids), MEDIA_ORIGIN)
 }
 
-/** Deep-walks `value`, swapping each resolved media id for its reference string. */
-export function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]>, origin: string): T {
+/** Deep-walks `value`, swapping each resolved media id for its reference string (with the row's alt). */
+export function replaceMediaIds<T>(value: T, byId: MediaLookup, origin: string): T {
   function walk(node: unknown): unknown {
     if (typeof node === 'string') {
-      const derivatives = byId.get(node)
+      const row = byId.get(node)
+      const derivatives = Array.isArray(row) ? row : row?.derivatives
+      const alt = Array.isArray(row) ? undefined : row?.alt
       if (!derivatives || derivatives.length === 0) return node
       const largestWidth = Math.max(...derivatives.map((d) => d.width))
       const largest = derivatives.find((d) => d.width === largestWidth)!
@@ -107,6 +118,7 @@ export function replaceMediaIds<T>(value: T, byId: Map<string, MediaDerivative[]
         width: largest.width,
         height: largest.height,
         widths: derivatives.map((d) => d.width).sort((a, b) => a - b),
+        alt,
       })
     }
     if (Array.isArray(node)) return node.map(walk)
@@ -164,10 +176,12 @@ export async function getFooter(): Promise<FooterContent> {
 
 /**
  * The journal's name (D11, C08): the label of its menu item, so renaming it
- * there renames it on every page. «المجلس» until the menu says otherwise.
+ * there renames it on every page. «المجلس» until the menu says otherwise,
+ * and while its label is blank.
  */
 export async function getJournalName(): Promise<string> {
-  return (await getNav()).find((item) => item.href === '/journal')?.label ?? 'المجلس'
+  const label = (await getNav()).find((item) => item.href === '/journal')?.label.trim()
+  return label || 'المجلس'
 }
 
 export type HomeContent = SiteContent['home']

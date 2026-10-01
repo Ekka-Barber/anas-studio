@@ -16,6 +16,7 @@ import { formatMoney, formatRiyadh } from '@/lib/format'
 import { formatRiyalsInput } from '@/lib/money-input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
+import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 
 export type StaffRole = 'owner' | 'editor' | 'operations'
@@ -54,18 +55,14 @@ export function listSelect(config: TableConfig): string {
 export function TableList({ table }: { table: TableKey }) {
   const config = tables[table]
   const router = useRouter()
-  const [role, setRole] = useState<StaffRole | null>(null)
+  const role = useStaffRole()
   const [rows, setRows] = useState<Record<string, unknown>[] | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
+    if (role === 'editor') return
     let active = true
     void (async () => {
-      const supabase = getSupabaseBrowserClient()
-      const { data: roleData } = await supabase.rpc('current_staff_role')
-      if (!active) return
-      setRole((roleData as StaffRole | null) ?? null)
-      if (roleData === 'editor') return
       let query = getSupabaseBrowserClient().from(config.table).select(listSelect(config))
       for (const order of config.order) query = query.order(order.column, { ascending: order.ascending })
       const { data, error: loadError } = await query.limit(LIST_LIMIT)
@@ -79,9 +76,8 @@ export function TableList({ table }: { table: TableKey }) {
     return () => {
       active = false
     }
-  }, [config])
+  }, [config, role])
 
-  if (role === null) return <p className={styles.message}>يحمّل...</p>
   // Editors see nothing of the store; operations cannot read coupons (RLS).
   if (role === 'editor' || (config.read === 'owner' && role !== 'owner')) {
     return <p className={styles.error}>لا تملك صلاحية الوصول</p>

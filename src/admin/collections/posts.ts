@@ -6,7 +6,7 @@ import { type Field, schemaFromFields } from '../fields'
  */
 export const postFields = [
   { name: 'slug', label: 'المعرّف', type: 'slug' },
-  { name: 'title', label: 'العنوان', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
   { name: 'excerpt', label: 'مقتطف', type: 'textarea' },
   { name: 'body', label: 'النص', type: 'richtext' },
   { name: 'author', label: 'الكاتب', type: 'text' },

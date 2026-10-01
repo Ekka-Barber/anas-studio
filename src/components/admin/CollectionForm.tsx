@@ -11,10 +11,20 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 import { collections, COLLECTION_LABELS, documentTitle, schemaFor, type Collection } from '@/admin/collections'
-import { equalData, type Field } from '@/admin/fields'
+import {
+  defaultsForFields,
+  draftOffer,
+  draftStorageAction,
+  equalData,
+  fieldPathLabel,
+  withDefaults,
+  type Field,
+  type StoredDraft,
+} from '@/admin/fields'
+import { formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
-import { defaultsForFields, FieldInput, type TaxonomiesByKind } from './FieldInput'
+import { FieldInput, type TaxonomiesByKind } from './FieldInput'
 import { PublishBar } from './PublishBar'
 import { VersionHistory } from './VersionHistory'
 import styles from './admin.module.css'
@@ -44,12 +54,6 @@ function draftKey(collection: Collection, docId: string): string {
   return `anasaq:draft:${collection}:${docId}`
 }
 
-interface StoredDraft {
-  baseSeq: number
-  data: unknown
-  savedAt: number
-}
-
 function readStoredDraft(collection: Collection, docId: string): StoredDraft | null {
   try {
     const raw = window.localStorage.getItem(draftKey(collection, docId))
@@ -57,6 +61,12 @@ function readStoredDraft(collection: Collection, docId: string): StoredDraft | n
   } catch {
     return null
   }
+}
+
+/** When a local copy was made, as Riyadh wall-clock text, or null for a time that cannot be read. */
+function savedAtLabel(savedAt: unknown): string | null {
+  const date = typeof savedAt === 'number' ? new Date(savedAt) : null
+  return date && !Number.isNaN(date.getTime()) ? formatRiyadh(date.toISOString()) : null
 }
 
 export function CollectionForm({ collection, docId }: { collection: Collection; docId: string }) {
@@ -70,17 +80,24 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   const [baseSeq, setBaseSeq] = useState(0)
   const [liveSeq, setLiveSeq] = useState<number | null>(null)
   const [scheduledAt, setScheduledAt] = useState<string | null>(null)
+  const [scheduledSeq, setScheduledSeq] = useState<number | null>(null)
   const [initialData, setInitialData] = useState<Record<string, unknown>>({})
   const [data, setData] = useState<Record<string, unknown>>({})
   const [localOffer, setLocalOffer] = useState<Record<string, unknown> | null>(null)
   // The version the offered copy was made from, when a newer one is saved now.
   const [staleBase, setStaleBase] = useState<number | null>(null)
+  const [offerSavedAt, setOfferSavedAt] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [taxonomies, setTaxonomies] = useState<TaxonomiesByKind>({ category: [], tag: [] })
   const [loadGeneration, setLoadGeneration] = useState(0)
   const hydratedRef = useRef(false)
   const loadedOnceRef = useRef(false)
+  const userIdRef = useRef<string | undefined>(undefined)
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const offerHeadingRef = useRef<HTMLHeadingElement>(null)
+  // Set when the user answers the offer, so focus can return to the page once the banner is gone.
+  const answeredRef = useRef(false)
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
@@ -124,7 +141,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     const supabase = getSupabaseBrowserClient()
     const { data: row, error } = await supabase
       .from('content_documents')
-      .select('latest_seq, latest_data, live_seq, scheduled_at')
+      .select('latest_seq, latest_data, live_seq, scheduled_at, scheduled_seq')
       .eq('collection', collection)
       .eq('doc_id', docId)
       .maybeSingle()
@@ -133,17 +150,27 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
       setLoading(false)
       return
     }
+    const { data: sessionData } = await supabase.auth.getSession()
+    userIdRef.current = sessionData.session?.user.id
     const loadedSeq: number = row?.latest_seq ?? 0
-    const loadedData: Record<string, unknown> = row?.latest_data ?? defaultsForFields(fields)
+    // Defaults go under the stored data, so a document that lacks a whole group
+    // (the seeded settings have no `contact`) is not marked changed and its
+    // group can be valid once one value is typed.
+    const loadedData: Record<string, unknown> = row?.latest_data
+      ? withDefaults(fields, row.latest_data)
+      : defaultsForFields(fields)
     setBaseSeq(loadedSeq)
     setLiveSeq(row?.live_seq ?? null)
     setScheduledAt(row?.scheduled_at ?? null)
+    setScheduledSeq(row?.scheduled_seq ?? null)
     setInitialData(loadedData)
     setData(loadedData)
 
-    const stored = readStoredDraft(collection, docId)
-    setLocalOffer(stored && !equalData(stored.data, loadedData) ? (stored.data as Record<string, unknown>) : null)
-    setStaleBase(stored && stored.baseSeq < loadedSeq ? stored.baseSeq : null)
+    // The next autosave replaces or removes a copy that is not offered.
+    const offer = draftOffer(readStoredDraft(collection, docId), userIdRef.current, loadedData, loadedSeq, fields)
+    setLocalOffer(offer.offered)
+    setOfferSavedAt(offer.savedAt === null ? null : savedAtLabel(offer.savedAt))
+    setStaleBase(offer.staleBase)
 
     setLoading(false)
     loadedOnceRef.current = true
@@ -166,14 +193,17 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   // form equal to its saved version keeps no copy: the copy a save removed
   // would otherwise come back and, once a restore or another session changed
   // the document, be offered as unsaved work. A copy still on offer stays
-  // untouched until the user answers it, or the form would overwrite it.
+  // untouched until the user answers it, or the form would overwrite it (the
+  // form itself stays hidden until then). Save relies on this rule to clear the
+  // copy, because it runs after the save with the current offer.
   useEffect(() => {
-    if (!hydratedRef.current || localOffer) return
+    if (!hydratedRef.current) return
     try {
-      if (equalData(data, initialData)) {
+      const action = draftStorageAction(localOffer !== null, data, initialData)
+      if (action === 'remove') {
         window.localStorage.removeItem(draftKey(collection, docId))
-      } else {
-        const draft: StoredDraft = { baseSeq, data, savedAt: Date.now() }
+      } else if (action === 'write') {
+        const draft: StoredDraft = { baseSeq, data, savedAt: Date.now(), userId: userIdRef.current }
         window.localStorage.setItem(draftKey(collection, docId), JSON.stringify(draft))
       }
     } catch {
@@ -185,16 +215,29 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     window.localStorage.removeItem(draftKey(collection, docId))
   }
 
+  // Focus follows the banner: onto its heading when a copy is offered, and onto
+  // the page title once it is answered, because its buttons unmount with it.
+  useEffect(() => {
+    if (localOffer) {
+      offerHeadingRef.current?.focus()
+    } else if (answeredRef.current) {
+      answeredRef.current = false
+      titleRef.current?.focus()
+    }
+  }, [localOffer])
+
   function acceptLocalOffer() {
     if (localOffer) {
       setData(localOffer)
       setLoadGeneration((generation) => generation + 1)
     }
+    answeredRef.current = true
     setLocalOffer(null)
   }
 
   function discardLocalOffer() {
     clearStoredDraft()
+    answeredRef.current = true
     setLocalOffer(null)
   }
 
@@ -216,34 +259,60 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     }
     setBaseSeq(nextSeq)
     setInitialData(data)
-    clearStoredDraft()
+    // The stored copy is not cleared here: the form now equals its saved version,
+    // so the autosave effect removes it, and never while a copy is on offer. A
+    // guard on `localOffer` here would read this closure's stale value.
     setSaveMessage('تم الحفظ.')
   }
 
   if (loading) return <p className={styles.message}>يحمّل...</p>
   if (loadError) return <p className={styles.error}>{loadError}</p>
 
-  return (
-    <div className={styles.field}>
+  const header = (
+    <>
       <p>
         <Link href={`/admin/content/${collection}`}>{COLLECTION_LABELS[collection]}</Link>
       </p>
-      <h1>{documentTitle(collection, docId, initialData)}</h1>
-      {localOffer && (
-        <div className={styles.row}>
-          <p className={styles.message}>
+      <h1 ref={titleRef} tabIndex={-1}>
+        {documentTitle(collection, docId, initialData)}
+      </h1>
+    </>
+  )
+
+  // A copy on offer is answered first. The form, Save and the publish bar stay
+  // hidden until then, so nothing can be edited, saved or autosaved over it and
+  // it stays in storage until the user chooses.
+  if (localOffer) {
+    const headingId = `${collection}-${docId}-offer`
+    return (
+      <div className={styles.field}>
+        {header}
+        <section aria-labelledby={headingId} className={styles.field}>
+          <h2 id={headingId} ref={offerHeadingRef} tabIndex={-1}>
             يوجد تعديل غير محفوظ محليًا لهذا المستند.
+          </h2>
+          <p className={styles.message}>
+            {offerSavedAt && `آخر تعديل محلي: ${offerSavedAt}. `}
             {staleBase !== null &&
-              ` هذه النسخة المحلية مبنية على النسخة ${staleBase}، والأحدث الآن ${baseSeq}؛ استعادتها تستبدل ما حُفظ بعدها.`}
+              `هذه النسخة المحلية مبنية على النسخة ${staleBase}، والأحدث الآن ${baseSeq}؛ استرجاعها يستبدل ما حُفظ بعدها. `}
+            استرجعها لتكمل من حيث توقفت، أو تجاهلها لتحذفها وتفتح آخر نسخة محفوظة.
           </p>
-          <button type="button" className={styles.buttonSecondary} onClick={acceptLocalOffer}>
-            استعادة النسخة غير المحفوظة
-          </button>
-          <button type="button" className={styles.buttonSecondary} onClick={discardLocalOffer}>
-            تجاهلها
-          </button>
-        </div>
-      )}
+          <div className={styles.row}>
+            <button type="button" className={styles.buttonSecondary} onClick={acceptLocalOffer}>
+              استرجاع
+            </button>
+            <button type="button" className={styles.buttonSecondary} onClick={discardLocalOffer}>
+              تجاهل
+            </button>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  return (
+    <div className={styles.field}>
+      {header}
 
       <div key={loadGeneration} className={styles.field}>
         {fields.map((field) => (
@@ -262,11 +331,15 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
         <div>
           <p className={styles.error}>هناك مشاكل في البيانات:</p>
           <ul>
-            {parsed.error.issues.map((issue, index) => (
-              <li key={index} className={styles.error}>
-                {fields.find((field) => field.name === issue.path[0])?.label ?? issue.path.join('.')}: {issue.message}
-              </li>
-            ))}
+            {parsed.error.issues.map((issue, index) => {
+              const where = fieldPathLabel(fields, issue.path)
+              return (
+                <li key={index} className={styles.error}>
+                  {where && `${where}: `}
+                  {issue.message}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}
@@ -287,6 +360,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
           seq={baseSeq}
           liveSeq={liveSeq}
           scheduledAt={scheduledAt}
+          scheduledSeq={scheduledSeq}
           canPublish={canPublish}
           canArchive={collection === 'posts' || collection === 'taxonomies'}
           previewPath={previewPathFor(collection, docId)}
@@ -300,8 +374,9 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
         // React's reconciliation and can duplicate DOM nodes). Its own
         // `versions` list is fetched once per mount, so a restore (which
         // inserts a new row) must force a remount or the table never shows
-        // it. Unlike PublishBar, VersionHistory has no in-flight message to
-        // lose across a remount.
+        // it. A plain save only changes `latestSeq`, which it refetches on.
+        // Unlike PublishBar, VersionHistory has no in-flight message to lose
+        // across a remount.
         <VersionHistory
           key={`history-${loadGeneration}`}
           collection={collection}

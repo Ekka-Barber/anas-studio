@@ -10,7 +10,7 @@
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createStaff, pgRpc, serviceRoleDb } from './support'
+import { createStaff, pgRpc, serviceClient, serviceRoleDb } from './support'
 
 let postgres: Client
 let serviceDb: Client
@@ -132,7 +132,7 @@ describe('commerce_policies_approve', () => {
     )
   })
 
-  it('a stale expected version raises 40001 before anything is written', async () => {
+  it('a stale expected version raises 23505 (409 over the Data API) before anything is written', async () => {
     const owner = await createStaff('owner')
     // One failing call per transaction: a refused statement aborts it.
     await rolledBack(serviceDb, async () => {
@@ -142,15 +142,29 @@ describe('commerce_policies_approve', () => {
           p_actor: owner.userId,
           p_expected_version: before + 5,
         }),
-      ).rejects.toMatchObject({ code: '40001' })
+      ).rejects.toMatchObject({ code: '23505' })
     })
     // A missing version is a conflict too, never a blind overwrite.
     await rolledBack(serviceDb, () =>
       expect(
         pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: null }),
-      ).rejects.toMatchObject({ code: '40001' }),
+      ).rejects.toMatchObject({ code: '23505' }),
     )
   })
+
+  // A 40001 never answers through PostgREST (it retries the request without
+  // bound), so a stale approval is raised as 23505, which it maps to 409.
+  it('a stale expected version answers 23505 promptly through the Data API, not a hang', async () => {
+    const owner = await createStaff('owner')
+    const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 8_000))
+    const reply = await Promise.race([
+      // Versions start at 0 and only grow, so -1 is always stale.
+      serviceClient.rpc('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: -1 }),
+      timeout,
+    ])
+    expect(reply).not.toBe('timeout')
+    expect((reply as { error: { code: string } | null }).error?.code).toBe('23505')
+  }, 20_000)
 
   it('a missing required policy raises P0001 with its message', async () => {
     const owner = await createStaff('owner')

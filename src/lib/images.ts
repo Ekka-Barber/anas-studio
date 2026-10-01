@@ -37,7 +37,8 @@ export function imageSources(id: string): ImageSources | null {
     }
   }
   if (isMediaId(id)) return null
-  const entry = manifest[id]
+  // An own key only: an inherited one («constructor») would pass as an entry with nothing to show.
+  const entry = Object.hasOwn(manifest, id) ? manifest[id] : undefined
   if (!entry) throw new Error(`Missing image manifest entry: ${id}. Run scripts/prepare-media.mjs.`)
   // A video poster is one still at the film's own size.
   if (entry.poster) {

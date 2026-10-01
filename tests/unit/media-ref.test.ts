@@ -57,6 +57,15 @@ describe('formatMediaRef / parseMediaRef', () => {
     expect(parseMediaRef(formatted)).toEqual(ref)
   })
 
+  it('carries the alt text written at upload, even one with a bar or a percent sign', () => {
+    const ref = { base: '/media/m/' + randomUUID(), width: 720, height: 480, widths: [360, 720], alt: 'باب | مفتوح 100%' }
+    const formatted = formatMediaRef(ref)
+    expect(formatted.split('|')).toHaveLength(5)
+    expect(parseMediaRef(formatted)).toEqual(ref)
+    expect(parseMediaRef(formatMediaRef({ ...ref, alt: undefined }))?.alt).toBeUndefined()
+    expect(parseMediaRef('media|/media/m/x|100x50|360|%E0%A4%A')).toBeNull()
+  })
+
   it('parses a production-origin reference', () => {
     const parsed = parseMediaRef(`media|https://media.anas.studio/m/${randomUUID()}|720x480|360,720`)
     expect(parsed?.widths).toEqual([360, 720])

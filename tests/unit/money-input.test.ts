@@ -3,7 +3,7 @@
 // round trip the `datetime` field uses.
 import { describe, expect, it } from 'vitest'
 
-import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIso } from '../../src/lib/money-input'
+import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIso, riyadhLocalToIsoOrNull } from '../../src/lib/money-input'
 
 describe('parseRiyals', () => {
   it('parses everyday riyal spellings into integer halalas', () => {
@@ -67,5 +67,14 @@ describe('the Riyadh datetime-local round trip', () => {
 
     // A timestamptz as PostgreSQL returns it, with a +00:00 offset.
     expect(isoToRiyadhLocal('2026-01-01T20:59:59+00:00')).toBe('2026-01-01T23:59')
+  })
+
+  it('riyadhLocalToIsoOrNull gives null, not a RangeError, for a five-digit year or a partial value (STORE-cart-7)', () => {
+    expect(riyadhLocalToIsoOrNull('20261-09-30T12:00')).toBeNull()
+    expect(riyadhLocalToIsoOrNull('275760-09-13T00:00')).toBeNull()
+    expect(riyadhLocalToIsoOrNull('2026-09-30')).toBeNull()
+    expect(riyadhLocalToIsoOrNull('2026-13-01T10:00')).toBeNull()
+    expect(riyadhLocalToIsoOrNull('')).toBeNull()
+    expect(riyadhLocalToIsoOrNull('2026-03-05T10:00')).toBe('2026-03-05T07:00:00.000Z')
   })
 })

@@ -579,6 +579,46 @@ describe('checkout_create refusals', () => {
   })
 })
 
+// --- the price function's own guards ------------------------------------------
+
+describe('checkout_price refusals (AUDIT-2)', () => {
+  it('refuses malformed and oversized carts with their own codes, in quote and in create', async () => {
+    const product = await makeProduct()
+    const digital = await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    const signed = await makeVariant(product, { fulfillment: 'signed', price: 9900, stock: 5 })
+    const city = await makeRate(2500)
+    const errorCodes = async (lines: unknown): Promise<string[]> =>
+      (((await quote(pool[0]!, lines as Line[], city)) as any).errors as Array<{ code: string }>).map((error) => error.code)
+
+    expect(await errorCodes({})).toEqual(['INVALID_CART'])
+    expect(await errorCodes([])).toEqual(['EMPTY_CART'])
+    // 51 lines: refused before any line is read, so the ids need not exist.
+    expect(await errorCodes(Array.from({ length: 51 }, () => ({ variantId: randomUUID(), quantity: 1 })))).toEqual(['TOO_MANY_LINES'])
+    expect(await errorCodes([{ variantId: digital, quantity: 1 }, { variantId: digital, quantity: 2 }])).toEqual(['DUPLICATE_LINE'])
+    // A quantity that is a number of one or two digits, from 1 to 20; anything else is refused.
+    expect(await errorCodes([{ variantId: digital, quantity: 0 }])).toEqual(['INVALID_QUANTITY'])
+    expect(await errorCodes([{ variantId: digital, quantity: 21 }])).toEqual(['INVALID_QUANTITY'])
+    for (const quantity of ['5', 1.5, -1, 100]) {
+      expect(await errorCodes([{ variantId: digital, quantity }]), String(quantity)).toEqual(['INVALID_LINE'])
+    }
+    expect(await errorCodes([{ variantId: 'not-a-uuid', quantity: 1 }])).toEqual(['INVALID_LINE'])
+    expect(await errorCodes([{ variantId: signed, quantity: 1, dedication: 5 }])).toEqual(['INVALID_LINE'])
+    expect(await errorCodes([{ variantId: signed, quantity: 1, dedication: 'ه'.repeat(201) }])).toEqual(['INVALID_DEDICATION'])
+    expect(await errorCodes([{ variantId: signed, quantity: 1, dedication: 'ه'.repeat(200) }])).toEqual([])
+
+    // Six of a 100,000 SAR item: past the 500,000 SAR ceiling that keeps the
+    // subtotal inside an integer. Create refuses it with the same code, it does not raise.
+    const pricey = await makeVariant(product, { fulfillment: 'digital', price: 10_000_000 })
+    const lines = [{ variantId: pricey, quantity: 6 }]
+    expect(await errorCodes(lines)).toEqual(['CART_TOO_LARGE'])
+    const created = await createOrder(pool[0]!, { lines })
+    expect(created.code).toBeUndefined()
+    expect(created.result).toMatchObject({ ok: false, code: 'CART_TOO_LARGE' })
+    // Exactly at the ceiling is fine.
+    expect(await errorCodes([{ variantId: pricey, quantity: 5 }])).toEqual([])
+  })
+})
+
 // --- create: the order itself -------------------------------------------------
 
 describe('checkout_create success', () => {
@@ -777,6 +817,23 @@ describe('hold limits (DATA "Unpaid reservation abuse")', () => {
     const again = await createOrder(pool[0]!, { lines: [{ variantId: physical, quantity: 1 }], cityKey, email })
     expect(again.result.ok).toBe(true)
   })
+
+  it('a cancel with the right token after the token expired is NOT_FOUND and leaves the order held (AUDIT-2)', async () => {
+    const key = randomUUID()
+    const created = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], idempotencyKey: key })
+    expect(created.result.ok).toBe(true)
+    await postgres.query("update finance.orders set access_token_expires_at = now() - interval '1 minute' where id = $1", [
+      created.result.order.id,
+    ])
+    const answer = await rpc(pool[0]!)('checkout_cancel', {
+      p_order_number: created.result.order.orderNumber,
+      p_access_token_hash: hashFor(tokenFor(key)),
+    })
+    expect(answer).toMatchObject({ ok: false, code: 'NOT_FOUND' })
+    const order = (await postgres.query<{ status: string }>('select status from finance.orders where id = $1', [created.result.order.id]))
+      .rows[0]!
+    expect(order.status).toBe('pending_payment')
+  })
 })
 
 // --- throttle ------------------------------------------------------------------
@@ -941,6 +998,39 @@ describe('rebuilds and audit', () => {
     await postgres.query('update public.product_variants set stock = 9 where id = $1', [variant])
     const afterStock = (await postgres.query<{ requested_at: Date }>('select requested_at from finance.site_builds where id = 1')).rows[0]!.requested_at
     expect(afterStock.getTime()).toBe(parked.getTime())
+  })
+
+  // The admin's variant form sends every public column with each save, changed or
+  // not, and a save can match no row (AUDIT-2): none of those starts a Pages build.
+  it('a variant save that changes no public column, or matches no row, requests no site build; a new variant does', async () => {
+    const product = await makeProduct()
+    const variant = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 10 })
+    const requestedAt = async () =>
+      (await postgres.query<{ requested_at: Date }>('select requested_at from finance.site_builds where id = 1')).rows[0]!.requested_at
+    const park = async () => {
+      await postgres.query("update finance.site_builds set requested_at = now() - interval '10 minutes' where id = 1")
+      return (await requestedAt()).getTime()
+    }
+
+    const parked = await park()
+    await postgres.query(
+      `update public.product_variants
+          set sku = sku, title = title, fulfillment = fulfillment, price_halalas = price_halalas,
+              enabled = enabled, sort_order = sort_order, stock = 4
+        where id = $1`,
+      [variant],
+    )
+    expect((await requestedAt()).getTime()).toBe(parked)
+
+    await postgres.query('update public.product_variants set price_halalas = 1 where id = $1', [randomUUID()])
+    expect((await requestedAt()).getTime()).toBe(parked)
+
+    await postgres.query('update public.product_variants set enabled = false where id = $1', [variant])
+    expect((await requestedAt()).getTime()).toBeGreaterThan(parked)
+
+    const parkedAgain = await park()
+    await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    expect((await requestedAt()).getTime()).toBeGreaterThan(parkedAgain)
   })
 
   it('a price change is audited with from and to; a customer name change by column name only', async () => {

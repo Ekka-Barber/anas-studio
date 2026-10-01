@@ -36,12 +36,13 @@ export function loadPdfjs(): Promise<Pdfjs> {
  */
 export async function openPreview(url: string): Promise<{ pdfjs: Pdfjs; doc: PDFDocumentProxy; frame: Frame }> {
   const pdfjs = await loadPdfjs()
-  const doc = await pdfjs.getDocument({ url, enableXfa: false, disableFontFace: true, verbosity: pdfjs.VerbosityLevel.ERRORS }).promise
+  const task = pdfjs.getDocument({ url, enableXfa: false, disableFontFace: true, verbosity: pdfjs.VerbosityLevel.ERRORS })
   try {
+    const doc = await task.promise
     return { pdfjs, doc, frame: await measureFrame(doc) }
   } catch (error) {
-    // A document nobody receives would keep its worker.
-    void doc.loadingTask.destroy()
+    // A load that failed, or a document nobody receives, would keep its worker.
+    void task.destroy()
     throw error
   }
 }

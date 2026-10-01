@@ -18,6 +18,13 @@
  * - https://developers.cloudflare.com/llms-full.txt, fetched 2026-09-30 (the
  *   "Get top crawled paths" example: `httpRequestsAdaptiveGroups` filtered by
  *   `edgeResponseStatus_geq` / `edgeResponseStatus_lt`)
+ * - https://developers.cloudflare.com/analytics/graphql-api/features/filtering/
+ *   and .../features/discovery/settings/, fetched 2026-09-30 (the scalar
+ *   operator `in`; each node's `maxPageSize`, the most records one query may
+ *   return, which depends on the plan: the docs' example shows 10000)
+ * - https://developers.cloudflare.com/pages/configuration/serving-pages/,
+ *   fetched 2026-09-30 (Pages sends `Etag` and answers a returning visitor's
+ *   `If-None-Match` with `304 Not Modified`; HTML is `max-age=0, must-revalidate`)
  * The node's field/dimension names live in the GraphQL schema itself (the
  * docs point at schema introspection, not a static reference page); the live
  * schema check happens with the real account at gate E11 (P11). Until then
@@ -28,8 +35,14 @@ import { optionalEnv } from './env.ts'
 const GRAPHQL_URL = 'https://api.cloudflare.com/client/v4/graphql'
 const TIMEOUT_MS = 10_000
 const WINDOW_DAYS = 7
-/** Top paths are taken after filtering, from this many leading groups. */
-const TOP_PATHS_QUERY_LIMIT = 100
+/**
+ * The top-paths query asks for as many groups as the node allows, because the
+ * asset filter runs in `parseTopPaths`: on a static export the fonts, chunks
+ * and images far outnumber the pages, so a window of 100 leading groups would
+ * be all assets. Gate E11 confirms the node's `maxPageSize` on the real zone
+ * (a lower one answers a GraphQL error, reported as GRAPHQL_ERROR).
+ */
+const TOP_PATHS_QUERY_LIMIT = 10_000
 const TOP_PATHS_SHOWN = 10
 
 export interface TopPath {
@@ -73,14 +86,15 @@ export const VISITS_QUERY = /* GraphQL */ `query OwnerVisits($zoneTag: string, $
   }
 }`
 
-// Only 2xx answers: scanner probes (404), redirects and blocked requests are not pages people read.
+// Only 200 and 304 answers: scanner probes (404), redirects and blocked requests are not pages
+// people read, but a returning visitor's revalidation is a 304 and is a page view.
 export const TOP_PATHS_QUERY = /* GraphQL */ `query OwnerTopPaths($zoneTag: string, $start: Time, $end: Time, $host: string) {
   viewer {
     zones(filter: { zoneTag: $zoneTag }) {
       httpRequestsAdaptiveGroups(
         limit: ${TOP_PATHS_QUERY_LIMIT}
         orderBy: [count_DESC]
-        filter: { datetime_geq: $start, datetime_lt: $end, requestSource: "eyeball", clientRequestHTTPHost: $host, edgeResponseStatus_geq: 200, edgeResponseStatus_lt: 300 }
+        filter: { datetime_geq: $start, datetime_lt: $end, requestSource: "eyeball", clientRequestHTTPHost: $host, edgeResponseStatus_in: [200, 304] }
       ) {
         count
         avg { sampleInterval }

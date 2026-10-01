@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config'
 
-import { assertLocalTestDatabase } from './src/lib/env'
+import { assertLocalTestDatabase } from './src/lib/env.ts'
 
 /**
  * Two run modes:

@@ -47,18 +47,22 @@
 }
 
 /* A grid of equal tiles separated by 1px lines in the band's line colour:
-   B's "woven" grid. */
+   B's "woven" grid. The lines are drawn by the tiles (a 1px shadow filling the
+   gap), not by the grid's background, so a last row the tiles do not fill
+   shows the band, not a solid block of the line colour. The band's line colour
+   is taken here, before a tile's own tone could change it. */
 .lattice {
+  --lattice-line: var(--line);
   list-style: none;
   margin: 0;
   padding: 1px;
   display: grid;
   gap: 1px;
-  background: var(--line);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--tile, 300px)), 1fr));
 }
 .lattice > * {
   min-inline-size: 0;
+  box-shadow: 0 0 0 1px var(--lattice-line);
 }
 
 /* An edge-to-edge grid of photographs with no gaps. */

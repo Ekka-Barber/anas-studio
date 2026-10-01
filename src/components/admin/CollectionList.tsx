@@ -19,6 +19,7 @@ import {
   SITE_SETTINGS_DOC_ID,
   type Collection,
 } from '@/admin/collections'
+import { scheduleIsBehind } from '@/lib/admin-publish'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { documentHref } from '@/lib/supabase/functions'
 
@@ -34,11 +35,17 @@ interface DocumentRow {
   latest_at: string
   live_seq: number | null
   scheduled_at: string | null
+  scheduled_seq: number | null
 }
 
 function statusFor(row: DocumentRow | undefined): string {
   if (!row) return 'مسودة لم تُنشر'
-  if (row.scheduled_at) return `مجدول في ${formatRiyadh(row.scheduled_at)}`
+  if (row.scheduled_at) {
+    const when = `مجدول في ${formatRiyadh(row.scheduled_at)}`
+    return scheduleIsBehind(row.scheduled_seq, row.latest_seq)
+      ? `${when}: نسخة ${row.scheduled_seq}، وهناك تعديلات أحدث غير مجدولة`
+      : when
+  }
   if (row.live_seq === null) return 'مسودة لم تُنشر'
   if (row.latest_seq > row.live_seq) return 'تعديلات غير منشورة'
   return 'منشور'
@@ -54,7 +61,10 @@ export function CollectionList({ collection }: { collection: Collection }) {
   useEffect(() => {
     void (async () => {
       const supabase = getSupabaseBrowserClient()
-      const { data, error: loadError } = await supabase.from('content_documents').select('*').eq('collection', collection)
+      const { data, error: loadError } = await supabase.from('content_documents')
+        .select('*')
+        .eq('collection', collection)
+        .order('latest_at', { ascending: false })
       if (loadError) {
         setError('تعذّر تحميل القائمة.')
         return
@@ -96,7 +106,11 @@ export function CollectionList({ collection }: { collection: Collection }) {
   return (
     <div className={styles.field}>
       <h1>{COLLECTION_LABELS[collection]}</h1>
-      {error && <p className={styles.error}>{error}</p>}
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
 
       {collection === 'posts' && (
         <button type="button" className={styles.button} onClick={createPost}>
@@ -113,6 +127,8 @@ export function CollectionList({ collection }: { collection: Collection }) {
             className={styles.input}
             type="text"
             dir="auto"
+            aria-invalid={newSlugError ? true : undefined}
+            aria-describedby={newSlugError ? 'new-taxonomy-slug-error' : undefined}
             value={newSlug}
             onChange={(event) => {
               setNewSlug(event.target.value)
@@ -124,7 +140,11 @@ export function CollectionList({ collection }: { collection: Collection }) {
           </button>
         </div>
       )}
-      {newSlugError && <p className={styles.error}>{newSlugError}</p>}
+      {newSlugError && (
+        <p id="new-taxonomy-slug-error" role="alert" className={styles.error}>
+          {newSlugError}
+        </p>
+      )}
 
       <div className={styles.tableWrap}>
         {/* Cards on phones, like the email and team tables: one long word in a

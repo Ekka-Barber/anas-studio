@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { postSchema, taxonomySchema } from '../admin/collections'
 import type { RichTextDocument } from '../admin/richtext'
 
-import { mediaById, replaceMediaIds, type MediaDerivative } from './content'
+import { mediaById, replaceMediaIds, type MediaLookup } from './content'
 import { requireEnv } from './env'
 import { collectMediaIds, MEDIA_ORIGIN } from './media-ref'
 
@@ -51,7 +51,7 @@ export function shapePost(
   post: PostData,
   meta: { id: string; publishedAt: string },
   labels: Map<string, string>,
-  byId: Map<string, MediaDerivative[]>,
+  byId: MediaLookup,
 ): JournalPost {
   return {
     id: meta.id,

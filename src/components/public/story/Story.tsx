@@ -60,15 +60,18 @@ export function StatementBand({
 
 /**
  * The CMS picture beside a text run, with its alt and caption from
- * `media-notes` (a bare image id carries neither). Renders nothing for an
- * empty field.
+ * `media-notes` (a bare image id carries neither; a library picture brings
+ * its own alt). An `alt` the CMS stores beside the picture wins. Renders
+ * nothing for an empty field.
  */
 export function StoryFigure({
   id,
+  alt,
   drop = false,
   room,
 }: {
   id: string | null | undefined
+  alt?: string
   drop?: boolean
   /** The room the figure stands in: a caption never links to its own room. */
   room?: string
@@ -91,7 +94,7 @@ export function StoryFigure({
     <div className={`${layout.aside} ${drop ? layout.asideDrop : ''}`}>
       <Figure
         id={id}
-        alt={note.alt}
+        alt={alt || note.alt}
         sizes="(min-width: 1024px) 480px, 100vw"
         caption={caption}
         ratio={note.ratio}

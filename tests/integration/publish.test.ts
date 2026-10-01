@@ -286,4 +286,49 @@ describe('a post slug already live (S01.2)', () => {
       await postgres.query('delete from public.published_documents where collection = $1 and doc_id = any($2)', ['posts', [first, second]])
     }
   })
+
+  // The schedule path used to accept the clash and lose the schedule silently at
+  // the due time, so it is refused when it is made, with the same message.
+  it('scheduling a post whose slug another live post uses is refused at once; the live post itself can be scheduled', async () => {
+    const editor = await as('editor')
+    const slug = uniqueSlug('slug-sched')
+    const post = {
+      slug,
+      title: 'عنوان',
+      excerpt: 'مقتطف',
+      body: { root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: 'نص', format: 0 }] }] } },
+      author: 'أنس',
+      categories: [],
+      tags: [],
+      visible: true,
+    }
+    const first = randomUUID()
+    const second = randomUUID()
+    const at = new Date(Date.now() + 3_600_000).toISOString()
+    try {
+      for (const docId of [first, second]) {
+        const { error } = await editor.from('content_versions').insert({ collection: 'posts', doc_id: docId, seq: 1, data: post })
+        expect(error).toBeNull()
+      }
+      expect(await publishDocument('posts', first, 1)).toEqual({ ok: true })
+
+      const clash = await scheduleDocument('posts', second, 1, at)
+      expect(clash.ok).toBe(false)
+      if (!clash.ok) {
+        expect(clash.error.code).toBe('CONFLICT')
+        expect(clash.error.message).toContain('معرّف المقال')
+      }
+      const unscheduled = await editor.from('content_documents').select('scheduled_at, scheduled_seq').eq('doc_id', second)
+      expect(unscheduled.data).toEqual([{ scheduled_at: null, scheduled_seq: null }])
+
+      // Its own live row is no clash, and the list says which seq is scheduled.
+      expect(await scheduleDocument('posts', first, 1, at)).toEqual({ ok: true })
+      const scheduled = await editor.from('content_documents').select('scheduled_seq').eq('doc_id', first)
+      expect(scheduled.data).toEqual([{ scheduled_seq: 1 }])
+    } finally {
+      await postgres.query('delete from public.published_documents where collection = $1 and doc_id = any($2)', ['posts', [first, second]])
+      // A schedule left behind would publish this post again when it falls due.
+      await postgres.query('delete from public.content_versions where collection = $1 and doc_id = any($2)', ['posts', [first, second]])
+    }
+  })
 })

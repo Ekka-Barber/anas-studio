@@ -8,7 +8,9 @@
  * that line and the «إزالة غير المتاح» button for the invalid ones. The
  * city select appears when a line is physical or signed, the coupon is kept
  * in sessionStorage, and `checkoutEnabled` false hides the checkout button
- * while the cart itself keeps working (D34).
+ * while the cart itself keeps working (D34). Every edit is applied to the
+ * latest stored cart (see CartProvider), and a removal moves focus on to the
+ * next line and is announced.
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -16,9 +18,11 @@ import { useEffect, useRef, useState } from 'react'
 import {
   CITY_KEY,
   COUPON_KEY,
+  MAX_COUPON,
   MAX_QUANTITY,
+  normalizeCoupon,
+  readSavedCoupon,
   readSessionValue,
-  removeLine,
   removeLines,
   setDedication,
   setQuantity,
@@ -37,7 +41,17 @@ import styles from './store.module.css'
  * emptied and retyped: a valid number is committed at once, and leaving the
  * field clamps whatever is left to 1..20.
  */
-function QuantityInput({ value, label, onCommit }: { value: number; label: string; onCommit: (next: number) => void }) {
+function QuantityInput({
+  id,
+  value,
+  label,
+  onCommit,
+}: {
+  id: string
+  value: number
+  label: string
+  onCommit: (next: number) => void
+}) {
   const [draft, setDraft] = useState(String(value))
   const [seen, setSeen] = useState(value)
   // A quantity changed from outside (the ± buttons) replaces the draft.
@@ -47,6 +61,7 @@ function QuantityInput({ value, label, onCommit }: { value: number; label: strin
   }
   return (
     <input
+      id={id}
       className={styles.quantityInput}
       type="number"
       min={1}
@@ -77,7 +92,13 @@ export function CartView() {
   const [city, setCity] = useState('')
   const [couponDraft, setCouponDraft] = useState('')
   const [coupon, setCoupon] = useState('')
+  const [couponNote, setCouponNote] = useState('')
+  const [retry, setRetry] = useState(0)
+  const [announce, setAnnounce] = useState('')
   const quoteRun = useRef(0)
+  // Where focus goes once a removal has re-rendered: a variant id, or '' for the empty-cart note.
+  const focusAfter = useRef<string | null>(null)
+  const emptyNote = useRef<HTMLParagraphElement>(null)
 
   useEffect(() => {
     // Deferred to a microtask so the setStates are not synchronous within the
@@ -85,19 +106,21 @@ export function CartView() {
     void Promise.resolve().then(() => {
       const savedCity = readSessionValue(CITY_KEY)
       if (savedCity) setCity(savedCity)
-      const savedCoupon = readSessionValue(COUPON_KEY)
+      const { coupon: savedCoupon, tooLong } = readSavedCoupon()
       if (savedCoupon) {
         setCoupon(savedCoupon)
         setCouponDraft(savedCoupon)
       }
+      if (tooLong) setCouponNote('كود الخصم المحفوظ أطول من المسموح، فأُزيل. أعد إدخاله.')
     })
     fetchCities().then(setCities).catch(() => setCities([]))
   }, [])
 
   // The live quote: on load and after every change, debounced about 300 ms.
   // Stale replies are dropped by run number so a fast edit never shows an old
-  // total. The cart object's identity changes only through `update`, so the
-  // effect cannot refetch itself in a loop.
+  // total. The cart object's identity changes only through `update` or another
+  // tab's write, so the effect cannot refetch itself in a loop. `retry` is the
+  // «أعد المحاولة» button after a failed quote.
   const storedCart = cartState?.cart
   const ready = cartState?.ready ?? false
   useEffect(() => {
@@ -124,7 +147,16 @@ export function CartView() {
         })
     }, 300)
     return () => clearTimeout(timer)
-  }, [ready, storedCart, city, coupon])
+  }, [ready, storedCart, city, coupon, retry])
+
+  // After a removal the focused button is gone: focus follows to the next line.
+  useEffect(() => {
+    const target = focusAfter.current
+    if (target === null) return
+    focusAfter.current = null
+    const element = target === '' ? emptyNote.current : document.getElementById(`cart-quantity-${target}`)
+    element?.focus()
+  }, [storedCart])
 
   // Line errors are matched by variant id, not by position: a quote still in
   // flight after a removal must not pin its errors on the wrong line.
@@ -140,10 +172,29 @@ export function CartView() {
 
   const { cart, update } = cartState
 
+  /** Removes lines and sends focus to where the list continues: the next line's quantity, or the empty note. */
+  function remove(variantIds: string[], message: string) {
+    const first = cart.lines.findIndex((l) => variantIds.includes(l.variantId))
+    const left = cart.lines.filter((l) => !variantIds.includes(l.variantId))
+    focusAfter.current = (left[first] ?? left[left.length - 1])?.variantId ?? ''
+    setAnnounce(message)
+    update((latest) => removeLines(latest, variantIds))
+  }
+
+  // Always mounted, in the empty view too: focus alone reads only the control it lands on.
+  const removedStatus = (
+    <p role="status" className="visually-hidden">
+      {announce}
+    </p>
+  )
+
   if (cart.lines.length === 0) {
     return (
       <div>
-        <p className={styles.note}>سلتك فارغة.</p>
+        {removedStatus}
+        <p ref={emptyNote} tabIndex={-1} className={styles.note}>
+          سلتك فارغة.
+        </p>
         <Link href="/store" prefetch={false} className={styles.plainLink}>
           العودة إلى المتجر
         </Link>
@@ -153,12 +204,20 @@ export function CartView() {
 
   return (
     <div>
+      {removedStatus}
       {!cartState.persistent && (
         <p className={styles.warning} role="note">
           السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.
         </p>
       )}
-      {quoteFailed && <p className={styles.warning} role="alert">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>}
+      {quoteFailed && (
+        <div>
+          <p className={styles.warning} role="alert">تعذّر تحديث الأسعار؛ أعد المحاولة بعد لحظات.</p>
+          <ActionButton variant="outline" onClick={() => setRetry((n) => n + 1)}>
+            أعد المحاولة
+          </ActionButton>
+        </div>
+      )}
 
       <div className={styles.withSummary}>
         <div>
@@ -192,21 +251,22 @@ export function CartView() {
                         type="button"
                         className={styles.stepButton}
                         aria-label={`إنقاص الكمية: ${name}`}
-                        onClick={() => update(setQuantity(cart, line.variantId, line.quantity - 1))}
+                        onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity - 1))}
                         disabled={line.quantity <= 1}
                       >
                         −
                       </button>
                       <QuantityInput
+                        id={`cart-quantity-${line.variantId}`}
                         value={line.quantity}
                         label={`الكمية: ${name}`}
-                        onCommit={(next) => update(setQuantity(cart, line.variantId, next))}
+                        onCommit={(next) => update((latest) => setQuantity(latest, line.variantId, next))}
                       />
                       <button
                         type="button"
                         className={styles.stepButton}
                         aria-label={`زيادة الكمية: ${name}`}
-                        onClick={() => update(setQuantity(cart, line.variantId, line.quantity + 1))}
+                        onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity + 1))}
                         disabled={line.quantity >= MAX_QUANTITY}
                       >
                         +
@@ -217,7 +277,7 @@ export function CartView() {
                       type="button"
                       className={styles.textButton}
                       aria-label={`حذف ${name}`}
-                      onClick={() => update(removeLine(cart, line.variantId))}
+                      onClick={() => remove([line.variantId], `حُذف ${name}.`)}
                     >
                       حذف
                     </button>
@@ -228,8 +288,9 @@ export function CartView() {
                       <input
                         type="text"
                         maxLength={200}
+                        aria-label={`نص الإهداء: ${name}`}
                         value={line.dedication ?? ''}
-                        onChange={(event) => update(setDedication(cart, line.variantId, event.target.value))}
+                        onChange={(event) => update((latest) => setDedication(latest, line.variantId, event.target.value))}
                       />
                     </label>
                   )}
@@ -239,7 +300,7 @@ export function CartView() {
           </ul>
 
           {invalidVariants.length > 0 && (
-            <button type="button" className={styles.textButton} onClick={() => update(removeLines(cart, invalidVariants))}>
+            <button type="button" className={styles.textButton} onClick={() => remove(invalidVariants, 'أُزيلت المنتجات غير المتاحة.')}>
               إزالة غير المتاح
             </button>
           )}
@@ -269,19 +330,31 @@ export function CartView() {
           <div className={styles.coupon}>
             <label className={styles.field}>
               كود الخصم
-              <input type="text" value={couponDraft} onChange={(event) => setCouponDraft(event.target.value)} dir="ltr" />
+              <input
+                type="text"
+                value={couponDraft}
+                maxLength={MAX_COUPON}
+                onChange={(event) => setCouponDraft(event.target.value)}
+                dir="ltr"
+              />
             </label>
             <ActionButton
               variant="outline"
               onClick={() => {
-                const applied = couponDraft.trim().toUpperCase()
+                const applied = normalizeCoupon(couponDraft)
                 setCoupon(applied)
+                setCouponNote('')
                 writeSessionValue(COUPON_KEY, applied)
               }}
             >
               تطبيق
             </ActionButton>
           </div>
+          {couponNote !== '' && (
+            <p className={styles.warning} role="alert">
+              {couponNote}
+            </p>
+          )}
           {couponErrors.length > 0 && (
             <ul className={styles.lineErrors} role="alert">
               {couponErrors.map((error, i) => (

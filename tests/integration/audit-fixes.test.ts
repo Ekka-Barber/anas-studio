@@ -217,7 +217,10 @@ describe('S02.4: the public media read is one set, not a scan per row', () => {
 })
 
 describe('X1.1: changing an approved policy closes checkout until it is approved again', () => {
-  const APPROVED = { store: 1, delivery: 1, refund: 1 }
+  // Revisions no publish here reaches: an approved value equal to the new seq
+  // would (rightly) not reset, so a low number would make these tests depend on
+  // which policies the database already holds (the demo catalog seeds some).
+  const APPROVED = { store: 999, delivery: 999, refund: 999 }
 
   async function settings(): Promise<{ policy_revisions: Record<string, number>; version: number }> {
     return (
@@ -403,6 +406,197 @@ describe('X2.6: a product cannot be saved with a library cover that is gone', ()
       // The cover was deleted meanwhile: saving another field of the product still works.
       await postgres.query('delete from public.media where id = $1', [media])
       expect(await sqlstate(() => postgres.query("update public.products set title = 'عنوان جديد', cover_image = $2 where id = $1", [id, media]))).toBeUndefined()
+    })
+  })
+})
+
+// AUDIT-2, round R01-DB: `supabase/migrations/20260930140000_audit2_fixes.sql`.
+// The lock tests hold the document's advisory lock on a second connection, the
+// way a publish in another session does, so they are deterministic: a writer
+// that ignores the lock finishes at once and fails the assertion. Their
+// fixtures are committed first (and removed in `finally`): inserting a version
+// takes the same lock for its own transaction, so a fixture written in the
+// transaction under test would hold the lock itself.
+const CONNECTION = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres'
+
+/** Runs `fn` as the signed-in staff member `userId` (inside an open transaction). */
+async function asStaff<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  await postgres.query('set local role authenticated')
+  await postgres.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: userId, role: 'authenticated' })])
+  try {
+    return await fn()
+  } finally {
+    await postgres.query('reset role')
+  }
+}
+
+/** A second session that holds `doc`'s publishing lock until it rolls back. */
+async function holdDocumentLock(collection: string, doc: string): Promise<Client> {
+  const holder = new Client({ connectionString: CONNECTION })
+  await holder.connect()
+  await holder.query('begin')
+  await holder.query(`select pg_advisory_xact_lock(hashtext('content:' || $1::text || ':' || $2::text))`, [collection, doc])
+  return holder
+}
+
+async function removeDocument(doc: string): Promise<void> {
+  await postgres.query('delete from public.published_documents where doc_id = $1', [doc])
+  await postgres.query('delete from public.content_versions where doc_id = $1', [doc])
+}
+
+describe('GAP-G5-1: publishing takes the document lock before any row lock', () => {
+  it('publish_due leaves a document whose lock another session holds for the next run, then publishes it', async () => {
+    const doc = unique('due-locked')
+    await postgres.query(
+      `insert into public.content_versions (collection, doc_id, seq, data) values ('taxonomies', $1, 1, '{"kind": "tag", "label": "اختبار"}'::jsonb)`,
+      [doc],
+    )
+    const holder = await holdDocumentLock('taxonomies', doc)
+    try {
+      // An update does not take the lock (only the insert trigger does).
+      await postgres.query("update public.content_versions set publish_at = now() - interval '1 minute' where doc_id = $1", [doc])
+      const live = () => postgres.query('select 1 from public.published_documents where doc_id = $1', [doc])
+      const scheduled = () => postgres.query('select 1 from public.content_versions where doc_id = $1 and publish_at is not null', [doc])
+
+      await postgres.query('select public.publish_due()')
+      expect((await live()).rowCount).toBe(0)
+      expect((await scheduled()).rowCount).toBe(1)
+
+      await holder.query('rollback')
+      // Rolled back, so the rebuild request a publish makes leaves no trace.
+      await rolledBack(async () => {
+        await postgres.query('select public.publish_due()')
+        expect((await live()).rowCount).toBe(1)
+        expect((await scheduled()).rowCount).toBe(0)
+      })
+    } finally {
+      await holder.query('rollback').catch(() => undefined)
+      await holder.end()
+      await removeDocument(doc)
+    }
+  })
+
+  it('archive_document waits for the document lock instead of racing a publish', async () => {
+    const staff = await createStaff('editor')
+    const doc = unique('archive-locked')
+    await publishAs('taxonomies', doc, { kind: 'tag', label: 'اختبار' })
+    const holder = await holdDocumentLock('taxonomies', doc)
+    try {
+      await rolledBack(async () => {
+        await postgres.query('set local role authenticated')
+        await postgres.query(`select set_config('request.jwt.claims', $1, true)`, [
+          JSON.stringify({ sub: staff.userId, role: 'authenticated' }),
+        ])
+        let settled = false
+        const archiving = postgres.query(`select public.archive_document('taxonomies', $1)`, [doc]).then(() => {
+          settled = true
+        })
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 500))
+          expect(settled).toBe(false)
+        } finally {
+          // Release the lock even when the assertion fails, or the rollback queued behind it would hang.
+          await holder.query('rollback')
+        }
+        await archiving
+        expect(settled).toBe(true)
+        await postgres.query('reset role')
+        expect((await postgres.query('select 1 from public.published_documents where doc_id = $1', [doc])).rowCount).toBe(0)
+      })
+    } finally {
+      await holder.query('rollback').catch(() => undefined)
+      await holder.end()
+      await removeDocument(doc)
+    }
+  })
+})
+
+describe('DB-core-3: the first publication date survives an archive', () => {
+  it('an archived post is dated by its first publication when it is published again', async () => {
+    const staff = await createStaff('editor')
+    await rolledBack(async () => {
+      const doc = randomUUID()
+      await publishAs('posts', doc, { slug: unique('dated'), visible: true })
+      await postgres.query(
+        "update public.published_documents set first_published_at = '2026-01-05T09:00:00Z' where collection = 'posts' and doc_id = $1",
+        [doc],
+      )
+      await asStaff(staff.userId, () => postgres.query(`select public.archive_document('posts', $1)`, [doc]))
+      expect((await postgres.query('select 1 from public.published_documents where doc_id = $1', [doc])).rowCount).toBe(0)
+
+      await postgres.query('select public.content_go_live($1, $2, $3)', ['posts', doc, 1])
+      const row = await postgres.query<{ first: Date }>('select first_published_at as first from public.published_documents where doc_id = $1', [doc])
+      expect(row.rows[0]!.first.toISOString()).toBe('2026-01-05T09:00:00.000Z')
+    })
+  })
+
+  it('a document never archived is dated when it goes live, and the memo table is closed to every API role', async () => {
+    await rolledBack(async () => {
+      const doc = randomUUID()
+      await publishAs('posts', doc, { slug: unique('fresh'), visible: true })
+      const row = await postgres.query<{ fresh: boolean }>(
+        "select first_published_at > now() - interval '1 minute' as fresh from public.published_documents where doc_id = $1",
+        [doc],
+      )
+      expect(row.rows[0]!.fresh).toBe(true)
+    })
+    for (const role of ['anon', 'authenticated', 'service_role']) {
+      const access = await postgres.query<{ ok: boolean }>(
+        "select has_table_privilege($1, 'finance.content_first_published', 'select') as ok",
+        [role],
+      )
+      expect(access.rows[0]!.ok, role).toBe(false)
+    }
+  })
+})
+
+describe('content_documents carries the scheduled seq', () => {
+  it('names the seq the pending schedule is on, null when none, and anon still cannot read the view', async () => {
+    await rolledBack(async () => {
+      const scheduled = unique('sched-seq')
+      const plain = unique('plain-seq')
+      for (const [doc, seq] of [[scheduled, 1], [scheduled, 2], [plain, 1]] as const) {
+        await postgres.query(
+          `insert into public.content_versions (collection, doc_id, seq, data) values ('taxonomies', $1, $2, '{"kind": "tag", "label": "اختبار"}'::jsonb)`,
+          [doc, seq],
+        )
+      }
+      await postgres.query(
+        "update public.content_versions set publish_at = now() + interval '1 day' where doc_id = $1 and seq = 1",
+        [scheduled],
+      )
+      const rows = await postgres.query<{ doc_id: string; latest_seq: number; scheduled_seq: number | null }>(
+        'select doc_id, latest_seq, scheduled_seq from public.content_documents where doc_id = any($1) order by doc_id',
+        [[scheduled, plain]],
+      )
+      expect(Object.fromEntries(rows.rows.map((row) => [row.doc_id, [row.latest_seq, row.scheduled_seq]]))).toEqual({
+        [scheduled]: [2, 1],
+        [plain]: [1, null],
+      })
+    })
+    const access = await postgres.query<{ anon: boolean; authenticated: boolean }>(
+      `select has_table_privilege('anon', 'public.content_documents', 'select') as anon,
+              has_table_privilege('authenticated', 'public.content_documents', 'select') as authenticated`,
+    )
+    expect(access.rows[0]).toEqual({ anon: false, authenticated: true })
+  })
+})
+
+describe('DB-site-2: the pg_cron run log is purged', () => {
+  it('runs the scheduled command: runs older than seven days go, recent ones stay', async () => {
+    await rolledBack(async () => {
+      const job = (await postgres.query<{ jobid: string; command: string }>("select jobid, command from cron.job where jobname = 'cron-run-details-purge'"))
+        .rows[0]!
+      // The runids are given: the default draws from cron.runid_seq, which this role may not use.
+      await postgres.query(
+        `insert into cron.job_run_details (jobid, runid, database, username, command, status, start_time, end_time)
+         values ($1, -9001, 'postgres', 'postgres', 'zz-audit-old', 'succeeded', now() - interval '9 days', now() - interval '9 days'),
+                ($1, -9002, 'postgres', 'postgres', 'zz-audit-recent', 'succeeded', now() - interval '2 days', now() - interval '2 days')`,
+        [job.jobid],
+      )
+      await postgres.query(job.command)
+      const left = await postgres.query<{ command: string }>("select command from cron.job_run_details where command like 'zz-audit-%'")
+      expect(left.rows.map((row) => row.command)).toEqual(['zz-audit-recent'])
     })
   })
 })

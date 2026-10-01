@@ -24,9 +24,18 @@ const ALL = 'الكل'
 // The cards are woven in turn from these surfaces (B's journal).
 const CARD_TONES: Tone[] = ['paper', 'aub', 'coral', 'paper', 'night']
 
+/** «تدوينة واحدة», «تدوينتان», «n تدوينات», «n تدوينة» (Arabic dual and plural). */
+function postCount(n: number): string {
+  if (n === 1) return 'تدوينة واحدة'
+  if (n === 2) return 'تدوينتان'
+  if (n <= 10) return `${n} تدوينات`
+  return `${n} تدوينة`
+}
+
 /**
  * The posts, newest first and largest, with a filter by category (toggle
- * buttons, shown only when there is more than one category to choose).
+ * buttons, shown only when there is more than one category to choose; a
+ * status line tells a screen reader what the choice left).
  */
 export function JournalList({ posts }: { posts: JournalCard[] }) {
   const [category, setCategory] = useState(ALL)
@@ -36,13 +45,18 @@ export function JournalList({ posts }: { posts: JournalCard[] }) {
   return (
     <>
       {categories.length > 1 && (
-        <div role="group" aria-label="التصنيفات" className={styles.filters}>
-          {[ALL, ...categories].map((name) => (
-            <button key={name} type="button" aria-pressed={category === name} className={styles.filter} onClick={() => setCategory(name)}>
-              {name}
-            </button>
-          ))}
-        </div>
+        <>
+          <div role="group" aria-label="التصنيفات" className={styles.filters}>
+            {[ALL, ...categories].map((name) => (
+              <button key={name} type="button" aria-pressed={category === name} className={styles.filter} onClick={() => setCategory(name)}>
+                {name}
+              </button>
+            ))}
+          </div>
+          <p role="status" className="visually-hidden">
+            {`${category}: ${postCount(shown.length)}`}
+          </p>
+        </>
       )}
       <ol key={category} className={styles.cards}>
         {shown.map((post, i) => (

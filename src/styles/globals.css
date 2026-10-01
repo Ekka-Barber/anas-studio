@@ -192,9 +192,10 @@ button {
   cursor: pointer;
 }
 
+/* The band's own pair, inverted: a fixed aubergine pair would match every aubergine band. */
 ::selection {
-  background: var(--aub);
-  color: var(--sand-50);
+  background: var(--fg, var(--aub));
+  color: var(--bg, var(--sand-50));
 }
 
 /* Visible focus everywhere, in the colour its band chose (DESIGN-AUDIT #56). */

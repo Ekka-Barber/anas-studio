@@ -34,7 +34,8 @@ const REASON_LABEL: Record<string, string> = {
   TIMEOUT: 'انتهت مهلة الاستعلام.',
   GRAPHQL_ERROR: 'ردّ الإحصاءات يحتوي على خطأ.',
   SAMPLED: 'البيانات معيّنة (sampled)، فلا تُعرض أرقام تقديرية.',
-  UNEXPECTED_SHAPE: 'تعذّر قراءة بيانات الزيارات. حدّث الصفحة.',
+  // A short wait, not a refresh: the analytics side may need a moment to recover.
+  UNEXPECTED_SHAPE: 'تعذّر قراءة بيانات الزيارات. جرّب بعد قليل.',
 }
 
 export function StatsView() {
