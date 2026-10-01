@@ -6,7 +6,7 @@
 
 /**
  * The rooms in Anas's order (his message of 21/09/2026), for the list on the
- * 404 and error page (Lost.tsx); the home doors are ROOM_DOORS in home.ts.
+ * 404 and error page (Lost.tsx); the home doors are `site_settings.home.doors`.
  */
 export const ROOM_ORDER = [
   { href: '/started', label: 'بدأتُ من هنا' },

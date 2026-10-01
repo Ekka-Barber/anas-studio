@@ -126,7 +126,7 @@ Former frozen boundaries (v1, superseded by D39): paper #F4ECE0, sand #E7D8C3, i
 108. [O] Considered light: source art lighting, no new centered halo.
 109. [O/B] Premium noise: substrate only, very subtle, no text contamination.
 110. [O/B] Liquid-glass recipe: reference only; no unnecessary refraction button or paid effect.
-111. [F/B] Licensed type: verify rights and actual font loading/shaping, not just family string.
+111. [F/B] Type: verify actual font loading/shaping, not just family string.
 112. [F/B] Whole-page composition: preserve source rhythm and responsive first frame.
 113. [O/N] Real logo walls: none without true relationship/approved assets.
 114. [O/N] Blueprint/canvas: optional specific marks only; full-page grid ban still controls.

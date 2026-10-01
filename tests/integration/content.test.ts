@@ -28,6 +28,12 @@ describe('published-content loaders match the imported fixture', () => {
     expect(await getHome()).toEqual(content.home)
   })
 
+  it('getHomeDoors and getContactPage', async () => {
+    const { getContactPage, getHomeDoors } = await import('../../src/lib/content')
+    expect(await getHomeDoors()).toEqual(content.home.doors)
+    expect(await getContactPage()).toEqual(content.contactPage)
+  })
+
   it('getSocial', async () => {
     const { getSocial } = await import('../../src/lib/content')
     expect(await getSocial()).toEqual(content.social)
@@ -57,6 +63,11 @@ describe('published-content loaders match the imported fixture', () => {
   it('getShelfRoom', async () => {
     const { getShelfRoom } = await import('../../src/lib/content')
     expect(await getShelfRoom()).toEqual(content.rooms.shelf)
+  })
+
+  it('getBookRoom', async () => {
+    const { getBookRoom } = await import('../../src/lib/content')
+    expect(await getBookRoom()).toEqual(content.rooms.book)
   })
 
   it('getScenes', async () => {

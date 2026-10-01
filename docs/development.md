@@ -119,7 +119,7 @@ the local stack running, and creates its own owner with the local service key.
 
 ## Content (P04)
 
-The four rooms, the site nav/footer and other public copy are no longer
+The rooms, the book page, the site nav/footer and other public copy are no longer
 served from `content/initial-content.json` — that file is only a fixture.
 Public pages and `Header`/`Footer` are async server components that read
 `published_documents` through the Data API at build time (`src/lib/content.ts`),

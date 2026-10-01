@@ -40,12 +40,19 @@ const documents = [
   {
     collection: 'site_settings',
     doc_id: 'site',
-    data: { nav: content.nav, footer: content.footer, home: content.home, social: content.social },
+    data: {
+      nav: content.nav,
+      footer: content.footer,
+      home: content.home,
+      social: content.social,
+      contactPage: content.contactPage,
+    },
   },
   { collection: 'rooms', doc_id: 'started', data: content.rooms.started },
   { collection: 'rooms', doc_id: 'built', data: content.rooms.built },
   { collection: 'rooms', doc_id: 'passed', data: content.rooms.passed },
   { collection: 'rooms', doc_id: 'shelf', data: content.rooms.shelf },
+  { collection: 'rooms', doc_id: 'book', data: content.rooms.book },
   { collection: 'scenes', doc_id: 'gallery', data: { items: content.scenes } },
 ]
 

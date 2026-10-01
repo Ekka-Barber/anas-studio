@@ -20,6 +20,7 @@ import { cache } from 'react'
 import type { z } from 'zod'
 
 import {
+  bookRoomSchema,
   brandSchema,
   builtRoomSchema,
   footerSchema,
@@ -45,8 +46,11 @@ export type BuiltRoom = z.infer<typeof builtRoomSchema>
 export type Brand = z.infer<typeof brandSchema>
 export type PassedRoom = z.infer<typeof passedRoomSchema>
 export type ShelfRoom = z.infer<typeof shelfRoomSchema>
+export type BookRoom = z.infer<typeof bookRoomSchema>
 export type SiteContent = z.infer<typeof siteSettingsStoredSchema>
 export type SocialLink = NonNullable<SiteContent['social']>[number]
+export type RoomDoor = NonNullable<SiteContent['home']['doors']>[number]
+export type ContactPage = NonNullable<SiteContent['contactPage']>
 export type Scene = z.infer<typeof scenesSchema>['items'][number]
 
 /** A media row's derivatives, as `media_complete` recorded them. */
@@ -191,6 +195,20 @@ export async function getHome(): Promise<HomeContent> {
   return (await fetchSiteSettings()).home
 }
 
+/** The home page's room doors in the admin's order (site_settings.home.doors); the build fails while the published document has none. */
+export async function getHomeDoors(): Promise<RoomDoor[]> {
+  const { doors } = (await fetchSiteSettings()).home
+  if (!doors) throw new Error('Published site_settings/site is missing home.doors')
+  return doors
+}
+
+/** The contact page's words (site_settings.contactPage); the build fails while the published document has none. */
+export async function getContactPage(): Promise<ContactPage> {
+  const page = (await fetchSiteSettings()).contactPage
+  if (!page) throw new Error('Published site_settings/site is missing contactPage')
+  return page
+}
+
 /** The site's contact details, when set (site_settings.contact). */
 export async function getContact(): Promise<SiteContent['contact']> {
   return (await fetchSiteSettings()).contact
@@ -250,6 +268,11 @@ export async function getPassedRoom(): Promise<PassedRoom> {
 
 export async function getShelfRoom(): Promise<ShelfRoom> {
   return fetchPublished('rooms', 'shelf', shelfRoomSchema)
+}
+
+/** The book's page (كتبتُ هنا), also read by the home page for the book's cover, title and line. */
+export async function getBookRoom(): Promise<BookRoom> {
+  return fetchPublished('rooms', 'book', bookRoomSchema)
 }
 
 /**

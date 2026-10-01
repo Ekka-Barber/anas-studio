@@ -140,8 +140,7 @@ material required a call this document didn't fully specify.
 
 ### Fonts (D33: Thmanyah only)
 
-Only the Thmanyah family ships (owner decision 2026-09-26; its licence file is
-`Thmanyah-Font-Family/LICENSE.pdf`). The weights the built rooms use are in
+Only the Thmanyah family ships (owner decision 2026-09-26). The weights the built rooms use are in
 `public/fonts/thmanyah/`: Thmanyah Serif Display Light/Regular/Medium for
 titles and numerals (replacing Lyon Arabic Display, which is removed from the
 repository) and Thmanyah Sans Light/Regular/Medium/Bold for reading and
@@ -271,6 +270,9 @@ explicit task instruction and DESIGN-DIRECTION's asset list, but this is
 flagged here as the single item on this page most likely to need the
 owner's explicit confirmation before this diff is shown to anyone outside
 the immediate working group, separately from the general E05 rights gate.
+
+**Resolved 2026-10-01 (D44):** Anas confirmed the consent for the five
+films; they are shown again.
 
 ### Video hosting (DESIGN-DIRECTION §5; D32)
 

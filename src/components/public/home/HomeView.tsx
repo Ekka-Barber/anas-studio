@@ -8,16 +8,14 @@ import { Lines } from '@/components/weave/Lines'
 import { enter } from '@/components/weave/motion'
 import { Signature } from '@/components/weave/Signature'
 import type { Tone } from '@/components/weave/tones'
-import { BOOK } from '@/content/book'
-import type { RoomDoor } from '@/content/home'
-import type { HomeContent } from '@/lib/content'
+import type { BookRoom, HomeContent, RoomDoor } from '@/lib/content'
 
 import styles from './home.module.css'
 
 // His name, one word to a band, in the palette's order.
 const NAME_TONES: Tone[] = ['aub', 'coral', 'saffron']
 
-export interface HomeDoor extends RoomDoor {
+export type HomeDoor = RoomDoor & {
   /** The room's own line from the CMS, when it has a document. */
   roomLine?: string
 }
@@ -27,7 +25,7 @@ export interface HomeDoor extends RoomDoor {
  * his portrait, his line and his work in a sentence, the statement on
  * aubergine, every room as a coloured door, and the book on saffron.
  */
-export function HomeView({ home, doors }: { home: HomeContent; doors: HomeDoor[] }) {
+export function HomeView({ home, doors, book }: { home: HomeContent; doors: HomeDoor[]; book: BookRoom }) {
   const words = home.name.split(/\s+/).filter(Boolean)
   return (
     <main id="main">
@@ -107,7 +105,7 @@ export function HomeView({ home, doors }: { home: HomeContent; doors: HomeDoor[]
                     <span className={`t-label ${styles.doorFoot}`}>
                       {door.meta && <span className={door.tone === 'coral' || door.tone === 'saffron' ? undefined : 't-muted'}>{door.meta}</span>}
                       <span className={styles.enter}>
-                        {door.cta ?? 'ادخل'} <span aria-hidden="true">←</span>
+                        {door.cta || 'ادخل'} <span aria-hidden="true">←</span>
                       </span>
                     </span>
                   </span>
@@ -121,20 +119,20 @@ export function HomeView({ home, doors }: { home: HomeContent; doors: HomeDoor[]
       <section aria-labelledby="book-title" className={styles.book}>
         <Band tone="saffron" edge="crenel" pad="l" className={styles.bookBand}>
           <Link href="/book" prefetch={false} tabIndex={-1} aria-hidden="true" className={styles.cover} data-reveal="" data-fx="media">
-            <Picture id={BOOK.cover.id} alt="" sizes="(min-width: 1024px) 360px, 80vw" />
+            <Picture id={book.cover.id} alt="" sizes="(min-width: 1024px) 360px, 80vw" />
           </Link>
           <div className={styles.bookText}>
             <h2 id="book-title" className={`t-mega ${styles.bookTitle}`} data-reveal="" data-fx="band">
-              {BOOK.title}
+              {book.title}
             </h2>
             <p className="t-h2" data-reveal="">
-              {BOOK.subtitle}
+              {book.subtitle}
             </p>
             <p className="t-quote" data-reveal="">
-              <Lines text={BOOK.line} />
+              <Lines text={book.line} />
             </p>
             <p className={`t-body ${styles.bookStatus}`} data-reveal="">
-              {BOOK.status[0]}
+              {book.status[0]}
             </p>
             <div data-reveal="">
               <ActionLink href="/book">إلى الكتاب</ActionLink>

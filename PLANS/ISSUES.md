@@ -1,6 +1,6 @@
 # Issues
 
-Open items only. Closed items are listed at the end in one line each; their full records are in Git history. Revised 2026-10-01 after the AUDIT-2 audit and fixes (`artifacts/acceptance/AUDIT-2/REPORT.md`).
+Open items only. Closed items are listed at the end in one line each; their full records are in Git history. Revised 2026-10-01 after FOUNDATION-1 (`artifacts/acceptance/FOUNDATION-1/REPORT.md`).
 
 ## I24 — token discipline
 
@@ -16,7 +16,7 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## I33 — the room videos are not in the repository
 
-**Package:** P11 (hosted setup), from D32. The transcoded room films (`public/media/*.mp4`, made by `scripts/prepare-media.mjs` from local sources) are git-ignored, so a Cloudflare Pages build from the repository has none and the reels would 404. Before launch, either commit the transcoded files (each is under Pages' 25 MiB file limit) or upload them to a public Storage bucket and point the manifest at it. Owner's choice; the photos and content are on his machine too (E05). **AUDIT-1 (G4.2):** this covers the 13 cleared films only. The five films that show children are no longer in `public/`, the manifests, the content or the local database until their guardians consent; `prepare-media.mjs` leaves them out and says how to add them back.
+**Package:** P11 (hosted setup), from D32. The transcoded room films (`public/media/*.mp4`, made by `scripts/prepare-media.mjs` from local sources) are git-ignored, so a Cloudflare Pages build from the repository has none and the reels would 404. Before launch, either commit the transcoded files (each is under Pages' 25 MiB file limit) or upload them to a public Storage bucket and point the manifest at it. Owner's choice; the photos and content are on his machine too (E05). **FOUNDATION-1 (D44):** all 18 films are in the manifest and the content again, the five that show children included (Anas's consent); their posters are committed with the other images.
 
 ## I34 — site rebuild delivery: the failed-build half
 
@@ -28,9 +28,9 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 **Status (2026-09-29, CLEANUP-1):** the build check exists. `pnpm check:export` (`scripts/lib/demo-guard.mjs`) finds the Supabase origin baked into the export and fails when any page's visible text shows «تجريبي» in a build against a non-loopback Supabase, naming the pages and never a key; a loopback build passes with a one-line note. Still open for P11: the Pages build command must be `pnpm build && pnpm check:export` (or the deploy must gate on it) for the check to block a real deploy; confirm the production database has no `demo` rows (a demo row edited until its text no longer says «تجريبي» is invisible to the check); every published policy is Anas's approved text. Known false positive: the check matches the plain word «تجريبي», so real content that shows it on a page (for example «مشروع تجريبي») fails a hosted build; narrowing it to the seed's exact markers is the owner's choice. Evidence: `artifacts/acceptance/CLEANUP-1/w1.md`, `audit-w1.json`.
 
-## I41: the hosted content bootstrap must carry the social links and the scenes
+## I41: the hosted content bootstrap must carry the social links, the scenes, the book page, the home doors and the contact page
 
-**Package:** P11 (hosted setup), from CLEANUP-1 (2026-09-29). `pnpm db:import` runs only against a loopback database, and the hosted project has neither `site_settings.social` (C09) nor a published `scenes/gallery` (C05). The pages stay truthful without them: the footer shows no handle, /contact no social tiles, and /scenes says «لا توجد مَشاهد بعد.». Before the first hosted build, the hosted `site_settings/site` needs the four `social` entries and the hosted `scenes/gallery` the 19 photos from `content/initial-content.json`, through the P11 content bootstrap or the owner in the admin; the migrations through `20260930120000_audit_fixes.sql` must be applied first. Check after the first hosted build that `/contact` shows the four tiles and `/scenes` its photos.
+**Package:** P11 (hosted setup), from CLEANUP-1 (2026-09-29). `pnpm db:import` runs only against a loopback database, and the hosted project has neither `site_settings.social` (C09) nor a published `scenes/gallery` (C05). The pages stay truthful without them: the footer shows no handle, /contact no social tiles, and /scenes says «لا توجد مَشاهد بعد.». Before the first hosted build, the hosted `site_settings/site` needs the four `social` entries and the hosted `scenes/gallery` the 19 photos from `content/initial-content.json`, through the P11 content bootstrap or the owner in the admin; the migrations through `20260930140000_audit2_fixes.sql` must be applied first. Check after the first hosted build that `/contact` shows the four tiles and `/scenes` its photos. **FOUNDATION-1 (D44)** adds three documents the build cannot do without: a published `rooms/book`, and `home.doors` and `contactPage` in `site_settings/site`. Without them the build stops on purpose (`getBookRoom`, `getHomeDoors` and `getContactPage` throw), so the bootstrap writes all three from `content/initial-content.json` before the first hosted build.
 
 ## I43: the contact form and the privacy policy (owner, E08)
 
@@ -42,7 +42,7 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## I45: owner and Anas inputs the code waits for
 
-**From AUDIT-1.** (1) X5.7: the home's door order and facts, the book page's words (`src/content/book.ts`) and the services (`src/content/contact.ts`) are code, not CMS fields; C03, C12, C13 and C14 are partial until Anas asks for these fields (COVERAGE). (2) The earlier open question from I25: Tabuk imagery (real reference photos and film frames are preferred to generated ones). The seeded social links stay as they are (D42); the owner edits them in «الإعدادات» → «روابط التواصل». (3) From AUDIT-2 (ADMIN-editor-8, PUBLIC-data-6): «بريد التواصل» in the site settings is validated and published, but no page shows it; whether the site shows a contact e-mail beside the form is Anas's choice.
+**From AUDIT-1.** (1) X5.7, the home doors, the book page and the services as CMS fields: done in FOUNDATION-1 (D44). (2) The earlier open question from I25: Tabuk imagery (real reference photos and film frames are preferred to generated ones). The seeded social links stay as they are (D42); the owner edits them in «الإعدادات» → «روابط التواصل». (3) From AUDIT-2 (ADMIN-editor-8, PUBLIC-data-6): «بريد التواصل» in the site settings is validated and published, but no page shows it; whether the site shows a contact e-mail beside the form is Anas's choice.
 
 ## I46: security headers beyond the safe baseline (P10)
 
@@ -58,7 +58,7 @@ The P01 worker spent about 218M cached input tokens in 10.7 hours: one worker re
 
 ## I49: AUDIT-2 residuals
 
-(1) X-SEC-6: `media-ticket` has no rate or byte cap, so a signed-in editor's token can fill Storage faster than the daily sweep (1,000 objects) empties it; a ticket-count cap would also block the owner's bulk uploads, so it needs a bytes-per-actor cap and a sweep that loops. (2) ADMIN-media-7: an AVIF, WebP or PNG whose rotation is stored in the file fails `DIMENSION_MISMATCH` (the server only reads JPEG orientation); the admin now explains it and asks for a re-export, and the server-side read is not built. (3) TOOLING-9: `pnpm lint` now covers `supabase/functions`, but nothing type-checks them in CI; a `deno check` step needs Deno on the runner. (4) Optional hardening: `check:export` could also look for a Postgres connection string, a Supabase access token and the Turnstile secret shape. (5) The largest page's initial JavaScript is 147.4 of its 150 KiB budget (P10).
+(1) X-SEC-6: `media-ticket` has no rate or byte cap, so a signed-in editor's token can fill Storage faster than the daily sweep (1,000 objects) empties it; a ticket-count cap would also block the owner's bulk uploads, so it needs a bytes-per-actor cap and a sweep that loops. (2) ADMIN-media-7: an AVIF, WebP or PNG whose rotation is stored in the file fails `DIMENSION_MISMATCH` (the server only reads JPEG orientation); the admin now explains it and asks for a re-export, and the server-side read is not built. (3) TOOLING-9: done in FOUNDATION-1; CI installs Deno 2.9.6 and runs `deno check` on every function. (4) Optional hardening: `check:export` could also look for a Postgres connection string, a Supabase access token and the Turnstile secret shape. (5) The largest page's initial JavaScript is 147.4 of its 150 KiB budget (P10). (6) From FOUNDATION-1: a full `scripts/prepare-media.mjs` run takes more than ten minutes, and because some local sources are now wider than when the committed derivatives were made, it would add about 40 new image sizes; FOUNDATION-1 made only the five restored films' posters. A full run, with the budgets re-checked, belongs to the P10 media pass.
 
 ## Closed
 

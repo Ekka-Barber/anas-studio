@@ -287,8 +287,8 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   await secondItem.getByRole('button', { name: 'أعلى' }).last().click()
   await expect(movementItems.first().locator('input[id$="-year"]')).toHaveValue(secondYear)
 
-  // Hide the second reel (45-animated-pottery-signature), one of the two the
-  // page shows (the five with children stay hidden until consent, D39).
+  // Hide the second reel (45-animated-pottery-signature), one of the seven the
+  // page shows.
   const reelsGroup = page.getByRole('group', { name: 'المقاطع' })
   await reelsGroup.getByRole('checkbox', { name: 'إخفاء' }).nth(1).check()
 
@@ -503,6 +503,69 @@ test('social links: edit, add, reorder and publish; the footer and contact page 
     restoredPage.locator('footer').getByRole('link', { name: `${original[0]!.network}: ${original[0]!.handle}`, exact: true }),
   ).toHaveAttribute('href', original[0]!.href)
   await restoredContext.close()
+})
+
+test('book page, home doors and contact page: edit and publish; the pages follow (requires pnpm db:import)', async ({
+  page,
+  browser,
+}) => {
+  const email = await createOwner('محرر الصفحات')
+  await signInByCode(page, email)
+
+  // The versions live before this test edits anything: the ones it restores at the end.
+  const liveAtStart = new Client({ connectionString: status.DB_URL })
+  await liveAtStart.connect()
+  const live = await liveAtStart.query<{ collection: string; seq: number }>(
+    "select collection, seq from public.published_documents where (collection, doc_id) in (('rooms', 'book'), ('site_settings', 'site'))",
+  )
+  await liveAtStart.end()
+  const bookSeq = live.rows.find((row) => row.collection === 'rooms')!.seq
+  const siteSeq = live.rows.find((row) => row.collection === 'site_settings')!.seq
+  cleanups.push(() => restoreLive('rooms', 'book', bookSeq))
+  cleanups.push(() => restoreLive('site_settings', 'site', siteSeq))
+  const stamp = Date.now()
+
+  // The book page (D44): rename the first character.
+  await page.goto('/admin/content/rooms/edit?id=book')
+  const characters = page.getByRole('group', { name: 'الشخصيات' }).locator('> div')
+  await expect(characters).toHaveCount(4)
+  const character = `شخصية ${stamp}`
+  await characters.nth(0).getByLabel('الاسم').fill(character)
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+
+  // The home doors and the contact page: rename the first door, move the last
+  // one (تواصل) up a place, and retitle the services.
+  await page.goto('/admin/content/site_settings/edit?id=site')
+  const doors = page.getByRole('group', { name: 'أبواب الغرف' }).locator('> div')
+  await expect(doors).toHaveCount(8)
+  const door = `باب ${stamp}`
+  await doors.nth(0).getByLabel('العنوان', { exact: true }).fill(door)
+  const lastTitle = await doors.nth(7).getByLabel('العنوان', { exact: true }).inputValue()
+  await doors.nth(7).getByRole('button', { name: 'أعلى' }).click()
+  await expect(doors.nth(6).getByLabel('العنوان', { exact: true })).toHaveValue(lastTitle)
+  const servicesTitle = `استشارات ${stamp}`
+  await page.getByRole('group', { name: 'صفحة التواصل' }).getByLabel('عنوان الاستشارات').fill(servicesTitle)
+  await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+
+  // Under next dev the public pages render the published data at once.
+  const visitorContext = await browser.newContext()
+  const visitor = await visitorContext.newPage()
+  await visitor.goto('/book')
+  await expect(visitor.locator('#characters h3').first()).toHaveText(character)
+  await visitor.goto('/')
+  const doorTitles = visitor.locator('ol li a[data-tone] h3')
+  await expect(doorTitles).toHaveCount(8)
+  await expect(doorTitles.nth(0)).toHaveText(door)
+  await expect(doorTitles.nth(6)).toHaveText(lastTitle)
+  await visitor.goto('/contact')
+  await expect(visitor.locator('#services-title')).toHaveText(servicesTitle)
+  await visitorContext.close()
 })
 
 test('scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import)', async ({

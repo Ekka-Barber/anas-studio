@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import fixture from '../../content/initial-content.json'
 import { noteFor } from '../../src/content/media-notes'
-import { getJournalName, mediaById, replaceMediaIds } from '../../src/lib/content'
+import { getContactPage, getHomeDoors, getJournalName, mediaById, replaceMediaIds } from '../../src/lib/content'
 import { parseMediaRef } from '../../src/lib/media-ref'
 
 beforeEach(() => {
@@ -81,5 +81,24 @@ describe('getJournalName', () => {
   it('stays «المجلس» while the menu has no journal item', async () => {
     site(fixture.nav.filter((item) => item.href !== '/journal'))
     expect(await getJournalName()).toBe('المجلس')
+  })
+})
+
+describe('getHomeDoors and getContactPage (F2-PAGES)', () => {
+  const site = (data: unknown) => vi.stubGlobal('fetch', vi.fn(async () => Response.json([{ data }])))
+  const published = { nav: fixture.nav, footer: fixture.footer, home: fixture.home, contactPage: fixture.contactPage }
+
+  it('read the published settings: the doors in the admin order, the contact page as written', async () => {
+    const reversed = [...fixture.home.doors].reverse()
+    site({ ...published, home: { ...fixture.home, doors: reversed } })
+    expect(await getHomeDoors()).toEqual(reversed)
+    expect(await getContactPage()).toEqual(fixture.contactPage)
+  })
+
+  it('fail the build, naming the key, for a document published before the keys existed', async () => {
+    const { doors: _doors, ...home } = fixture.home
+    site({ nav: fixture.nav, footer: fixture.footer, home })
+    await expect(getHomeDoors()).rejects.toThrow('site_settings/site is missing home.doors')
+    await expect(getContactPage()).rejects.toThrow('site_settings/site is missing contactPage')
   })
 })

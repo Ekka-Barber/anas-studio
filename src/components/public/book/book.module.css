@@ -138,6 +138,23 @@
   background: currentColor;
 }
 
+/* الشخصيات: cards in B's tones, each one name, one line from the book and where it is from. */
+.characters {
+  --tile: 300px;
+}
+.character {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: clamp(24px, 3vw, 40px);
+}
+.cardMark {
+  color: var(--accent); /* decorative: each tone sets an accent that reads on its own surface */
+}
+.character .source {
+  margin-block-start: auto;
+}
+
 .photosTitle {
   padding-inline: var(--gutter);
   padding-block: clamp(48px, 6vw, 88px) clamp(24px, 3vw, 40px);

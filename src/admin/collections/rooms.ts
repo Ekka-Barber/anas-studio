@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { type Field, schemaFromFields } from '../fields'
 
 /**
- * `rooms`: four fixed documents (`started`, `built`, `passed`, `shelf`),
+ * `rooms`: five fixed documents (`started`, `built`, `passed`, `shelf`, `book`),
  * each with its own fields matching `src/lib/content.ts`'s interfaces
  * exactly. Sections that are lists — movements, reels, the passed room's
  * brand wall and product gallery — are hideable: the admin can hide an item
@@ -20,7 +20,7 @@ import { type Field, schemaFromFields } from '../fields'
  * drops unknown keys) and the form keeps the key when it saves.
  */
 export const jewelSchema = z.enum(['coral', 'aub', 'saffron', 'paper'])
-const JEWEL_FIELD = {
+export const JEWEL_FIELD = {
   name: 'jewel',
   label: 'لون الغرفة',
   type: 'select',
@@ -222,11 +222,78 @@ export const shelfRoomFields = [
 ] as const satisfies Field[]
 export const shelfRoomSchema = schemaFromFields(shelfRoomFields)
 
+// --- كتبتُ هنا ---------------------------------------------------------------
+// The book's page (D39): «خوص | حكايات شارع 4». It has no `jewel` or `tagline`:
+// its band is always saffron and the home page reads its title, line and
+// status. `characters` are named by their lines in the manuscript, nothing more.
+export const bookExcerptFields = [
+  { name: 'text', label: 'النص', type: 'textarea' },
+  { name: 'source', label: 'المصدر', type: 'text' },
+] as const satisfies Field[]
+
+export const bookCharacterFields = [
+  { name: 'name', label: 'الاسم', type: 'text', nonBlank: true },
+  { name: 'line', label: 'السطر', type: 'textarea' },
+  { name: 'source', label: 'المصدر', type: 'text' },
+] as const satisfies Field[]
+
+export const bookPhotoFields = [
+  ...galleryPhotoFields,
+  { name: 'caption', label: 'التعليق', type: 'text' },
+  // A CSS object-position such as `50% 36%`, for a picture that crops badly at the centre.
+  { name: 'focus', label: 'نقطة التركيز', type: 'text', required: false },
+] as const satisfies Field[]
+
+export const bookEditionFields = [
+  { name: 'name', label: 'الاسم', type: 'text' },
+  { name: 'text', label: 'الوصف', type: 'textarea' },
+] as const satisfies Field[]
+
+export const bookRoomFields = [
+  { name: 'roomLabel', label: 'تسمية الغرفة', type: 'text' },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
+  { name: 'subtitle', label: 'العنوان الفرعي', type: 'text' },
+  { name: 'author', label: 'المؤلف', type: 'text' },
+  { name: 'line', label: 'السطر', type: 'text' },
+  { name: 'cover', label: 'الغلاف', type: 'group', fields: galleryPhotoFields },
+  { name: 'standing', label: 'الكتاب واقفاً', type: 'group', fields: galleryPhotoFields },
+  { name: 'spine', label: 'الكعب', type: 'group', fields: galleryPhotoFields },
+  { name: 'bookmark', label: 'فاصل الخوص', type: 'group', fields: galleryPhotoFields },
+  {
+    name: 'about',
+    label: 'نبذة',
+    type: 'group',
+    fields: [
+      { name: 'kicker', label: 'العبارة الأولى', type: 'text' },
+      { name: 'line', label: 'السطر', type: 'text' },
+      { name: 'passage', label: 'الفقرات', type: 'paragraphs' },
+      { name: 'source', label: 'المصدر', type: 'text' },
+    ],
+  },
+  { name: 'excerpts', label: 'اقتباسات', type: 'list', fields: bookExcerptFields },
+  { name: 'characters', label: 'الشخصيات', type: 'list', fields: bookCharacterFields },
+  { name: 'photos', label: 'صور', type: 'list', fields: bookPhotoFields },
+  {
+    name: 'journey',
+    label: 'رحلة الكتاب',
+    type: 'group',
+    fields: [
+      { name: 'title', label: 'العنوان', type: 'text' },
+      { name: 'passage', label: 'الفقرات', type: 'paragraphs' },
+      { name: 'source', label: 'المصدر', type: 'text' },
+    ],
+  },
+  { name: 'status', label: 'الحالة', type: 'paragraphs' },
+  { name: 'editions', label: 'النسخ', type: 'list', fields: bookEditionFields },
+] as const satisfies Field[]
+export const bookRoomSchema = schemaFromFields(bookRoomFields)
+
 export const roomSchemas = {
   started: startedRoomSchema,
   built: builtRoomSchema,
   passed: passedRoomSchema,
   shelf: shelfRoomSchema,
+  book: bookRoomSchema,
 } as const
 export type RoomSlug = keyof typeof roomSchemas
 
@@ -275,4 +342,5 @@ export const roomPublishSchemas = {
     repeatsAParagraph(ctx, ['items', 'moonlightCup', 'pullLines'], moonlightCup.pullLines, moonlightCup.paragraphs)
     repeatsAParagraph(ctx, ['items', 'boutique', 'bandLines'], boutique.bandLines, boutique.paragraphs)
   }),
+  book: bookRoomSchema,
 } as const

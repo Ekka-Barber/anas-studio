@@ -4,9 +4,9 @@ One current handoff. Earlier handoffs are in Git history; what was accepted, and
 
 ## State (2026-10-01)
 
-- **Repository.** `main` is the only branch, locally and on GitHub, and the single source of truth. It holds every accepted package through P07, DESIGN-B, P02, CLEANUP-1, AUDIT-1, AUDIT-2 and the owner's D41 to D43 decisions. No lock is held.
+- **Repository.** `main` is the only branch, locally and on GitHub, and the single source of truth. It holds every accepted package through P07, DESIGN-B, P02, CLEANUP-1, AUDIT-1, AUDIT-2, FOUNDATION-1 (Foundation finished: the book page, home doors and contact page in the admin, the characters, the five films) and the owner's D41 to D44 decisions. No lock is held.
 - **History was rewritten (D42).** The WhatsApp export is gone from every commit. Any clone made before 2026-09-30 must be re-cloned, not pulled, or the old history comes back. `../anas-studio-backup-2026-09-30/` (outside the repository) holds bundles of the old history and a copy of the folder, until the owner deletes it.
-- **What is open.** `PLANS/ISSUES.md` (I24, I28, I32–I34, I40, I41, I43–I49); the latest audit record is `artifacts/acceptance/AUDIT-2/REPORT.md` (AUDIT-1's is beside it).
+- **What is open.** `PLANS/ISSUES.md` (I24, I28, I32–I34, I40, I41, I43–I49); the latest audit record is `artifacts/acceptance/AUDIT-2/REPORT.md` (AUDIT-1's is beside it), and the latest package record `artifacts/acceptance/FOUNDATION-1/REPORT.md`.
 - **graft.** Its session-start upkeep rewrites the agent configuration when its wiring stamp (`graft/.cache/wiring-stamp.json`) names another version than the running one. Upgrade the global CLI and the `.mcp.json` pin together, and keep the stamp's version equal to them (AUDIT-2, 4.12).
 
 ## Branches
@@ -44,11 +44,10 @@ Work on a short-lived `agent/<package>` branch cut from `main`. When the owner a
    E02 stays open until the real sandbox.
 2. **Owner and Anas inputs:**
    - I43: the privacy policy on the contact form, E08;
-   - I45: the home, book page and services as CMS fields, and Tabuk imagery;
+   - I45: Tabuk imagery, and whether the site shows a contact e-mail;
    - a rights field per scene (C05);
    - new built stages, shelf ideas and project figures (D40);
-   - the paper edition's details, the book's characters and the 2013 photo;
-   - guardian consent for the five films with children.
+   - the paper edition's details (E03).
 3. **P11, only when the owner authorizes hosting:** I28 (including the password hook), I32, I33, I40 and I41.
 
 ## Rules to keep

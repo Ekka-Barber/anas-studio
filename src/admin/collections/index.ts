@@ -19,6 +19,7 @@ export const collections = {
       built: rooms.builtRoomFields,
       passed: rooms.passedRoomFields,
       shelf: rooms.shelfRoomFields,
+      book: rooms.bookRoomFields,
     },
   },
   posts: { fields: postFields },
@@ -43,12 +44,13 @@ export const SITE_SETTINGS_DOC_ID = 'site'
 /** `scenes` has exactly one document: the gallery (C05). */
 export const SCENES_DOC_ID = 'gallery'
 
-/** Arabic labels for the four fixed room documents. */
+/** Arabic labels for the five fixed room documents. */
 export const ROOM_DOC_LABELS: Record<RoomSlug, string> = {
   started: 'بدأتُ من هنا',
   built: 'بنيتُ هنا',
   passed: 'مررتُ من هنا',
   shelf: 'على الرف',
+  book: 'كتبتُ هنا',
 }
 
 /** Own keys only: `in` would accept `constructor` and `toString`. */

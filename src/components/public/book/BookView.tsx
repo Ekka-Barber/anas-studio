@@ -1,3 +1,5 @@
+import { Fragment } from 'react'
+
 import { BookPreview } from '@/components/book/BookPreview'
 import { Picture } from '@/components/public/Picture'
 import { ActionLink } from '@/components/weave/Action'
@@ -9,7 +11,8 @@ import { Lines } from '@/components/weave/Lines'
 import { enter } from '@/components/weave/motion'
 import { RoomNav } from '@/components/weave/RoomNav'
 import { SectionNav } from '@/components/weave/SectionNav'
-import { BOOK } from '@/content/book'
+import type { Tone } from '@/components/weave/tones'
+import type { BookRoom } from '@/lib/content'
 import { imageSources } from '@/lib/images'
 
 import styles from './book.module.css'
@@ -17,38 +20,44 @@ import styles from './book.module.css'
 /**
  * كتبتُ هنا (D39, direction B): «خوص | حكايات شارع 4» in cover B on its
  * saffron band, then the book's sections under their own sticky contents:
- * about, passages, the pages Anas approved for reading (P02, the book
- * reader), his Street No. 4 photos, the book's journey with the standing
- * mockup B, and the editions, announced «قريباً».
+ * about, passages, the characters (each only by the lines the manuscript
+ * gives it), the pages Anas approved for reading (P02, the book reader), his
+ * Street No. 4 photos, the book's journey with the standing mockup B, and the
+ * editions, announced «قريباً». The words and pictures are the `book`
+ * document of the rooms collection (editable in the admin).
  *
- * Not here yet, on purpose: the characters (their names and lines wait for
- * Anas) and the availability sign-up (P08). Neither is shown as a
+ * Not here yet, on purpose: the availability sign-up (P08), not shown as a
  * placeholder.
  */
 const SECTIONS = [
   { id: 'about', label: 'نبذة' },
   { id: 'excerpts', label: 'اقتباسات' },
+  { id: 'characters', label: 'الشخصيات' },
   { id: 'pages', label: 'صفحات' },
   { id: 'photos', label: 'صور' },
   { id: 'journey', label: 'رحلة الكتاب' },
   { id: 'editions', label: 'الطلب' },
 ] as const
 
+// The character cards are woven in turn from these surfaces, as the journal's are.
+const CARD_TONES: Tone[] = ['paper', 'aub', 'coral', 'saffron']
+
 /**
  * `journalName` is the journal's editable name (D11) for the link onward. It is
  * optional because the admin's preview draws this view in the browser, where
  * the loaders cannot run.
  */
-export function BookView({ journalName = 'المجلس' }: { journalName?: string }) {
-  const cover = imageSources(BOOK.cover.id)
+export function BookView({ book, journalName = 'المجلس' }: { book: BookRoom; journalName?: string }) {
+  const cover = imageSources(book.cover.id)
+  const sections = book.characters.length > 0 ? SECTIONS : SECTIONS.filter((section) => section.id !== 'characters')
   return (
     <>
       <main id="main">
         <Band as="header" tone="saffron" edge="crenel" pad="hero" padEnd="l" className={styles.hero}>
           <div className={styles.cover} {...enter(240, 'media')}>
             <Picture
-              id={BOOK.cover.id}
-              alt={BOOK.cover.alt}
+              id={book.cover.id}
+              alt={book.cover.alt}
               // Laid out at min(400px, 40%) of the band, never under 220px, and it stays that wide when the band wraps.
               sizes="(min-width: 1024px) 400px, (min-width: 560px) 40vw, 220px"
               loading="eager"
@@ -57,21 +66,21 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
           </div>
           <div className={styles.heroText}>
             <p className={styles.roomLabel} {...enter(80)}>
-              {BOOK.roomLabel}
+              {book.roomLabel}
             </p>
             <h1 className={styles.title}>
               <span className={`t-mega ${styles.titleWord}`} {...enter(200, 'band')}>
-                {BOOK.title}
+                {book.title}
               </span>
               <span className={styles.subtitle} {...enter(360, 'band')}>
-                {BOOK.subtitle}
+                {book.subtitle}
               </span>
             </h1>
             <p className={`t-quote ${styles.line}`} {...enter(520)}>
-              <Lines text={BOOK.line} />
+              <Lines text={book.line} />
             </p>
             <p className={styles.author} {...enter(620)}>
-              {BOOK.author}
+              {book.author}
             </p>
             <div className={styles.actions} {...enter(760)}>
               <ActionLink href="#editions">النسخ</ActionLink>
@@ -82,7 +91,7 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
           </div>
         </Band>
         <Edge kind="weave" />
-        <SectionNav label="أقسام الكتاب" sections={SECTIONS} />
+        <SectionNav label="أقسام الكتاب" sections={sections} />
 
         <Band tone="sand" pad="xl" id="about" aria-labelledby="about-title" className={styles.section}>
           <div className={styles.twoCols}>
@@ -91,19 +100,19 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
                 نبذة
               </h2>
               <p className={`${styles.kicker}`} data-reveal="">
-                {BOOK.about.kicker}
+                {book.about.kicker}
               </p>
               <p className="t-quote" data-reveal="">
-                {BOOK.about.line}
+                {book.about.line}
               </p>
             </div>
             <div className={`${layout.flow} ${styles.colBody}`} data-reveal="">
-              {BOOK.about.passage.map((para, i) => (
+              {book.about.passage.map((para, i) => (
                 <p key={i}>
                   <Lines text={para} />
                 </p>
               ))}
-              <p className={styles.source}>{BOOK.about.source}</p>
+              <p className={styles.source}>{book.about.source}</p>
             </div>
           </div>
         </Band>
@@ -113,7 +122,7 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
             اقتباسات
           </h2>
           <div className={styles.excerpts}>
-            {BOOK.excerpts.map((excerpt) => (
+            {book.excerpts.map((excerpt) => (
               <figure key={excerpt.text} className={styles.excerpt} data-reveal="">
                 <blockquote className={`t-display ${styles.quote}`}>
                   <span aria-hidden="true" className={`${styles.mark} ${styles.markOpen}`}>
@@ -130,6 +139,32 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
             ))}
           </div>
         </Band>
+
+        {book.characters.length > 0 && (
+          <Band tone="sand" pad="none" padEnd="xl" id="characters" aria-labelledby="characters-title" className={styles.section}>
+            <h2 id="characters-title" className={`t-h2 ${styles.h2}`} data-reveal="">
+              الشخصيات
+            </h2>
+            <ul className={`${layout.lattice} ${styles.characters}`}>
+              {book.characters.map((character, i) => (
+                <li key={i} data-tone={CARD_TONES[i % CARD_TONES.length]} className={styles.character} data-reveal="">
+                  <h3 className="t-card">{character.name}</h3>
+                  <blockquote className="t-line">
+                    <span aria-hidden="true" className={styles.cardMark}>
+                      «
+                    </span>
+                    {/* A quotation is set without its closing full stop, as the excerpts are. */}
+                    <Lines text={character.line.replace(/\s*\.$/, '')} />
+                    <span aria-hidden="true" className={styles.cardMark}>
+                      »
+                    </span>
+                  </blockquote>
+                  <p className={styles.source}>{character.source}</p>
+                </li>
+              ))}
+            </ul>
+          </Band>
+        )}
 
         <Band tone="deep" edge="crenel" pad="xl" id="pages" aria-labelledby="pages-title" className={styles.section}>
           <div className={styles.pagesHead}>
@@ -149,14 +184,14 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
             صور
           </h2>
           <div className={`${layout.mosaic} ${styles.photos}`}>
-            {BOOK.photos.map((photo) => (
+            {book.photos.map((photo) => (
               <Figure
                 key={photo.id}
                 id={photo.id}
                 alt={photo.alt}
                 sizes="(min-width: 1024px) 20vw, 50vw"
                 ratio="3 / 4"
-                focus={'focus' in photo ? photo.focus : undefined}
+                focus={photo.focus || undefined}
                 caption={photo.caption}
                 captionPlacement="corner"
                 scrub
@@ -168,28 +203,28 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
         <Band tone="sand" pad="xl" id="journey" aria-labelledby="journey-title" className={styles.section}>
           <div className={layout.text}>
             <h2 id="journey-title" className={`t-h2 ${styles.h2}`} data-reveal="">
-              {BOOK.journey.title}
+              {book.journey.title}
             </h2>
             <div className={layout.flow} data-reveal="">
-              {BOOK.journey.passage.map((para, i) => (
+              {book.journey.passage.map((para, i) => (
                 <p key={i}>
                   <Lines text={para} />
                 </p>
               ))}
-              <p className={styles.source}>{BOOK.journey.source}</p>
+              <p className={styles.source}>{book.journey.source}</p>
             </div>
           </div>
           <ul className={`${layout.lattice} ${styles.objects}`}>
             <li data-tone="paper" className={styles.object} data-reveal="" data-fx="media">
-              <Picture id={BOOK.standing.id} alt={BOOK.standing.alt} sizes="(min-width: 1024px) 30vw, 100vw" />
+              <Picture id={book.standing.id} alt={book.standing.alt} sizes="(min-width: 1024px) 30vw, 100vw" />
               <span className={styles.objectLabel}>الغلاف والكعب</span>
             </li>
             <li data-tone="saffron" className={`${styles.object} ${styles.spine}`} data-reveal="" data-fx="media" data-delay={100}>
-              <Picture id={BOOK.spine.id} alt={BOOK.spine.alt} sizes="120px" className={styles.spineArt} />
+              <Picture id={book.spine.id} alt={book.spine.alt} sizes="120px" className={styles.spineArt} />
               <span className={styles.objectLabel}>الكعب</span>
             </li>
             <li data-tone="paper" className={styles.object} data-reveal="" data-fx="media" data-delay={200}>
-              <Picture id={BOOK.bookmark.id} alt={BOOK.bookmark.alt} sizes="(min-width: 1024px) 30vw, 100vw" className={styles.bookmark} />
+              <Picture id={book.bookmark.id} alt={book.bookmark.alt} sizes="(min-width: 1024px) 30vw, 100vw" className={styles.bookmark} />
               <span className={styles.objectLabel}>فاصل من الخوص</span>
             </li>
           </ul>
@@ -202,12 +237,15 @@ export function BookView({ journalName = 'المجلس' }: { journalName?: strin
               قريباً
             </h2>
             <p className={styles.status} data-reveal="">
-              {BOOK.status[0]}
-              <br />
-              {BOOK.status[1]}
+              {book.status.map((line, i) => (
+                <Fragment key={i}>
+                  {i > 0 && <br />}
+                  {line}
+                </Fragment>
+              ))}
             </p>
             <ul className={`${layout.lattice} ${styles.editions}`} data-reveal="">
-              {BOOK.editions.map((edition) => (
+              {book.editions.map((edition) => (
                 <li key={edition.name} data-tone="paper" className={styles.edition}>
                   <h3 className="t-card">{edition.name}</h3>
                   <p className="t-body">{edition.text}</p>

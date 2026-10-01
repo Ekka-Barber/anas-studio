@@ -12,7 +12,14 @@ import {
   NAV_HREF_DUPLICATE_ERROR,
   NAV_HREF_ERROR,
   NAV_LABEL_ERROR,
+  CONTACT_PAGE_MISSING_ERROR,
+  CONTACT_SERVICES_TITLE_ERROR,
+  CONTACT_TITLE_ERROR,
+  DOOR_HREF_DUPLICATE_ERROR,
+  DOOR_HREFS,
+  HOME_DOORS_MISSING_ERROR,
   siteSettingsFields,
+  siteSettingsStoredSchema,
 } from '../../src/admin/collections/site-settings'
 import {
   draftOffer,
@@ -36,7 +43,7 @@ const messages = (schema: { safeParse: (value: unknown) => { success: boolean; e
   return result.success ? [] : result.error!.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
 }
 
-const seededSettings = { nav: content.nav, footer: content.footer, home: content.home }
+const seededSettings = { nav: content.nav, footer: content.footer, home: content.home, contactPage: content.contactPage }
 
 describe('withDefaults: a stored document that lacks a whole group', () => {
   it('fills the missing groups, and the merged document is the form state, not a change', () => {
@@ -238,6 +245,62 @@ describe('blank values the publish gate now refuses (ADMIN-editor-5, -6, -7, GAP
     expect(withNav([{ label: 'أ', href: '/a' }, { label: 'ب', href: '/a' }])).toEqual([`nav.1.href: ${NAV_HREF_DUPLICATE_ERROR}`])
     // The Latin path is isolated from the Arabic around it, so «/journal» is not drawn as «journal/».
     expect(NAV_HREF_ERROR).toContain('‎/journal')
+  })
+})
+
+describe('the home doors and the contact page (F2-PAGES)', () => {
+  const gate = schemaFor('site_settings', 'site')
+  const doors = content.home.doors
+  const withDoors = (next: unknown[]) => messages(gate, { ...seededSettings, home: { ...content.home, doors: next } })
+
+  it('seeds the eight rooms in the order the home page draws them, and the publish gate accepts the seed', () => {
+    expect(doors.map((door) => door.href)).toEqual([...DOOR_HREFS])
+    expect(messages(gate, seededSettings)).toEqual([])
+  })
+
+  it('gives each room one door: a second door to the same room is refused, naming it', () => {
+    expect(withDoors([doors[0], { ...doors[1], href: doors[0]!.href }])).toEqual([
+      `home.doors.1.href: ${DOOR_HREF_DUPLICATE_ERROR}`,
+    ])
+    expect(withDoors([doors[1], doors[0]])).toEqual([])
+    expect(withDoors([])).toEqual([])
+  })
+
+  it('needs a room from the eight, a name and one of the room colours; the short fact, line and cta are optional', () => {
+    expect(withDoors([{ ...doors[0], href: '/elsewhere' }])).toHaveLength(1)
+    expect(withDoors([{ ...doors[0], title: '  ' }])).toHaveLength(1)
+    expect(withDoors([{ ...doors[0], tone: 'night' }])).toHaveLength(1)
+    const { meta: _meta, ...bare } = doors[0]!
+    expect(withDoors([bare])).toEqual([])
+  })
+
+  it('needs a name for each consulting service, and takes none', () => {
+    const withServices = (services: unknown[]) =>
+      messages(gate, { ...seededSettings, contactPage: { ...content.contactPage, services } })
+    expect(withServices([{ name: ' ', text: 'وصف' }])).toHaveLength(1)
+    expect(withServices([])).toEqual([])
+  })
+
+  it('needs title lines and a services title on the contact page: blank, they would draw an empty heading', () => {
+    const withPage = (page: object) => messages(gate, { ...seededSettings, contactPage: { ...content.contactPage, ...page } })
+    expect(withPage({ titleLines: [] })).toEqual([`contactPage.titleLines: ${CONTACT_TITLE_ERROR}`])
+    expect(withPage({ titleLines: [content.contactPage.titleLines[0], ' '] })).toEqual([
+      `contactPage.titleLines: ${CONTACT_TITLE_ERROR}`,
+    ])
+    expect(withPage({ servicesTitle: ' ' })).toEqual([`contactPage.servicesTitle: ${CONTACT_SERVICES_TITLE_ERROR}`])
+  })
+
+  it('takes a document saved before the two keys as stored data, refuses to publish it, and opens its form with the page empty', () => {
+    const { doors: _doors, ...homeWithoutDoors } = content.home
+    const before = { nav: content.nav, footer: content.footer, home: homeWithoutDoors }
+    expect(siteSettingsStoredSchema.safeParse(before).success).toBe(true)
+    expect(messages(gate, before)).toEqual([
+      `home.doors: ${HOME_DOORS_MISSING_ERROR}`,
+      `contactPage: ${CONTACT_PAGE_MISSING_ERROR}`,
+    ])
+    const merged = withDefaults(siteSettingsFields, before)
+    expect(merged.contactPage).toEqual({ titleLines: [], servicesTitle: '', servicesIntro: '', services: [] })
+    expect(merged.home).not.toHaveProperty('doors')
   })
 })
 

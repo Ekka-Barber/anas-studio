@@ -4,6 +4,8 @@ import { normalizeSaudiMobile } from '../../lib/format'
 
 import { type Field, schemaFromFields } from '../fields'
 
+import { JEWEL_FIELD } from './rooms'
+
 /**
  * `site_settings`: one fixed document, `site` — nav, footer, the home page's
  * words (D39) and the social links (C09) (`content/initial-content.json`
@@ -11,7 +13,10 @@ import { type Field, schemaFromFields } from '../fields'
  * groups (`required: false`), so the already-published document without them
  * still validates; `contact` is read by /contact (`getContact`), `seo` is not
  * read yet (P10). C09 adds the optional `social` list the same way (it was
- * `SOCIAL` in `src/content/site.ts`).
+ * `SOCIAL` in `src/content/site.ts`). The home page's room doors
+ * (`home.doors`) and the contact page's words (`contactPage`) are optional
+ * the same way, and required at publish; their loaders fail the build when a
+ * published document lacks them.
  */
 export const navItemFields = [
   { name: 'label', label: 'التسمية', type: 'text' },
@@ -25,6 +30,29 @@ export const footerFields = [
 ] as const satisfies Field[]
 export const footerSchema = schemaFromFields(footerFields)
 
+/** The eight routes a home door can open, with the room's name. */
+export const DOOR_HREFS = ['/started', '/built', '/passed', '/shelf', '/book', '/journal', '/scenes', '/contact'] as const
+const DOOR_HREF_LABELS = {
+  '/started': 'بدأتُ من هنا',
+  '/built': 'بنيتُ هنا',
+  '/passed': 'مررتُ من هنا',
+  '/shelf': 'على الرف',
+  '/book': 'كتبتُ هنا',
+  '/journal': 'المجلس',
+  '/scenes': 'المَشاهد',
+  '/contact': 'تواصل',
+} as const
+
+/** One room door on the home page: its colour is the room's, its order is the list's. */
+export const homeDoorFields = [
+  { name: 'href', label: 'الغرفة', type: 'select', options: DOOR_HREFS, optionLabels: DOOR_HREF_LABELS },
+  { name: 'title', label: 'العنوان', type: 'text', nonBlank: true },
+  { ...JEWEL_FIELD, name: 'tone', label: 'اللون' },
+  { name: 'meta', label: 'المعلومة القصيرة', type: 'text', required: false },
+  { name: 'line', label: 'السطر (لغرفة بلا مستند)', type: 'text', required: false },
+  { name: 'cta', label: 'نص الدخول', type: 'text', required: false },
+] as const satisfies Field[]
+
 /** D39: the home page's words, all Anas's (his brief, section 1 and 2). */
 export const homeFields = [
   { name: 'name', label: 'الاسم الكامل', type: 'text', nonBlank: true },
@@ -34,6 +62,7 @@ export const homeFields = [
   { name: 'intro', label: 'النص الرئيسي', type: 'textarea' },
   { name: 'introAddition', label: 'إضافة مقدمة الرئيسية', type: 'text' },
   { name: 'statement', label: 'العبارة الكبيرة', type: 'text' },
+  { name: 'doors', label: 'أبواب الغرف', type: 'list', required: false, fields: homeDoorFields },
 ] as const satisfies Field[]
 
 export const seoFields = [
@@ -44,6 +73,20 @@ export const seoFields = [
 export const contactFields = [
   { name: 'email', label: 'بريد التواصل', type: 'text' },
   { name: 'whatsapp', label: 'رقم واتساب', type: 'text' },
+] as const satisfies Field[]
+
+/** One consulting service on the contact page. */
+export const contactServiceFields = [
+  { name: 'name', label: 'الاسم', type: 'text', nonBlank: true },
+  { name: 'text', label: 'الوصف', type: 'textarea' },
+] as const satisfies Field[]
+
+/** The contact page's words (D39): his two title lines, his consulting services. */
+export const contactPageFields = [
+  { name: 'titleLines', label: 'سطرا العنوان', type: 'paragraphs' },
+  { name: 'servicesTitle', label: 'عنوان الاستشارات', type: 'text' },
+  { name: 'servicesIntro', label: 'مقدمة الاستشارات', type: 'textarea' },
+  { name: 'services', label: 'الاستشارات', type: 'list', fields: contactServiceFields },
 ] as const satisfies Field[]
 
 /** One social channel: the footer shows the first, the contact page all. */
@@ -72,6 +115,13 @@ export const NAV_LABEL_ERROR = 'اكتب اسم العنصر.'
 export const NAV_HREF_ERROR = 'الرابط غير صالح. لازم مسار داخلي يبدأ بـ /، مثل ‎/journal، أو رابط كامل يبدأ بـ https.'
 export const NAV_HREF_DUPLICATE_ERROR = 'هذا الرابط مكرر في القائمة.'
 
+/** The publish rules for the home doors and the contact page, and their messages. */
+export const DOOR_HREF_DUPLICATE_ERROR = 'هذه الغرفة مكررة بين الأبواب.'
+export const HOME_DOORS_MISSING_ERROR = 'أضف أبواب الغرف.'
+export const CONTACT_PAGE_MISSING_ERROR = 'اكتب كلمات صفحة التواصل.'
+export const CONTACT_TITLE_ERROR = 'اكتب سطور العنوان، ولا تترك سطرًا فارغًا.'
+export const CONTACT_SERVICES_TITLE_ERROR = 'اكتب عنوان الاستشارات.'
+
 /** True only for an absolute `https:` URL: `http:`, `javascript:`, `data:` and relative links are false. */
 export function isHttpsUrl(value: string): boolean {
   try {
@@ -88,6 +138,7 @@ export const siteSettingsFields = [
   { name: 'seo', label: 'SEO', type: 'group', required: false, fields: seoFields },
   { name: 'contact', label: 'التواصل', type: 'group', required: false, fields: contactFields },
   { name: 'social', label: 'روابط التواصل', type: 'list', required: false, fields: socialLinkFields },
+  { name: 'contactPage', label: 'صفحة التواصل', type: 'group', required: false, fields: contactPageFields },
 ] as const satisfies Field[]
 
 /**
@@ -99,8 +150,9 @@ export const siteSettingsStoredSchema = schemaFromFields(siteSettingsFields)
 export type SiteSettings = z.infer<typeof siteSettingsStoredSchema>
 
 /** The strict schema `schemaFor` hands to the admin form and the publish
- * gate: stored leniency above, plus the L5 contact rules and the C09 social
- * link rules. */
+ * gate: stored leniency above, plus the L5 contact rules, the C09 social
+ * link rules, and the home doors and contact page the stored schema leaves
+ * optional. */
 export const siteSettingsSchema = siteSettingsStoredSchema.superRefine((value, ctx) => {
   // A blank item draws an unnamed link, and an empty href marks every page as
   // current (`startsWith('/')`); the header keys its items by href.
@@ -114,6 +166,29 @@ export const siteSettingsSchema = siteSettingsStoredSchema.superRefine((value, c
     }
     hrefs.add(item.href)
   })
+  if (value.home.doors === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['home', 'doors'], message: HOME_DOORS_MISSING_ERROR })
+  }
+  // Each room has one door, and the home page keys its doors by href.
+  const doorHrefs = new Set<string>()
+  value.home.doors?.forEach((door, index) => {
+    if (doorHrefs.has(door.href)) {
+      ctx.addIssue({ code: 'custom', path: ['home', 'doors', index, 'href'], message: DOOR_HREF_DUPLICATE_ERROR })
+    }
+    doorHrefs.add(door.href)
+  })
+  if (value.contactPage === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['contactPage'], message: CONTACT_PAGE_MISSING_ERROR })
+  } else {
+    // Both are headings on the page: blank, they draw an empty h1 or h2.
+    const { titleLines, servicesTitle } = value.contactPage
+    if (titleLines.length === 0 || titleLines.some((line) => line.trim() === '')) {
+      ctx.addIssue({ code: 'custom', path: ['contactPage', 'titleLines'], message: CONTACT_TITLE_ERROR })
+    }
+    if (servicesTitle.trim() === '') {
+      ctx.addIssue({ code: 'custom', path: ['contactPage', 'servicesTitle'], message: CONTACT_SERVICES_TITLE_ERROR })
+    }
+  }
   value.social?.forEach((link, index) => {
     if (link.network.trim() === '') {
       ctx.addIssue({ code: 'custom', path: ['social', index, 'network'], message: SOCIAL_NETWORK_ERROR })

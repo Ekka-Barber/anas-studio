@@ -30,7 +30,7 @@ import { VersionHistory } from './VersionHistory'
 import styles from './admin.module.css'
 
 /** Rooms whose public view exists and can therefore be previewed. */
-const PREVIEW_ROOMS = new Set(['started', 'built', 'passed', 'shelf'])
+const PREVIEW_ROOMS = new Set(['started', 'built', 'passed', 'shelf', 'book'])
 
 const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. نصّك محفوظ هنا؛ حمّل آخر نسخة ثم أعد التعديل.'
 
@@ -93,6 +93,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   const [loadGeneration, setLoadGeneration] = useState(0)
   const hydratedRef = useRef(false)
   const loadedOnceRef = useRef(false)
+  const loadTicketRef = useRef(0)
   const userIdRef = useRef<string | undefined>(undefined)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const offerHeadingRef = useRef<HTMLHeadingElement>(null)
@@ -131,6 +132,9 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   }, [needsTaxonomies])
 
   async function load() {
+    // Only the newest load applies. An older answer landing later would replace
+    // the form, and offer an edit made in between as an unsaved local copy.
+    const ticket = ++loadTicketRef.current
     hydratedRef.current = false
     // Only the first load replaces the form with "يحمّل..."; a reload after
     // publish/schedule/archive/restore (via PublishBar's onChanged) must not
@@ -145,12 +149,14 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
       .eq('collection', collection)
       .eq('doc_id', docId)
       .maybeSingle()
+    if (ticket !== loadTicketRef.current) return
     if (error) {
       setLoadError('تعذّر تحميل المستند.')
       setLoading(false)
       return
     }
     const { data: sessionData } = await supabase.auth.getSession()
+    if (ticket !== loadTicketRef.current) return
     userIdRef.current = sessionData.session?.user.id
     const loadedSeq: number = row?.latest_seq ?? 0
     // Defaults go under the stored data, so a document that lacks a whole group

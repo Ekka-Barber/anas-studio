@@ -14,6 +14,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { z } from 'zod'
 
 import {
+  bookRoomSchema,
   builtRoomSchema,
   passedRoomSchema,
   postSchema,
@@ -22,6 +23,7 @@ import {
   startedRoomSchema,
   taxonomySchema,
 } from '@/admin/collections'
+import { BookView } from '@/components/public/book/BookView'
 import { PostView } from '@/components/public/journal/PostView'
 import { BuiltRoomView } from '@/components/public/rooms/BuiltRoomView'
 import { PassedRoomView } from '@/components/public/rooms/PassedRoomView'
@@ -69,6 +71,7 @@ const ROOMS: Record<string, Preview> = {
   built: preview(builtRoomSchema, (room) => <BuiltRoomView room={shapeBuiltRoom(room)} />),
   passed: preview(passedRoomSchema, (room) => <PassedRoomView room={shapePassedRoom(room)} />),
   shelf: preview(shelfRoomSchema, (room) => <ShelfRoomView room={room} />),
+  book: preview(bookRoomSchema, (book, _labels, journalName) => <BookView book={book} journalName={journalName} />),
 }
 
 const POST: Preview = preview(postSchema, (post, labels, journalName) => (

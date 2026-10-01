@@ -9,8 +9,7 @@ import layout from '@/components/weave/layout.module.css'
 import { Lines } from '@/components/weave/Lines'
 import { enter } from '@/components/weave/motion'
 import type { Tone } from '@/components/weave/tones'
-import { CONTACT } from '@/content/contact'
-import { getContact, getSocial } from '@/lib/content'
+import { getContact, getContactPage, getSocial } from '@/lib/content'
 import { whatsappLink } from '@/lib/format'
 
 export const metadata: Metadata = { title: 'تواصل' }
@@ -27,13 +26,15 @@ const SERVICE_TONES: Tone[] = ['paper', 'coral', 'paper', 'saffron', 'paper', 'n
 export default async function ContactPage() {
   const contact = await getContact()
   const social = await getSocial()
+  const page = await getContactPage()
   const whatsapp = contact?.whatsapp ? whatsappLink(contact.whatsapp) : null
   return (
     <main id="main">
       <Band as="header" tone="coral" edge="crenel" pad="hero" padEnd="l">
         <h1 className="t-band-xl">
-          {CONTACT.title.map((line, i) => (
-            <span key={line} className={styles.titleLine} {...enter(80 + i * 280, 'band')}>
+          {/* Index keys: two lines may match, and the list never reorders on the page. */}
+          {page.titleLines.map((line, i) => (
+            <span key={i} className={styles.titleLine} {...enter(80 + i * 280, 'band')}>
               <Lines text={line} />
             </span>
           ))}
@@ -69,15 +70,15 @@ export default async function ContactPage() {
       <section id="services" aria-labelledby="services-title">
         <Band tone="aub" edge="crenel" pad="hero" padEnd="m">
           <h2 id="services-title" className="t-band-xl" data-reveal="" data-fx="band">
-            {CONTACT.servicesTitle}
+            {page.servicesTitle}
           </h2>
           <p className={`t-read ${styles.servicesIntro}`} data-reveal="">
-            <Lines text={CONTACT.servicesIntro} />
+            <Lines text={page.servicesIntro} />
           </p>
         </Band>
         <ul className={`${layout.lattice} ${styles.services}`}>
-          {CONTACT.services.map((service, i) => (
-            <li key={service.name} data-tone={SERVICE_TONES[i % SERVICE_TONES.length]} className={styles.service} data-reveal="">
+          {page.services.map((service, i) => (
+            <li key={i} data-tone={SERVICE_TONES[i % SERVICE_TONES.length]} className={styles.service} data-reveal="">
               <h3 className="t-card">{service.name}</h3>
               <p className="t-body">{service.text}</p>
               <ServiceRequest service={service.name} />

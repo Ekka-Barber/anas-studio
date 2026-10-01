@@ -18,9 +18,9 @@ import { SCENE_CATEGORIES } from '../../src/content/scenes'
 import { formatMediaRef } from '../../src/lib/media-ref'
 import content from '../../content/initial-content.json'
 
-const ROOM_SLUGS = ['started', 'built', 'passed', 'shelf'] as const
+const ROOM_SLUGS = ['started', 'built', 'passed', 'shelf', 'book'] as const
 
-const siteSettingsData = { nav: content.nav, footer: content.footer, home: content.home }
+const siteSettingsData = { nav: content.nav, footer: content.footer, home: content.home, contactPage: content.contactPage }
 
 const contactDoc = (whatsapp: string) => ({
   ...siteSettingsData,
@@ -219,7 +219,7 @@ describe('hideable lists', () => {
     expect(visible).toHaveLength(content.rooms.started.movements.length - 1)
   })
 
-  it('the real fixture hides only the films D39 leaves out and holds none with children', () => {
+  it('the real fixture hides only the films D39 leaves out, and shows the five with children', () => {
     const hidden: string[] = []
     for (const slug of ROOM_SLUGS) {
       JSON.stringify((content.rooms as Record<string, unknown>)[slug], (_key, value: unknown) => {
@@ -229,9 +229,16 @@ describe('hideable lists', () => {
         return value
       })
     }
-    // Guardian consent for the films that show children is pending, so they are
-    // not in the content or the public tree at all, hidden or not (AUDIT-1, G4.2).
-    expect(JSON.stringify(content)).not.toContain('-kid-')
+    // The guardians consented (owner, 2026-10-01): the five films with children are
+    // in the started room and shown.
+    const startedReels = content.rooms.started.media.reels
+    expect(startedReels.filter((reel) => reel.id.includes('-kid-')).map((reel) => reel.id)).toEqual([
+      '46-kid-picnic-jam',
+      '47-kid-bisht-honey-jar',
+      '48-kid-supermarket-tomato-pesto',
+      '49-kid-hotel-breakfast',
+      '50-kid-cafe-croissant-jam',
+    ])
     expect(hidden.sort()).toEqual([
       'arm-modern-black-gold-dessert_HD',
       'arm-modern-layered-drink_HD',
@@ -388,7 +395,7 @@ describe('admin editing fixes (AUDIT-1)', () => {
     expect(documentTitle('rooms', 'started', { roomLabel: 'الغرفة الأولى', title: 'بدأتُ' })).toBe('الغرفة الأولى: بدأتُ')
   })
 
-  it('only the four room slugs are room ids, not keys every object inherits', () => {
+  it('only the five room slugs are room ids, not keys every object inherits', () => {
     for (const slug of ROOM_SLUGS) expect(isRoomSlug(slug)).toBe(true)
     for (const bad of ['constructor', 'toString', '__proto__', 'hasOwnProperty', 'not-a-room']) {
       expect(isRoomSlug(bad)).toBe(false)

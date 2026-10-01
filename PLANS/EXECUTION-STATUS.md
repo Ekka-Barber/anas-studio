@@ -7,9 +7,9 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
 | Field | Value |
 |---|---|
 | Branch | `main`, the only branch locally and on GitHub (REPO-SWEEP, 2026-09-30): the five older branches (`agent/design-b`, `sync/local-2026-09-26`, `agent/p00-runtime-spike` and two cloud-session branches) were wholly contained in it and are deleted. **History rewritten on 2026-09-30 (D42)** to remove the WhatsApp export: every commit id changed, and the ids in these documents are the rewritten ones (commit messages were remapped too). A clone made before then must be re-cloned, not pulled. |
-| Last commit | AUDIT-2 (the audit, its fixes and D43) on top of `4f22b78` (REPO-SWEEP); AUDIT-1 code and docs `f38f04d`, its evidence `9f6f37f`, D42 untrack `397f4d3`, D41 `c222225`. |
-| Packages | P00 (D29 `3c88331`; D32 `eb41c2e`, locally verified on the full stack 2026-09-27), P01 part 1 `70be5c9` with DESIGN-B `2f54f85`/`379790e`, P02 `42708f3`/`4e04ac1`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (committed `f38f04d`, pushed), AUDIT-2 (audit and fixes, 2026-10-01): see the package ledger. P08–P12 not started. |
-| Lock | None: AUDIT-2-FIX released `.anasaq-execution.lock` on 2026-10-01 after the commit. |
+| Last commit | FOUNDATION-1 (Foundation finished, D44) on top of `3c8228d` (AUDIT-2 evidence; its code and D43 `9bd72b8`); REPO-SWEEP `4f22b78`; AUDIT-1 code and docs `f38f04d`, its evidence `9f6f37f`, D42 untrack `397f4d3`, D41 `c222225`. |
+| Packages | P00 (D29 `3c88331`; D32 `eb41c2e`, locally verified on the full stack 2026-09-27), P01 part 1 `70be5c9` with DESIGN-B `2f54f85`/`379790e`, P02 `42708f3`/`4e04ac1`, P03–P05, P06 (accepted 2026-09-27), P07 (accepted 2026-09-28), CLEANUP-1 (2026-09-29), AUDIT-1 (committed `f38f04d`, pushed), AUDIT-2 (audit and fixes, 2026-10-01), FOUNDATION-1 (2026-10-01): see the package ledger. P08–P12 not started. |
+| Lock | None: FOUNDATION-1 released `.anasaq-execution.lock` on 2026-10-01 after the commit. |
 | Hosted resources | Supabase Free project `amqcphsmnopandhoxzsr` (ap-south-1). Unused since D32 and the owner's to delete once the Pages site works (irreversible, his own action): Worker `anas-studio` (test), R2 `anas-studio-media-test`, Hyperdrive `anasaq-cms`, D1 `anas-studio-tag-cache`. No deploys until P11 (local-first). |
 
 ## DESIGN-B: direction B in the product (D39, orchestrator, 2026-09-28)
@@ -32,11 +32,11 @@ What has actually been run and accepted, not what is planned. Orchestrator per D
   - rooms: `jewel` is the room's colour, plus `tagline`, `bandLines`, built's and moonlight's `pullLines`, the started movements' `films`, the thura flavours' `regions` and item `status`;
   - `site_settings.home` holds the home page's words;
   - `content/initial-content.json` updated and re-imported locally;
-  - words not yet in the CMS live in `src/content/`.
+  - words not yet in the CMS live in `src/content/` (the book page, the home doors and the services moved into the CMS in FOUNDATION-1, D44).
 - **Truthful states:**
   - nothing is a placeholder;
   - the availability sign-ups (P08), booking (P09) and the reader (P02) were not shown (the reader shipped in P02 the same day);
-  - the five films with children stay hidden until guardians consent.
+  - the five films with children stay hidden until guardians consent (Anas consented; they are back since FOUNDATION-1, D44).
 - **Docs:** `DESIGN.md` (the system and its recipes), `PRODUCT.md`, D39, the DESIGN-AUDIT recheck.
 
 **Evidence.** `artifacts/acceptance/DESIGN-B/commands.txt` and `screenshots/`:
@@ -55,10 +55,10 @@ Round 2 re-proved check, build, export, budgets, e2e (public, cart-checkout, aut
 
 **Open for the owner and Anas.**
 - The paper edition's details and prices.
-- The book's characters.
-- The 2013 photo.
+- The book's characters: done in FOUNDATION-1 (D44).
+- The 2013 photo: there is none (D44).
 - Session booking (P09). (The reader shipped in P02.)
-- The services moving into the CMS if Anas wants to edit them. (The social links moved into `site_settings.social` in CLEANUP-1, C09.)
+- The services moving into the CMS: done in FOUNDATION-1 (D44). (The social links moved into `site_settings.social` in CLEANUP-1, C09.)
 - Room versions saved before D39 lack the new fields: restoring one needs its colour and line filled before it can be published.
 
 ## Process note, 2026-09-26 (owner-authorized)
@@ -327,6 +327,20 @@ Left open: I48 (the checkout items for P08), I49 (upload byte cap, rotated AVIF/
 
 **Evidence** (`artifacts/acceptance/AUDIT-2/commands.txt`): lint and typecheck 0; unit **632/632** (486 before); check:copy and check:frozen OK; `supabase db reset` applies every migration including `20260930140000_audit2_fixes.sql`; test:db **230/230** with the edge runtime running (207 before); build, check:export (51 required files, no secret, no child-film file) and check:budgets (largest 147.4 KiB of 150); e2e **169/169** on each suite's last run (on the way: an environment failure, Mailpit's dead forwarded port; one reader regression, fixed in the code; four tests that encoded the old behaviour, updated; see `commands.txt`); screenshots of the changed lattice at 360, 768 and 1440.
 
+## FOUNDATION-1: finishing Foundation (orchestrator, 2026-10-01)
+
+**Scope.** The owner (2026-10-01): "finish foundation / there is no 2013 photo / the characters use only what in the first pages anas provided / the five films are consented as per ANAS / yes make pages editable / yes I told anas about supabase instede of cloudflare" (D44). The report is `artifacts/acceptance/FOUNDATION-1/REPORT.md`.
+
+**Built** (workflow `wf_a57c6e1c-19d`: four sequential rounds of one `sonnet-worker` each, each with a Sonnet pre-audit; then the orchestrator's own audit of the whole diff, D43):
+- the book page is the `rooms/book` document («كتبتُ هنا») in the admin, with a draft preview; its new «الشخصيات» section shows four characters quoted exactly from Anas's first pages, each with its source;
+- the home's room doors (`site_settings.home.doors`) and the contact page's words and services (`site_settings.contactPage`) are edited in «الإعدادات»; `src/content/book.ts`, `home.ts` and `contact.ts` are deleted;
+- the five films with children are back in «بدأتُ من هنا» with their posters, and the export check no longer refuses them;
+- CI type-checks every Edge Function with Deno 2.9.6 (I49 item 3); a new JavaScript-off spec; a new e2e test edits and publishes the book page, the doors and the contact page;
+- the orchestrator's audit fixes: a blank contact title or services title could be published (both are now required); and in the editor two overlapping loads of a document could land one after the other, so an edit made in between was offered as an "unsaved local copy" and the form hidden (the acceptance run caught it; only the newest load applies now);
+- docs: D44; E06 withdrawn; COVERAGE C03, C13 and C32 met, C01, C06, C12 and C14 updated; ISSUES I33, I41, I45 and I49; HANDOFF, DESIGN.md and the docs that described the old state.
+
+**Evidence** (`artifacts/acceptance/FOUNDATION-1/`): lint and typecheck 0; unit **648/648**; check:copy and check:frozen OK; `supabase db reset` and the imports (7 documents); test:db **232/232** with the edge runtime; build, check:export (51 required files, no secret) and check:budgets (largest 147.4 KiB of 150); e2e **174/174** (the first attempt crashed Chrome: about 60 headless Chrome processes left from an earlier session were running; they were stopped and the run repeated from a fresh reset). The Phase 1 gate and the P00 D32 proof map are in the report.
+
 ## Package ledger
 
 | Package | Status | Evidence |
@@ -343,12 +357,13 @@ Left open: I48 (the checkout items for P08), I49 (upload byte cap, rotated AVIF/
 | P07 | accepted by the owner (2026-09-28: "I accept p07 for now"); acceptance record at `92c69da`; C20 closes only after P08, and E02/E03 stay open (D37, D38). History: round 1 done (2026-09-27): the orchestrator's catalog and checkout migration (`4c80459`), then glm-worker's `checkout` function, demo catalog seed (D37) and tests, audited with six fixes (unit 327, test:db 172, e2e 24/24); round 2 done (2026-09-27): the store admin (products with variants, delivery, coupons, customers) and owner-approved policies, built by glm-worker, audited with five fixes (unit 356, test:db 177, e2e 16/16); round 3 built by glm-worker (store, product, cart, checkout, policy pages), audited in two sessions (budget, lint, em dashes, the empty-catalog build, I39 with the owner's approval; then `7607a17`: eight fixes, among them the spent Turnstile token that failed every retry, cart-checkout e2e 11/11, I38's cause found); acceptance battery green: at `7607a17` every step (build empty and seeded, test:db 178, unit 375, export, budgets), and the e2e, cut short there by a memory crash, rerun to completion on 2026-09-28 at `7d6c766`: 95/95; one test-isolation fix on top (P06's owner-operations spec now restores the settings row, 20/20); proof map in `commands.txt` | `artifacts/acceptance/P07/` |
 | AUDIT-1 | committed and pushed on the owner's word (2026-09-30: "yes"): the deep audit (253 confirmed findings) and 241 fixes, independently audited round by round, `f38f04d` (with D42) and the evidence `9f6f37f`; acceptance battery in `commands.txt`; lock released | `artifacts/acceptance/AUDIT-1/` |
 | AUDIT-2 | the open-code-review audit (0 critical or high, 11 medium) and AUDIT-2-FIX (177 findings handled in 11 rounds, then the orchestrator's own audit per D43); acceptance battery green (unit 632, test:db 230, e2e 169/169, build, export, budgets); committed on the owner's word (2026-09-30: "do all needed work, you decide for me"); lock released | `artifacts/acceptance/AUDIT-2/` |
+| FOUNDATION-1 | Foundation finished on the owner's D44 decisions: the book page, home doors and contact page in the admin, the characters, the five films, the CI Deno check, JS-off tests; the orchestrator's audit per D43; acceptance battery green (unit 648/648, test:db 232/232, e2e 174/174, build, export, budgets); committed on the owner's word (2026-10-01: "finish foundation"); lock released | `artifacts/acceptance/FOUNDATION-1/` |
 | P08–P12 | not_started | — |
 
 ## Next work, in order
 
-**Now (2026-10-01, after AUDIT-2).**
-1. DONE 2026-10-01: AUDIT-2, the open-code-review audit and its fixes, with D43 (the orchestrator audits every worker diff itself) and the graft wiring repair. DONE 2026-09-30: AUDIT-1 and the owner's D42 decisions (committed, history rewritten, pushed), then REPO-SWEEP: `main` is the only branch, the redundant branches and the Codex app's local checkpoint refs are deleted, and the configuration files for other AI tools (Cursor, Gemini, Grok, Kiro, Windsurf, Adal, Copilot, OpenCode, ZCode) are removed, because `AGENTS.md` and `CLAUDE.md` are the only agent instructions.
+**Now (2026-10-01, after FOUNDATION-1).**
+1. DONE 2026-10-01: FOUNDATION-1, Foundation (P00 to P02) finished on the owner's D44 decisions; the Phase 1 gate holds, with the rights gates (E04, E05) open. DONE 2026-10-01: AUDIT-2, the open-code-review audit and its fixes, with D43 (the orchestrator audits every worker diff itself) and the graft wiring repair. DONE 2026-09-30: AUDIT-1 and the owner's D42 decisions (committed, history rewritten, pushed), then REPO-SWEEP: `main` is the only branch, the redundant branches and the Codex app's local checkpoint refs are deleted, and the configuration files for other AI tools (Cursor, Gemini, Grok, Kiro, Windsurf, Adal, Copilot, OpenCode, ZCode) are removed, because `AGENTS.md` and `CLAUDE.md` are the only agent instructions.
 2. P08 under D38 (`PLANS/HANDOFF.md`): Moyasar hosted invoices against the local emulator, the `payments` webhook, `apply_verified_payment`, receipts through the outbox, the notify routes moved from P06, refunds with owner step-up, digital delivery. E02 stays open until the real sandbox. With it: preorder (moved from P07 by D42).
-3. Owner and Anas inputs that reopen small admin work when they arrive: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40), the services in the CMS.
+3. Owner and Anas inputs that reopen small admin work when they arrive: a rights or credit field per scene (C05), a new stage in بنيتُ هنا (a design for stages beyond the two, D39), a new shelf idea, text and a status for an added project, and per-project figures (D40).
 4. P11 when the owner authorizes hosting: I28 (with the password hook), I32, I33, I40 and I41 in ISSUES; then the owner deletes the old Worker, Hyperdrive, D1 and R2 test resources himself.
