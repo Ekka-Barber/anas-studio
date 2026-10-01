@@ -1,0 +1,306 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 107 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok   1 [chromium] › tests\e2e\cart-checkout.spec.ts:211:1 › the store lists the fixture product and its page prices every variant (5.1s)
+  ok   2 [chromium] › tests\e2e\cart-checkout.spec.ts:224:1 › while checkout is off, the cart and the checkout say so (9.7s)
+  ok   3 [chromium] › tests\e2e\cart-checkout.spec.ts:235:1 › the cart persists across reload, follows the live quote and removes a line (11.3s)
+  ok   4 [chromium] › tests\e2e\cart-checkout.spec.ts:268:1 › a digital-only cart shows no city; the coupon applies and the discount shows (4.9s)
+  ok   5 [chromium] › tests\e2e\cart-checkout.spec.ts:280:1 › a signed line gets its dedication field in the cart (3.9s)
+  ok   6 [chromium] › tests\e2e\cart-checkout.spec.ts:289:1 › with checkout on: order, hold message, kept cart and cancel (15.3s)
+  ok   7 [chromium] › tests\e2e\cart-checkout.spec.ts:326:1 › a price change between the quote and the submit asks for confirmation, then succeeds (12.6s)
+  ok   8 [chromium] › tests\e2e\cart-checkout.spec.ts:359:1 › storage denied still allows a session cart, with the honest note (4.6s)
+  ok   9 [chromium] › tests\e2e\cart-checkout.spec.ts:377:1 › the store and a product page read without JavaScript (2.7s)
+[WebServer] [browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+[WebServer] 
+[WebServer] - A server/client branch `if (typeof window !== 'undefined')`.
+[WebServer] - Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+[WebServer] - Date formatting in a user's locale which doesn't match the server.
+[WebServer] - External changing data without sending a snapshot of it along with the HTML.
+[WebServer] - Invalid HTML tag nesting.
+[WebServer] 
+[WebServer] It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+[WebServer] 
+[WebServer] https://react.dev/link/hydration-mismatch
+[WebServer] 
+[WebServer]   ...
+[WebServer]     <RedirectBoundary>
+[WebServer]       <RedirectErrorBoundary router={{...}}>
+[WebServer]         <InnerLayoutRouter url="/store/e2e..." tree={[...]} params={{slug:"e2e-..."}} cacheNode={{rsc:{...}, ...}} ...>
+[WebServer]           <SegmentViewNode type="page" pagePath="(public)/s...">
+[WebServer]             <SegmentTrieNode>
+[WebServer]             <ProductPage>
+[WebServer]               <main id="main" className="store-modu...">
+[WebServer]                 <div>
+[WebServer]                 <header>
+[WebServer]                 <div>
+[WebServer]                 <Band>
+[WebServer]                   <section data-tone="sand" className="band-modul...">
+[WebServer]                     <div>
+[WebServer]                     <noscript>
+[WebServer]                     <ul className="store-modu...">
+[WebServer]                       <li>
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <p>
+[WebServer]                         <AddToCart variantId="3e3ff5f0-d..." label="كتاب الاخت...">
+[WebServer]                           <div className="store-modu...">
+[WebServer]                             <label className="store-modu...">
+[WebServer]                               <span>
+[WebServer]                               <input
+[WebServer]                                 className="store-module__ji0kVG__quantityInput"
+[WebServer]                                 type="number"
+[WebServer]                                 min={1}
+[WebServer]                                 max={20}
+[WebServer]                                 inputMode="numeric"
+[WebServer]                                 value="1"
+[WebServer]                                 onChange={function onChange}
+[WebServer]                                 onBlur={function onBlur}
+[WebServer] -                               style={{caret-color:"transparent"}}
+[WebServer]                               >
+[WebServer]                             ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <p>
+[WebServer]                         <AddToCart variantId="4e6386f1-3..." label="كتاب الاخت...">
+[WebServer]                           <div className="store-modu...">
+[WebServer]                             <label className="store-modu...">
+[WebServer]                               <span>
+[WebServer]                               <input
+[WebServer]                                 className="store-module__ji0kVG__quantityInput"
+[WebServer]                                 type="number"
+[WebServer]                                 min={1}
+[WebServer]                                 max={20}
+[WebServer]                                 inputMode="numeric"
+[WebServer]                                 value="1"
+[WebServer]                                 onChange={function onChange}
+[WebServer]                                 onBlur={function onBlur}
+[WebServer] -                               style={{caret-color:"transparent"}}
+[WebServer]                               >
+[WebServer]                             ...
+[WebServer]           ...
+[WebServer]         ...
+[WebServer]  
+  ok  10 [chromium] › tests\e2e\cart-checkout.spec.ts:390:3 › screenshots and overflow at 360 (13.8s)
+[WebServer] [browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+[WebServer] 
+[WebServer] - A server/client branch `if (typeof window !== 'undefined')`.
+[WebServer] - Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+[WebServer] - Date formatting in a user's locale which doesn't match the server.
+[WebServer] - External changing data without sending a snapshot of it along with the HTML.
+[WebServer] - Invalid HTML tag nesting.
+[WebServer] 
+[WebServer] It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+[WebServer] 
+[WebServer] https://react.dev/link/hydration-mismatch
+[WebServer] 
+[WebServer]   ...
+[WebServer]     <RedirectBoundary>
+[WebServer]       <RedirectErrorBoundary router={{...}}>
+[WebServer]         <InnerLayoutRouter url="/store/e2e..." tree={[...]} params={{slug:"e2e-..."}} cacheNode={{rsc:{...}, ...}} ...>
+[WebServer]           <SegmentViewNode type="page" pagePath="(public)/s...">
+[WebServer]             <SegmentTrieNode>
+[WebServer]             <ProductPage>
+[WebServer]               <main id="main" className="store-modu...">
+[WebServer]                 <div>
+[WebServer]                 <header>
+[WebServer]                 <div>
+[WebServer]                 <Band>
+[WebServer]                   <section data-tone="sand" className="band-modul...">
+[WebServer]                     <div>
+[WebServer]                     <noscript>
+[WebServer]                     <ul className="store-modu...">
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <p>
+[WebServer]                         <AddToCart variantId="808b4577-8..." label="كتاب الاخت...">
+[WebServer]                           <div className="store-modu...">
+[WebServer]                             <label className="store-modu...">
+[WebServer]                               <span>
+[WebServer]                               <input
+[WebServer]                                 className="store-module__ji0kVG__quantityInput"
+[WebServer]                                 type="number"
+[WebServer]                                 min={1}
+[WebServer]                                 max={20}
+[WebServer]                                 inputMode="numeric"
+[WebServer]                                 value="1"
+[WebServer]                                 onChange={function onChange}
+[WebServer]                                 onBlur={function onBlur}
+[WebServer] -                               style={{caret-color:"transparent"}}
+[WebServer]                               >
+[WebServer]                             ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <p>
+[WebServer]                         <AddToCart variantId="3e3ff5f0-d..." label="كتاب الاخت...">
+[WebServer]                           <div className="store-modu...">
+[WebServer]                             <label className="store-modu...">
+[WebServer]                               <span>
+[WebServer]                               <input
+[WebServer]                                 className="store-module__ji0kVG__quantityInput"
+[WebServer]                                 type="number"
+[WebServer]                                 min={1}
+[WebServer]                                 max={20}
+[WebServer]                                 inputMode="numeric"
+[WebServer]                                 value="1"
+[WebServer]                                 onChange={function onChange}
+[WebServer]                                 onBlur={function onBlur}
+[WebServer] -                               style={{caret-color:"transparent"}}
+[WebServer]                               >
+[WebServer]                             ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <p>
+[WebServer]                         <AddToCart variantId="4e6386f1-3..." label="كتاب الاخت...">
+[WebServer]                           <div className="store-modu...">
+[WebServer]                             <label className="store-modu...">
+[WebServer]                               <span>
+[WebServer]                               <input
+[WebServer]                                 className="store-module__ji0kVG__quantityInput"
+[WebServer]                                 type="number"
+[WebServer]                                 min={1}
+[WebServer]                                 max={20}
+[WebServer]                                 inputMode="numeric"
+[WebServer]                                 value="1"
+[WebServer]                                 onChange={function onChange}
+[WebServer]                                 onBlur={function onBlur}
+[WebServer] -                               style={{caret-color:"transparent"}}
+[WebServer]                               >
+[WebServer]                             ...
+[WebServer]           ...
+[WebServer]         ...
+[WebServer]  
+  ok  11 [chromium] › tests\e2e\cart-checkout.spec.ts:390:3 › screenshots and overflow at 1440 (13.8s)
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok  12 [chromium] › tests\e2e\checkout-api.spec.ts:97:1 › a quote for a fixture product prices the cart (171ms)
+  ok  13 [chromium] › tests\e2e\checkout-api.spec.ts:108:1 › a create while checkout is off is 503 CHECKOUT_DISABLED (236ms)
+  ok  14 [chromium] › tests\e2e\checkout-api.spec.ts:128:1 › with checkout on: create, repeat and cancel (470ms)
+  ok  15 [chromium] › tests\e2e\checkout-api.spec.ts:179:1 › a foreign Origin is 403 (53ms)
+  ok  16 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /: reveals below the fold are held, then each one plays (4.6s)
+  ok  17 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /book: reveals below the fold are held, then each one plays (11.4s)
+  ok  18 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /built: reveals below the fold are held, then each one plays (9.4s)
+  ok  19 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /started: reveals below the fold are held, then each one plays (9.4s)
+  ok  20 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /passed: reveals below the fold are held, then each one plays (8.0s)
+  ok  21 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /shelf: reveals below the fold are held, then each one plays (12.2s)
+  ok  22 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /scenes: reveals below the fold are held, then each one plays (6.0s)
+  ok  23 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /contact: reveals below the fold are held, then each one plays (6.2s)
+  ok  24 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /store: reveals below the fold are held, then each one plays (2.9s)
+  ok  25 [chromium] › tests\e2e\motion.spec.ts:105:5 › a first visit plays the reveals › /store/demo-khous: reveals below the fold are held, then each one plays (2.7s)
+  ok  26 [chromium] › tests\e2e\motion.spec.ts:128:5 › the money and policy pages stay calm › /cart: no reveal, and the title only fades in briefly (2.3s)
+  ok  27 [chromium] › tests\e2e\motion.spec.ts:128:5 › the money and policy pages stay calm › /checkout: no reveal, and the title only fades in briefly (2.5s)
+  ok  28 [chromium] › tests\e2e\motion.spec.ts:128:5 › the money and policy pages stay calm › /policies/privacy: no reveal, and the title only fades in briefly (6.4s)
+  ok  29 [chromium] › tests\e2e\motion.spec.ts:148:1 › a page seen before comes back without its entrances, and its reveals still play (14.0s)
+  ok  30 [chromium] › tests\e2e\motion.spec.ts:176:3 › without motion › /started holds, plays and enters nothing (6.3s)
+  ok  31 [chromium] › tests\e2e\reader.spec.ts:93:3 › the book preview › the published preview is the approved export, byte for byte (9ms)
+  ok  32 [chromium] › tests\e2e\reader.spec.ts:99:3 › the book preview › closed, it loads nothing; open, it fetches only the preview and reads right to left (17.0s)
+  ok  33 [chromium] › tests\e2e\reader.spec.ts:138:3 › the book preview › opening keeps the page still, the closed book centred on the stage (10.0s)
+  ok  34 [chromium] › tests\e2e\reader.spec.ts:163:3 › the book preview › a part under the closed book opens the book at that part (7.8s)
+  ok  35 [chromium] › tests\e2e\reader.spec.ts:169:3 › the book preview › the pages carry their text, for selection and screen readers (6.3s)
+  ok  36 [chromium] › tests\e2e\reader.spec.ts:182:3 › the book preview › a drag from the left page to the right turns to the next spread (8.5s)
+  ok  37 [chromium] › tests\e2e\reader.spec.ts:195:3 › the book preview › without motion a turn is a short fade, never a rotation (5.6s)
+  ok  38 [chromium] › tests\e2e\reader.spec.ts:213:3 › the book preview › a resize redraws the pages at the new size (6.6s)
+  ok  39 [chromium] › tests\e2e\reader.spec.ts:223:3 › the book preview › full screen, then back (5.9s)
+  ok  40 [chromium] › tests\e2e\reader.spec.ts:231:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions (8.7s)
+  ok  41 [chromium] › tests\e2e\reader.spec.ts:247:3 › the book preview › an odd page count and a single page still make a book (14.3s)
+  ok  42 [chromium] › tests\e2e\reader.spec.ts:266:3 › the book preview › a corrupt or unreachable file says so, and a retry opens the book (11.0s)
+  ok  43 [chromium] › tests\e2e\reader.spec.ts:283:3 › the book preview › a click on a corner turns that page, and closing the book slides it with the turn (12.0s)
+  ok  44 [chromium] › tests\e2e\reader.spec.ts:320:3 › one page at a time, by hand › a click turns by the half it is on, and never stops on an empty leaf (18.5s)
+  ok  45 [chromium] › tests\e2e\reader.spec.ts:356:3 › one page at a time, by hand › a drag that would stop on the blank back carries on to the next page (10.9s)
+  ok  46 [chromium] › tests\e2e\reader.spec.ts:402:3 › one page at a time, by hand › the corner hints: forward on page 1, both ways from page 2 (8.3s)
+  ok  47 [chromium] › tests\e2e\reader.spec.ts:416:3 › on a phone › the book turns one page at a time, and the reading view zooms (7.5s)
+  ok  48 [chromium] › tests\e2e\reader.spec.ts:433:1 › without JavaScript the closed book links to the preview itself (2.3s)
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  49 [chromium] › tests\e2e\store-admin.spec.ts:79:1 › the owner creates a product, a variant and a city rate without code changes (23.6s)
+  ok  50 [chromium] › tests\e2e\store-admin.spec.ts:151:1 › the checkout function prices the admin-created catalog: total is price plus fee (1.2s)
+  ok  51 [chromium] › tests\e2e\store-admin.spec.ts:165:1 › with checkout on (a fixture), a create reaches a persisted pending order (649ms)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  52 [chromium] › tests\e2e\store-admin.spec.ts:204:1 › a stale save shows the conflict and keeps the typed values (7.8s)
+  ok  53 [chromium] › tests\e2e\store-admin.spec.ts:226:1 › a percentage coupon typed as 12.5 is stored as 1250 basis points (4.5s)
+  ok  54 [chromium] › tests\e2e\store-admin.spec.ts:242:1 › an editor gets no store link (3.2s)
+  ok  55 [chromium] › tests\e2e\store-admin.spec.ts:249:1 › an operations member sees the products list, no «جديد», and cannot save (5.4s)
+  ok  56 [chromium] › tests\e2e\store-admin.spec.ts:265:1 › the policies collection lists its four fixed documents (5.0s)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  57 [chromium] › tests\e2e\store-admin.spec.ts:274:1 › screenshots at 360 and 1440 with no horizontal overflow (15.4s)
+  ok  58 [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 360px, JS on, no horizontal overflow (4.0s)
+  ok  59 [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 768px, JS on, no horizontal overflow (4.5s)
+  ok  60 [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 1024px, JS on, no horizontal overflow (4.8s)
+  ok  61 [chromium] › tests\e2e\visual.spec.ts:33:5 › home @ 1440px, JS on, no horizontal overflow (3.5s)
+  ok  62 [chromium] › tests\e2e\visual.spec.ts:58:3 › home, JS off, readable (1.9s)
+  ok  63 [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 360px, JS on, no horizontal overflow (5.1s)
+  ok  64 [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 768px, JS on, no horizontal overflow (5.3s)
+  ok  65 [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 1024px, JS on, no horizontal overflow (6.0s)
+  ok  66 [chromium] › tests\e2e\visual.spec.ts:33:5 › started @ 1440px, JS on, no horizontal overflow (5.9s)
+  ok  67 [chromium] › tests\e2e\visual.spec.ts:58:3 › started, JS off, readable (4.0s)
+  ok  68 [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 360px, JS on, no horizontal overflow (4.6s)
+  ok  69 [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 768px, JS on, no horizontal overflow (5.8s)
+  ok  70 [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 1024px, JS on, no horizontal overflow (6.6s)
+  ok  71 [chromium] › tests\e2e\visual.spec.ts:33:5 › built @ 1440px, JS on, no horizontal overflow (6.9s)
+  ok  72 [chromium] › tests\e2e\visual.spec.ts:58:3 › built, JS off, readable (4.8s)
+  ok  73 [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 360px, JS on, no horizontal overflow (4.4s)
+  ok  74 [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 768px, JS on, no horizontal overflow (5.7s)
+  ok  75 [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 1024px, JS on, no horizontal overflow (4.9s)
+  ok  76 [chromium] › tests\e2e\visual.spec.ts:33:5 › passed @ 1440px, JS on, no horizontal overflow (5.8s)
+  ok  77 [chromium] › tests\e2e\visual.spec.ts:58:3 › passed, JS off, readable (3.5s)
+  ok  78 [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 360px, JS on, no horizontal overflow (6.0s)
+  ok  79 [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 768px, JS on, no horizontal overflow (7.7s)
+  ok  80 [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 1024px, JS on, no horizontal overflow (6.9s)
+  ok  81 [chromium] › tests\e2e\visual.spec.ts:33:5 › shelf @ 1440px, JS on, no horizontal overflow (9.0s)
+  ok  82 [chromium] › tests\e2e\visual.spec.ts:58:3 › shelf, JS off, readable (5.9s)
+  ok  83 [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 360px, JS on, no horizontal overflow (4.7s)
+  ok  84 [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 768px, JS on, no horizontal overflow (6.0s)
+  ok  85 [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 1024px, JS on, no horizontal overflow (5.9s)
+  ok  86 [chromium] › tests\e2e\visual.spec.ts:33:5 › book @ 1440px, JS on, no horizontal overflow (6.3s)
+  ok  87 [chromium] › tests\e2e\visual.spec.ts:58:3 › book, JS off, readable (4.3s)
+  ok  88 [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 360px, JS on, no horizontal overflow (4.6s)
+  ok  89 [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 768px, JS on, no horizontal overflow (3.2s)
+  ok  90 [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 1024px, JS on, no horizontal overflow (3.2s)
+  ok  91 [chromium] › tests\e2e\visual.spec.ts:33:5 › journal @ 1440px, JS on, no horizontal overflow (3.5s)
+  ok  92 [chromium] › tests\e2e\visual.spec.ts:58:3 › journal, JS off, readable (1.8s)
+  ok  93 [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 360px, JS on, no horizontal overflow (3.5s)
+  ok  94 [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 768px, JS on, no horizontal overflow (5.7s)
+  ok  95 [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 1024px, JS on, no horizontal overflow (5.9s)
+  ok  96 [chromium] › tests\e2e\visual.spec.ts:33:5 › scenes @ 1440px, JS on, no horizontal overflow (5.0s)
+  ok  97 [chromium] › tests\e2e\visual.spec.ts:58:3 › scenes, JS off, readable (3.0s)
+  ok  98 [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 360px, JS on, no horizontal overflow (3.3s)
+  ok  99 [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 768px, JS on, no horizontal overflow (4.5s)
+  ok 100 [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 1024px, JS on, no horizontal overflow (3.2s)
+  ok 101 [chromium] › tests\e2e\visual.spec.ts:33:5 › contact @ 1440px, JS on, no horizontal overflow (3.9s)
+  ok 102 [chromium] › tests\e2e\visual.spec.ts:58:3 › contact, JS off, readable (1.7s)
+  ok 103 [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 360px, JS on, no horizontal overflow (2.8s)
+  ok 104 [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 768px, JS on, no horizontal overflow (2.6s)
+  ok 105 [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 1024px, JS on, no horizontal overflow (3.0s)
+  ok 106 [chromium] › tests\e2e\visual.spec.ts:33:5 › store @ 1440px, JS on, no horizontal overflow (3.1s)
+  ok 107 [chromium] › tests\e2e\visual.spec.ts:58:3 › store, JS off, readable (1.5s)
+
+  107 passed (12.0m)

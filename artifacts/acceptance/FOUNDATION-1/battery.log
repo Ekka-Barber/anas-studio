@@ -1,0 +1,49 @@
+== 2026-10-01T16:29:02Z battery
+lint exit 0
+typecheck exit 0
+ Test Files  48 passed (48)
+      Tests  647 passed (647)
+check:copy OK — 190 source files.
+check:frozen OK — 50 files under deploy/ unchanged.
+db:reset exit 0
+db:env exit 0
+Imported 7 document(s), skipped 0 already published.
+
+edge runtime restarted
+ Test Files  17 passed (17)
+      Tests  232 passed (232)
+build exit 0
+check:export
+  OK 51 required files present; 320 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)
+  OK largest 147.4 KiB (budget 150.0 KiB)
+== 2026-10-01T16:42:02Z e2e re-run (first run: Chrome crashed, leftover headless processes; cleaned)
+db:reset exit 0
+db:env exit 0
+Imported 7 document(s), skipped 0 already published.
+The store is now open locally with demo values (checkout on, DEMO10, demo policies); Anas replaces them before the store really opens.
+edge runtime + mailpit restarted
+e2e batch1 exit 0:  66 passed (9.3m);
+e2e batch2 exit 0:  107 passed (12.0m);
+done
+== 2026-10-01T17:15:49Z after the orchestrator's audit fix (contact page headings required) and the new cms e2e test
+lint exit 0; typecheck exit 0; unit 48 files 648/648; check:copy OK
+build exit 0
+  OK 51 required files present; 320 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)
+  OK largest 147.4 KiB (budget 150.0 KiB)
+check:frozen OK — 50 files under deploy/ unchanged.
+e2e cms.spec (with the new book/doors/contact test) exit 1:  1 failed; 6 passed (6.5m);
+== 2026-10-01T17:28:21Z after the editor's stale-load guard (cms.spec re-run 1: 6 passed, 1 failed: post lifecycle, the editor offered the edit made between two overlapping loads as a local copy)
+lint exit 0; typecheck exit 0; unit Tests 648 passed (648)
+build exit 0
+  OK 51 required files present; 320 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)
+  OK largest 147.4 KiB (budget 150.0 KiB)
+e2e re-run (cms, media, store-admin, owner-operations) exit 0:  44 passed (10.2m);
+== 2026-10-01T17:43:53Z test:db on the final code (a run on the e2e-polluted database: 231/232, staff-admin 'last active owner' timed out at 5 s with 62 test owners; then from a fresh reset)
+db:reset exit 0
+Imported 7 document(s), skipped 0 already published.
+ Test Files  17 passed (17)
+      Tests  232 passed (232)
+verify-plan.ps1 PASS: 13 documents; 13 packages; 40 unique scope owners; 162 frozen hashes (after refreshing AGENTS.md's manifest row, stale since AUDIT-2)

@@ -1,0 +1,117 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 66 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok  1 [chromium] › tests\e2e\auth.spec.ts:9:1 › an unknown email gets the identical sent message (5.8s)
+  ok  2 [chromium] › tests\e2e\auth.spec.ts:16:1 › sign-in by code reaches /admin, enrols TOTP, and invites a member through step-up (21.1s)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  3 [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore (47.8s)
+  ok  4 [chromium] › tests\e2e\cms.spec.ts:255:1 › room: edit, preview, publish, restore (requires pnpm db:import) (32.5s)
+  ok  5 [chromium] › tests\e2e\cms.spec.ts:362:1 › editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import) (9.7s)
+  ok  6 [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import) (23.8s)
+  ok  7 [chromium] › tests\e2e\cms.spec.ts:508:1 › scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import) (43.4s)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  8 [chromium] › tests\e2e\cms.spec.ts:596:1 › a stale save is rejected with a conflict message and keeps the typed text (16.1s)
+  ok  9 [chromium] › tests\e2e\media.spec.ts:102:1 › happy path: ticket, every part, complete, then the public derivative (3.5s)
+  ok 10 [chromium] › tests\e2e\media.spec.ts:164:1 › HTML bytes declared as image/jpeg: complete fails and every stored object is removed (1.2s)
+  ok 11 [chromium] › tests\e2e\media.spec.ts:223:1 › more bytes than declared are refused at completion; nothing goes public (2.0s)
+  ok 12 [chromium] › tests\e2e\media.spec.ts:245:1 › another staff member's ticket is 404; an expired ticket is 410 (1.9s)
+  ok 13 [chromium] › tests\e2e\media.spec.ts:274:1 › no token is 401; an operations token is 403 (1.3s)
+  ok 14 [chromium] › tests\e2e\media.spec.ts:338:1 › round 2: library upload with crop and EXIF removal, reuse in a room, folders, delete (39.1s)
+  ok 15 [chromium] › tests\e2e\media.spec.ts:485:1 › round 2: search and المزيد paging past 40 items (43.3s)
+  ok 16 [chromium] › tests\e2e\media.spec.ts:531:1 › round 2: screenshots at 360 and 1440, and horizontal overflow (30.9s)
+  ok 17 [chromium] › tests\e2e\no-js.spec.ts:20:1 › the header lists every room inline, within the screen, and offers no menu button (3.0s)
+  ok 18 [chromium] › tests\e2e\no-js.spec.ts:42:1 › المَشاهد lists every photo as a link to the file and offers no filter (1.6s)
+  ok 19 [chromium] › tests\e2e\no-js.spec.ts:58:1 › المجلس lists its posts as links, or says there are none yet (1.2s)
+  ok 20 [chromium] › tests\e2e\no-js.spec.ts:76:1 › تواصل shows the form but cannot send, and keeps the channels and services (2.1s)
+  ok 21 [chromium] › tests\e2e\owner-operations.spec.ts:127:1 › a contact submission is stored and its notices queued (1.3s)
+  ok 22 [chromium] › tests\e2e\owner-operations.spec.ts:165:1 › with no jobs run the message is stored and its notice waits, so an email outage loses nothing (21ms)
+  ok 23 [chromium] › tests\e2e\owner-operations.spec.ts:180:1 › a jobs run delivers the notices through Mailpit, sent but not yet delivered (1.6s)
+  ok 24 [chromium] › tests\e2e\owner-operations.spec.ts:231:1 › the daily media sweep removes day-old quarantine parts through Storage and records the run (I29) (198ms)
+  ok 25 [chromium] › tests\e2e\owner-operations.spec.ts:262:1 › a signed delivered webhook marks delivery; a forged signature is 401 (774ms)
+  ok 26 [chromium] › tests\e2e\owner-operations.spec.ts:290:1 › the honeypot answers success and stores nothing (57ms)
+  ok 27 [chromium] › tests\e2e\owner-operations.spec.ts:313:1 › an over-length Turnstile token is refused by the schema (54ms)
+  ok 28 [chromium] › tests\e2e\owner-operations.spec.ts:329:1 › a non-JSON content type is refused with 415 (44ms)
+  ok 29 [chromium] › tests\e2e\owner-operations.spec.ts:337:1 › an oversized body is refused with 413 (57ms)
+  ok 30 [chromium] › tests\e2e\owner-operations.spec.ts:345:1 › the jobs endpoint refuses a missing or wrong bearer (76ms)
+  ok 31 [chromium] › tests\e2e\owner-operations.spec.ts:357:1 › the owner home shows real counts and no inbox (D31) (5.4s)
+  ok 32 [chromium] › tests\e2e\owner-operations.spec.ts:375:1 › the owner home shows the backup job: never run, ok, then stale after 30 days (D35) (8.4s)
+  ok 33 [chromium] › tests\e2e\owner-operations.spec.ts:400:1 › the email job warns only when a row has waited more than 10 minutes (I35) (6.3s)
+  ok 34 [chromium] › tests\e2e\owner-operations.spec.ts:447:1 › an operations member sees email but not stats or settings, and there is no inbox (8.8s)
+  ok 35 [chromium] › tests\e2e\owner-operations.spec.ts:470:1 › an editor gets no email RPC (4.0s)
+  ok 36 [chromium] › tests\e2e\owner-operations.spec.ts:485:1 › email problems: replay exhausted, confirm uncertain, suppressed is refused (8.3s)
+  ok 37 [chromium] › tests\e2e\owner-operations.spec.ts:555:1 › an operations member can replay a failed outbox row through the risk-acceptance flow (4.6s)
+  ok 38 [chromium] › tests\e2e\owner-operations.spec.ts:582:1 › settings: SEO and WhatsApp persist, the preview normalizes, status shows no secrets (23.5s)
+  ok 39 [chromium] › tests\e2e\owner-operations.spec.ts:637:1 › the owner saves the store seller details through the step-up dialog (14.8s)
+  ok 40 [chromium] › tests\e2e\owner-operations.spec.ts:686:1 › screenshots at 360 and 1440 with no horizontal overflow (15.5s)
+  ok 41 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › / loads (3.8s)
+  ok 42 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /started loads (2.9s)
+  ok 43 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /built loads (3.0s)
+  ok 44 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /passed loads (5.5s)
+  ok 45 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /shelf loads (6.2s)
+  ok 46 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /book loads (5.7s)
+  ok 47 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /journal loads (2.2s)
+  ok 48 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /scenes loads (2.2s)
+  ok 49 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /contact loads (1.8s)
+  ok 50 [chromium] › tests\e2e\public.spec.ts:24:5 › every page renders with one h1 and no console errors › /store loads (3.6s)
+  ok 51 [chromium] › tests\e2e\public.spec.ts:36:3 › every page renders with one h1 and no console errors › an unknown path is the woven 404 (2.1s)
+  ok 52 [chromium] › tests\e2e\public.spec.ts:45:3 › header and menu › the menu opens as a modal, marks the room, closes on Escape and returns focus (3.1s)
+  ok 53 [chromium] › tests\e2e\public.spec.ts:62:3 › header and menu › from 1024px the rooms are inline and the current one is marked (2.8s)
+  ok 54 [chromium] › tests\e2e\public.spec.ts:71:3 › header and menu › the skip link jumps to the page content (3.2s)
+  ok 55 [chromium] › tests\e2e\public.spec.ts:82:3 › films play only when asked › a film shows its poster and a play button, then plays with its own controls (4.9s)
+  ok 56 [chromium] › tests\e2e\public.spec.ts:96:3 › المَشاهد › the filter narrows the grid and says which filter is on (2.6s)
+  ok 57 [chromium] › tests\e2e\public.spec.ts:109:3 › المَشاهد › the lightbox opens by keyboard, steps in Arabic order and returns focus (3.2s)
+  ok 58 [chromium] › tests\e2e\public.spec.ts:126:3 › كتبتُ هنا › cover B, and the contents strip jumps to its sections (3.8s)
+  ok 59 [chromium] › tests\e2e\public.spec.ts:137:3 › تواصل › an empty send names each missing field and focuses the first (4.1s)
+  ok 60 [chromium] › tests\e2e\public.spec.ts:147:3 › تواصل › a service opens the form with its name in the message (2.5s)
+  ok 61 [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › / reads without JS (2.3s)
+  ok 62 [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /started reads without JS (2.6s)
+  ok 63 [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /built reads without JS (2.5s)
+  ok 64 [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /passed reads without JS (2.3s)
+  ok 65 [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /shelf reads without JS (2.3s)
+  ok 66 [chromium] › tests\e2e\public.spec.ts:157:5 › readable with JavaScript off › /book reads without JS (2.2s)
+
+  66 passed (9.3m)

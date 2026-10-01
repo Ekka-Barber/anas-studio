@@ -1,0 +1,65 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 7 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  x  1 [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore (3.0m)
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.119.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok 2 [chromium] › tests\e2e\cms.spec.ts:255:1 › room: edit, preview, publish, restore (requires pnpm db:import) (38.7s)
+  ok 3 [chromium] › tests\e2e\cms.spec.ts:362:1 › editor: a local copy is offered before anything is editable, survives a reload, and leaves on تجاهل or opens on استرجاع (requires pnpm db:import) (10.1s)
+  ok 4 [chromium] › tests\e2e\cms.spec.ts:413:1 › social links: edit, add, reorder and publish; the footer and contact page follow (requires pnpm db:import) (25.0s)
+  ok 5 [chromium] › tests\e2e\cms.spec.ts:508:1 › book page, home doors and contact page: edit and publish; the pages follow (requires pnpm db:import) (27.9s)
+  ok 6 [chromium] › tests\e2e\cms.spec.ts:571:1 › scenes: add, move first, hide and publish; the scenes page follows (requires pnpm db:import) (40.2s)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok 7 [chromium] › tests\e2e\cms.spec.ts:659:1 › a stale save is rejected with a conflict message and keeps the typed text (17.5s)
+
+
+  1) [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore 
+
+    Test timeout of 180000ms exceeded.
+
+    Error: locator.fill: Test timeout of 180000ms exceeded.
+    Call log:
+      - waiting for getByLabel('التسمية')
+
+
+      85 |   await expect(page).toHaveURL(new RegExp(`/admin/content/taxonomies/edit\\?id=${slug}$`))
+      86 |   if (kind === 'tag') await page.getByLabel('النوع').selectOption('tag')
+    > 87 |   await page.getByLabel('التسمية').fill(label)
+         |                                    ^
+      88 |   await page.getByRole('button', { name: 'حفظ' }).click()
+      89 |   await expect(page.getByText('تم الحفظ.')).toBeVisible()
+      90 |   await page.getByRole('button', { name: 'نشر' }).click()
+        at createAndPublishTaxonomy (C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\cms.spec.ts:87:36)
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\cms.spec.ts:133:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    artifacts\acceptance\FOUNDATION-1\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: artifacts\acceptance\FOUNDATION-1\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    artifacts\acceptance\FOUNDATION-1\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace artifacts\acceptance\FOUNDATION-1\playwright\cms-post-lifecycle-taxonom-9d864-ule-publish-archive-restore-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests\e2e\cms.spec.ts:120:1 › post lifecycle: taxonomies, rich text, relations, cover, schedule, publish, archive, restore 
+  6 passed (6.5m)
