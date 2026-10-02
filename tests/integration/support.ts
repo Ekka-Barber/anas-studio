@@ -4,6 +4,8 @@
 // loopback `DATABASE_URL`, this is the same rule applied to the API host.
 import { execFileSync } from 'node:child_process'
 import { createHmac } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { parseEnv } from 'node:util'
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
@@ -30,6 +32,16 @@ function readStatus(): Status {
 }
 
 export const status = readStatus()
+
+/**
+ * The local-only values `pnpm db:env` wrote to `.env.local` (never `.env`).
+ * The Edge Functions run on the same values from `supabase/functions/.env`, so
+ * a test can sign a webhook, call the jobs endpoint or derive a token the way
+ * the running functions do.
+ */
+export function localEnv(): Record<string, string> {
+  return parseEnv(readFileSync('.env.local', 'utf8')) as Record<string, string>
+}
 
 export type Role = 'owner' | 'editor' | 'operations'
 

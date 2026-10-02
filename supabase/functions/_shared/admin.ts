@@ -18,6 +18,10 @@
  *   then the objects.
  * - `stats` (owner): the owner statistics; per-isolate cache (5 minutes, 30 seconds for a failed answer).
  * - `status` (owner): configuration booleans, never a secret's value.
+ * - `payment-recheck` (owner, no TOTP; P08): the owner's «أعد الفحص» on one
+ *   payment attempt. An uncertain creation is adopted or abandoned, any other
+ *   attempt with an invoice is settled from what the provider holds, and the
+ *   reply is the attempt's status.
  * - `commerce-settings-save` (owner, fresh TOTP): the store's seller details
  *   through `commerce_settings_save`; a stale version answers 409 so the
  *   owner can reload (D34: no tax field anywhere).
@@ -36,7 +40,7 @@ import { createHash } from 'node:crypto'
 import { commercePoliciesApproveSchema, commerceSettingsSaveSchema } from './commerce-settings.ts'
 import { type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { emailProvider } from './email.ts'
-import { optionalEnv } from './env.ts'
+import { LOCAL_HOSTS, optionalEnv } from './env.ts'
 import { corsHeaders, fail as failWith, NO_STORE } from './http.ts'
 import {
   HEAD_READ_BYTES,
@@ -49,6 +53,8 @@ import {
   verifyObjectHead,
   type TicketRequest,
 } from './media.ts'
+import { defaultPaymentDeps, type PaymentDeps, resolveUncertain, settleInvoice } from './payments.ts'
+import { paymentsConfig, type PaymentsConfigReason } from './payments/moyasar.ts'
 import { ownerStats, type OwnerStats } from './stats.ts'
 import { type StaffIdentity, type StaffResolver, staffFromRequest } from './staff.ts'
 import { TEST_SECRETS } from './turnstile.ts'
@@ -76,6 +82,8 @@ export interface AdminDeps {
   rpc: Rpc
   staff: StaffResolver
   store: MediaStore
+  /** Only tests set it; otherwise the payment dependencies come from the environment (null while payments are not configured). */
+  payments?: PaymentDeps
 }
 
 export function storageStore(): MediaStore {
@@ -175,6 +183,9 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
     case 'status':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذه الصفحة للمالك فقط.')
       return ok(settingsStatus())
+    case 'payment-recheck':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      return paymentRecheck(deps, staff.userId, body.attemptId)
     case 'commerce-settings-save':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
@@ -405,6 +416,32 @@ async function commercePoliciesApprove(deps: AdminDeps, actor: string, body: Rec
   }
 }
 
+/** What `payment_attempt_ref` answers: the attempt's references, or NOT_FOUND. */
+type AttemptRef =
+  | { ok: false; code: string }
+  | { ok: true; attemptId: string; status: string; providerInvoiceId: string | null; createdAt: string; amount: number; currency: string }
+
+/** P08: the owner's «أعد الفحص». The role check ran in `handleAdmin`; the SQL rechecks the owner again. */
+async function paymentRecheck(deps: AdminDeps, actor: string, attemptId: unknown): Promise<Response> {
+  if (typeof attemptId !== 'string' || !UUID.test(attemptId)) return fail(422, 'INVALID', 'طلب غير صالح.')
+  const payments = deps.payments ?? defaultPaymentDeps(deps.rpc)
+  if (!payments) return fail(503, 'PAYMENTS_NOT_CONFIGURED', 'لم تُضبط إعدادات الدفع بعد.')
+  const ref = async (): Promise<AttemptRef> =>
+    (await payments.rpc('payment_attempt_ref', { p_actor: actor, p_attempt: attemptId, p_mode: payments.config.mode })) as AttemptRef
+  try {
+    const before = await ref()
+    if (!before.ok) return fail(404, 'NOT_FOUND', 'لم نجد محاولة الدفع هذه.')
+    if (before.status === 'uncertain') await resolveUncertain(payments, before)
+    else if (before.providerInvoiceId) await settleInvoice(payments, before.attemptId, before.providerInvoiceId, 'prompt')
+    const after = await ref()
+    return ok({ status: after.ok ? after.status : before.status })
+  } catch (error) {
+    // The SQL rechecks the owner: one revoked a moment ago is refused there.
+    if ((error as { code?: string } | null)?.code === '42501') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+    return sqlFail(error)
+  }
+}
+
 let cachedStats: { at: number; ttl: number; value: OwnerStats } | null = null
 // ponytail: a per-isolate single-entry cache for at most 5 minutes. Not a
 // shared store; authorization always runs first, so a cached entry can never
@@ -428,6 +465,20 @@ export interface SettingsStatus {
   jobs: boolean
   siteHost: string
   analytics: boolean
+  /** The reason is a code and the mode a name; `emulator` is true when the API base is a local host. */
+  payments: { configured: boolean; reason?: PaymentsConfigReason; mode?: 'test' | 'live'; emulator: boolean }
+}
+
+function paymentsStatus(): SettingsStatus['payments'] {
+  const config = paymentsConfig()
+  const base = optionalEnv('MOYASAR_API_BASE_URL')
+  let emulator = false
+  try {
+    emulator = base !== undefined && LOCAL_HOSTS.has(new URL(base).hostname)
+  } catch {
+    // An unparseable base is not a local one.
+  }
+  return config.ok ? { configured: true, mode: config.mode, emulator } : { configured: false, reason: config.reason, emulator }
 }
 
 /** Owner-only configuration status: booleans and names only, never a secret's value. */
@@ -461,5 +512,6 @@ export function settingsStatus(): SettingsStatus {
     // The same gate as `fetchAnalytics`: it also needs a SITE_URL host.
     analytics:
       optionalEnv('ANALYTICS_TOKEN') !== undefined && optionalEnv('CLOUDFLARE_ZONE_ID') !== undefined && siteHost !== '',
+    payments: paymentsStatus(),
   }
 }

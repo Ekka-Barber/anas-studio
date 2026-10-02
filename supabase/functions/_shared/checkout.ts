@@ -6,6 +6,7 @@ import { isHostedSite, optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, ok, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { normalizeSaudiMobile } from './saudi-mobile.ts'
+import { orderAccessToken, orderAccessTokenHash, sha256Hex } from './tokens.ts'
 import { isTurnstileUnavailable, verifyTurnstile, type TurnstileResult } from './turnstile.ts'
 
 /**
@@ -108,37 +109,6 @@ function canonicalJson(value: unknown): string {
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`
   }
   return JSON.stringify(value) ?? 'null'
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return Array.from(new Uint8Array(digest))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-/** base64url(HMAC-SHA256) — 43 characters for a 32-byte signature. */
-async function hmacBase64Url(key: string, message: string): Promise<string> {
-  const cryptoKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign',
-  ])
-  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(message)))
-  let binary = ''
-  for (const byte of signature) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-/**
- * The buyer's order-access token: deterministic in the idempotency key, so a
- * retried request mints the same one (D08: private order links use expiring
- * hash-stored tokens). Only its peppered sha256 ever reaches the database.
- */
-async function accessToken(pepper: string, idempotencyKey: string): Promise<string> {
-  return hmacBase64Url(pepper, `order-access:${idempotencyKey}`)
-}
-
-async function accessTokenHash(pepper: string, token: string): Promise<string> {
-  return sha256Hex(`${pepper}:order:${token}`)
 }
 
 /** SQL refusals → HTTP status and a short Arabic message (no internal detail). */
@@ -278,7 +248,7 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
   if (input.action === 'cancel') {
     const result = await call('checkout_cancel', {
       p_order_number: input.orderNumber,
-      p_access_token_hash: await accessTokenHash(pepper, input.accessToken),
+      p_access_token_hash: await orderAccessTokenHash(pepper, input.accessToken),
     })
     if (result instanceof Response) return result
     if (!result || result.ok !== true) return refusal(result)
@@ -327,8 +297,8 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
   }
 
   const requestHash = await sha256Hex(canonicalJson(normalized))
-  const token = await accessToken(pepper, input.idempotencyKey)
-  const tokenHash = await accessTokenHash(pepper, token)
+  const token = await orderAccessToken(pepper, input.idempotencyKey)
+  const tokenHash = await orderAccessTokenHash(pepper, token)
   const result = await call('checkout_create', {
     p_idempotency_key: input.idempotencyKey,
     p_request_hash: requestHash,
