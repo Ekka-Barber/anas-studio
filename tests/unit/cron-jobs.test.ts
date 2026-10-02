@@ -76,7 +76,8 @@ select cron.schedule('one', '2 * * * *', 'select 1');
 describe('cronScheduleStatements', () => {
   it('keeps a real migration statement whole: the multi-line call with its $$ body and the closing parenthesis', () => {
     const statements = cronScheduleStatements(MIGRATIONS)
-    expect([...statements.keys()]).toHaveLength(10)
+    expect([...statements.keys()]).toHaveLength(11)
+    expect(statements.get('payments-reconcile')).toBe("select cron.schedule('payments-reconcile', '* * * * *', 'select public.payments_kick()');")
     expect(statements.get('content-publish-due')).toBe("select cron.schedule('content-publish-due', '* * * * *', 'select public.publish_due()');")
     expect(statements.get('cron-run-details-purge')).toBe(
       "select cron.schedule(\n  'cron-run-details-purge', '31 3 * * *',\n  $$delete from cron.job_run_details where end_time < now() - interval '7 days'$$\n);",

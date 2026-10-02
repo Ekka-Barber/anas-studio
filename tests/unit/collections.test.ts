@@ -309,8 +309,9 @@ describe('the policies collection (P07 round 2)', () => {
 
 // The granted column lists, read out of
 // supabase/migrations/20260927160000_catalog_and_checkout.sql (insert and
-// update grants): a config whose `toRow` outputs anything else writes a
-// column the migration never granted.
+// update grants) and 20261002100000_payment_core.sql (the variants' preorder
+// columns gained, `digital_asset` lost): a config whose `toRow` outputs
+// anything else writes a column the migrations never granted.
 const GRANTED: Record<TableKey, readonly string[]> = {
   products: ['slug', 'title', 'summary', 'body', 'cover_image', 'status', 'sort_order'],
   variants: [
@@ -322,7 +323,10 @@ const GRANTED: Record<TableKey, readonly string[]> = {
     'enabled',
     'stock',
     'low_stock_threshold',
-    'digital_asset',
+    'preorder',
+    'preorder_capacity',
+    'preorder_ships_on',
+    'preorder_note',
     'sort_order',
   ],
   'shipping-rates': ['city_key', 'name_ar', 'fee_halalas', 'enabled', 'sort_order'],

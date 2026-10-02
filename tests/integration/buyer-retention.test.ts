@@ -55,6 +55,23 @@ async function exists(table: string, id: string): Promise<boolean> {
   return (await postgres.query(`select 1 from ${table} where id = $1`, [id])).rowCount === 1
 }
 
+/** A payment attempt of a long-ended order (P08): its invoice expired 95 days ago. */
+async function attempt(
+  orderId: string,
+  status: string,
+  extra: { payment?: string; lastError?: string; due?: boolean } = {},
+): Promise<string> {
+  const { rows } = await postgres.query<{ id: string }>(
+    `insert into finance.payment_attempts (order_id, status, amount_halalas, environment, invoice_expires_at,
+       provider_invoice_id, provider_payment_id, last_error, next_check_at)
+     values ($1, $2, 1000, 'test', now() - interval '95 days', $3, $4, $5,
+       case when $6::boolean then now() + interval '1 day' end)
+     returning id`,
+    [orderId, status, randomUUID(), extra.payment ?? null, extra.lastError ?? null, extra.due ?? false],
+  )
+  return rows[0]!.id
+}
+
 describe('buyer retention (D42)', () => {
   it('deletes expired and cancelled holds 90 days after they ended, and customers left with no order', async () => {
     await postgres.query('begin')
@@ -143,6 +160,79 @@ describe('buyer retention (D42)', () => {
       )
       expect(JSON.stringify(deleted.rows[0]!.summary)).not.toContain('@example.com')
       expect(JSON.stringify(deleted.rows[0]!.summary)).not.toContain('966501234567')
+    } finally {
+      await postgres.query('rollback')
+    }
+  })
+
+  it('deletes the payment attempts and events of the orders it removes, and keeps every order that still has money or work attached (P08)', async () => {
+    await postgres.query('begin')
+    try {
+      const buyer = await customer(120)
+      const event = async (paymentId: string): Promise<string> => {
+        const id = `retention-${randomUUID()}`
+        await postgres.query('insert into finance.payment_events (event_id, provider_payment_id) values ($1, $2)', [id, paymentId])
+        return id
+      }
+      const attempts = async (orderId: string): Promise<number> =>
+        (await postgres.query('select 1 from finance.payment_attempts where order_id = $1', [orderId])).rowCount ?? 0
+      const events = async (eventId: string): Promise<number> =>
+        (await postgres.query('select 1 from finance.payment_events where event_id = $1', [eventId])).rowCount ?? 0
+
+      // Removed: an expired order and a cancelled one whose attempts are closed, with the events of their payments.
+      const closedPayment = randomUUID()
+      const closed = await order(buyer, 'expired', 91)
+      await attempt(closed, 'expired', { payment: closedPayment })
+      const closedEvent = await event(closedPayment)
+      const strangerEvent = await event(randomUUID())
+      const failed = await order(buyer, 'cancelled', 91)
+      await attempt(failed, 'failed')
+      await attempt(failed, 'abandoned')
+
+      // Kept, each for its own reason.
+      const kept: Record<string, string> = {}
+      for (const status of ['creating', 'pending', 'uncertain', 'paid', 'review']) {
+        const id = await order(buyer, 'expired', 91)
+        await attempt(id, status, { payment: status === 'paid' || status === 'review' ? randomUUID() : undefined })
+        kept[status] = id
+      }
+      kept.unverified = await order(buyer, 'expired', 91)
+      await attempt(kept.unverified, 'expired', { lastError: 'UNVERIFIED' })
+      kept.due = await order(buyer, 'cancelled', 91)
+      await attempt(kept.due, 'cancelled', { due: true })
+      for (const name of ['openReview', 'closedReview']) {
+        const id = await order(buyer, 'expired', 91)
+        const attemptId = await attempt(id, 'expired')
+        await postgres.query(
+          `insert into finance.payment_reviews (provider_payment_id, provider_invoice_id, attempt_id, order_id, environment,
+             amount_halalas, currency, provider_status, reason, closed_at)
+           values ($1, $2, $3, $4, 'test', 1000, 'SAR', 'paid', 'AMOUNT_MISMATCH', case when $5 then now() end)`,
+          [randomUUID(), randomUUID(), attemptId, id, name === 'closedReview'],
+        )
+        kept[name] = id
+      }
+      kept.dispute = await order(buyer, 'expired', 91)
+      await postgres.query(
+        `insert into finance.disputes (kind, provider_ref, seq, attempt_id, environment, amount_halalas, direction, occurred_on, reason)
+         values ('chargeback', $1, 1, $2, 'test', 1000, 'against_seller', current_date, 'نزاع')`,
+        [`retention-${randomUUID()}`, await attempt(kept.dispute, 'expired')],
+      )
+
+      const { rows } = await postgres.query<{ n: number }>('select finance.buyer_retention_purge() as n')
+      expect(rows[0]!.n).toBeGreaterThanOrEqual(2)
+
+      for (const id of [closed, failed]) {
+        expect(await exists('finance.orders', id)).toBe(false)
+        expect(await attempts(id)).toBe(0)
+      }
+      expect(await events(closedEvent)).toBe(0)
+      expect(await events(strangerEvent)).toBe(1)
+      for (const [reason, id] of Object.entries(kept)) {
+        expect(await exists('finance.orders', id), reason).toBe(true)
+        expect(await attempts(id), reason).toBe(1)
+      }
+      // The buyer still has orders, so the profile stays.
+      expect(await exists('public.customers', buyer)).toBe(true)
     } finally {
       await postgres.query('rollback')
     }

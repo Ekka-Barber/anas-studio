@@ -116,8 +116,10 @@ port = 54324
 # D32: media and paid files live in Supabase Storage (buckets are created by
 # migration 20260927090000, so the hosted project gets the same ones).
 enabled = true
-# The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
+# The maximum file size allowed (e.g. "5MB", "500KB"). 100 MiB: the size of
+# the largest paid file (the `paid-files` bucket, P08). The hosted project's
+# own global upload limit is set in its dashboard and is checked at P11.
+file_size_limit = "100MiB"
 
 # Uncomment to configure local storage buckets
 # [storage.buckets.images]
