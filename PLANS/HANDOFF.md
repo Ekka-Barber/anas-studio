@@ -4,7 +4,7 @@ One current handoff. Earlier handoffs are in Git history; what was accepted, and
 
 ## State (2026-10-01)
 
-- **Repository.** `main` is the only branch, locally and on GitHub, and the single source of truth. It holds every accepted package through P07, DESIGN-B, P02, CLEANUP-1, AUDIT-1, AUDIT-2, FOUNDATION-1 (Foundation finished: the book page, home doors and contact page in the admin, the characters, the five films) and the owner's D41 to D44 decisions. No lock is held.
+- **Repository.** `main` is the only branch, locally and on GitHub, and the single source of truth. It holds every accepted package through P07, DESIGN-B, P02, CLEANUP-1, AUDIT-1, AUDIT-2, FOUNDATION-1 (Foundation finished: the book page, home doors and contact page in the admin, the characters, the five films) and the owner's D41 to D45 decisions. The prompt that starts P08 is `PLANS/P08-KICKOFF.md`. No lock is held.
 - **History was rewritten (D42).** The WhatsApp export is gone from every commit. Any clone made before 2026-09-30 must be re-cloned, not pulled, or the old history comes back. `../anas-studio-backup-2026-09-30/` (outside the repository) holds bundles of the old history and a copy of the folder, until the owner deletes it.
 - **What is open.** `PLANS/ISSUES.md` (I24, I28, I32–I34, I40, I41, I43–I49); the latest audit record is `artifacts/acceptance/AUDIT-2/REPORT.md` (AUDIT-1's is beside it), and the latest package record `artifacts/acceptance/FOUNDATION-1/REPORT.md`.
 - **graft.** Its session-start upkeep rewrites the agent configuration when its wiring stamp (`graft/.cache/wiring-stamp.json`) names another version than the running one. Upgrade the global CLI and the `.mcp.json` pin together, and keep the stamp's version equal to them (AUDIT-2, 4.12).
@@ -24,7 +24,7 @@ Work on a short-lived `agent/<package>` branch cut from `main`. When the owner a
 
 ## How sessions run
 
-- The orchestrator (Opus 5.5) plans, audits, fixes and designs. Every sub-agent is Sonnet 5.5 (D41). The orchestrator audits every worker diff itself before acceptance; the Sonnet `auditor` is a pre-audit only (D43). Workflow `agent()` calls do not get the model that `.claude/settings.json` forces, so set `model: 'sonnet'` on each.
+- The orchestrator (Opus 5.5) plans, audits, fixes and designs. Workers are Sonnet 5.5 at effort max and auditors Opus 5.5 at effort xhigh (D45); Sonnet never audits Sonnet work (D43). The orchestrator rules on the audit findings, re-runs the checks and reads every money, security and migration diff itself before acceptance. Name the model and effort on every dispatch: in a workflow `{ agentType: 'sonnet-worker', model: 'sonnet', effort: 'max' }` and `{ agentType: 'auditor', model: 'opus', effort: 'xhigh' }`; with the Agent tool `subagent_type: auditor, model: opus`. Do not set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` again: it would put the auditors back on Sonnet.
 - Never `/compact` while a background Workflow runs: it never returns.
 - One writer at a time under `.anasaq-execution.lock`. Use a fresh worker per round, no polling, and the dev server for UI work (I24).
 

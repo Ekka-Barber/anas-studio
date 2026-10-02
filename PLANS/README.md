@@ -10,7 +10,7 @@ Packages run P00 to P11 in order (D38 lets P07–P09 run before P01 and P02 fini
 
 ## Single-writer orchestration
 
-Roles are in D28 as amended by D41: the orchestrator (Opus 5.5) plans, audits, fixes and designs; every sub-agent runs Claude Sonnet 5.5 at effort xhigh, `sonnet-worker` for long, well-specified work and `auditor` for diff review. Token rules are in CLAUDE.md (I24).
+Roles are in D28 as amended by D41, D43 and D45: the orchestrator (Opus 5.5) plans, audits, fixes and designs; `sonnet-worker` (Sonnet 5.5, effort max) does long, well-specified work and `auditor` (Opus 5.5, effort xhigh) audits its diff. Token rules are in CLAUDE.md (I24).
 
 Before any write, the writer holds `.anasaq-execution.lock`, created exclusively with Node `fs.openSync(path, 'wx')`. It records package, agent, task, base commit, start time, dirty paths at start and the expanded exact allowed paths. An existing lock blocks dispatch. Never expire a lock by clock: prove the prior writer stopped, inspect the diff, record recovery, then release. The lock stays held through integration and the orchestrator's audit. A new path is added to the allowlist before it is written.
 

@@ -6,12 +6,14 @@ Read `AGENTS.md` and `PLANS/README.md`. The session kickoff is `PLANS/KICKOFF.md
 
 - `PLANS/` is the plan of record. Every decision in `PLANS/DECISIONS.md` is settled (D02
   superseded by D29, D30 by D41); do not reopen them.
-- D24 as amended by D28, D41 and D43: the orchestrator (Opus 5.5, 1M) plans, audits, fixes
-  and does all major design work itself. Every sub-agent runs Claude Sonnet 5.5
-  (`claude-sonnet-5-5`, effort xhigh): `sonnet-worker` does long, well-specified work,
-  `auditor` gives a pre-audit. D43: acceptance needs the orchestrator's own audit of
-  the whole diff; Sonnet never gives the deciding audit of Sonnet work. `.claude/settings.json` forces the model for every
-  sub-agent, built-in ones included. No GLM. Definitions are in `.claude/agents/`.
+- D24 as amended by D28, D41, D43 and D45: the orchestrator (Opus 5.5, 1M) plans, audits, fixes
+  and does all major design work itself. Workers run Claude Sonnet 5.5 at effort max
+  (`sonnet-worker`: long, well-specified work). Auditors run Claude Opus 5.5 at effort
+  xhigh (`auditor`), in workflows too. Sonnet never audits Sonnet work: every worker diff
+  is audited by Opus, and the orchestrator rules on the findings and re-runs the checks
+  before acceptance. Other sub-agents default to Sonnet 5.5 (`.claude/settings.json`); in a
+  workflow, set `model` and `effort` on every `agent()` call. No GLM. Definitions are in
+  `.claude/agents/`.
   D29: a custom Supabase admin replaces Payload. D32: a static export on Cloudflare
   Pages, server work in Supabase Edge Functions.
 - D25: the canonical domain is `anas.studio`; the folder name is historical.

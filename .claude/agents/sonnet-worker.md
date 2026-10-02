@@ -1,8 +1,8 @@
 ---
 name: sonnet-worker
-description: Implementation worker on Claude Sonnet 5.5 (effort xhigh; D41), dispatched with the Agent tool. Long, well-specified, lower-judgement work under the exclusive lock. The orchestrator (Opus 5.5) audits every diff, fixes, and does all major design work itself (D28).
+description: Implementation worker on Claude Sonnet 5.5 (effort max; D41, D45), dispatched with the Agent tool or a workflow. Long, well-specified, lower-judgement work under the exclusive lock. Opus 5.5 audits every diff (the `auditor` and the orchestrator); the orchestrator fixes and does all major design work itself (D28).
 model: claude-sonnet-5-5
-effort: xhigh
+effort: max
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
