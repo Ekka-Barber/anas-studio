@@ -177,6 +177,22 @@ export async function serviceRoleDb(): Promise<Client> {
   return client
 }
 
+/**
+ * A direct database session as the signed-in staff member `userId`: the role `authenticated` with that user's claims set
+ * for the whole session, the way PostgREST sets them for a request, so a function that rechecks `auth.uid()` sees that
+ * member. A test that needs two staff calls at once opens one session per call. A revoked or inactive member's session
+ * connects all the same: the function itself refuses it.
+ */
+export async function staffDb(userId: string): Promise<Client> {
+  const client = new Client({
+    connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+  })
+  await client.connect()
+  await client.query('set role authenticated')
+  await client.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ sub: userId, role: 'authenticated' })])
+  return client
+}
+
 /** Functions that return a set of rows; everything else returns one value, as PostgREST answers. */
 const SET_RETURNING = new Set(['outbox_claim', 'contact_for_notice'])
 
