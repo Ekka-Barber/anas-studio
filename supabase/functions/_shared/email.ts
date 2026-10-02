@@ -256,6 +256,349 @@ export function renderContactNotice(data: ContactNoticeData): { subject: string;
 }
 
 // ---------------------------------------------------------------------------
+// Order mail (P08, contract sections 6 and 7)
+//
+// One pure function per kind, plain text like `renderContactNotice`. Every value
+// a buyer, the catalog or the provider supplied goes through `one()`: a single
+// line, with no bidi control of its own, isolated. Money is integer halalas
+// through `money()`. Every link is built here from the site origin and the
+// token the dispatcher derived; nothing in this section reads the environment.
+// A receipt is never called a tax invoice and states no tax (D34).
+
+export interface RenderedEmail {
+  subject: string
+  text: string
+}
+
+export interface OrderEmailLine {
+  itemId: string
+  title: string
+  variantTitle: string
+  quantity: number
+  total: number
+  fulfillment: string
+  preorder: { shipsOn: string; note: string } | null
+  /** true: the file is there; false: the entitlement waits for it (a preorder); null: no file will come (not digital, revoked, refunded). */
+  hasFile: boolean | null
+}
+
+/** `order_email_data` (round 5): everything from the order's own snapshots; `refund` and `shipment` only when asked for. */
+export interface OrderEmailData {
+  orderId: string
+  orderNumber: string
+  status: string
+  environment: string
+  customerName: string
+  customerEmail: string
+  idempotencyKey: string
+  tokenVersion: number
+  totals: { subtotal: number; discount: number; shipping: number; total: number }
+  lines: OrderEmailLine[]
+  seller: { legalName?: string; address?: string; registration?: string }
+  paidAt: string | null
+  refundedHalalas: number
+  refund?: { amount: number }
+  shipment?: { carrier: string; tracking: string; itemIds: string[] }
+}
+
+/** `notify_email_data` (round 5). */
+export interface NotifyEmailData {
+  status: string
+  tokenVersion: number
+  email: string
+  productTitle: string
+  variantTitle: string
+  slug: string
+}
+
+/** `alert_email_data` (round 5): the facts an owner needs, by alert type; an alert it does not know carries only `alert`. */
+export interface AlertEmailData {
+  alert: string | null
+  orderNumber?: string | null
+  amount?: number | null
+  total?: number | null
+  reason?: string | null
+  sku?: string | null
+  stock?: number | null
+  threshold?: number | null
+  status?: string | null
+  eventType?: string | null
+  paymentId?: string | null
+}
+
+/**
+ * One value on one line, isolated: line breaks and other control characters
+ * become spaces, and the value's own bidi controls (which could close our
+ * isolate or reorder the line around it) are dropped.
+ */
+function one(value: string | number | null | undefined): string {
+  return isolated(
+    String(value ?? '')
+      .replace(/[\p{Cc}\p{Zl}\p{Zp}]+/gu, ' ')
+      .replace(/\p{Bidi_Control}/gu, '')
+      .trim(),
+  )
+}
+
+/**
+ * Integer halalas as SAR: Latin digits and two decimals (D06), like the site's
+ * `formatMoney` but without Intl's grouping, so the text is the same under Deno
+ * and Node.
+ */
+function money(halalas: number): string {
+  const abs = Math.abs(Math.trunc(halalas))
+  return `${halalas < 0 ? '-' : ''}${Math.floor(abs / 100)}.${String(abs % 100).padStart(2, '0')} ر.س`
+}
+
+const TEST_NOTICE = 'وضع تجريبي: لا يُخصم أي مبلغ حقيقي.'
+const UNKNOWN = 'غير معروف'
+
+/**
+ * The frame of every buyer mail about an order: the test notice, the greeting,
+ * the body and the personal order link. The token travels in the link's
+ * fragment, so it never reaches a server log or a Referer (contract section 5).
+ */
+function orderMail(order: OrderEmailData, subject: string, body: string[], siteUrl: string, token: string): RenderedEmail {
+  const test = order.environment === 'test'
+  return {
+    subject: test ? `(تجريبي) ${subject}` : subject,
+    text: [
+      ...(test ? [TEST_NOTICE, ''] : []),
+      `مرحبًا ${one(order.customerName)}،`,
+      '',
+      ...body,
+      '',
+      'صفحة طلبك (الرابط شخصي، لا تشاركه):',
+      `${siteUrl}/orders#${encodeURIComponent(order.orderNumber)}.${token}`,
+    ].join('\n'),
+  }
+}
+
+function sellerLines(order: OrderEmailData): string[] {
+  const { legalName, registration } = order.seller
+  return [
+    ...(legalName ? [`البائع: ${one(legalName)}`] : []),
+    ...(registration ? [`رقم التسجيل: ${one(registration)}`] : []),
+  ]
+}
+
+function lineLines(line: OrderEmailLine): string[] {
+  return [
+    `- ${one(line.title)} (${one(line.variantTitle)}) × ${line.quantity}: ${money(line.total)}`,
+    ...(line.preorder ? [`  طلب مسبق: التسليم المتوقع ${one(line.preorder.shipsOn)}. ${one(line.preorder.note)}`] : []),
+    ...(line.fulfillment === 'digital' && line.hasFile !== null
+      ? [line.hasFile ? '  الملف الرقمي: تجده في صفحة طلبك.' : '  الملف الرقمي: سنضيفه إلى صفحة طلبك عند توفره.']
+      : []),
+  ]
+}
+
+/**
+ * The receipt of a paid order. An order that is not plainly paid (the payment
+ * arrived but a line cannot be delivered, or it was refunded since) only says
+ * that the payment arrived and the order is being reviewed.
+ */
+export function renderReceipt(order: OrderEmailData, siteUrl: string, token: string): RenderedEmail {
+  const number = one(order.orderNumber)
+  const { subtotal, discount, shipping, total } = order.totals
+  if (order.status !== 'paid') {
+    return orderMail(
+      order,
+      `وصلتنا دفعتك للطلب رقم ${number}`,
+      [`وصلتنا دفعتك للطلب رقم ${number} بمبلغ ${money(total)}، ونراجع الطلب الآن.`, '', ...sellerLines(order)],
+      siteUrl,
+      token,
+    )
+  }
+  return orderMail(
+    order,
+    `إيصال طلبك رقم ${number}`,
+    [
+      `وصلتنا دفعتك وتم تأكيد طلبك رقم ${number}. هذا إيصال بالمبلغ الذي دفعته.`,
+      '',
+      'الأصناف:',
+      ...order.lines.flatMap(lineLines),
+      '',
+      `المجموع الفرعي: ${money(subtotal)}`,
+      ...(discount > 0 ? [`الخصم: ${money(discount)}`] : []),
+      ...(shipping > 0 ? [`التوصيل: ${money(shipping)}`] : []),
+      `الإجمالي المدفوع: ${money(total)}`,
+      '',
+      ...sellerLines(order),
+    ],
+    siteUrl,
+    token,
+  )
+}
+
+/** The recovery link a buyer asked for. */
+export function renderOrderLink(order: OrderEmailData, siteUrl: string, token: string): RenderedEmail {
+  const number = one(order.orderNumber)
+  return orderMail(
+    order,
+    `رابط طلبك رقم ${number}`,
+    [`هذا رابط طلبك رقم ${number}. من صفحة الطلب تتابع حالته وتحمّل ملفاته الرقمية إن وُجدت.`, 'إن لم تطلب هذا الرابط فتجاهل الرسالة.'],
+    siteUrl,
+    token,
+  )
+}
+
+/** The files of the listed items are ready on the order page. */
+export function renderOrderReady(order: OrderEmailData, files: OrderEmailLine[], siteUrl: string, token: string): RenderedEmail {
+  const number = one(order.orderNumber)
+  return orderMail(
+    order,
+    `ملفات طلبك رقم ${number} جاهزة`,
+    [
+      `أصبحت الملفات التالية من طلبك رقم ${number} جاهزة للتحميل من صفحة الطلب:`,
+      ...files.map((line) => `- ${one(line.title)} (${one(line.variantTitle)})`),
+    ],
+    siteUrl,
+    token,
+  )
+}
+
+/** A shipment: its carrier, its tracking value and the items it carries. */
+export function renderOrderShipped(
+  order: OrderEmailData,
+  shipment: NonNullable<OrderEmailData['shipment']>,
+  siteUrl: string,
+  token: string,
+): RenderedEmail {
+  const number = one(order.orderNumber)
+  return orderMail(
+    order,
+    `شحنة جديدة من طلبك رقم ${number}`,
+    [
+      `تم شحن الأصناف التالية من طلبك رقم ${number}:`,
+      ...order.lines
+        .filter((line) => shipment.itemIds.includes(line.itemId))
+        .map((line) => `- ${one(line.title)} (${one(line.variantTitle)}) × ${line.quantity}`),
+      '',
+      `شركة الشحن: ${one(shipment.carrier)}`,
+      `رقم التتبع: ${one(shipment.tracking)}`,
+    ],
+    siteUrl,
+    token,
+  )
+}
+
+/** A refund: its amount and what has been refunded of the order in all. */
+export function renderOrderRefunded(
+  order: OrderEmailData,
+  refund: NonNullable<OrderEmailData['refund']>,
+  siteUrl: string,
+  token: string,
+): RenderedEmail {
+  const number = one(order.orderNumber)
+  return orderMail(
+    order,
+    `استرداد من طلبك رقم ${number}`,
+    [`تم استرداد ${money(refund.amount)} من طلبك رقم ${number}.`, `إجمالي ما استُرد من هذا الطلب حتى الآن: ${money(order.refundedHalalas)}.`],
+    siteUrl,
+    token,
+  )
+}
+
+/** The confirmation of a "tell me when it is back" request; the link is valid for 7 days (contract section 5). */
+export function renderNotifyConfirm(data: NotifyEmailData, siteUrl: string, token: string): RenderedEmail {
+  return {
+    subject: 'أكّد طلب التنبيه',
+    text: [
+      `طلبت أن نخبرك عندما يتوفر ${one(data.productTitle)} (${one(data.variantTitle)}) من جديد.`,
+      'لتأكيد الطلب افتح الرابط التالي، وهو صالح لمدة 7 أيام:',
+      `${siteUrl}/notify/confirm#${token}`,
+      '',
+      'إن لم تطلب ذلك فتجاهل الرسالة ولن نراسلك.',
+    ].join('\n'),
+  }
+}
+
+/** The product is back: its page and the link that stops these messages. */
+export function renderAvailability(data: NotifyEmailData, siteUrl: string, token: string): RenderedEmail {
+  return {
+    subject: `توفّر ${one(data.productTitle)}`,
+    text: [
+      `توفّر ${one(data.productTitle)} (${one(data.variantTitle)}) الذي طلبت أن نخبرك عنه.`,
+      'صفحة المنتج:',
+      `${siteUrl}/store/${encodeURIComponent(data.slug)}`,
+      '',
+      'لإيقاف هذه الرسائل افتح الرابط التالي:',
+      `${siteUrl}/notify/unsubscribe#${token}`,
+    ].join('\n'),
+  }
+}
+
+function alertText(alert: AlertEmailData): RenderedEmail {
+  const order = alert.orderNumber ? one(alert.orderNumber) : UNKNOWN
+  const amount = typeof alert.amount === 'number' ? money(alert.amount) : UNKNOWN
+  switch (alert.alert) {
+    case 'low_stock':
+      return {
+        subject: 'تنبيه: مخزون منخفض',
+        text: `انخفض مخزون الصنف ${one(alert.sku)} إلى ${one(alert.stock)} (حدّ التنبيه ${one(alert.threshold)}). آخر طلب أثّر عليه: ${order}.`,
+      }
+    case 'needs_resolution':
+      return {
+        subject: 'تنبيه: طلب مدفوع يحتاج قرارك',
+        text: `دُفع الطلب ${order} بمبلغ ${amount} وتعذّر تجهيز كل أصنافه. المبلغ محفوظ ولم يُسلَّم شيء بعد. راجع الطلب من لوحة الطلبات.`,
+      }
+    case 'payment_review':
+      return {
+        subject: 'تنبيه: دفعة تحتاج مراجعة',
+        text: `وصلت دفعة بمبلغ ${amount} لا يمكن ربطها بطلب بشكل صحيح (السبب: ${one(alert.reason)}). الطلب: ${order}. الدفعة: ${one(alert.paymentId)}. لم يُسلَّم شيء مقابلها.`,
+      }
+    case 'external_refund':
+      return {
+        subject: 'تنبيه: استرداد غير مسجّل',
+        text: `ظهر لدى مزوّد الدفع استرداد للطلب ${order} إجماليه ${typeof alert.total === 'number' ? money(alert.total) : UNKNOWN} ولا يطابق ما سجّلناه. سجّله من لوحة الطلبات.`,
+      }
+    case 'provider_status':
+      return {
+        subject: 'تنبيه: تغيّرت حالة دفعة',
+        text: `تغيّرت حالة دفعة الطلب ${order} لدى مزوّد الدفع إلى ${one(alert.status)}. راجعها من لوحة الطلبات.`,
+      }
+    case 'event_exhausted':
+      return {
+        subject: 'تنبيه: تعذّرت معالجة حدث دفع',
+        text: `تعذّرت معالجة حدث دفع (${one(alert.eventType)}) للدفعة ${one(alert.paymentId)} بعد محاولات متكرّرة. راجعه من لوحة الطلبات.`,
+      }
+    case 'attempt_unverified':
+      return {
+        subject: 'تنبيه: دفعة لم يتم التحقق منها',
+        text: `لم نتمكن من التحقق من دفعة الطلب ${order} (${amount}) لدى مزوّد الدفع قبل انتهاء مهلة المتابعة. تحقق منها يدويًا.`,
+      }
+    case 'attempt_duplicate_invoices':
+      return {
+        subject: 'تنبيه: أكثر من فاتورة دفع للطلب',
+        text: `وُجدت أكثر من فاتورة دفع لدى مزوّد الدفع تعود للطلب ${order} (${amount}). راجعها قبل أي إجراء.`,
+      }
+    case 'refund_mismatch':
+      return {
+        subject: 'تنبيه: اختلاف في استرداد',
+        text: `أفاد مزوّد الدفع بنجاح استرداد للطلب ${order} (${amount}) سبق أن سجّلناه كفاشل. راجع الاسترداد من لوحة الطلبات.`,
+      }
+    case 'refund_total_decreased':
+      return {
+        subject: 'تنبيه: انخفض إجمالي المسترد لدى مزوّد الدفع',
+        text: `أثناء استرداد للطلب ${order} (${amount}) أظهر مزوّد الدفع إجمالي مبالغ مستردة أقل مما سجّلناه. سُجّل الاسترداد كفاشل. راجعه من لوحة الطلبات.`,
+      }
+    case 'refund_unverified':
+      return {
+        subject: 'تنبيه: استرداد لم يتم التحقق منه',
+        text: `لم نتمكن من التحقق من استرداد الطلب ${order} (${amount}) منذ أكثر من 24 ساعة. أعد الفحص من لوحة الطلبات.`,
+      }
+    default:
+      return { subject: 'تنبيه جديد في المتجر', text: `وصل تنبيه جديد (${one(alert.alert)}) يحتاج مراجعتك.` }
+  }
+}
+
+/** An alert for an owner: one short text by type, the admin link, and no buyer contact detail (the data has none). */
+export function renderOwnerAlert(alert: AlertEmailData, siteUrl: string): RenderedEmail {
+  const { subject, text } = alertText(alert)
+  return { subject, text: [text, '', 'لوحة الطلبات:', `${siteUrl}/admin/orders`].join('\n') }
+}
+
+// ---------------------------------------------------------------------------
 // Resend delivery webhooks (Svix signatures)
 //
 // Fetched 2026-09-26: resend.com/docs/dashboard/webhooks/verify-webhooks-requests

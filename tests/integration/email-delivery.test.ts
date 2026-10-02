@@ -223,6 +223,8 @@ describe('runOutbox (fetch stubbed, service_role through a direct session)', () 
     vi.stubEnv('EMAIL_FROM', 'Anas <noreply@anas.studio>')
     vi.stubEnv('SITE_URL', 'https://anas.studio')
     vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
+    // A configured deployment: the dispatcher claims nothing while it cannot build a link.
+    vi.stubEnv('TOKEN_HASH_PEPPER', 'test-pepper-for-the-outbox-tests')
   })
 
   /** Parks only the foreign rows that are due right now (the only ones this

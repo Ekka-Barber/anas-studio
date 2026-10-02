@@ -10,8 +10,27 @@
  */
 
 import { type Rpc, serviceRpc } from './db.ts'
-import { emailProvider, renderContactNotice, sendEmail, type SendOutcome } from './email.ts'
+import {
+  type AlertEmailData,
+  emailProvider,
+  type NotifyEmailData,
+  type OrderEmailData,
+  renderAvailability,
+  renderContactNotice,
+  renderNotifyConfirm,
+  renderOrderLink,
+  renderOrderReady,
+  renderOrderRefunded,
+  renderOrderShipped,
+  renderOwnerAlert,
+  renderReceipt,
+  type RenderedEmail,
+  sendEmail,
+  type SendOutcome,
+} from './email.ts'
 import { optionalEnv } from './env.ts'
+import { siteOrigin } from './http.ts'
+import { notificationToken, orderAccessToken } from './tokens.ts'
 
 /**
  * Resend's free-plan daily sending quota: "daily email quota of 100
@@ -26,14 +45,21 @@ export const MONTHLY_QUOTA = 3_000
 
 /**
  * Sends held back for what must never wait: once the day has used
- * `DAILY_QUOTA - RESERVE` outbox sends, only priority 0 (receipts) still
- * goes; staff notices (1, which anyone can trigger through the contact form)
- * and availability notices (2) wait for the next UTC day. Sign-in codes do
- * not travel through the outbox — Supabase Auth sends them over its own SMTP
- * connection (I28) — so the reserve keeps the last sends of the Resend daily
- * limit free for them.
+ * `DAILY_QUOTA - RESERVE` outbox sends, only priority 0 (receipts and the other
+ * mail a payment or a staff action causes, and owner alerts) still goes; staff
+ * notices and recovery links (1, which a visitor can trigger) and the
+ * mail below wait for the next UTC day. Sign-in codes do not travel through the
+ * outbox — Supabase Auth sends them over its own SMTP connection (I28) — so the
+ * reserve keeps the last sends of the Resend daily limit free for them.
  */
 export const RESERVE = 20
+
+/**
+ * Further sends held back from priority 2 (confirmation and availability mail,
+ * which a visitor can trigger): it stops at `DAILY_QUOTA - RESERVE -
+ * LOW_RESERVE`, so recovery links and receipts go before it (contract section 8).
+ */
+export const LOW_RESERVE = 30
 
 /** Rows per claim, and the lease each holds while a send is in flight. */
 const CLAIM_LIMIT = 10
@@ -55,7 +81,8 @@ interface ClaimedRow {
   lease_id: string
   kind: string
   recipient: string
-  payload: { contactId?: string }
+  /** Ids only, never a token or an address; an `owner_alert` carries `{alert, ...ids}`. */
+  payload: { contactId?: string; orderId?: string; refundId?: string; itemIds?: string[]; notificationId?: string }
   idempotency_key: string
   attempts: number
 }
@@ -97,7 +124,77 @@ function renderFor(
   return { ...notice, replyTo: contact.email }
 }
 
-async function processRow(rpc: Rpc, row: ClaimedRow): Promise<SendOutcome | { outcome: 'permanent'; error: string }> {
+/** A row closed without sending (`permanent`, a short ASCII code for `last_error`), or kept for a later try (`retry`). */
+type Stopped = { outcome: 'retry' | 'permanent'; error: string }
+
+const closed = (error: string): Stopped => ({ outcome: 'permanent', error })
+
+const MAIL_KINDS = ['receipt', 'order_link', 'order_ready', 'order_shipped', 'order_refunded', 'notify_confirm', 'availability', 'owner_alert']
+
+/**
+ * Renders the rows of round 5 from their data functions (contract section 7,
+ * "The dispatcher"). The token of a link is derived here from the pepper and
+ * put in the text and nowhere else: never in an outbox row, a log or an rpc
+ * argument. A row whose data is gone, or whose state no longer allows the mail
+ * (a confirmation or an availability notice whose subscriber is not in the
+ * status it needs, a ready mail whose file was revoked), is closed with a short
+ * code and nothing is sent. An unknown kind stays RENDER_FAILED. A missing
+ * `SITE_URL` or pepper is a retry: nothing is wrong with the row.
+ */
+async function renderMail(rpc: Rpc, row: ClaimedRow): Promise<RenderedEmail | Stopped> {
+  const { kind, payload } = row
+  if (!MAIL_KINDS.includes(kind)) return closed('RENDER_FAILED')
+  const siteUrl = siteOrigin()
+  const pepper = optionalEnv('TOKEN_HASH_PEPPER')
+  if (!siteUrl || !pepper) return { outcome: 'retry', error: 'NOT_CONFIGURED' }
+
+  if (kind === 'owner_alert') {
+    const alert = (await rpc('alert_email_data', { p_payload: payload })) as AlertEmailData | null
+    return alert ? renderOwnerAlert(alert, siteUrl) : closed('GONE')
+  }
+
+  if (kind === 'notify_confirm' || kind === 'availability') {
+    const id = payload.notificationId
+    const data = id ? ((await rpc('notify_email_data', { p_id: id })) as NotifyEmailData | null) : null
+    if (!id || !data) return closed('GONE')
+    if (kind === 'notify_confirm') {
+      if (data.status !== 'pending') return closed('NOT_PENDING')
+      return renderNotifyConfirm(data, siteUrl, await notificationToken(pepper, id, data.tokenVersion))
+    }
+    if (data.status !== 'confirmed') return closed('NOT_CONFIRMED')
+    return renderAvailability(data, siteUrl, await notificationToken(pepper, id, data.tokenVersion))
+  }
+
+  const { orderId } = payload
+  const data = orderId
+    ? ((await rpc('order_email_data', {
+        p_order: orderId,
+        ...(kind === 'order_refunded' ? { p_refund: payload.refundId ?? null } : {}),
+        ...(kind === 'order_shipped' ? { p_item_ids: payload.itemIds ?? null } : {}),
+      })) as OrderEmailData | null)
+    : null
+  if (!data) return closed('GONE')
+  const token = await orderAccessToken(pepper, data.idempotencyKey, data.tokenVersion)
+  switch (kind) {
+    case 'receipt':
+      return renderReceipt(data, siteUrl, token)
+    case 'order_link':
+      return renderOrderLink(data, siteUrl, token)
+    case 'order_ready': {
+      // The listed items must be lines of the order: anything else is a producer's mistake and stays in the attention list.
+      const listed = data.lines.filter((line) => payload.itemIds?.includes(line.itemId))
+      if (listed.length === 0) return closed('GONE')
+      const files = listed.filter((line) => line.hasFile)
+      return files.length > 0 ? renderOrderReady(data, files, siteUrl, token) : closed('NO_FILE')
+    }
+    case 'order_shipped':
+      return data.shipment ? renderOrderShipped(data, data.shipment, siteUrl, token) : closed('NO_SHIPMENT')
+    default: // order_refunded: MAIL_KINDS holds no other kind here
+      return data.refund ? renderOrderRefunded(data, data.refund, siteUrl, token) : closed('NO_REFUND')
+  }
+}
+
+async function processRow(rpc: Rpc, row: ClaimedRow): Promise<SendOutcome | Stopped> {
   let rendered: { subject: string; text: string; replyTo?: string } | null = null
   if (row.kind === 'contact_notice') {
     const rows = (await rpc('contact_for_notice', { p_id: row.payload.contactId ?? null })) as Array<{
@@ -108,8 +205,9 @@ async function processRow(rpc: Rpc, row: ClaimedRow): Promise<SendOutcome | { ou
     }> | null
     rendered = renderFor(row.kind, row.payload, rows?.[0])
   } else {
-    // Availability notices arrive in P07; until then such rows are never sent.
-    rendered = null
+    const mail = await renderMail(rpc, row)
+    if ('outcome' in mail) return mail
+    rendered = mail
   }
   if (!rendered) return { outcome: 'permanent', error: 'RENDER_FAILED' }
   return sendEmail({
@@ -123,8 +221,11 @@ async function processRow(rpc: Rpc, row: ClaimedRow): Promise<SendOutcome | { ou
 
 /** One dispatch run. Never throws: a failure is recorded as a failed run. */
 export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary> {
-  if (!emailConfigured()) {
-    const skipped: OutboxSummary = { job: 'email_outbox', status: 'skipped', claimed: 0, accepted: 0, retry: 0, permanent: 0, uncertain: 0, reason: 'EMAIL_NOT_CONFIGURED' }
+  // Nothing is claimed while the function cannot send, or cannot build a link (the site address and the pepper every
+  // order and notify mail needs): the rows wait as they are, and no attempt is spent on a deployment's mistake.
+  const unconfigured = !emailConfigured() ? 'EMAIL_NOT_CONFIGURED' : !siteOrigin() || !optionalEnv('TOKEN_HASH_PEPPER') ? 'SITE_NOT_CONFIGURED' : null
+  if (unconfigured) {
+    const skipped: OutboxSummary = { job: 'email_outbox', status: 'skipped', claimed: 0, accepted: 0, retry: 0, permanent: 0, uncertain: 0, reason: unconfigured }
     try {
       await rpc('job_run_record', {
         p_job: 'email_outbox',
@@ -133,7 +234,7 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
         p_started_at: new Date().toISOString(),
       })
     } catch {
-      // The database being down does not change the answer: email is not configured.
+      // The database being down does not change the answer: nothing can be sent.
     }
     return skipped
   }
@@ -152,6 +253,7 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
         p_daily_quota: DAILY_QUOTA,
         p_reserve: RESERVE,
         p_monthly_quota: MONTHLY_QUOTA,
+        p_low_reserve: LOW_RESERVE,
       })) as ClaimedRow[] | null
       const row = claimed?.[0]
       if (!row) break

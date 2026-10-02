@@ -17,6 +17,7 @@ const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost'])
 type Status = {
   API_URL: string
   FUNCTIONS_URL: string
+  MAILPIT_URL: string
   PUBLISHABLE_KEY: string
   SECRET_KEY: string
 }

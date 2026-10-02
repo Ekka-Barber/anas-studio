@@ -440,6 +440,8 @@ describe('runOutbox: a run that claims nothing while mail is due is a held run (
     vi.stubEnv('EMAIL_FROM', 'Anas <noreply@anas.studio>')
     vi.stubEnv('SITE_URL', 'https://anas.studio')
     vi.stubEnv('EMAIL_DEV_MAILPIT_URL', '')
+    // A configured deployment: the dispatcher claims nothing while it cannot build a link.
+    vi.stubEnv('TOKEN_HASH_PEPPER', 'test-pepper-for-the-outbox-tests')
   }
 
   it('records partial with QUOTA_HELD, so the owner home cannot read it as a healthy run', async () => {

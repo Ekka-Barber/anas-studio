@@ -31,7 +31,7 @@ async function canExecute(role: string, signature: string): Promise<boolean> {
 const SERVER_ONLY = [
   'public.contact_submit(text, text, text, text, uuid, text)',
   'public.contact_for_notice(uuid)',
-  'public.outbox_claim(integer, integer, integer, integer, integer)',
+  'public.outbox_claim(integer, integer, integer, integer, integer, integer)',
   'public.outbox_result(bigint, uuid, text, text, text)',
   'public.email_event_record(text, text, text, text, timestamptz, jsonb, text)',
   'public.job_run_record(text, text, jsonb, timestamptz)',

@@ -3,7 +3,23 @@
 // cap). `fetch` is stubbed; no network and no real provider is contacted.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EmailNotConfiguredError, NOTICE_MESSAGE_LIMIT, renderContactNotice, sendEmail } from '../../supabase/functions/_shared/email.ts'
+import {
+  type AlertEmailData,
+  EmailNotConfiguredError,
+  NOTICE_MESSAGE_LIMIT,
+  type NotifyEmailData,
+  type OrderEmailData,
+  renderAvailability,
+  renderContactNotice,
+  renderNotifyConfirm,
+  renderOrderLink,
+  renderOrderReady,
+  renderOrderRefunded,
+  renderOrderShipped,
+  renderOwnerAlert,
+  renderReceipt,
+  sendEmail,
+} from '../../supabase/functions/_shared/email.ts'
 
 const savedEnv = { ...process.env }
 
@@ -266,5 +282,367 @@ describe('renderContactNotice', () => {
     expect(text).not.toContain('/admin')
     expect(text).toContain('اضغط «رد»')
     expect(subject).toBe('رسالة جديدة من نموذج التواصل')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// P08 round 5: the order mail. Pure functions: no environment, no network.
+
+const FSI = String.fromCharCode(0x2068)
+const PDI = String.fromCharCode(0x2069)
+const isolated = (value: string): string => `${FSI}${value}${PDI}`
+// Every bidi formatting character: the marks, the embeddings and overrides, the isolates.
+const BIDI = /\p{Bidi_Control}/u
+const SITE = 'https://anas.studio'
+const TOKEN = 'tok_AbC-123_xyz'
+const SAR = 'ر.س'
+
+const SIGNED = {
+  itemId: 'item-signed',
+  title: 'كتاب الورد',
+  variantTitle: 'نسخة موقّعة',
+  quantity: 1,
+  total: 4500,
+  fulfillment: 'signed',
+  preorder: null,
+  hasFile: false,
+}
+const DIGITAL = { ...SIGNED, itemId: 'item-digital', variantTitle: 'نسخة رقمية', quantity: 2, total: 1800, fulfillment: 'digital', hasFile: true }
+
+function orderData(over: Partial<OrderEmailData> = {}): OrderEmailData {
+  return {
+    orderId: '11111111-1111-4111-8111-111111111111',
+    orderNumber: 'ABCD2345',
+    status: 'paid',
+    environment: 'live',
+    customerName: 'منى',
+    customerEmail: 'mona@example.com',
+    idempotencyKey: '22222222-2222-4222-8222-222222222222',
+    tokenVersion: 0,
+    totals: { subtotal: 7000, discount: 700, shipping: 2500, total: 8800 },
+    lines: [SIGNED, DIGITAL],
+    seller: { legalName: 'مؤسسة الورد', address: 'تبوك', registration: 'REG-1234' },
+    paidAt: '2026-10-02T10:00:00.000Z',
+    refundedHalalas: 0,
+    ...over,
+  }
+}
+
+const LINK = `${SITE}/orders#ABCD2345.${TOKEN}`
+
+describe('renderReceipt', () => {
+  it('a paid order: every line with its total, the totals, the order link, the seller', () => {
+    const { subject, text } = renderReceipt(orderData(), SITE, TOKEN)
+    expect(subject).toBe(`إيصال طلبك رقم ${isolated('ABCD2345')}`)
+    expect(text).toContain(`مرحبًا ${isolated('منى')}،`)
+    expect(text).toContain(`- ${isolated('كتاب الورد')} (${isolated('نسخة موقّعة')}) × 1: 45.00 ${SAR}`)
+    expect(text).toContain(`- ${isolated('كتاب الورد')} (${isolated('نسخة رقمية')}) × 2: 18.00 ${SAR}`)
+    expect(text).toContain(`المجموع الفرعي: 70.00 ${SAR}`)
+    expect(text).toContain(`الخصم: 7.00 ${SAR}`)
+    expect(text).toContain(`التوصيل: 25.00 ${SAR}`)
+    expect(text).toContain(`الإجمالي المدفوع: 88.00 ${SAR}`)
+    expect(text).toContain(LINK)
+    expect(text).toContain(`البائع: ${isolated('مؤسسة الورد')}`)
+    expect(text).toContain(`رقم التسجيل: ${isolated('REG-1234')}`)
+  })
+
+  it('a zero discount and a zero delivery fee leave no line', () => {
+    const { text } = renderReceipt(orderData({ totals: { subtotal: 6300, discount: 0, shipping: 0, total: 6300 } }), SITE, TOKEN)
+    expect(text).not.toContain('الخصم:')
+    expect(text).not.toContain('التوصيل:')
+  })
+
+  it('a digital line says its file is on the order page, or that it will be added when there is none yet', () => {
+    const ready = renderReceipt(orderData(), SITE, TOKEN).text
+    expect(ready).toContain('الملف الرقمي: تجده في صفحة طلبك.')
+    const waiting = renderReceipt(orderData({ lines: [{ ...DIGITAL, hasFile: false }] }), SITE, TOKEN).text
+    expect(waiting).toContain('الملف الرقمي: سنضيفه إلى صفحة طلبك عند توفره.')
+    expect(waiting).not.toContain('تجده في صفحة طلبك')
+    // A digital line with nothing to hand out (revoked, or refunded before it was granted) promises no file.
+    expect(renderReceipt(orderData({ lines: [{ ...DIGITAL, hasFile: null }] }), SITE, TOKEN).text).not.toContain('الملف الرقمي')
+    // A physical line has no file note.
+    expect(renderReceipt(orderData({ lines: [SIGNED] }), SITE, TOKEN).text).not.toContain('الملف الرقمي')
+  })
+
+  it('a preorder line carries its delivery date and note', () => {
+    const preorder = { shipsOn: '2026-12-01', note: 'يصل بعد الطباعة الثانية' }
+    const { text } = renderReceipt(orderData({ lines: [{ ...SIGNED, preorder }] }), SITE, TOKEN)
+    expect(text).toContain(`طلب مسبق: التسليم المتوقع ${isolated('2026-12-01')}. ${isolated('يصل بعد الطباعة الثانية')}`)
+  })
+
+  it('a test order says it is a test and that no real money moved, in the subject and the first line', () => {
+    const test = renderReceipt(orderData({ environment: 'test' }), SITE, TOKEN)
+    expect(test.subject).toBe(`(تجريبي) إيصال طلبك رقم ${isolated('ABCD2345')}`)
+    expect(test.text.split('\n')[0]).toBe('وضع تجريبي: لا يُخصم أي مبلغ حقيقي.')
+    const live = renderReceipt(orderData(), SITE, TOKEN)
+    expect(live.subject).not.toContain('تجريبي')
+    expect(live.text).not.toContain('تجريبي')
+  })
+
+  it.each(['paid_needs_resolution', 'refunded'])(
+    'an order that is %s says the payment arrived and the order is being reviewed, and promises nothing else',
+    (status) => {
+      const { subject, text } = renderReceipt(orderData({ status }), SITE, TOKEN)
+      expect(subject).toBe(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')}`)
+      expect(text).toContain(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')} بمبلغ 88.00 ${SAR}، ونراجع الطلب الآن.`)
+      // No line, no delivery, no file, no shipping, and not called a receipt.
+      for (const promise of ['كتاب الورد', 'التسليم', 'الملف', 'شحن', 'إيصال', 'التوصيل', 'المجموع']) {
+        expect(`${subject}\n${text}`).not.toContain(promise)
+      }
+      expect(text).toContain(LINK)
+    },
+  )
+
+  it('is never called a tax invoice and states no tax (D34), paid or under review', () => {
+    for (const status of ['paid', 'paid_needs_resolution']) {
+      const { subject, text } = renderReceipt(orderData({ status }), SITE, TOKEN)
+      expect(`${subject}\n${text}`).not.toMatch(/ضريب|فاتورة|VAT|tax/iu)
+    }
+  })
+})
+
+describe('the other order mail', () => {
+  it('order_link: the order number and the personal link', () => {
+    const { subject, text } = renderOrderLink(orderData(), SITE, TOKEN)
+    expect(subject).toBe(`رابط طلبك رقم ${isolated('ABCD2345')}`)
+    expect(text).toContain(LINK)
+  })
+
+  it('order_ready: the listed files only', () => {
+    const { subject, text } = renderOrderReady(orderData(), [DIGITAL], SITE, TOKEN)
+    expect(subject).toBe(`ملفات طلبك رقم ${isolated('ABCD2345')} جاهزة`)
+    expect(text).toContain(`- ${isolated('كتاب الورد')} (${isolated('نسخة رقمية')})`)
+    expect(text).not.toContain('نسخة موقّعة')
+    expect(text).toContain(LINK)
+  })
+
+  it('order_shipped: the carrier, the tracking value and only the shipped items', () => {
+    const { subject, text } = renderOrderShipped(
+      orderData(),
+      { carrier: 'سمسا', tracking: 'TRK 998', itemIds: ['item-signed'] },
+      SITE,
+      TOKEN,
+    )
+    expect(subject).toBe(`شحنة جديدة من طلبك رقم ${isolated('ABCD2345')}`)
+    expect(text).toContain(`شركة الشحن: ${isolated('سمسا')}`)
+    expect(text).toContain(`رقم التتبع: ${isolated('TRK 998')}`)
+    expect(text).toContain(`- ${isolated('كتاب الورد')} (${isolated('نسخة موقّعة')}) × 1`)
+    expect(text).not.toContain('نسخة رقمية')
+    expect(text).toContain(LINK)
+  })
+
+  it('order_refunded: the refund and the refunded total, in halalas with two decimals, never the word chargeback', () => {
+    const { subject, text } = renderOrderRefunded(orderData({ refundedHalalas: 123456 }), { amount: 5 }, SITE, TOKEN)
+    expect(subject).toBe(`استرداد من طلبك رقم ${isolated('ABCD2345')}`)
+    expect(text).toContain(`تم استرداد 0.05 ${SAR} من طلبك`)
+    expect(text).toContain(`إجمالي ما استُرد من هذا الطلب حتى الآن: 1234.56 ${SAR}.`)
+    expect(`${subject}\n${text}`).not.toMatch(/chargeback/iu)
+    expect(text).toContain(LINK)
+  })
+
+  it('every buyer mail about a test order is labelled', () => {
+    const test = orderData({ environment: 'test' })
+    const mails = [
+      renderOrderLink(test, SITE, TOKEN),
+      renderOrderReady(test, [DIGITAL], SITE, TOKEN),
+      renderOrderShipped(test, { carrier: 'c', tracking: 't', itemIds: ['item-signed'] }, SITE, TOKEN),
+      renderOrderRefunded(test, { amount: 100 }, SITE, TOKEN),
+    ]
+    for (const mail of mails) {
+      expect(mail.subject.startsWith('(تجريبي) ')).toBe(true)
+      expect(mail.text.startsWith('وضع تجريبي: لا يُخصم أي مبلغ حقيقي.')).toBe(true)
+    }
+  })
+})
+
+describe('the notification mail', () => {
+  const data: NotifyEmailData = {
+    status: 'pending',
+    tokenVersion: 1,
+    email: 'guest@example.com',
+    productTitle: 'كتاب الورد',
+    variantTitle: 'نسخة موقّعة',
+    slug: 'rose-book',
+  }
+
+  it('notify_confirm: the confirm link built from the token, valid for 7 days, and no unsubscribe link', () => {
+    const { subject, text } = renderNotifyConfirm(data, SITE, TOKEN)
+    expect(subject).toBe('أكّد طلب التنبيه')
+    expect(text).toContain(`${SITE}/notify/confirm#${TOKEN}`)
+    expect(text).toContain('صالح لمدة 7 أيام')
+    expect(text).not.toContain('/notify/unsubscribe')
+    expect(text).toContain(isolated('كتاب الورد'))
+  })
+
+  it('availability: the product link and the unsubscribe link', () => {
+    const { subject, text } = renderAvailability(data, SITE, TOKEN)
+    expect(subject).toBe(`توفّر ${isolated('كتاب الورد')}`)
+    expect(text).toContain(`${SITE}/store/rose-book`)
+    expect(text).toContain(`${SITE}/notify/unsubscribe#${TOKEN}`)
+    expect(text).not.toContain('/notify/confirm')
+  })
+
+  it('a slug is encoded into the product link', () => {
+    expect(renderAvailability({ ...data, slug: 'a b/c?d' }, SITE, TOKEN).text).toContain(`${SITE}/store/a%20b%2Fc%3Fd`)
+  })
+
+  it('the subscriber address is not repeated in either mail', () => {
+    expect(renderNotifyConfirm(data, SITE, TOKEN).text).not.toContain('guest@example.com')
+    expect(renderAvailability(data, SITE, TOKEN).text).not.toContain('guest@example.com')
+  })
+})
+
+describe('renderOwnerAlert', () => {
+  const ADMIN = `${SITE}/admin/orders`
+  const alerts: Array<[AlertEmailData, string[]]> = [
+    [
+      { alert: 'low_stock', orderNumber: 'ABCD2345', sku: 'SKU-9', stock: 2, threshold: 3 },
+      [isolated('SKU-9'), isolated('2'), isolated('3'), isolated('ABCD2345')],
+    ],
+    [{ alert: 'needs_resolution', orderNumber: 'ABCD2345', amount: 8800 }, [isolated('ABCD2345'), `88.00 ${SAR}`]],
+    [
+      { alert: 'payment_review', orderNumber: 'ABCD2345', amount: 150, reason: 'AMOUNT_MISMATCH', paymentId: 'pay-1' },
+      [isolated('ABCD2345'), `1.50 ${SAR}`, isolated('AMOUNT_MISMATCH'), isolated('pay-1')],
+    ],
+    [{ alert: 'external_refund', orderNumber: 'ABCD2345', total: 2500 }, [isolated('ABCD2345'), `25.00 ${SAR}`]],
+    [{ alert: 'provider_status', orderNumber: 'ABCD2345', status: 'voided' }, [isolated('ABCD2345'), isolated('voided')]],
+    [{ alert: 'event_exhausted', eventType: 'payment_paid', paymentId: 'pay-2' }, [isolated('payment_paid'), isolated('pay-2')]],
+    [{ alert: 'attempt_unverified', orderNumber: 'ABCD2345', amount: 8800 }, [isolated('ABCD2345'), `88.00 ${SAR}`]],
+    [{ alert: 'attempt_duplicate_invoices', orderNumber: 'ABCD2345', amount: 8800 }, [isolated('ABCD2345'), `88.00 ${SAR}`]],
+    [{ alert: 'refund_mismatch', orderNumber: 'ABCD2345', amount: 1000 }, [isolated('ABCD2345'), `10.00 ${SAR}`]],
+    [{ alert: 'refund_unverified', orderNumber: 'ABCD2345', amount: 1000 }, [isolated('ABCD2345'), `10.00 ${SAR}`]],
+    [{ alert: 'refund_total_decreased', orderNumber: 'ABCD2345', amount: 1000 }, [isolated('ABCD2345'), `10.00 ${SAR}`]],
+  ]
+
+  it.each(alerts)('%j: its facts, and the admin link', (alert, facts) => {
+    const { subject, text } = renderOwnerAlert(alert, SITE)
+    expect(subject.startsWith('تنبيه: ')).toBe(true)
+    for (const fact of facts) expect(text).toContain(fact)
+    expect(text).toContain(ADMIN)
+  })
+
+  it('a different text for each alert type', () => {
+    const subjects = alerts.map(([alert]) => renderOwnerAlert(alert, SITE).subject)
+    expect(new Set(subjects).size).toBe(alerts.length)
+  })
+
+  it('an alert it does not know, or one with no code, gets a generic line with its code', () => {
+    const unknown = renderOwnerAlert({ alert: 'something_new' }, SITE)
+    expect(unknown.subject).toBe('تنبيه جديد في المتجر')
+    expect(unknown.text).toContain(isolated('something_new'))
+    expect(unknown.text).toContain(ADMIN)
+    expect(renderOwnerAlert({ alert: null }, SITE).subject).toBe('تنبيه جديد في المتجر')
+  })
+
+  it('a missing fact reads as unknown, never as a number or the word null', () => {
+    const { text } = renderOwnerAlert({ alert: 'needs_resolution', orderNumber: null, amount: null }, SITE)
+    expect(text).toContain('غير معروف')
+    expect(text).not.toMatch(/null|undefined|NaN/u)
+  })
+
+  it('carries no buyer contact detail, even when the data does', () => {
+    const leaky = { alert: 'needs_resolution', orderNumber: 'ABCD2345', amount: 100, customerEmail: 'mona@example.com', phone: '966501234567', address: 'تبوك' }
+    const { subject, text } = renderOwnerAlert(leaky, SITE)
+    for (const detail of ['mona@example.com', '966501234567', 'تبوك']) expect(`${subject}\n${text}`).not.toContain(detail)
+  })
+})
+
+describe('values a buyer, the catalog or the provider supplied', () => {
+  // A line break, a Unicode separator, a NEL, a right-to-left override, our own
+  // isolate closer, an isolate opener and a right-to-left mark.
+  const HOSTILE = [
+    'Ali\nالإجمالي المدفوع: 0.00 ',
+    SAR,
+    '\r',
+    String.fromCharCode(0x2028, 0x2029, 0x85, 0x202e, 0x2069, 0x2066, 0x200f),
+    'x',
+  ].join('')
+
+  const hostileOrder = (): OrderEmailData =>
+    orderData({
+      orderNumber: `AB${HOSTILE}`,
+      customerName: HOSTILE,
+      lines: [{ ...SIGNED, title: HOSTILE, variantTitle: HOSTILE, preorder: { shipsOn: HOSTILE, note: HOSTILE } }, { ...DIGITAL, title: HOSTILE }],
+      seller: { legalName: HOSTILE, registration: HOSTILE },
+    })
+  const hostileNotify: NotifyEmailData = { status: 'confirmed', tokenVersion: 1, email: 'g@example.com', productTitle: HOSTILE, variantTitle: HOSTILE, slug: 'x' }
+  const hostileAlert: AlertEmailData = {
+    alert: HOSTILE,
+    orderNumber: HOSTILE,
+    amount: 100,
+    total: 100,
+    reason: HOSTILE,
+    sku: HOSTILE,
+    stock: 1,
+    threshold: 2,
+    status: HOSTILE,
+    eventType: HOSTILE,
+    paymentId: HOSTILE,
+  }
+  const ALERT_TYPES = [
+    'low_stock',
+    'needs_resolution',
+    'payment_review',
+    'external_refund',
+    'provider_status',
+    'event_exhausted',
+    'attempt_unverified',
+    'attempt_duplicate_invoices',
+    'refund_mismatch',
+    'refund_unverified',
+    'refund_total_decreased',
+    HOSTILE,
+  ]
+
+  function mails() {
+    const order = hostileOrder()
+    return [
+      renderReceipt(order, SITE, TOKEN),
+      renderReceipt({ ...order, status: 'paid_needs_resolution' }, SITE, TOKEN),
+      renderOrderLink(order, SITE, TOKEN),
+      renderOrderReady(order, order.lines, SITE, TOKEN),
+      renderOrderShipped(order, { carrier: HOSTILE, tracking: HOSTILE, itemIds: order.lines.map((line) => line.itemId) }, SITE, TOKEN),
+      renderOrderRefunded(order, { amount: 100 }, SITE, TOKEN),
+      renderNotifyConfirm(hostileNotify, SITE, TOKEN),
+      renderAvailability(hostileNotify, SITE, TOKEN),
+      ...ALERT_TYPES.map((alert) => renderOwnerAlert({ ...hostileAlert, alert }, SITE)),
+    ]
+  }
+
+  it('no line break reaches a subject, and a separator reaches no text', () => {
+    for (const { subject, text } of mails()) {
+      expect(subject).not.toMatch(/[\r\n\x85\p{Zl}\p{Zp}]/u)
+      expect(text).not.toMatch(/[\r\x85\p{Zl}\p{Zp}]/u)
+    }
+  })
+
+  it('no bidi control of a value survives: only our own isolates are left, balanced', () => {
+    for (const { subject, text } of mails()) {
+      for (const part of [subject, text]) {
+        expect(part.replaceAll(FSI, '').replaceAll(PDI, '')).not.toMatch(BIDI)
+        expect(part.split(FSI).length).toBe(part.split(PDI).length)
+      }
+    }
+  })
+
+  it('a value cannot forge a line of the receipt', () => {
+    const lines = renderReceipt(hostileOrder(), SITE, TOKEN).text.split('\n')
+    // Only the genuine totals line, from the real totals, is a line of its own.
+    expect(lines.filter((line) => line.startsWith('الإجمالي المدفوع:'))).toEqual([`الإجمالي المدفوع: 88.00 ${SAR}`])
+    expect(lines.filter((line) => line.startsWith('البائع:'))).toHaveLength(1)
+    expect(lines.filter((line) => line.startsWith('رقم التسجيل:'))).toHaveLength(1)
+    // The hostile order number is percent-encoded in the link, so it cannot break the line either.
+    expect(lines.filter((line) => line.startsWith(`${SITE}/orders#`))).toHaveLength(1)
+  })
+
+  it('every value sits inside one isolate pair', () => {
+    const { text } = renderOrderShipped(
+      orderData({ lines: [{ ...SIGNED, title: 'Ali' }] }),
+      { carrier: 'DHL', tracking: 'T-1', itemIds: ['item-signed'] },
+      SITE,
+      TOKEN,
+    )
+    expect(text).toContain(`شركة الشحن: ${isolated('DHL')}`)
+    expect(text).toContain(`- ${isolated('Ali')} (`)
   })
 })

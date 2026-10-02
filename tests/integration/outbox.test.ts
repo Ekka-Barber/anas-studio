@@ -83,10 +83,11 @@ interface Claimed {
 }
 
 const CLAIM_SQL =
-  'select id, lease_id, kind, recipient, idempotency_key, attempts from public.outbox_claim($1, $2, $3, $4, $5)'
+  'select id, lease_id, kind, recipient, idempotency_key, attempts from public.outbox_claim($1, $2, $3, $4, $5, $6)'
 
 async function claim(limit = 10, client: Client = app): Promise<Claimed[]> {
-  const result = await client.query<Claimed>(CLAIM_SQL, [limit, 120, 100, 20, 3000])
+  // The dispatcher's own numbers: quota 100, reserve 20, month 3000, low reserve 30 (P08 round 5).
+  const result = await client.query<Claimed>(CLAIM_SQL, [limit, 120, 100, 20, 3000, 30])
   return result.rows
 }
 
