@@ -6,12 +6,14 @@
 import { createHash, randomUUID } from 'node:crypto'
 
 import sharp from 'sharp'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { handleAdmin, type MediaStore, PRIVATE_BUCKET, PUBLIC_BUCKET } from '../../supabase/functions/_shared/admin.ts'
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { handleJobs } from '../../supabase/functions/_shared/jobs.ts'
 import { runOutbox } from '../../supabase/functions/_shared/outbox.ts'
+import type { PaymentDeps } from '../../supabase/functions/_shared/payments.ts'
+import type { MoyasarClient, PaymentsConfigOk } from '../../supabase/functions/_shared/payments/moyasar.ts'
 import type { StaffIdentity } from '../../supabase/functions/_shared/staff.ts'
 
 afterEach(() => {
@@ -639,5 +641,166 @@ describe('outbox function (jobs bearer gate)', () => {
     expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed' }] })
     expect(rpc).not.toHaveBeenCalledWith('media_tickets_purge', expect.anything())
     expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_job: 'media_sweep', p_status: 'failed' }))
+  })
+})
+
+// P08 round 9: the `commerce` part of `stats`. The ledger's SQL is proven in tests/integration/stats.test.ts and the
+// real function in tests/integration/disputes-http.test.ts; here is every branch of the handler around it.
+describe('admin function: stats, the commerce figures (P08 round 9)', () => {
+  const FIGURES = {
+    environment: 'test',
+    paidOrders: 3,
+    grossPaid: 21_500,
+    refundsConfirmed: 4_000,
+    netCollected: 17_500,
+    customers: 2,
+    review: { open: 1, captured: 3_000, refunded: 0 },
+    disputes: { count: 1, againstSeller: 4_500, forSeller: 0 },
+  }
+  const NOW = new Date('2026-10-03T12:00:00.000Z')
+  const DAY = 86_400_000
+  const config: PaymentsConfigOk = {
+    ok: true,
+    baseUrl: 'http://127.0.0.1:54390/v1',
+    secretKey: 'sk_test_local_emulator_key_not_for_production',
+    webhookSecret: 'local-moyasar-webhook-secret-not-for-production',
+    mode: 'test',
+    callbackBase: 'http://127.0.0.1:54321/functions/v1',
+    storageBase: 'http://127.0.0.1:54321/storage/v1',
+  }
+  const calls: Array<[string, Record<string, unknown>]> = []
+  let figures: unknown = FIGURES
+  const rpc: Rpc = async (fn, args) => {
+    calls.push([fn, args])
+    if (figures instanceof Error) throw figures
+    return figures
+  }
+  const payments = (over: Partial<PaymentsConfigOk> = {}): PaymentDeps => ({ rpc, client: {} as MoyasarClient, config: { ...config, ...over } })
+  const stats = async (
+    body: Record<string, unknown> = {},
+    opts: { payments?: PaymentDeps | null } = {},
+  ): Promise<{ status: number; body: any }> => {
+    const response = await handleAdmin(post({ action: 'stats', ...body }), {
+      rpc,
+      staff: staffAs('owner'),
+      store: memoryStore(),
+      ...(opts.payments === null ? {} : { payments: opts.payments ?? payments() }),
+    })
+    return { status: response.status, body: await response.json() }
+  }
+  const unconfigure = (): void => {
+    for (const name of ['MOYASAR_API_BASE_URL', 'MOYASAR_SECRET_KEY', 'MOYASAR_WEBHOOK_SECRET', 'PAYMENTS_MODE', 'FUNCTIONS_PUBLIC_URL']) vi.stubEnv(name, '')
+  }
+
+  beforeEach(() => {
+    calls.length = 0
+    figures = FIGURES
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("answers the ledger's figures as the SQL gave them, for the site's own mode, instead of the old not_configured placeholder", async () => {
+    const answered = await stats()
+    expect(answered.status).toBe(200)
+    expect(answered.body.data.commerce).toEqual(FIGURES)
+    expect(answered.body.data.commerce.status).toBeUndefined()
+    expect(answered.body.data).toMatchObject({ generatedAt: expect.any(String), analytics: { status: 'unavailable' } })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]![0]).toBe('owner_commerce_stats')
+    expect(calls[0]![1].p_environment).toBe('test')
+    // The live site asks for its own figures.
+    await stats({}, { payments: payments({ mode: 'live' }) })
+    expect(calls[1]![1].p_environment).toBe('live')
+  })
+
+  it('reads the ledger on every call, and only the analytics part stays cached', async () => {
+    const first = await stats()
+    figures = { ...FIGURES, paidOrders: 4, grossPaid: 30_000 }
+    const second = await stats()
+    expect(calls).toHaveLength(2)
+    expect(first.body.data.commerce.paidOrders).toBe(3)
+    expect(second.body.data.commerce).toEqual(figures)
+    // The analytics answer (and its generation time) is the one the first call cached.
+    expect(second.body.data.generatedAt).toBe(first.body.data.generatedAt)
+    expect(second.body.data.analytics).toEqual(first.body.data.analytics)
+  })
+
+  it('defaults to the last 30 days, ending now', async () => {
+    await stats()
+    expect(calls[0]![1]).toEqual({
+      p_from: new Date(NOW.getTime() - 30 * DAY).toISOString(),
+      p_to: NOW.toISOString(),
+      p_environment: 'test',
+    })
+  })
+
+  it('takes the range it is given as ISO instants (an offset is converted), and fills in what is missing', async () => {
+    await stats({ from: '2026-09-01T00:00:00+03:00', to: '2026-09-30T23:59:59.999Z' })
+    expect(calls[0]![1]).toMatchObject({ p_from: '2026-08-31T21:00:00.000Z', p_to: '2026-09-30T23:59:59.999Z' })
+    // Only `from`: it ends now. Only `to`: it begins 30 days before.
+    await stats({ from: '2026-09-20T00:00:00Z' })
+    expect(calls[1]![1]).toMatchObject({ p_from: '2026-09-20T00:00:00.000Z', p_to: NOW.toISOString() })
+    await stats({ to: '2026-06-30T00:00:00Z' })
+    expect(calls[2]![1]).toMatchObject({ p_from: '2026-05-31T00:00:00.000Z', p_to: '2026-06-30T00:00:00.000Z' })
+  })
+
+  it('accepts a range of exactly 366 days and refuses one millisecond more', async () => {
+    const to = '2026-10-03T00:00:00.000Z'
+    const exactly = new Date(Date.parse(to) - 366 * DAY).toISOString()
+    expect((await stats({ from: exactly, to })).status).toBe(200)
+    const over = await stats({ from: new Date(Date.parse(exactly) - 1).toISOString(), to })
+    expect(over.status).toBe(422)
+    expect(over.body).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(calls).toHaveLength(1)
+  })
+
+  it.each([
+    ['from after to', { from: '2026-10-02T00:00:00Z', to: '2026-10-01T00:00:00Z' }],
+    ['from equal to to', { from: '2026-10-01T00:00:00Z', to: '2026-10-01T00:00:00Z' }],
+    ['a from in the future, so after the default to', { from: '2026-10-04T00:00:00Z' }],
+    ['a from more than 366 days back with the default to', { from: '2025-09-01T00:00:00Z' }],
+    ['a to more than 366 days after its from', { from: '2024-01-01T00:00:00Z', to: '2025-06-01T00:00:00Z' }],
+    ['a date with no time', { from: '2026-09-01', to: '2026-10-01' }],
+    ['an instant with no offset', { from: '2026-09-01T00:00:00', to: '2026-10-01T00:00:00' }],
+    ['text that is not a date', { from: 'last month' }],
+    ['a month that does not exist', { from: '2026-13-01T00:00:00Z' }],
+    ['a number', { from: 1_759_000_000_000 }],
+    ['null', { from: null }],
+    ['an unknown field', { limit: 10 }],
+  ])('refuses %s with 422 INVALID and reads nothing', async (_label, body) => {
+    const refused = await stats(body)
+    expect(refused.status).toBe(422)
+    expect(refused.body).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('while payments are not configured commerce is null and the rest still answers, with the ledger untouched', async () => {
+    unconfigure()
+    const answered = await stats({}, { payments: null })
+    expect(answered.status).toBe(200)
+    expect(answered.body.data.commerce).toBeNull()
+    expect(answered.body.data).toMatchObject({ generatedAt: expect.any(String), analytics: { status: 'unavailable' } })
+    expect(calls).toHaveLength(0)
+    // A range that is bad is still refused first.
+    expect((await stats({ from: '2020-01-01T00:00:00Z' }, { payments: null })).status).toBe(422)
+  })
+
+  it('a failure reading the ledger is a detail-free 500, never a null or a zero', async () => {
+    figures = Object.assign(new Error('sql: connection to server at 10.0.0.5 lost'), { code: 'XX000' })
+    const failed = await stats()
+    expect(failed.status).toBe(500)
+    expect(failed.body).toMatchObject({ ok: false, error: { code: 'FAILED' } })
+    expect(JSON.stringify(failed.body)).not.toMatch(/10\.0\.0\.5|sql:/)
+  })
+
+  it("stays the owner's alone, and refuses before the ledger is read", async () => {
+    for (const role of ['editor', 'operations'] as const) {
+      const response = await handleAdmin(post({ action: 'stats' }), { rpc, staff: staffAs(role), store: memoryStore(), payments: payments() })
+      expect(response.status, role).toBe(403)
+    }
+    expect(calls).toHaveLength(0)
   })
 })

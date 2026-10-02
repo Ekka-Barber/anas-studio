@@ -41,6 +41,7 @@ describe('expectedCronJobs', () => {
         'availability-sweep',
         'notifications-purge',
         'notify-confirm-backlog',
+        'payment-events-purge',
       ]),
     )
   })
@@ -80,7 +81,7 @@ select cron.schedule('one', '2 * * * *', 'select 1');
 describe('cronScheduleStatements', () => {
   it('keeps a real migration statement whole: the multi-line call with its $$ body and the closing parenthesis', () => {
     const statements = cronScheduleStatements(MIGRATIONS)
-    expect([...statements.keys()]).toHaveLength(14)
+    expect([...statements.keys()]).toHaveLength(15)
     expect(statements.get('payments-reconcile')).toBe("select cron.schedule('payments-reconcile', '* * * * *', 'select public.payments_kick()');")
     expect(statements.get('content-publish-due')).toBe("select cron.schedule('content-publish-due', '* * * * *', 'select public.publish_due()');")
     expect(statements.get('cron-run-details-purge')).toBe(

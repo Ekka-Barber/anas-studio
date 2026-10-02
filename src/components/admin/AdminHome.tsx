@@ -163,7 +163,7 @@ export function AdminHome() {
     { state: 'loading' } | { state: 'error' } | { state: 'unavailable' } | { state: 'ok'; value: number }
   >({ state: 'loading' })
   // L8: the owner home states «المتجر غير مُهيأ» like the stats screen, from
-  // the same `stats` answer's commerce status.
+  // the same `stats` answer: `commerce` is null while payments are not configured.
   const [store, setStore] = useState<{ state: 'loading' } | { state: 'not-configured' } | { state: 'ok' }>({
     state: 'loading',
   })
@@ -225,7 +225,7 @@ export function AdminHome() {
     async function loadVisits() {
       const result = await callFunction<{
         analytics?: { status: string; visits?: number }
-        commerce?: { status?: string }
+        commerce?: unknown
       }>('admin', { action: 'stats' })
       if (!active) return
       if (!result.ok) {
@@ -235,7 +235,7 @@ export function AdminHome() {
       }
       const analytics = result.data.analytics
       setVisits(analytics?.status === 'ok' ? { state: 'ok', value: analytics.visits ?? 0 } : { state: 'unavailable' })
-      setStore(result.data.commerce?.status === 'not_configured' ? { state: 'not-configured' } : { state: 'ok' })
+      setStore(result.data.commerce === null || result.data.commerce === undefined ? { state: 'not-configured' } : { state: 'ok' })
     }
 
     void (async () => {

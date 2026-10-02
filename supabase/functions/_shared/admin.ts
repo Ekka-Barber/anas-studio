@@ -16,7 +16,11 @@
  *   decode or a metadata-sterilization guarantee.
  * - `media-delete` (owner/editor): `media_delete` (where-used guard in SQL),
  *   then the objects.
- * - `stats` (owner): the owner statistics; per-isolate cache (5 minutes, 30 seconds for a failed answer).
+ * - `stats` (owner): the owner statistics. `commerce` is the ledger's figures for the
+ *   site's own mode over `{from?, to?}` (the last 30 days by default, at most 366 days)
+ *   from `owner_commerce_stats`, read on every call and null while payments are not
+ *   configured; the analytics part is cached per isolate (5 minutes, 30 seconds for a
+ *   failed answer).
  * - `status` (owner): configuration booleans, never a secret's value.
  * - `payment-recheck` (owner, no TOTP; P08): the owner's «أعد الفحص» on one
  *   payment attempt. An uncertain creation is adopted or abandoned, any other
@@ -29,6 +33,10 @@
  *   refund. `refund-recheck` (owner) settles one refund from a fresh fetch;
  *   `refund-record-external` (owner, fresh TOTP) records a refund or a void made at the
  *   provider. All three live in `refunds.ts`.
+ * - `dispute-record` (owner, fresh TOTP; P08 round 9): one row of a chargeback, payout
+ *   difference or fee difference the owner read in Moyasar's emails or settlement files,
+ *   through `dispute_record` with the configured mode. Append-only: a repeat answers the
+ *   stored row. It lives in `disputes.ts`.
  * - `commerce-settings-save` (owner, fresh TOTP): the store's seller details
  *   through `commerce_settings_save`; a stale version answers 409 so the
  *   owner can reload (D34: no tax field anywhere).
@@ -55,8 +63,11 @@
  */
 import { createHash } from 'node:crypto'
 
+import { z } from 'zod'
+
 import { commerceCheckoutSetSchema, commercePoliciesApproveSchema, commerceSettingsSaveSchema } from './commerce-settings.ts'
 import { type Rpc, serviceClient, serviceRpc } from './db.ts'
+import { disputeRecord } from './disputes.ts'
 import { emailProvider } from './email.ts'
 import { LOCAL_HOSTS, optionalEnv } from './env.ts'
 import { corsHeaders, fail as failWith, NO_STORE } from './http.ts'
@@ -87,6 +98,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const CORS = corsHeaders('*')
 const STATS_TTL_MS = 5 * 60 * 1000
 const STATS_RETRY_TTL_MS = 30 * 1000
+const DAY_MS = 86_400_000
 
 /** The storage operations this handler needs; the default is Supabase Storage. */
 export interface MediaStore {
@@ -201,7 +213,7 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
       return mediaDelete(deps, staff.userId, body.id)
     case 'stats':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذه الصفحة للمالك فقط.')
-      return stats()
+      return stats(deps, body)
     case 'status':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذه الصفحة للمالك فقط.')
       return ok(settingsStatus())
@@ -219,6 +231,10 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
       return refundRecordExternal(deps, staff.userId, body)
+    case 'dispute-record':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return disputeRecord(deps, staff.userId, body)
     case 'commerce-settings-save':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
@@ -515,15 +531,44 @@ let cachedStats: { at: number; ttl: number; value: OwnerStats } | null = null
 // shared store; authorization always runs first, so a cached entry can never
 // reach a caller that could not have fetched it.
 
-async function stats(): Promise<Response> {
-  if (cachedStats && Date.now() - cachedStats.at < cachedStats.ttl) return ok(cachedStats.value)
+const statsSchema = z.strictObject({
+  action: z.literal('stats'),
+  from: z.iso.datetime({ offset: true }).optional(),
+  to: z.iso.datetime({ offset: true }).optional(),
+})
+
+/** The range of `stats` as ISO instants: the request's, else the last 30 days; null when it is malformed or over 366 days. */
+function statsRange(body: Record<string, unknown>): { from: string; to: string } | null {
+  const parsed = statsSchema.safeParse(body)
+  if (!parsed.success) return null
+  const to = parsed.data.to === undefined ? Date.now() : Date.parse(parsed.data.to)
+  const from = parsed.data.from === undefined ? to - 30 * DAY_MS : Date.parse(parsed.data.from)
+  if (!(from < to) || to - from > 366 * DAY_MS) return null
+  return { from: new Date(from).toISOString(), to: new Date(to).toISOString() }
+}
+
+async function stats(deps: AdminDeps, body: Record<string, unknown>): Promise<Response> {
+  const range = statsRange(body)
+  if (!range) return fail(422, 'INVALID', 'نطاق التاريخ غير صالح؛ الحد الأقصى 366 يومًا.')
+  // The ledger's figures are read on every call (only the analytics answer is cached), for the site's own mode: null
+  // while payments are not configured, and the rest still answers.
+  let commerce: unknown = null
+  const config = deps.payments?.config ?? paymentsConfig()
+  if (config.ok) {
+    try {
+      commerce = await deps.rpc('owner_commerce_stats', { p_from: range.from, p_to: range.to, p_environment: config.mode })
+    } catch (error) {
+      return sqlFail(error)
+    }
+  }
+  if (cachedStats && Date.now() - cachedStats.at < cachedStats.ttl) return ok({ ...cachedStats.value, commerce })
   const value = await ownerStats()
   // A good answer is kept five minutes. Any other (a failure, or «not
   // configured» just before the owner sets the token) only 30 seconds: long
   // enough to spare a failing analytics API a call per page, short enough
   // that a fix shows at once.
   cachedStats = { at: Date.now(), ttl: value.analytics.status === 'ok' ? STATS_TTL_MS : STATS_RETRY_TTL_MS, value }
-  return ok(value)
+  return ok({ ...value, commerce })
 }
 
 export interface SettingsStatus {

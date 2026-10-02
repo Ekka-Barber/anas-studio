@@ -16,7 +16,8 @@ import styles from './admin.module.css'
 
 interface StatsPayload {
   generatedAt: string
-  commerce: { status: string }
+  /** The ledger's figures (round 11 shows them), or null while payments are not configured. */
+  commerce: unknown
   analytics:
     | {
         status: 'ok'
@@ -87,10 +88,12 @@ export function StatsView() {
     <div>
       <h1>الإحصاءات</h1>
 
-      <section>
-        <h2>المتجر</h2>
-        <p className={styles.message}>غير مُعدّ بعد. تظهر أرقامه عند افتتاح المتجر.</p>
-      </section>
+      {stats.commerce === null && (
+        <section>
+          <h2>المتجر</h2>
+          <p className={styles.message}>غير مُعدّ بعد. تظهر أرقامه عند افتتاح المتجر.</p>
+        </section>
+      )}
 
       <section>
         <h2>الزيارات</h2>
