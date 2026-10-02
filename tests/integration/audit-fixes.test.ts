@@ -105,7 +105,7 @@ describe('S01.4: no password sign-in', () => {
 })
 
 describe('S01.5: functions are deny-by-default', () => {
-  it('no public or finance function is executable by PUBLIC, and anon runs only the two public media reads', async () => {
+  it('no public or finance function is executable by PUBLIC, and anon runs only the catalog\'s availability and the two public media reads', async () => {
     const rows = (
       await postgres.query<{ fn: string; pub: boolean; anon: boolean }>(
         `select n.nspname || '.' || p.proname as fn,
@@ -121,6 +121,7 @@ describe('S01.5: functions are deny-by-default', () => {
     expect(rows.length).toBeGreaterThan(30)
     expect(rows.filter((row) => row.pub)).toEqual([])
     expect(rows.filter((row) => row.anon).map((row) => row.fn).sort()).toEqual([
+      'public.catalog_availability',
       'public.media_is_published',
       'public.media_published_ids',
     ])

@@ -24,7 +24,7 @@ afterAll(() => {
 })
 
 describe('expectedCronJobs', () => {
-  it('finds the ten schedules of the real migrations, the multi-line ones and the AUDIT-2 purge included', () => {
+  it('finds the schedules of the real migrations, the multi-line ones, the AUDIT-2 purge and the P08 jobs included', () => {
     expect(expectedCronJobs(MIGRATIONS)).toEqual(
       expect.arrayContaining([
         'content-publish-due',
@@ -37,6 +37,10 @@ describe('expectedCronJobs', () => {
         'checkout-expire',
         'buyer-retention',
         'cron-run-details-purge',
+        'payments-reconcile',
+        'availability-sweep',
+        'notifications-purge',
+        'notify-confirm-backlog',
       ]),
     )
   })
@@ -76,7 +80,7 @@ select cron.schedule('one', '2 * * * *', 'select 1');
 describe('cronScheduleStatements', () => {
   it('keeps a real migration statement whole: the multi-line call with its $$ body and the closing parenthesis', () => {
     const statements = cronScheduleStatements(MIGRATIONS)
-    expect([...statements.keys()]).toHaveLength(11)
+    expect([...statements.keys()]).toHaveLength(14)
     expect(statements.get('payments-reconcile')).toBe("select cron.schedule('payments-reconcile', '* * * * *', 'select public.payments_kick()');")
     expect(statements.get('content-publish-due')).toBe("select cron.schedule('content-publish-due', '* * * * *', 'select public.publish_due()');")
     expect(statements.get('cron-run-details-purge')).toBe(

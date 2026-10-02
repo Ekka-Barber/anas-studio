@@ -265,8 +265,8 @@ export async function commerceHarness(pepper: string, poolSize = 6) {
        seller_registration = 'REG-P08', policy_revisions = $1::jsonb where id = 1`,
     [JSON.stringify(REVISIONS)],
   )
-  // The global buckets of this machine: the daily order total and the day's `order_link` mails.
-  await postgres.query("delete from finance.rate_limits where bucket in ('checkout:all', 'order-link:day')")
+  // The global buckets of this machine: the daily order total, the day's `order_link` mails and its sign-up confirmations.
+  await postgres.query("delete from finance.rate_limits where bucket in ('checkout:all', 'order-link:day', 'notify-confirm:all')")
 
   async function makeStaff(role: Role, overrides: { active?: boolean } = {}): Promise<{ userId: string; email: string }> {
     const member = await createStaff(role, overrides)
@@ -432,6 +432,16 @@ export async function commerceHarness(pepper: string, poolSize = 6) {
       [created.orders],
     )
     await postgres.query("delete from finance.email_outbox where payload ->> 'orderId' = any($1::text[])", [created.orders])
+    // The subscriptions to this run's variants, the mail they queued and their availability rows (round 8): the sweep
+    // runs every minute, so nothing of a run may stay confirmed.
+    await postgres.query(
+      `delete from finance.email_outbox
+        where payload ->> 'notificationId' in (
+          select n.id::text from public.notifications n join public.product_variants v on v.id = n.variant_id where v.product_id = any($1::uuid[]))`,
+      [created.products],
+    )
+    await postgres.query('delete from public.notifications where variant_id in (select id from public.product_variants where product_id = any($1::uuid[]))', [created.products])
+    await postgres.query('delete from finance.variant_availability where variant_id in (select id from public.product_variants where product_id = any($1::uuid[]))', [created.products])
     // Only while another owner remains: a database that has none keeps this run's.
     await postgres.query(
       `update public.staff set active = false
