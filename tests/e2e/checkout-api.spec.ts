@@ -3,6 +3,10 @@
 // the contact tests run it. The spec brings its own product, variant, city
 // rate and commerce settings, and removes or restores every one of them in
 // afterAll; checkout is switched on only between the off-test and afterAll.
+// P08: `create` also makes the invoice, on the Moyasar emulator that Playwright's
+// webServer runs beside the dev server (`pnpm emulator`), and `cancel` cancels it
+// there. The full journeys against the emulator are in
+// tests/integration/checkout-http.test.ts.
 import { randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
@@ -75,6 +79,7 @@ test.afterAll(async () => {
   )
   // The spec's own order (cancelled, but its rows still reference the fixtures).
   if (orderId) {
+    await db.query('delete from finance.payment_attempts where order_id = $1', [orderId])
     await db.query('delete from finance.order_items where order_id = $1', [orderId])
     await db.query('delete from finance.inventory_reservations where order_id = $1', [orderId])
     await db.query('delete from finance.orders where id = $1', [orderId])
@@ -97,12 +102,18 @@ async function post(request: import('@playwright/test').APIRequestContext, body:
 test('a quote for a fixture product prices the cart', async ({ request }) => {
   const response = await post(request, { action: 'quote', lines: [{ variantId, quantity: 2 }], cityKey })
   expect(response.status()).toBe(200)
-  const body = (await response.json()) as { ok: boolean; data: { ok: boolean; subtotal: number; shipping: number; total: number } }
+  const body = (await response.json()) as {
+    ok: boolean
+    data: { ok: boolean; subtotal: number; shipping: number; total: number; checkoutEnabled: boolean; testMode: boolean }
+  }
   expect(body.ok).toBe(true)
   expect(body.data.ok).toBe(true)
   expect(body.data.subtotal).toBe(10_000)
   expect(body.data.shipping).toBe(2500)
   expect(body.data.total).toBe(12_500)
+  // Checkout is off here, and the site is on the emulator (test mode).
+  expect(body.data.checkoutEnabled).toBe(false)
+  expect(body.data.testMode).toBe(true)
 })
 
 test('a create while checkout is off is 503 CHECKOUT_DISABLED', async ({ request }) => {
@@ -152,19 +163,32 @@ test('with checkout on: create, repeat and cancel', async ({ request }) => {
   }
 
   const created = await post(request, body)
-  const createdBody = (await created.json()) as { ok: boolean; data: { order: { id: string; orderNumber: string; status: string }; accessToken: string } }
+  const createdBody = (await created.json()) as {
+    ok: boolean
+    data: { order: { id: string; orderNumber: string; status: string }; accessToken: string; payment: { state: string; url?: string } }
+  }
   // Before any assertion: afterAll must find the order even when one fails.
   orderId = createdBody.data?.order?.id ?? null
   expect(created.status()).toBe(201)
   expect(createdBody.ok).toBe(true)
   expect(createdBody.data.order.status).toBe('pending_payment')
   expect(createdBody.data.accessToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  // The invoice is on the emulator that the config runs beside the dev server.
+  expect(createdBody.data.payment).toEqual({
+    state: 'ready',
+    url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:54390\/invoices\/[0-9a-f-]{36}$/),
+  })
 
   const repeated = await post(request, { ...body, turnstileToken: 'XXXX.DUMMY.TOKEN.XXXX' })
   expect(repeated.status()).toBe(200)
-  const repeatedBody = (await repeated.json()) as { ok: boolean; data: { order: { orderNumber: string }; accessToken: string } }
+  const repeatedBody = (await repeated.json()) as {
+    ok: boolean
+    data: { order: { orderNumber: string }; accessToken: string; payment: unknown }
+  }
   expect(repeatedBody.data.order.orderNumber).toBe(createdBody.data.order.orderNumber)
   expect(repeatedBody.data.accessToken).toBe(createdBody.data.accessToken)
+  // The same invoice, not a second one.
+  expect(repeatedBody.data.payment).toEqual(createdBody.data.payment)
 
   const cancelled = await post(request, {
     action: 'cancel',

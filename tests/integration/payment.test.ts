@@ -766,8 +766,9 @@ describe('payment_attempt_begin', () => {
     await postgres.query("update finance.orders set hold_expires_at = now() + interval '90 seconds' where id = $1", [late.id])
     expect(await begin(late)).toMatchObject({ ok: true, state: 'new' })
 
-    const tiny = await place([{ variantId: await digital(50), quantity: 1 }])
-    expect(tiny.total).toBe(50)
+    // Checkout itself refuses a total under the minimum (round 4), so the order is made smaller behind its back.
+    const tiny = await place([{ variantId: await digital(100), quantity: 1 }])
+    await postgres.query('update finance.orders set subtotal_halalas = 50, total_halalas = 50 where id = $1', [tiny.id])
     expect(await begin(tiny)).toEqual({ ok: false, code: 'TOTAL_BELOW_MINIMUM', order: expect.objectContaining({ orderNumber: tiny.number }) })
     expect(await count('select count(*)::int as n from finance.payment_attempts where order_id = $1', [tiny.id])).toBe(0)
   })
@@ -1578,7 +1579,11 @@ describe('a payment after the hold ended', () => {
     const variant = await physical(6900, 2)
     const placed = await place([{ variantId: variant, quantity: 1 }])
     const started = await start(placed)
-    expect(await call('checkout_cancel', { p_order_number: placed.number, p_access_token_hash: placed.hash })).toMatchObject({ ok: true, status: 'cancelled' })
+    // The buyer's cancel is refused while the attempt is active; the function closes it once the provider cancelled the invoice.
+    const cancel = (): Promise<any> => call('checkout_cancel', { p_order_number: placed.number, p_access_token_hash: placed.hash })
+    expect(await cancel()).toMatchObject({ ok: false, code: 'PAYMENT_ACTIVE' })
+    expect(await close(started.attemptId, 'cancelled', 'BUYER_CANCELLED')).toMatchObject({ ok: true })
+    expect(await cancel()).toMatchObject({ ok: true, status: 'cancelled' })
     expect(await stockOf(variant)).toBe(2)
     expect(await apply(started)).toEqual({ outcome: 'paid', orderNumber: placed.number })
     expect((await orderOf(placed.id)).status).toBe('paid')

@@ -1318,6 +1318,7 @@ describe('runPaymentsReconcile', () => {
   it.each([
     ['a refusal (the invoice is paid)', bad('refused', 400)],
     ['an invoice that says it is paid', good(invoiceOf({ status: 'paid' }))],
+    ['a canceled invoice that lists a charged payment', good(invoiceOf({ status: 'canceled', payments: [{ id: PAYMENT_ID, status: 'paid' }] }))],
     ['an unreachable provider', bad('unavailable')],
   ])('when the cancel is %s the attempt is settled like any other', async (_label, cancelled) => {
     const row = claimed({ orderPaid: true })

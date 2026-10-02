@@ -13,8 +13,9 @@ import { z } from 'zod'
 
 // The SQL checks use `[[:cntrl:]]`, which in the database's UTF-8 locale
 // also matches the C1 controls U+0080–U+009F; refusing the same range here
-// keeps a field error instead of a generic 422 from the table.
-const noControlCharacters = (value: string) => !/[\u0000-\u001F\u007F-\u009F]/.test(value)
+// keeps a field error instead of a generic 422 from the table. The `checkout`
+// function refuses the buyer's name with the same rule.
+export const noControlCharacters = (value: string) => !/[\u0000-\u001F\u007F-\u009F]/.test(value)
 
 const sellerField = (max: number) =>
   z
@@ -42,6 +43,13 @@ export const commerceSettingsSaveSchema = z.strictObject({
 /** The P07 round 2 approval's whole body: `{ action, expectedVersion }`. */
 export const commercePoliciesApproveSchema = z.strictObject({
   action: z.literal('commerce-policies-approve'),
+  expectedVersion: z.number().int().min(0),
+})
+
+/** The owner's checkout switch (P08): `{ action, enabled, expectedVersion }`. */
+export const commerceCheckoutSetSchema = z.strictObject({
+  action: z.literal('commerce-checkout-set'),
+  enabled: z.boolean(),
   expectedVersion: z.number().int().min(0),
 })
 

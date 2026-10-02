@@ -29,6 +29,11 @@
  *   approval of the published policy revisions through
  *   `commerce_policies_approve`; a stale version answers 409 and a missing
  *   required policy answers 422 POLICIES_NOT_PUBLISHED.
+ * - `commerce-checkout-set` (owner, fresh TOTP; P08): the checkout switch
+ *   through `commerce_checkout_set`. Turning it on is refused (409
+ *   PAYMENTS_NOT_CONFIGURED) while the payment settings are not working, and
+ *   (422 NOT_READY) until the seller is named and the policies approved; a
+ *   stale version answers 409. Turning it off is always allowed.
  *
  * The media and commerce SQL functions recheck the actor's role themselves;
  * the owner-only `stats` and `status` checks and every TOTP step-up (the SQL
@@ -37,7 +42,7 @@
  */
 import { createHash } from 'node:crypto'
 
-import { commercePoliciesApproveSchema, commerceSettingsSaveSchema } from './commerce-settings.ts'
+import { commerceCheckoutSetSchema, commercePoliciesApproveSchema, commerceSettingsSaveSchema } from './commerce-settings.ts'
 import { type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { emailProvider } from './email.ts'
 import { LOCAL_HOSTS, optionalEnv } from './env.ts'
@@ -194,6 +199,10 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
       return commercePoliciesApprove(deps, staff.userId, body)
+    case 'commerce-checkout-set':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return commerceCheckoutSet(deps, staff.userId, body)
     default:
       return fail(422, 'INVALID', 'إجراء غير معروف.')
   }
@@ -412,6 +421,31 @@ async function commercePoliciesApprove(deps: AdminDeps, actor: string, body: Rec
     if (code === 'P0001') {
       return fail(422, 'POLICIES_NOT_PUBLISHED', 'انشر سياسات المتجر والتوصيل والاسترجاع أولًا.')
     }
+    return sqlFail(error)
+  }
+}
+
+/**
+ * P08: the owner's checkout switch. The role and step-up checks ran in `handleAdmin`. Turning it on needs working
+ * payment settings, which only this function can see; the SQL checks the seller and the policies.
+ */
+async function commerceCheckoutSet(deps: AdminDeps, actor: string, body: Record<string, unknown>): Promise<Response> {
+  const parsed = commerceCheckoutSetSchema.safeParse(body)
+  if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
+  if (parsed.data.enabled && !deps.payments && !paymentsConfig().ok) {
+    return fail(409, 'PAYMENTS_NOT_CONFIGURED', 'لم تُضبط إعدادات الدفع بعد.')
+  }
+  try {
+    const version = await deps.rpc('commerce_checkout_set', {
+      p_actor: actor,
+      p_expected_version: parsed.data.expectedVersion,
+      p_enabled: parsed.data.enabled,
+    })
+    return ok({ version, checkoutEnabled: parsed.data.enabled })
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code
+    if (code === '23505') return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
+    if (code === 'P0001') return fail(422, 'NOT_READY', 'أكمل بيانات البائع واعتمد السياسات أولًا.')
     return sqlFail(error)
   }
 }

@@ -145,6 +145,7 @@ test.afterAll(async () => {
   )
   // The fixture's orders (cancelled or not) reference the fixture variants.
   const orders = `(select id from finance.orders where customer_email like $1)`
+  await db.query(`delete from finance.payment_attempts where order_id in ${orders}`, [buyers])
   await db.query(`delete from finance.coupon_redemptions where order_id in ${orders}`, [buyers])
   await db.query(`delete from finance.inventory_reservations where order_id in ${orders}`, [buyers])
   await db.query(`delete from finance.order_items where order_id in ${orders}`, [buyers])

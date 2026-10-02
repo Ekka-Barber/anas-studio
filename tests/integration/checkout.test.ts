@@ -1,11 +1,13 @@
-// P07: the catalog and checkout SQL surface (`supabase/migrations/
-// 20260927160000_catalog_and_checkout.sql`) against the real local database.
-// The three checkout entry points are called as `service_role` (the `checkout`
-// Edge Function's role, D32) through direct sessions; the catalog's RLS and
-// grants go through real JWTs, like tests/integration/forms.test.ts. This file
-// is the only one that switches `finance.commerce_settings.checkout_enabled`
-// on: the row is saved in beforeAll and restored in afterAll. Every fixture it
-// writes carries a per-run unique slug, SKU, code or email.
+// P07, P08 round 4: the catalog and checkout SQL surface (`supabase/migrations/
+// 20260927160000_catalog_and_checkout.sql` and `20261002110000_checkout_payment.sql`)
+// against the real local database. The three checkout entry points are called as
+// `service_role` (the `checkout` Edge Function's role, D32) through direct
+// sessions; the catalog's RLS and grants go through real JWTs, like
+// tests/integration/forms.test.ts. The payment attempts a cancel must respect are
+// made with the payment core's own functions. This file switches
+// `finance.commerce_settings.checkout_enabled` on: the row is saved in beforeAll
+// and restored in afterAll. Every fixture it writes carries a per-run unique
+// slug, SKU, code or email.
 import { createHash, createHmac, randomUUID } from 'node:crypto'
 
 import { Client } from 'pg'
@@ -114,15 +116,32 @@ type VariantSpec = {
   stock?: number | null
   low?: number | null
   enabled?: boolean
+  /** A preorder: its capacity, and (by default far ahead, with a note) its delivery date and note. */
+  preorder?: { capacity: number; shipsOn?: string; note?: string }
 }
 
 async function makeVariant(productId: string, spec: VariantSpec): Promise<string> {
   const sku = unique('SKU').toUpperCase().replace(/[^A-Z0-9-]/g, '')
   const id = (
     await postgres.query<{ id: string }>(
-      `insert into public.product_variants (product_id, sku, title, fulfillment, price_halalas, enabled, stock, low_stock_threshold)
-       values ($1, $2, $3, $4, $5, $6, $7, $8) returning id`,
-      [productId, sku, `خيار ${sku}`, spec.fulfillment, spec.price, spec.enabled ?? true, spec.stock ?? null, spec.low ?? null],
+      `insert into public.product_variants
+         (product_id, sku, title, fulfillment, price_halalas, enabled, stock, low_stock_threshold,
+          preorder, preorder_capacity, preorder_ships_on, preorder_note)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) returning id`,
+      [
+        productId,
+        sku,
+        `خيار ${sku}`,
+        spec.fulfillment,
+        spec.price,
+        spec.enabled ?? true,
+        spec.stock ?? null,
+        spec.low ?? null,
+        spec.preorder !== undefined,
+        spec.preorder?.capacity ?? null,
+        spec.preorder ? (spec.preorder.shipsOn ?? '2099-01-01') : null,
+        spec.preorder ? (spec.preorder.note ?? 'يصل لاحقًا') : null,
+      ],
     )
   ).rows[0]!.id
   return id
@@ -579,6 +598,45 @@ describe('checkout_create refusals', () => {
   })
 })
 
+// --- the quote's readiness ------------------------------------------------------
+
+describe('checkout_quote readiness (I48 item 2)', () => {
+  type Store = { enabled: boolean; name: string | null; registration: string | null; policies: Record<string, number> }
+  /** What the refusals above leave behind, and what every later test expects. */
+  const ready: Store = { enabled: true, name: 'بائع', registration: 'REG-1', policies: REV }
+
+  async function setStore(state: Store): Promise<void> {
+    await postgres.query(
+      `update finance.commerce_settings set checkout_enabled = $1, seller_legal_name = $2, seller_address = 'تبوك',
+         seller_registration = $3, policy_revisions = $4::jsonb where id = 1`,
+      [state.enabled, state.name, state.registration, JSON.stringify(state.policies)],
+    )
+  }
+
+  afterAll(() => setStore(ready))
+
+  it('is open only when the switch is on, the seller is named and registered and the policies are approved; create refuses in the same cases', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 1500 })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const cases: Array<[string, Store, boolean, string | null]> = [
+      ['everything set', ready, true, null],
+      ['the switch off', { ...ready, enabled: false }, false, 'CHECKOUT_DISABLED'],
+      ['no seller name', { ...ready, name: null }, false, 'SELLER_NOT_CONFIGURED'],
+      ['no registration', { ...ready, registration: null }, false, 'SELLER_NOT_CONFIGURED'],
+      ['no approved policies', { ...ready, policies: {} }, false, 'POLICIES_NOT_CONFIGURED'],
+      ['nothing set though the switch is on', { enabled: true, name: null, registration: null, policies: {} }, false, 'SELLER_NOT_CONFIGURED'],
+    ]
+    for (const [label, state, expected, refusal] of cases) {
+      await setStore(state)
+      expect(((await quote(pool[0]!, lines)) as any).checkoutEnabled, label).toBe(expected)
+      if (refusal) expect((await createOrder(pool[0]!, { lines })).result, label).toMatchObject({ ok: false, code: refusal })
+    }
+    // The cart is still priced and the approved revisions still come back: only the flag changes.
+    await setStore({ ...ready, policies: {} })
+    expect(await quote(pool[0]!, lines)).toMatchObject({ ok: true, checkoutEnabled: false, policyRevisions: {} })
+  })
+})
+
 // --- the price function's own guards ------------------------------------------
 
 describe('checkout_price refusals (AUDIT-2)', () => {
@@ -616,6 +674,54 @@ describe('checkout_price refusals (AUDIT-2)', () => {
     expect(created.result).toMatchObject({ ok: false, code: 'CART_TOO_LARGE' })
     // Exactly at the ceiling is fine.
     expect(await errorCodes([{ variantId: pricey, quantity: 5 }])).toEqual([])
+  })
+})
+
+// --- the gateway's minimum -------------------------------------------------------
+
+describe('the gateway minimum (I48 item 4)', () => {
+  const minimum = { code: 'TOTAL_BELOW_MINIMUM', minimum: 100 }
+
+  it('a total under 100 halalas is refused in quote and in create (a price of 99, a coupon that brings the total to zero); exactly 100 is fine', async () => {
+    const product = await makeProduct()
+    const cheap = await makeVariant(product, { fulfillment: 'digital', price: 99 })
+    const hundred = await makeVariant(product, { fulfillment: 'digital', price: 100 })
+    const pricey = await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    const free = await makeCoupon({ kind: 'percent', percentBp: 10_000 })
+    const nearlyFree = await makeCoupon({ kind: 'fixed', amount: 1400 })
+
+    for (const [label, variantId, coupon] of [
+      ['a price of 99', cheap, null],
+      ['a coupon that brings the total to zero', pricey, free.code],
+    ] as const) {
+      const lines = [{ variantId, quantity: 1 }]
+      const priced = (await quote(pool[0]!, lines, null, coupon)) as any
+      expect(priced.ok, label).toBe(false)
+      expect(priced.errors, label).toEqual([minimum])
+      const key = randomUUID()
+      const refused = await createOrder(pool[0]!, { lines, couponCode: coupon, idempotencyKey: key })
+      expect(refused.result, label).toMatchObject({ ok: false, code: 'TOTAL_BELOW_MINIMUM', quote: { errors: [minimum] } })
+      expect((await postgres.query('select 1 from finance.orders where idempotency_key = $1', [key])).rowCount, label).toBe(0)
+    }
+
+    expect(((await quote(pool[0]!, [{ variantId: hundred, quantity: 1 }], null)) as any).ok).toBe(true)
+    const exact = await createOrder(pool[0]!, { lines: [{ variantId: pricey, quantity: 1 }], couponCode: nearlyFree.code })
+    expect(exact.result).toMatchObject({ ok: true, order: { total: 100 } })
+  })
+
+  it('counts the whole total, delivery included, and is reported only when nothing else is wrong', async () => {
+    const product = await makeProduct()
+    const cheapPhysical = await makeVariant(product, { fulfillment: 'physical', price: 50, stock: 5 })
+    const cheapDigital = await makeVariant(product, { fulfillment: 'digital', price: 50 })
+    const draft = await makeVariant(await makeProduct('draft'), { fulfillment: 'digital', price: 5000 })
+    const city = await makeRate(2500)
+
+    expect(await quote(pool[0]!, [{ variantId: cheapPhysical, quantity: 1 }], city)).toMatchObject({ ok: true, total: 2550 })
+    // Another error comes alone: the buyer fixes it first.
+    const other = (await quote(pool[0]!, [{ variantId: cheapDigital, quantity: 1 }, { variantId: draft, quantity: 1 }], null)) as any
+    expect(other.errors).toEqual([expect.objectContaining({ code: 'UNAVAILABLE', line: 2 })])
+    const noCity = (await quote(pool[0]!, [{ variantId: cheapPhysical, quantity: 1 }], null)) as any
+    expect(noCity.errors).toEqual([{ code: 'CITY_REQUIRED' }])
   })
 })
 
@@ -762,17 +868,66 @@ describe('hold limits (DATA "Unpaid reservation abuse")', () => {
     cityKey = await makeRate(2500)
   })
 
-  it('a second order for the same email, or for the same session with another email, is ACTIVE_HOLD', async () => {
+  it('a second order for the same email in another session is created; for the same session it is ACTIVE_HOLD', async () => {
     const email = uniqueEmail('hold')
     const session = randomUUID()
     const first = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], email, checkoutSession: session })
     expect(first.result.ok).toBe(true)
 
+    // Anyone could hold a known address, and the refusal confirmed that a live order exists: there is no per-email hold.
     const sameEmail = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], email })
-    expect(sameEmail.result).toMatchObject({ ok: false, code: 'ACTIVE_HOLD' })
+    expect(sameEmail.result).toMatchObject({ ok: true, duplicate: false })
+    expect(sameEmail.result.order.orderNumber).not.toBe(first.result.order.orderNumber)
 
     const sameSession = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], checkoutSession: session })
     expect(sameSession.result).toMatchObject({ ok: false, code: 'ACTIVE_HOLD' })
+  })
+
+  it('ACTIVE_HOLD hands the held order back to the buyer whose email it is, and tells anyone else only when the hold ends', async () => {
+    const email = uniqueEmail('mine')
+    const session = randomUUID()
+    const key = randomUUID()
+    const lines = [{ variantId: digital, quantity: 1 }]
+    const first = await createOrder(pool[0]!, { lines, email, checkoutSession: session, idempotencyKey: key })
+    expect(first.result.ok).toBe(true)
+
+    // The same address in another case is the same address.
+    const mine = await createOrder(pool[0]!, { lines, email: email.toUpperCase(), checkoutSession: session })
+    expect(mine.result).toMatchObject({
+      ok: false,
+      code: 'ACTIVE_HOLD',
+      idempotencyKey: key,
+      tokenVersion: 0,
+      holdExpiresAt: first.result.order.holdExpiresAt,
+      order: { orderNumber: first.result.order.orderNumber, status: 'pending_payment' },
+    })
+    // The version a recovery moved the link to is the one the function must derive the token from.
+    await postgres.query('update finance.orders set access_token_version = 3 where id = $1', [first.result.order.id])
+    const recovered = await createOrder(pool[0]!, { lines, email, checkoutSession: session })
+    expect(recovered.result).toMatchObject({ code: 'ACTIVE_HOLD', idempotencyKey: key, tokenVersion: 3 })
+
+    const stranger = await createOrder(pool[0]!, { lines, email: uniqueEmail('stranger'), checkoutSession: session })
+    expect(stranger.result).toEqual({ ok: false, code: 'ACTIVE_HOLD', holdExpiresAt: first.result.order.holdExpiresAt })
+  })
+
+  it('an expired hold no longer blocks its session', async () => {
+    const session = randomUUID()
+    const first = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], checkoutSession: session })
+    expect(first.result.ok).toBe(true)
+    await postgres.query("update finance.orders set hold_expires_at = now() - interval '1 minute' where id = $1", [first.result.order.id])
+    const again = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], checkoutSession: session })
+    expect(again.result.ok).toBe(true)
+  })
+
+  it('there is no per-email throttle: six orders for one address inside an hour are all created', async () => {
+    const email = uniqueEmail('many')
+    for (let i = 0; i < 6; i += 1) {
+      const answer = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 1 }], email })
+      expect(answer.result?.ok, `order ${i + 1}`).toBe(true)
+    }
+    // Nothing counts this address any more (older rows of other addresses may still be there from before the migration).
+    const throttles = await postgres.query("select 1 from finance.rate_limits where bucket = 'checkout:email' and key_hash = finance.recipient_hash($1)", [email])
+    expect(throttles.rowCount).toBe(0)
   })
 
   it('a cancel with the right token releases the holds and a new order is accepted; a wrong token is NOT_FOUND', async () => {
@@ -833,6 +988,86 @@ describe('hold limits (DATA "Unpaid reservation abuse")', () => {
     const order = (await postgres.query<{ status: string }>('select status from finance.orders where id = $1', [created.result.order.id]))
       .rows[0]!
     expect(order.status).toBe('pending_payment')
+  })
+})
+
+// --- the daily total ---------------------------------------------------------------
+
+describe('the daily total of 500 orders (I44 item 2)', () => {
+  /** Every window of the whole-store bucket, so a run across midnight UTC counts the same. */
+  const spent = async (): Promise<number> =>
+    Number(
+      (await postgres.query<{ n: string }>("select coalesce(sum(hits), 0) as n from finance.rate_limits where bucket = 'checkout:all'")).rows[0]!.n,
+    )
+
+  it('a refused request does not spend it, an order that is created does, and a replay of it does not', async () => {
+    const product = await makeProduct()
+    const digital = await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    const tiny = await makeVariant(product, { fulfillment: 'digital', price: 99 })
+    const physical = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 5 })
+    const sold = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 0 })
+    const city = await makeRate(2500)
+    const lines = [{ variantId: digital, quantity: 1 }]
+    const before = await spent()
+
+    const session = randomUUID()
+    const key = randomUUID()
+    const created = await createOrder(pool[0]!, { lines, checkoutSession: session, idempotencyKey: key })
+    expect(created.result.ok).toBe(true)
+    expect(await spent()).toBe(before + 1)
+
+    // Every kind of refusal, some of them twice: none of them is an order.
+    const refusals: Array<[string, () => Promise<{ result?: any; code?: string }>]> = [
+      ['QUOTE_CHANGED', () => createOrder(pool[0]!, { lines, quoteHash: '0'.repeat(64) })],
+      ['TOTAL_BELOW_MINIMUM', () => createOrder(pool[0]!, { lines: [{ variantId: tiny, quantity: 1 }] })],
+      ['OUT_OF_STOCK', () => createOrder(pool[0]!, { lines: [{ variantId: sold, quantity: 1 }], cityKey: city })],
+      ['INVALID_CONTACT', () => createOrder(pool[0]!, { lines, email: 'not-an-email' })],
+      ['ADDRESS_REQUIRED', () => createOrder(pool[0]!, { lines: [{ variantId: physical, quantity: 1 }], cityKey: city, address: null })],
+      ['PHONE_REQUIRED', () => createOrder(pool[0]!, { lines: [{ variantId: physical, quantity: 1 }], cityKey: city, phone: null })],
+      ['ACTIVE_HOLD', () => createOrder(pool[0]!, { lines, checkoutSession: session })],
+      [
+        'IDEMPOTENCY_CONFLICT',
+        () => createOrder(pool[0]!, { lines, idempotencyKey: key, requestHash: createHash('sha256').update(`other:${key}`).digest('hex') }),
+      ],
+      ['POLICY_CHANGED', () => createOrder(pool[0]!, { lines, policyRevisions: { store: 99, delivery: 99, refund: 99 } })],
+    ]
+    for (const [code, run] of refusals) expect((await run()).result, code).toMatchObject({ ok: false, code })
+    // A second round of the same, one connection at a time.
+    for (let round = 0; round < 3; round += 1) {
+      expect((await createOrder(pool[0]!, { lines, quoteHash: '0'.repeat(64) })).result.code).toBe('QUOTE_CHANGED')
+    }
+    expect(await spent()).toBe(before + 1)
+
+    // The same key and request again returns the same order before the total is touched.
+    const replay = await createOrder(pool[0]!, { lines, checkoutSession: session, idempotencyKey: key })
+    expect(replay.result).toMatchObject({ ok: true, duplicate: true })
+    expect(await spent()).toBe(before + 1)
+
+    // And a second order, in another session, spends exactly one more.
+    expect((await createOrder(pool[0]!, { lines })).result.ok).toBe(true)
+    expect(await spent()).toBe(before + 2)
+  })
+
+  it('when the day is full the order is refused (54000) and nothing is written', async () => {
+    const digital = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 1500 })
+    const lines = [{ variantId: digital, quantity: 1 }]
+    const all = '0'.repeat(64)
+    await postgres.query(
+      `insert into finance.rate_limits (bucket, key_hash, window_start, hits)
+       values ('checkout:all', $1, to_timestamp(floor(extract(epoch from now()) / 86400) * 86400), 500)
+       on conflict (bucket, key_hash, window_start) do update set hits = 500`,
+      [all],
+    )
+    try {
+      const key = randomUUID()
+      const full = await createOrder(pool[0]!, { lines, idempotencyKey: key })
+      expect(full.code).toBe('54000')
+      expect((await postgres.query('select 1 from finance.orders where idempotency_key = $1', [key])).rowCount).toBe(0)
+      // A refusal is still a refusal: it never reaches the total, so it answers as it did.
+      expect((await createOrder(pool[0]!, { lines, quoteHash: '0'.repeat(64) })).result).toMatchObject({ ok: false, code: 'QUOTE_CHANGED' })
+    } finally {
+      await postgres.query("delete from finance.rate_limits where bucket = 'checkout:all'")
+    }
   })
 })
 
@@ -932,6 +1167,295 @@ describe('concurrency (separate connections)', () => {
     expect(first!.order.orderNumber).toBe(second!.order.orderNumber)
     const orders = (await postgres.query('select * from finance.orders where idempotency_key = $1', [key])).rows
     expect(orders).toHaveLength(1)
+  })
+})
+
+// --- preorder (contract section 4) ----------------------------------------------------
+
+describe('preorder', () => {
+  /** A date in Riyadh, `offset` days from today, as the database sees it. */
+  const riyadhDay = async (offset: number): Promise<string> =>
+    (await postgres.query<{ day: string }>("select ((now() at time zone 'Asia/Riyadh')::date + $1::integer)::text as day", [offset])).rows[0]!.day
+
+  it('pricing shows the preorder object, its date and note, on the line; an ordinary line carries null; the capacity is never sent', async () => {
+    const product = await makeProduct()
+    const preorder = await makeVariant(product, { fulfillment: 'digital', price: 5000, preorder: { capacity: 3, shipsOn: '2099-03-01', note: 'تُسلَّم بعد الطباعة' } })
+    const ordinary = await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    const priced = (await quote(pool[0]!, [{ variantId: preorder, quantity: 1 }, { variantId: ordinary, quantity: 1 }])) as any
+    expect(priced.ok).toBe(true)
+    expect(priced.lines[0].preorder).toEqual({ shipsOn: '2099-03-01', note: 'تُسلَّم بعد الطباعة' })
+    expect(priced.lines[1]).toHaveProperty('preorder', null)
+    expect(JSON.stringify(priced)).not.toMatch(/capacity/i)
+  })
+
+  it('the quote hash changes when the note or the date changes, and only then', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 3 } })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const hashOf = async (): Promise<string> => ((await quote(pool[0]!, lines)) as any).quoteHash
+    const base = await hashOf()
+    expect(await hashOf()).toBe(base)
+
+    await postgres.query("update public.product_variants set preorder_note = 'ملاحظة أخرى' where id = $1", [variant])
+    const noted = await hashOf()
+    expect(noted).not.toBe(base)
+    await postgres.query("update public.product_variants set preorder_ships_on = '2099-06-01' where id = $1", [variant])
+    const dated = await hashOf()
+    expect(dated).not.toBe(noted)
+    // The capacity is private and not what the buyer confirmed: it does not move the hash.
+    await postgres.query('update public.product_variants set preorder_capacity = 9 where id = $1', [variant])
+    expect(await hashOf()).toBe(dated)
+
+    // A stale quote cannot create: the order would have shown the buyer another note.
+    await postgres.query("update public.product_variants set preorder_note = 'ملاحظة ثالثة' where id = $1", [variant])
+    expect((await createOrder(pool[0]!, { lines, quoteHash: dated })).result).toMatchObject({ ok: false, code: 'QUOTE_CHANGED' })
+  })
+
+  it('a delivery date before today in Riyadh is UNAVAILABLE, in quote and in create; today and later are for sale', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 3 } })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const priced = async (): Promise<any> => quote(pool[0]!, lines)
+    const setDay = (day: string): Promise<unknown> => postgres.query('update public.product_variants set preorder_ships_on = $2 where id = $1', [variant, day])
+
+    await setDay(await riyadhDay(-1))
+    const past = await priced()
+    expect(past.ok).toBe(false)
+    expect(past.errors).toEqual([{ code: 'UNAVAILABLE', line: 1, variantId: variant }])
+    expect((await createOrder(pool[0]!, { lines })).result).toMatchObject({ ok: false, code: 'UNAVAILABLE' })
+
+    for (const offset of [0, 1, 30]) {
+      await setDay(await riyadhDay(offset))
+      expect((await priced()).ok, `today + ${offset}`).toBe(true)
+    }
+    // An ordinary variant has no date to pass: only a preorder's date is checked.
+    await postgres.query('update public.product_variants set preorder = false, preorder_ships_on = $2 where id = $1', [variant, await riyadhDay(-5)])
+    expect((await priced()).ok).toBe(true)
+  })
+
+  it('two concurrent creates for the last unit, on two connections: one order, and the other is told the unit is held', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 1 } })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const [first, second] = await Promise.all([createOrder(pool[0]!, { lines }), createOrder(pool[1]!, { lines })])
+    expect([first.result?.ok, second.result?.ok].sort()).toEqual([false, true])
+    const refused = first.result?.ok === true ? second : first
+    expect(refused.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK' })
+    expect(refused.result.quote.errors[0]).toMatchObject({ held: true, available: 0 })
+    const reserved = await postgres.query<{ n: string }>('select coalesce(sum(quantity), 0) as n from finance.inventory_reservations where variant_id = $1', [variant])
+    expect(Number(reserved.rows[0]!.n)).toBe(1)
+  })
+
+  it('capacity is enforced under concurrent creates: four connections for two units, exactly two orders', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 2 } })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const answers = await Promise.all(pool.slice(0, 4).map((client) => createOrder(client, { lines })))
+    const ok = answers.filter((answer) => answer.result?.ok === true)
+    const refused = answers.filter((answer) => answer.result?.code === 'OUT_OF_STOCK')
+    expect(ok).toHaveLength(2)
+    expect(refused).toHaveLength(2)
+    // The units exist, other orders' holds take them: the buyer is told to try again soon.
+    for (const answer of refused) expect(answer.result.quote.errors[0]).toMatchObject({ code: 'OUT_OF_STOCK', held: true, available: 0 })
+    const reserved = await postgres.query<{ n: string }>('select coalesce(sum(quantity), 0) as n from finance.inventory_reservations where variant_id = $1', [variant])
+    expect(Number(reserved.rows[0]!.n)).toBe(2)
+  })
+
+  it('a digital preorder line gets a reservation, and it counts against the capacity until the order goes', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 3 } })
+    const key = randomUUID()
+    const first = await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 2 }], idempotencyKey: key })
+    expect(first.result.ok).toBe(true)
+    const reservations = (await postgres.query<any>('select preorder, state, quantity from finance.inventory_reservations where order_id = $1', [first.result.order.id])).rows
+    expect(reservations).toEqual([{ preorder: true, state: 'held', quantity: 2 }])
+
+    // One unit left: two are refused as a hold, one is fine.
+    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).errors).toEqual([
+      { code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 1, held: true },
+    ])
+    expect((await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 1 }] })).result.ok).toBe(true)
+    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 1 }])) as any).errors).toEqual([
+      { code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true },
+    ])
+
+    // Cancelling the first order frees its two units.
+    const cancelled = await rpc(pool[0]!)('checkout_cancel', { p_order_number: first.result.order.orderNumber, p_access_token_hash: hashFor(tokenFor(key)) })
+    expect(cancelled).toEqual({ ok: true, status: 'cancelled' })
+    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).ok).toBe(true)
+  })
+
+  it('the order items keep what the buyer was shown, every preorder line holds a reservation with its own flag, and a later change rewrites nothing', async () => {
+    const product = await makeProduct()
+    const ordinary = await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    const preDigital = await makeVariant(product, { fulfillment: 'digital', price: 5000, preorder: { capacity: 2, shipsOn: '2099-03-01', note: 'تُسلَّم بعد الطباعة' } })
+    const physical = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 5 })
+    // Stock zero: only the capacity can sell it.
+    const prePhysical = await makeVariant(product, { fulfillment: 'physical', price: 7000, stock: 0, preorder: { capacity: 2, shipsOn: '2099-04-01', note: 'تصل بعد التجليد' } })
+    const city = await makeRate(2500)
+    const key = randomUUID()
+    const lines = [
+      { variantId: ordinary, quantity: 1 },
+      { variantId: preDigital, quantity: 1 },
+      { variantId: physical, quantity: 1 },
+      { variantId: prePhysical, quantity: 2 },
+    ]
+    const created = await createOrder(pool[0]!, { lines, cityKey: city, idempotencyKey: key })
+    expect(created.result.ok, JSON.stringify(created)).toBe(true)
+    const orderId = created.result.order.id
+
+    const items = (await postgres.query<any>('select variant_id, preorder, preorder_ships_on::text as ships_on, preorder_note from finance.order_items where order_id = $1 order by line_no', [orderId])).rows
+    expect(items).toEqual([
+      { variant_id: ordinary, preorder: false, ships_on: null, preorder_note: null },
+      { variant_id: preDigital, preorder: true, ships_on: '2099-03-01', preorder_note: 'تُسلَّم بعد الطباعة' },
+      { variant_id: physical, preorder: false, ships_on: null, preorder_note: null },
+      { variant_id: prePhysical, preorder: true, ships_on: '2099-04-01', preorder_note: 'تصل بعد التجليد' },
+    ])
+    // No reservation for the ordinary digital line; the others carry the flag they were sold under.
+    const reservations = (await postgres.query<any>('select variant_id, preorder, state, quantity from finance.inventory_reservations where order_id = $1', [orderId])).rows
+    expect(reservations.sort((a: any, b: any) => a.variant_id.localeCompare(b.variant_id))).toEqual(
+      [
+        { variant_id: preDigital, preorder: true, state: 'held', quantity: 1 },
+        { variant_id: physical, preorder: false, state: 'held', quantity: 1 },
+        { variant_id: prePhysical, preorder: true, state: 'held', quantity: 2 },
+      ].sort((a, b) => a.variant_id.localeCompare(b.variant_id)),
+    )
+    // Stock is never touched by a preorder, here or later.
+    expect((await postgres.query('select stock from public.product_variants where id = $1', [prePhysical])).rows[0].stock).toBe(0)
+
+    // The summary reads the snapshot, so it still says what the buyer saw after the owner edits the variant.
+    const preorderOf = (order: any): unknown[] => order.lines.map((line: any) => line.preorder)
+    const expected = [null, { shipsOn: '2099-03-01', note: 'تُسلَّم بعد الطباعة' }, null, { shipsOn: '2099-04-01', note: 'تصل بعد التجليد' }]
+    expect(preorderOf(created.result.order)).toEqual(expected)
+    await postgres.query("update public.product_variants set preorder_note = 'تغيّرت', preorder_ships_on = '2099-12-31' where id = any($1::uuid[])", [[preDigital, prePhysical]])
+    const begun = (await rpc(pool[0]!)('payment_attempt_begin', { p_order_number: created.result.order.orderNumber, p_access_token_hash: hashFor(tokenFor(key)), p_mode: 'test', p_ip_hash: null })) as any
+    expect(begun.ok).toBe(true)
+    expect(preorderOf(begun.order)).toEqual(expected)
+    await postgres.query('update finance.payment_attempts set next_check_at = null where id = $1', [begun.attemptId])
+    expect(
+      (await postgres.query<any>('select preorder_note from finance.order_items where order_id = $1 and preorder order by line_no', [orderId])).rows.map((row: any) => row.preorder_note),
+    ).toEqual(['تُسلَّم بعد الطباعة', 'تصل بعد التجليد'])
+  })
+})
+
+// --- OUT_OF_STOCK, and when it is only a hold -----------------------------------------------
+
+describe('OUT_OF_STOCK says when only another order\'s hold is in the way', () => {
+  it('held: true while an unpaid hold takes units that exist; absent when the stock is really zero or smaller than the request', async () => {
+    const product = await makeProduct()
+    const city = await makeRate(2500)
+    const one = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 1 })
+    const none = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 0 })
+    const held = await createOrder(pool[0]!, { lines: [{ variantId: one, quantity: 1 }], cityKey: city })
+    expect(held.result.ok).toBe(true)
+
+    const errorsOf = async (variantId: string, quantity: number): Promise<any[]> =>
+      ((await quote(pool[0]!, [{ variantId, quantity }], city)) as any).errors
+    expect(await errorsOf(one, 1)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: one, available: 0, held: true }])
+    const refused = await createOrder(pool[0]!, { lines: [{ variantId: one, quantity: 1 }], cityKey: city })
+    expect(refused.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK' })
+    expect(refused.result.quote.errors[0]).toHaveProperty('held', true)
+    // Really zero, and asking for more than exists: no hold to wait for.
+    expect(await errorsOf(none, 1)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: none, available: 0 }])
+    expect(await errorsOf(one, 2)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: one, available: 0 }])
+  })
+
+  it('a preorder whose units are committed (paid) is not a hold: no held flag', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 1 } })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const first = await createOrder(pool[0]!, { lines })
+    expect(first.result.ok).toBe(true)
+    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true }])
+    // What payment does to the reservation: from a hold to a sale.
+    await postgres.query("update finance.inventory_reservations set state = 'committed' where order_id = $1", [first.result.order.id])
+    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0 }])
+  })
+})
+
+// --- cancel and the payment attempt -------------------------------------------------------
+
+describe('checkout_cancel while a payment attempt is active (P08)', () => {
+  const begin = (orderNumber: string, hash: string): Promise<any> =>
+    rpc(pool[0]!)('payment_attempt_begin', { p_order_number: orderNumber, p_access_token_hash: hash, p_mode: 'test', p_ip_hash: null })
+  const orderRows = async (orderId: string) => ({
+    order: (await postgres.query<any>('select status from finance.orders where id = $1', [orderId])).rows.map((row) => row.status),
+    stock: (await postgres.query<any>('select state from finance.inventory_reservations where order_id = $1', [orderId])).rows.map((row) => row.state),
+    coupon: (await postgres.query<any>('select state from finance.coupon_redemptions where order_id = $1', [orderId])).rows.map((row) => row.state),
+  })
+
+  it('a creating, pending or uncertain attempt refuses the cancel and changes nothing; once it is closed the order goes and its holds are released', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'physical', price: 6900, stock: 3 })
+    const city = await makeRate(2500)
+    const coupon = await makeCoupon({ kind: 'percent', percentBp: 1000 })
+    const key = randomUUID()
+    const created = await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 1 }], cityKey: city, couponCode: coupon.code, idempotencyKey: key })
+    expect(created.result.ok).toBe(true)
+    const order = created.result.order
+    const hash = hashFor(tokenFor(key))
+    const cancel = (): Promise<any> => rpc(pool[0]!)('checkout_cancel', { p_order_number: order.orderNumber, p_access_token_hash: hash })
+    const held = { order: ['pending_payment'], stock: ['held'], coupon: ['held'] }
+    expect(await orderRows(order.id)).toEqual(held)
+
+    const begun = await begin(order.orderNumber, hash)
+    expect(begun).toMatchObject({ ok: true, state: 'new' })
+    const attempt = (status: string, providerInvoiceId: string | null) => ({
+      ok: false,
+      code: 'PAYMENT_ACTIVE',
+      attempt: { attemptId: begun.attemptId, status, providerInvoiceId },
+    })
+    expect(await cancel()).toEqual(attempt('creating', null))
+    expect(await orderRows(order.id)).toEqual(held)
+
+    const invoiceId = randomUUID()
+    const mapped = await rpc(pool[0]!)('payment_attempt_created', { p_attempt: begun.attemptId, p_invoice_id: invoiceId, p_invoice_url: 'http://127.0.0.1:54390/invoices/x', p_expires_at: null })
+    expect(mapped).toEqual({ ok: true })
+    expect(await cancel()).toEqual(attempt('pending', invoiceId))
+    expect(await orderRows(order.id)).toEqual(held)
+
+    await postgres.query("update finance.payment_attempts set status = 'uncertain' where id = $1", [begun.attemptId])
+    expect(await cancel()).toEqual(attempt('uncertain', invoiceId))
+    expect(await orderRows(order.id)).toEqual(held)
+
+    // The function cancelled the invoice at the provider and closed the attempt: now the order can go.
+    await postgres.query("update finance.payment_attempts set status = 'pending' where id = $1", [begun.attemptId])
+    expect(await rpc(pool[0]!)('payment_attempt_close', { p_attempt: begun.attemptId, p_status: 'cancelled', p_error: 'BUYER_CANCELLED' })).toMatchObject({ ok: true })
+    expect(await cancel()).toEqual({ ok: true, status: 'cancelled' })
+    expect(await orderRows(order.id)).toEqual({ order: ['cancelled'], stock: ['released'], coupon: ['released'] })
+    // Again, and it is the same answer.
+    expect(await cancel()).toEqual({ ok: true, status: 'cancelled' })
+    await postgres.query('update finance.payment_attempts set next_check_at = null where id = $1', [begun.attemptId])
+  })
+
+  it('PAYMENT_ACTIVE is answered 30 times per hour per order, then the throttle (54000); a wrong token never spends it', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 3500 })
+    const key = randomUUID()
+    const created = await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 1 }], idempotencyKey: key })
+    const hash = hashFor(tokenFor(key))
+    const number = created.result.order.orderNumber
+    const begun = await begin(number, hash)
+    const cancel = (tokenHash = hash): Promise<any> => rpc(pool[0]!)('checkout_cancel', { p_order_number: number, p_access_token_hash: tokenHash })
+    for (let i = 0; i < 5; i += 1) expect(await cancel('0'.repeat(64))).toEqual({ ok: false, code: 'NOT_FOUND' })
+    for (let i = 0; i < 30; i += 1) expect((await cancel()).code).toBe('PAYMENT_ACTIVE')
+    await expect(cancel()).rejects.toMatchObject({ code: '54000' })
+    // Once the attempt is closed the cancel itself is not throttled.
+    expect(await rpc(pool[0]!)('payment_attempt_close', { p_attempt: begun.attemptId, p_status: 'failed', p_error: 'PROVIDER_REFUSED' })).toMatchObject({ ok: true })
+    expect(await cancel()).toEqual({ ok: true, status: 'cancelled' })
+  })
+
+  it('a failed attempt does not block; a wrong token is NOT_FOUND whatever the attempt; a paid order answers its status', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 3500 })
+    const key = randomUUID()
+    const created = await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 1 }], idempotencyKey: key })
+    const hash = hashFor(tokenFor(key))
+    const number = created.result.order.orderNumber
+    const begun = await begin(number, hash)
+    expect(await rpc(pool[0]!)('checkout_cancel', { p_order_number: number, p_access_token_hash: '0'.repeat(64) })).toEqual({ ok: false, code: 'NOT_FOUND' })
+    // A guessed token learns nothing about the attempt.
+    expect(await rpc(pool[0]!)('checkout_cancel', { p_order_number: number, p_access_token_hash: '0'.repeat(64) })).not.toHaveProperty('attempt')
+
+    expect(await rpc(pool[0]!)('payment_attempt_close', { p_attempt: begun.attemptId, p_status: 'failed', p_error: 'CREATE_REFUSED' })).toMatchObject({ ok: true })
+    expect(await rpc(pool[0]!)('checkout_cancel', { p_order_number: number, p_access_token_hash: hash })).toEqual({ ok: true, status: 'cancelled' })
+
+    // An order that is no longer pending answers its status, attempt or not.
+    const paidKey = randomUUID()
+    const paid = await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 1 }], idempotencyKey: paidKey })
+    await postgres.query("update finance.orders set status = 'paid', paid_at = now() where id = $1", [paid.result.order.id])
+    expect(await rpc(pool[0]!)('checkout_cancel', { p_order_number: paid.result.order.orderNumber, p_access_token_hash: hashFor(tokenFor(paidKey)) })).toEqual({ ok: true, status: 'paid' })
   })
 })
 

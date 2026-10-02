@@ -47,17 +47,7 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  if (orderId) {
-    await db.query('delete from finance.order_items where order_id = $1', [orderId])
-    await db.query('delete from finance.inventory_reservations where order_id = $1', [orderId])
-    await db.query('delete from finance.coupon_redemptions where order_id = $1', [orderId])
-    await db.query('delete from finance.orders where id = $1', [orderId])
-    await db.query('delete from public.customers where email = $1', [buyerEmail])
-  }
-  // Retire, never delete: orders and audit reference the rows.
-  await db.query("update public.products set status = 'archived' where slug = $1", [slug])
-  await db.query('update public.shipping_rates set enabled = false where city_key = $1', [cityKey])
-  await db.query('update public.coupons set enabled = false where code = $1', [couponCode])
+  // The settings first: a later failure must never leave the shared database with checkout off.
   await db.query(
     `update finance.commerce_settings set checkout_enabled = $1, seller_legal_name = $2, seller_address = $3,
        seller_registration = $4, policy_revisions = $5::jsonb, version = $6, configured_at = $7, approved_by = $8
@@ -73,6 +63,18 @@ test.afterAll(async () => {
       saved.approved_by,
     ],
   )
+  if (orderId) {
+    await db.query('delete from finance.payment_attempts where order_id = $1', [orderId])
+    await db.query('delete from finance.order_items where order_id = $1', [orderId])
+    await db.query('delete from finance.inventory_reservations where order_id = $1', [orderId])
+    await db.query('delete from finance.coupon_redemptions where order_id = $1', [orderId])
+    await db.query('delete from finance.orders where id = $1', [orderId])
+    await db.query('delete from public.customers where email = $1', [buyerEmail])
+  }
+  // Retire, never delete: orders and audit reference the rows.
+  await db.query("update public.products set status = 'archived' where slug = $1", [slug])
+  await db.query('update public.shipping_rates set enabled = false where city_key = $1', [cityKey])
+  await db.query('update public.coupons set enabled = false where code = $1', [couponCode])
   await db.end()
 })
 

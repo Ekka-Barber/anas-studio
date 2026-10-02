@@ -1,8 +1,9 @@
-// P08 round 3: the `admin` function's `payment-recheck` action (the owner's
-// «أعد الفحص») and the payments part of the `status` action, with every
-// dependency faked: staff identity, the database, the Moyasar client, storage.
-// The SQL side is proven in tests/integration/payment.test.ts, and the real
-// function against the emulator in tests/integration/payment-http.test.ts.
+// P08 rounds 3 and 4: the `admin` function's `payment-recheck` action (the
+// owner's «أعد الفحص»), the payments part of the `status` action and the
+// owner's `commerce-checkout-set` switch, with every dependency faked: staff
+// identity, the database, the Moyasar client, storage. The SQL side is proven
+// in tests/integration/payment.test.ts and commerce-settings.test.ts, and the
+// real function against the emulator in tests/integration/payment-http.test.ts.
 import { randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -384,5 +385,116 @@ describe('status: payments', () => {
     const data = (JSON.parse((await status()).text) as { data: Record<string, unknown> }).data
     expect(data).toMatchObject({ turnstile: { configured: true, testSecret: true }, siteHost: 'localhost', payments: { configured: true } })
     expect(Object.keys(data).sort()).toEqual(['analytics', 'email', 'jobs', 'payments', 'siteHost', 'turnstile', 'webhook'])
+  })
+})
+
+// ---- commerce-checkout-set ----------------------------------------------------------------------------------
+
+describe('commerce-checkout-set', () => {
+  const body = (over: Record<string, unknown> = {}) => ({ action: 'commerce-checkout-set', enabled: true, expectedVersion: 4, ...over })
+  /** `payments: null` injects nothing, so the environment decides whether payments work. */
+  const setSwitch = (role: StaffIdentity['role'] | 'none', request: unknown = body(), opts: { recentTotp?: boolean; payments?: PaymentDeps | null } = {}) =>
+    handleAdmin(post(request), {
+      rpc,
+      staff: staffAs(role, opts.recentTotp ?? true),
+      store: memoryStore(),
+      ...(opts.payments === null ? {} : { payments: opts.payments ?? payments() }),
+    })
+  const answer = async (response: Response) => ({ status: response.status, body: await response.json() })
+
+  it('only an owner with a fresh TOTP; nobody else reaches the database', async () => {
+    for (const role of ['editor', 'operations'] as const) {
+      const refused = await answer(await setSwitch(role))
+      expect(refused.status).toBe(403)
+      expect(refused.body).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    }
+    expect((await setSwitch('none')).status).toBe(401)
+    const stale = await answer(await setSwitch('owner', body(), { recentTotp: false }))
+    expect(stale.status).toBe(403)
+    expect(stale.body).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
+    expect(calls).toHaveLength(0)
+    reply('commerce_checkout_set', 5)
+    expect((await setSwitch('owner')).status).toBe(200)
+  })
+
+  it.each([
+    ['no enabled', { enabled: undefined }],
+    ['an enabled that is not a boolean', { enabled: 'yes' }],
+    ['a negative version', { expectedVersion: -1 }],
+    ['a fractional version', { expectedVersion: 1.5 }],
+    ['a version that is not a number', { expectedVersion: '4' }],
+    ['no version', { expectedVersion: undefined }],
+    ['an unknown field', { settings: {} }],
+  ])('refuses %s with 422 before anything is called', async (_label, over) => {
+    const response = await answer(await setSwitch('owner', body(over)))
+    expect(response.status).toBe(422)
+    expect(response.body).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(calls).toHaveLength(0)
+  })
+
+  it('turns the switch on with the owner, the version it was read at and the flag, and answers the new version', async () => {
+    reply('commerce_checkout_set', 5)
+    const response = await answer(await setSwitch('owner'))
+    expect(response).toEqual({ status: 200, body: { ok: true, data: { version: 5, checkoutEnabled: true } } })
+    expect(calls).toEqual([{ fn: 'commerce_checkout_set', args: { p_actor: USER, p_expected_version: 4, p_enabled: true } }])
+  })
+
+  it('turns it off the same way', async () => {
+    reply('commerce_checkout_set', 7)
+    expect(await answer(await setSwitch('owner', body({ enabled: false, expectedVersion: 6 })))).toEqual({
+      status: 200,
+      body: { ok: true, data: { version: 7, checkoutEnabled: false } },
+    })
+    expect(called('commerce_checkout_set')[0]!.args).toEqual({ p_actor: USER, p_expected_version: 6, p_enabled: false })
+  })
+
+  it('enabling is refused 409 PAYMENTS_NOT_CONFIGURED while the payment settings do not work, and the database is not touched', async () => {
+    setEnv({})
+    const refused = await answer(await setSwitch('owner', body(), { payments: null }))
+    expect(refused.status).toBe(409)
+    expect(refused.body).toMatchObject({ ok: false, error: { code: 'PAYMENTS_NOT_CONFIGURED', message: 'لم تُضبط إعدادات الدفع بعد.' } })
+    // A configuration the rules refuse is the same: a live key on a local site.
+    setEnv({ ...LOCAL_ENV, PAYMENTS_MODE: 'live', MOYASAR_SECRET_KEY: 'sk_live_local_key_value' })
+    expect((await setSwitch('owner', body(), { payments: null })).status).toBe(409)
+    expect(calls).toHaveLength(0)
+  })
+
+  it('turning it off needs no payment settings: an owner can always close the store', async () => {
+    setEnv({})
+    reply('commerce_checkout_set', 9)
+    expect(await answer(await setSwitch('owner', body({ enabled: false }), { payments: null }))).toEqual({
+      status: 200,
+      body: { ok: true, data: { version: 9, checkoutEnabled: false } },
+    })
+  })
+
+  it('reads the payment settings from the environment when none are injected', async () => {
+    setEnv(LOCAL_ENV)
+    reply('commerce_checkout_set', 5)
+    expect((await setSwitch('owner', body(), { payments: null })).status).toBe(200)
+    expect(called('commerce_checkout_set')).toHaveLength(1)
+  })
+
+  it('a stale version is 409 CONFLICT', async () => {
+    reply('commerce_checkout_set', Object.assign(new Error('Commerce settings changed in another session.'), { code: '23505' }))
+    const response = await answer(await setSwitch('owner'))
+    expect(response.status).toBe(409)
+    expect(response.body).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.' } })
+  })
+
+  it('a seller or policies not ready is 422 NOT_READY', async () => {
+    reply('commerce_checkout_set', Object.assign(new Error('Name the seller and approve the policies before opening checkout.'), { code: 'P0001' }))
+    const response = await answer(await setSwitch('owner'))
+    expect(response.status).toBe(422)
+    expect(response.body).toMatchObject({ ok: false, error: { code: 'NOT_READY', message: 'أكمل بيانات البائع واعتمد السياسات أولًا.' } })
+  })
+
+  it('an owner revoked a moment ago is 403, and any other failure a detail-free 500', async () => {
+    reply('commerce_checkout_set', Object.assign(new Error('Owner only.'), { code: '42501' }))
+    expect((await setSwitch('owner')).status).toBe(403)
+    reply('commerce_checkout_set', Object.assign(new Error('connection to server at 10.0.0.5 lost'), { code: '08006' }))
+    const broken = await answer(await setSwitch('owner'))
+    expect(broken.status).toBe(500)
+    expect(JSON.stringify(broken.body)).not.toContain('10.0.0.5')
   })
 })

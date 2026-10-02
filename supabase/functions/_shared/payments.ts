@@ -611,7 +611,8 @@ async function reconcileAttempt(deps: PaymentDeps, attempt: ClaimedAttempt): Pro
   // Another attempt of the order was paid: this invoice must not stay payable.
   if (attempt.status === 'pending' && attempt.orderPaid) {
     const cancelled = await deps.client.cancelInvoice(attempt.providerInvoiceId)
-    if (cancelled.ok && cancelled.data.status === 'canceled') {
+    // A canceled invoice that lists a charged payment is settled below, never closed (the buyer's cancel has the same rule).
+    if (cancelled.ok && cancelled.data.status === 'canceled' && !cancelled.data.payments.some((payment) => CHARGED.has(payment.status))) {
       await closeAttempt(deps, attempt.attemptId, 'cancelled', null)
       return 'cancelled'
     }

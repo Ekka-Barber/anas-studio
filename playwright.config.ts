@@ -5,7 +5,9 @@ import { defineConfig, devices } from '@playwright/test'
  * serves the Edge Functions and Storage (D32). `next dev` renders the static
  * pages on request, so a publish shows at once; the built export itself is
  * checked by `pnpm check:export` and a static smoke. The origin must be
- * `http://localhost:3000`, the `SITE_URL` the local functions accept.
+ * `http://localhost:3000`, the `SITE_URL` the local functions accept. The Moyasar
+ * emulator (`pnpm emulator`) runs beside them: checkout's `create` makes its
+ * invoice there (P08).
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 
@@ -52,13 +54,25 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: process.env.PLAYWRIGHT_BASE_URL
-    ? undefined
-    : {
-        command: `node -e "require('node:fs').rmSync('${e2eDistDir}', { recursive: true, force: true })" && pnpm run dev`,
-        env: { NEXT_DIST_DIR: e2eDistDir },
-        url: baseURL,
-        reuseExistingServer: true,
-        timeout: 180_000,
-      },
+  webServer: [
+    ...(process.env.PLAYWRIGHT_BASE_URL
+      ? []
+      : [
+          {
+            command: `node -e "require('node:fs').rmSync('${e2eDistDir}', { recursive: true, force: true })" && pnpm run dev`,
+            env: { NEXT_DIST_DIR: e2eDistDir },
+            url: baseURL,
+            reuseExistingServer: true,
+            timeout: 180_000,
+          },
+        ]),
+    // P08: the local Moyasar emulator (a test harness, never Moyasar) on the port the local functions reach it on, so
+    // every suite that gets as far as checkout has an invoice step to talk to. A running `pnpm emulator` is reused.
+    {
+      command: 'pnpm emulator',
+      port: 54390,
+      reuseExistingServer: true,
+      timeout: 30_000,
+    },
+  ],
 })
