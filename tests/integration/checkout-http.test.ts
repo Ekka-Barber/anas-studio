@@ -584,7 +584,8 @@ describe('cancel', () => {
     const placed = await placeReady(variant)
     const [invoice] = emulator.state().invoices
     const paid = await control('/pay', { invoiceId: invoice!.id, status: 'paid' })
-    // A payment that completed around the cancel: the cancel answers 200 canceled, and its reply lists the charge.
+    // A payment that completed around the cancel. The provider refuses to cancel a canceled invoice (400, as the sandbox
+    // answers), so the function reads the invoice: canceled, with the charge listed.
     await control('/invoice', { invoiceId: invoice!.id, status: 'canceled' })
 
     const answered = await cancel(placed)
@@ -594,7 +595,7 @@ describe('cancel', () => {
     expect((await attemptsOf(placed.orderId))[0]).toMatchObject({ status: 'paid', provider_payment_id: paid.body.payment.id, captured_halalas: placed.total })
     expect(await reservationStates(placed.orderId)).toEqual(['committed'])
     expect(await stockOf(variant)).toBe(9)
-    expect(emulator.state().calls.find((entry) => entry.route === CANCEL_INVOICE)?.status).toBe(200)
+    expect(emulator.state().calls.find((entry) => entry.route === CANCEL_INVOICE)?.status).toBe(400)
   })
 
   it('a paid invoice whose payment cannot be fetched is neither cancelled nor answered as done: 409 PAYMENT_ACTIVE; the next cancel settles it', async () => {

@@ -360,7 +360,7 @@ describe('POST /v1/invoices', () => {
   ])('refuses %s with the documented 400 body naming the field', async (_label, overrides, field) => {
     const reply = await moyasar('POST', '/invoices', invoiceBody(overrides))
     expect(reply.status).toBe(400)
-    expect(reply.body).toMatchObject({ type: 'invalid_request_error', message: 'Validation Failed' })
+    expect(reply.body).toMatchObject({ type: 'validation_error', message: 'Data validation failed' })
     const errors = reply.body.errors as Record<string, string[]>
     expect(Object.keys(errors)).toEqual([field])
     expect(errors[field]).toEqual([expect.any(String)])
@@ -384,7 +384,7 @@ describe('POST /v1/invoices', () => {
       body: text === '' ? undefined : text,
     })
     expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({ type: 'invalid_request_error', message: 'Validation Failed' })
+    expect(await response.json()).toMatchObject({ type: 'validation_error', message: 'Data validation failed' })
   })
 
   it('accepts a callback_url and a success_url on every local host', async () => {
@@ -464,6 +464,13 @@ describe('GET /v1/invoices', () => {
   })
 })
 
+/** An invoice whose time has passed. The API refuses a past expiry at creation, as the sandbox does, so the test moves it. */
+async function expiredInvoice(make: () => Promise<InvoiceObject> = newInvoice): Promise<InvoiceObject> {
+  const invoice = await make()
+  await harness('/invoice', { invoiceId: invoice.id, expiredAt: new Date(Date.now() - 60_000).toISOString() })
+  return invoice
+}
+
 describe('invoice expiry', () => {
   it('reports expired once expired_at has passed, in a fetch, a list and a status filter', async () => {
     const invoice = await newInvoice()
@@ -474,9 +481,16 @@ describe('invoice expiry', () => {
     expect(listed.map((entry) => entry.id)).toEqual([invoice.id])
   })
 
-  it('an invoice created already past its expiry is expired at once', async () => {
-    const invoice = await newInvoice({ expired_at: new Date(Date.now() - 60_000).toISOString() })
-    expect((await getInvoice(invoice.id)).status).toBe('expired')
+  it('an expiry that has already passed is refused at creation, as the sandbox refuses it', async () => {
+    const reply = await moyasar('POST', '/invoices', {
+      amount: 100,
+      currency: 'SAR',
+      description: 'x',
+      expired_at: new Date(Date.now() - 60_000).toISOString(),
+    })
+    expect(reply.status).toBe(400)
+    expect(reply.body).toMatchObject({ type: 'validation_error', message: 'Data validation failed' })
+    expect(Object.keys(reply.body.errors as Record<string, unknown>)).toEqual(['expired_at'])
   })
 
   it('a paid invoice does not expire', async () => {
@@ -487,22 +501,23 @@ describe('invoice expiry', () => {
 })
 
 describe('PUT /v1/invoices/:id/cancel', () => {
-  it('cancels an initiated invoice, and a second cancel answers 200 again', async () => {
+  it('cancels an initiated invoice, and a second cancel is refused with the sandbox\'s words', async () => {
     const invoice = await newInvoice()
     const first = await moyasar('PUT', `/invoices/${invoice.id}/cancel`)
     expect(first.status).toBe(200)
     expect(first.body).toMatchObject({ id: invoice.id, status: 'canceled' })
     expect((await getInvoice(invoice.id)).status).toBe('canceled')
     const second = await moyasar('PUT', `/invoices/${invoice.id}/cancel`)
-    expect(second.status).toBe(200)
-    expect(second.body.status).toBe('canceled')
+    expect(second.status).toBe(400)
+    expect(second.body).toEqual({ type: 'invalid_request_error', message: 'Cancel failed. The Invoice is already canceled.', errors: null })
+    expect((await getInvoice(invoice.id)).status).toBe('canceled')
   })
 
   it('refuses a paid invoice with 400 by default, and answers 200 with status paid under cancelPaidReturns200', async () => {
     const { invoice } = await paidPayment()
     const refused = await moyasar('PUT', `/invoices/${invoice.id}/cancel`)
     expect(refused.status).toBe(400)
-    expect(refused.body).toMatchObject({ type: 'invalid_request_error', message: 'Validation Failed' })
+    expect(refused.body).toMatchObject({ type: 'invalid_request_error', message: 'Cancel failed. The Invoice is already paid.' })
     expect((await getInvoice(invoice.id)).status).toBe('paid')
 
     emulator.config({ cancelPaidReturns200: true })
@@ -511,9 +526,11 @@ describe('PUT /v1/invoices/:id/cancel', () => {
     expect(lenient.body.status).toBe('paid')
   })
 
-  it('refuses an expired invoice with 400', async () => {
-    const invoice = await newInvoice({ expired_at: new Date(Date.now() - 60_000).toISOString() })
-    expect((await moyasar('PUT', `/invoices/${invoice.id}/cancel`)).status).toBe(400)
+  it('refuses an expired invoice with 400 and the sandbox\'s words', async () => {
+    const invoice = await expiredInvoice()
+    const refused = await moyasar('PUT', `/invoices/${invoice.id}/cancel`)
+    expect(refused.status).toBe(400)
+    expect(refused.body).toEqual({ type: 'invalid_request_error', message: 'Cancel failed. The Invoice is already expired.', errors: null })
     expect((await getInvoice(invoice.id)).status).toBe('expired')
   })
 
@@ -636,7 +653,7 @@ describe('POST /__emulator/pay (any documented status)', () => {
 
   // The three ways an invoice is past paying; each setup returns one in that state.
   const unpayable: Array<[string, () => Promise<InvoiceObject>]> = [
-    ['expired', () => newInvoice({ expired_at: new Date(Date.now() - 60_000).toISOString() })],
+    ['expired', () => expiredInvoice()],
     [
       'canceled',
       async () => {
@@ -742,7 +759,7 @@ describe('POST /v1/payments/:id/refund', () => {
     const { payment } = await paidPayment(6900)
     const over = await refund(payment.id, { amount: 6901 })
     expect(over.status).toBe(400)
-    expect(over.body).toMatchObject({ type: 'invalid_request_error', message: 'Validation Failed' })
+    expect(over.body).toMatchObject({ type: 'validation_error', message: 'Data validation failed' })
     expect(over.body.errors).toEqual({ amount: ['Refund amount cannot exceed the charged amount'] })
     await refund(payment.id, { amount: 6000 })
     expect((await refund(payment.id, { amount: 901 })).status).toBe(400)
@@ -1123,7 +1140,7 @@ describe('webhooks and the invoice callback', () => {
   })
 
   it('a payment refused for the invoice state sends nothing; a forced late one sends the webhook and no callback', async () => {
-    const invoice = await payableInvoice({ expired_at: new Date(Date.now() - 60_000).toISOString() })
+    const invoice = await expiredInvoice(() => payableInvoice())
     expect((await harness('/pay', { invoiceId: invoice.id, status: 'paid' })).status).toBe(409)
     expect(receiver.received).toEqual([])
     expect(emulator.state().deliveries).toEqual([])

@@ -238,8 +238,15 @@ const UNAUTHORIZED: Reply = {
 }
 const NOT_FOUND: Reply = { status: 404, body: { type: 'record_not_found', message: 'Record not found', errors: null } }
 
+// The two 400 bodies as the sandbox answered them on 2026-10-02 (artifacts/acceptance/P08/moyasar-sandbox-2026-10-02.md):
+// a refused field is `validation_error` with a map of field to messages; an operation the object's state refuses is
+// `invalid_request_error` with a sentence and no map.
 function invalid(errors: Record<string, string[]>): Reply {
-  return { status: 400, body: { type: 'invalid_request_error', message: 'Validation Failed', errors } }
+  return { status: 400, body: { type: 'validation_error', message: 'Data validation failed', errors } }
+}
+
+function refusedOperation(message: string): Reply {
+  return { status: 400, body: { type: 'invalid_request_error', message, errors: null } }
 }
 
 const isObject = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -643,7 +650,7 @@ export async function startEmulator(options: EmulatorOptions = {}): Promise<Emul
     const errors: Record<string, string[]> = {}
     const { amount, currency, description, expired_at: expiredAt, metadata } = body
     if (amount === undefined || amount === null) errors.amount = ['is required']
-    else if (!Number.isInteger(amount) || (amount as number) < 100) errors.amount = ['must be an integer greater than or equal to 100']
+    else if (!Number.isInteger(amount) || (amount as number) < 100) errors.amount = ['The value must be greater than or equal to 100.']
     if (typeof currency !== 'string' || currency === '') errors.currency = ['is required']
     if (typeof description !== 'string' || description === '') errors.description = ['is required']
     for (const field of ['callback_url', 'success_url', 'back_url']) {
@@ -654,6 +661,9 @@ export async function startEmulator(options: EmulatorOptions = {}): Promise<Emul
     }
     if (expiredAt !== undefined && expiredAt !== null && (typeof expiredAt !== 'string' || !ISO_DATE_TIME.test(expiredAt) || Number.isNaN(Date.parse(expiredAt)))) {
       errors.expired_at = ['must be an ISO 8601 date and time']
+    } else if (typeof expiredAt === 'string' && Date.parse(expiredAt) < Date.now()) {
+      // The sandbox refuses an expiry that has already passed.
+      errors.expired_at = [`The value must be greater than or equal to ${new Date().toISOString()}.`]
     }
     const metadataError = metadata === undefined || metadata === null ? null : metadataProblem(metadata)
     if (metadataError) errors.metadata = [metadataError]
@@ -701,10 +711,11 @@ export async function startEmulator(options: EmulatorOptions = {}): Promise<Emul
     if (inv.status === 'initiated') {
       inv.status = 'canceled'
       inv.updated_at = new Date().toISOString()
-    } else if (inv.status === 'canceled' || (inv.status === 'paid' && config.cancelPaidReturns200)) {
-      // Already canceled answers 200 again; a paid one answers 200 only under the switch.
+    } else if (inv.status === 'paid' && config.cancelPaidReturns200) {
+      // A paid one answers 200 only under the switch.
     } else {
-      return invalid({ status: [`a ${inv.status} invoice cannot be canceled`] })
+      // The sandbox's own words for a canceled and for an expired invoice; the other statuses follow the same sentence.
+      return refusedOperation(`Cancel failed. The Invoice is already ${inv.status}.`)
     }
     return { status: 200, body: invoiceOut(inv) }
   }

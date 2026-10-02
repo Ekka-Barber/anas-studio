@@ -44,6 +44,21 @@ A read-only workflow (`wf_bdcb3007-35c`: five Sonnet researchers, each re-verifi
 
 The full record of that research, with the accounts, keys and go-live notes, the sandbox test cards, Apple Pay, settlements and fees, and the list of what is **not** documented, is `artifacts/acceptance/P08/moyasar-docs-2026-10-02.md`.
 
+### What the sandbox answered (2026-10-02)
+
+Anas's test keys arrived on 2026-10-02 and one approved pass was run against the sandbox API: test invoices were created, read, listed and cancelled; no payment was made. The full record is `artifacts/acceptance/P08/moyasar-sandbox-2026-10-02.md` and the script beside it. In short:
+
+- The project's own client worked against `https://api.moyasar.com/v1` with only the base URL and the key changed.
+- `metadata` on an invoice is accepted and kept, and the list filter returns only the matches, at once.
+- `expired_at` as `toISOString()` writes it is accepted and echoed unchanged; a past time is refused (400); an invoice reads `expired` once the time has passed.
+- A cancel of an `initiated` invoice answers 200 `canceled`; of a canceled or expired one, 400 `invalid_request_error`.
+- A refused field answers 400 `validation_error` with `errors` as a map of field to messages; an unknown id answers 404 `record_not_found`.
+- 100 halalas is accepted and 99 refused. The invoice object has exactly the documented keys, and nothing on it says live or test.
+- `callback_url` and `success_url` on `http://localhost` are accepted at creation.
+- 25 fetches in a row were all answered; no rate-limit header is sent.
+
+The emulator was aligned to these answers. Everything that needs a payment, a public URL or a device is still open (E02).
+
 ## The local emulator
 
 `tests/support/moyasar-emulator.ts` is a local stand-in for Moyasar. **It is a test harness that implements only the documented shapes above.** It proves how our code behaves against those shapes; it says nothing about how Moyasar really behaves where the documentation is silent. Those questions are answered only by the real sandbox run (E02), and no payment, refund or webhook it produces is real.
@@ -63,14 +78,14 @@ pnpm emulator
 
 ### The Moyasar routes
 
-Behind HTTP Basic auth: the secret key as the user name and an empty password; anything else answers 401 `authentication_error`. Replies and errors follow the tables above (`invalid_request_error` with an `errors` map for a 400, `record_not_found` for a 404).
+Behind HTTP Basic auth: the secret key as the user name and an empty password; anything else answers 401 `authentication_error`. Replies and errors follow the tables above and what the sandbox answered on 2026-10-02 (`validation_error` with an `errors` map for a refused field, `invalid_request_error` with a sentence for an operation the object's state refuses, `record_not_found` for a 404).
 
 | Route | Behaviour |
 |---|---|
-| `POST /v1/invoices` | Needs `amount` (an integer, at least 100), `currency` and `description`. Stores `metadata` and echoes `expired_at`. `callback_url`, `success_url` and `back_url` must be on a local host. Answers 201. |
+| `POST /v1/invoices` | Needs `amount` (an integer, at least 100), `currency` and `description`. Stores `metadata` and echoes `expired_at`; an `expired_at` that has already passed answers 400. `callback_url`, `success_url` and `back_url` must be on a local host. Answers 201. |
 | `GET /v1/invoices/:id` | The invoice with its payments nested. An invoice past its `expired_at` reports `expired` and refuses payment. |
 | `GET /v1/invoices` | 40 to a page, newest first, with `meta`. Filters `page`, `id`, `status` and `metadata[key]`. |
-| `PUT /v1/invoices/:id/cancel` | An `initiated` invoice becomes `canceled`; a `canceled` one answers 200 again; a `paid` or `expired` one answers 400 (see `cancelPaidReturns200`). |
+| `PUT /v1/invoices/:id/cancel` | An `initiated` invoice becomes `canceled`; a `canceled`, `expired` or `paid` one answers 400 "Cancel failed. The Invoice is already …" (see `cancelPaidReturns200` for a paid one). |
 | `GET /v1/payments/:id`, `GET /v1/payments` | The documented payment object; the list has the same paging and the filters `page`, `id`, `status` and `metadata[key]`. |
 | `POST /v1/payments/:id/refund` | Optional integer `amount` (none means the full amount). More than what is left answers 400. The status becomes `refunded` and `refunded` holds the running total (see the two refund switches). |
 

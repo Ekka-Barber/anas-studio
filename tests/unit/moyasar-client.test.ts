@@ -520,10 +520,11 @@ describe('the client against the local emulator', () => {
   })
 
   describe('cancelInvoice', () => {
-    it('cancels an initiated invoice, and again', async () => {
+    it('cancels an initiated invoice; a second cancel is refused (400), as the sandbox answers', async () => {
       const invoice = await createdInvoice()
       expect(await client.cancelInvoice(invoice.id)).toMatchObject({ ok: true, status: 200, data: { id: invoice.id, status: 'canceled' } })
-      expect(await client.cancelInvoice(invoice.id)).toMatchObject({ ok: true, data: { status: 'canceled' } })
+      expect(await client.cancelInvoice(invoice.id)).toEqual({ ok: false, kind: 'refused', status: 400 })
+      expect(await client.fetchInvoice(invoice.id)).toMatchObject({ ok: true, data: { status: 'canceled' } })
     })
 
     it('a paid invoice is refused with 400 by default, and comes back paid when the provider answers 200', async () => {
@@ -534,7 +535,9 @@ describe('the client against the local emulator', () => {
     })
 
     it('an expired invoice is refused', async () => {
-      const invoice = await createdInvoice({ expired_at: new Date(Date.now() - 60_000).toISOString() })
+      // A past expiry is refused at creation (as the sandbox refuses it), so the test moves the time.
+      const invoice = await createdInvoice()
+      await control('/invoice', { invoiceId: invoice.id, expiredAt: new Date(Date.now() - 60_000).toISOString() })
       expect(await client.cancelInvoice(invoice.id)).toEqual({ ok: false, kind: 'refused', status: 400 })
     })
 
