@@ -1,0 +1,434 @@
+/**
+ * «الحصير»: the soon page of anas.studio, direction A.
+ * One screen: a palm-leaf mat still being woven, and the name on the ground
+ * the weave leaves free. The mat is two inline drawings (a wide one that grows
+ * from the right edge, a tall one that hangs from the top); this file places
+ * them, sets the type, and slides the strips in. In both, the natural strips
+ * are laid first and the dyed ones are woven through them.
+ *
+ * Logical properties only; the page is Arabic, right to left.
+ * The strip rules at the end are generated with the drawings: keep them in step.
+ */
+
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('/fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --ground: #2a191d;
+  --sand: #e0c6ad;
+  --paper: #eadac8;
+  --aubergine: #54353b;
+  --coral: #e1654d;
+  --saffron: #efa032;
+
+  /* Text on the ground: paper 12:1, sand 10.2:1, coral 4.9:1, saffron 7.8:1. */
+  --ink: var(--paper);
+  --ink-quiet: var(--sand);
+  --ink-status: var(--coral);
+  --ring: var(--saffron);
+
+  --display: 'Thmanyah Serif Display', serif;
+  --sans: 'Thmanyah Sans', system-ui, sans-serif;
+
+  --gutter: 20px;
+  --nav-gap: clamp(16px, 3svh, 36px);
+  --tap: 44px;
+  --out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* The tall mat's height. Its drawing is 360 by 620: full width on a phone,
+     and never so tall that its longest strip reaches the links. */
+  --mat: min(172.2vw, calc(100svh - 140px));
+  /* Where a weft starts its slide, as a share of the drawing's width. */
+  --enter: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--ground);
+  color: var(--ink);
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  position: relative;
+  min-block-size: 100svh;
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 16px;
+  font-style: normal;
+  line-height: 1.8;
+  letter-spacing: 0;
+}
+
+h1,
+p,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- The mat --------------------------------------------------------------- */
+
+.loom {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.mat {
+  position: absolute;
+  inset-block-start: 0;
+  display: block;
+  overflow: visible;
+}
+
+/* Tall: hangs from the top, its long loose strips down the far side. */
+.mat-tall {
+  inset-inline-end: 0;
+  block-size: var(--mat);
+  aspect-ratio: 360 / 620;
+}
+
+/* Wide: grows from the reading start, full height. */
+.mat-wide {
+  display: none;
+  inset-inline-start: 0;
+  block-size: 100svh;
+  aspect-ratio: 10 / 9;
+}
+
+.sand { fill: var(--sand); }
+.paper { fill: var(--paper); }
+.aubergine { fill: var(--aubergine); }
+.coral { fill: var(--coral); }
+.saffron { fill: var(--saffron); }
+
+/* The fold down the middle of a leaf. */
+.rib {
+  fill: none;
+  stroke: var(--ground);
+  stroke-opacity: 0.2;
+  stroke-width: 1;
+}
+
+.mat-wide .rib {
+  stroke-width: 1.5;
+}
+
+/* Where a strip dives under its neighbour. */
+.shade {
+  fill: var(--ground);
+  fill-opacity: 0.4;
+}
+
+/* ---- The words ------------------------------------------------------------- */
+
+.page {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 1fr auto;
+  column-gap: 16px;
+  min-block-size: 100svh;
+  /* Top: clear of the mat's fringe (350 of the drawing's 620). */
+  padding-block: calc(var(--mat) * 0.565) 20px;
+  padding-inline: var(--gutter);
+}
+
+main {
+  grid-column: 1 / -1;
+  align-self: end;
+  /* Clear of the long loose strips (120 of the drawing's 620, from the edge). */
+  margin-inline-end: calc(var(--mat) * 0.1936 - var(--gutter));
+}
+
+.name,
+.soon {
+  font-family: var(--display);
+  font-size: clamp(34px, min(13vw, 7svh), 64px);
+  font-weight: 500;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+.soon {
+  margin-block-start: 0.3em;
+  color: var(--ink-status);
+}
+
+.line {
+  margin-block-start: 0.7em;
+  color: var(--ink-quiet);
+  font-family: var(--display);
+  /* 20px on a 360 phone: the brand's floor for a short serif line. */
+  font-size: clamp(18px, 5.6vw, 26px);
+  font-weight: 500;
+  line-height: 1.7;
+  text-wrap: balance;
+}
+
+nav {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin-block-start: var(--nav-gap);
+  color: var(--ink-quiet);
+  font-size: 17px;
+}
+
+nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 26px;
+  list-style: none;
+}
+
+nav a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  color: var(--ink);
+  font-size: 18px;
+  text-decoration-line: underline;
+  text-decoration-thickness: 3px;
+  text-decoration-color: var(--coral);
+  text-decoration-skip-ink: auto;
+  text-underline-offset: 0.45em;
+}
+
+/* Each link is underlined with one strip of the mat. */
+nav li:nth-child(2) a { text-decoration-color: var(--saffron); }
+nav li:nth-child(3) a { text-decoration-color: var(--sand); }
+
+@media (hover: hover) {
+  nav a:hover {
+    color: var(--saffron);
+  }
+}
+
+nav a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* The domain shares the label's row, at the far end. */
+footer {
+  grid-column: 2;
+  grid-row: 2;
+  align-self: start;
+  margin-block-start: var(--nav-gap);
+  color: var(--ink-quiet);
+  font-size: 17px;
+}
+
+/* ---- Wide screens: the mat at the reading start, the words beside it ------- */
+
+@media (min-aspect-ratio: 4/3) {
+  :root {
+    --gutter: clamp(24px, 5vw, 72px);
+  }
+
+  .mat-tall { display: none; }
+  .mat-wide { display: block; }
+
+  .page {
+    /* The wide drawing is 1000 by 900 and as tall as the screen: the loose
+       ends stop 730 from its right edge, and the long ones stay above 270. */
+    padding-block: 30svh clamp(20px, 6svh, 56px);
+    padding-inline: 87svh var(--gutter);
+  }
+
+  main {
+    margin-inline-end: 0;
+  }
+
+  .name,
+  .soon {
+    font-size: clamp(34px, min(5.8vw, 9.2svh), 96px);
+  }
+
+  .line {
+    font-size: clamp(19px, min(2vw, 3.2svh), 32px);
+  }
+
+  /* Here the domain sits on the links' row instead. */
+  footer {
+    display: flex;
+    align-items: center;
+    align-self: end;
+    min-block-size: var(--tap);
+    margin-block-start: 0;
+  }
+}
+
+/* When the words' column is too narrow for the links and the domain on one
+   row (a tablet on its side, a short wide window), the domain takes its own.
+   The column's width is the screen's width less the mat's, which follows the
+   screen's height, so it is asked of the column itself. */
+@media (min-aspect-ratio: 4/3) {
+  .page {
+    container-type: inline-size;
+  }
+
+  @container (max-width: 470px) {
+    footer {
+      grid-column: 1 / -1;
+      grid-row: 3;
+      justify-self: start;
+    }
+  }
+}
+
+/* On a phone his line stays one line: it is a pixel or two wider than the
+   column at some widths, and the loose strips beside it end above it. */
+@media (max-aspect-ratio: 4/3) {
+  .line {
+    white-space: nowrap;
+  }
+}
+
+/* A tall layout on a wide window shows more of the mat past the drawing's
+   edge: start the wefts further out. */
+@media (max-aspect-ratio: 4/3) and (min-aspect-ratio: 5/8) {
+  :root { --enter: 200%; }
+}
+
+@media (max-aspect-ratio: 4/3) and (min-aspect-ratio: 1/1) {
+  :root { --enter: 300%; }
+}
+
+/* ---- The entrance: strips drop and thread through, the words surface --------
+   Every element rests in its final state; these only describe the way in. */
+
+@media (prefers-reduced-motion: no-preference) {
+  .v {
+    animation: drop 850ms var(--out) var(--d) backwards;
+  }
+
+  .h {
+    animation: thread 850ms var(--out) var(--d) backwards;
+  }
+
+  .shade {
+    animation: surface 600ms ease-out 2300ms backwards;
+  }
+
+  .name,
+  .soon,
+  .line,
+  nav,
+  footer {
+    animation: surface 700ms ease-out backwards;
+  }
+
+  .name { animation-delay: 150ms; }
+  .soon { animation-delay: 450ms; }
+  .line { animation-delay: 750ms; }
+  nav { animation-delay: 1000ms; }
+  footer { animation-delay: 1150ms; }
+}
+
+/* A wipe measured on the drawing's own frame, so a strip's two layers (under
+   and over) move as one and the weave is right at every moment. --to is the
+   strip's loose end. */
+@keyframes drop {
+  from { clip-path: inset(-20% -400% 100% -20%) view-box; }
+  to { clip-path: inset(-20% -400% var(--to) -20%) view-box; }
+}
+
+@keyframes thread {
+  from { clip-path: inset(-20% -400% -20% var(--enter)) view-box; }
+  to { clip-path: inset(-20% -400% -20% var(--to)) view-box; }
+}
+
+@keyframes surface {
+  from { opacity: 0; }
+}
+
+@media print {
+  :root {
+    --ink: #2a191d;
+    --ink-quiet: #54353b;
+    --ink-status: #2a191d;
+  }
+
+  html {
+    background: none;
+  }
+}
+
+/* ---- Generated with the drawings: each strip's turn and its loose end ------ */
+
+.mat-wide .h0{--d:450ms;--to:10%}
+.mat-wide .h1{--d:545ms;--to:-28%}
+.mat-wide .h2{--d:640ms;--to:2%}
+.mat-wide .h3{--d:735ms;--to:23%}
+.mat-wide .h4{--d:830ms;--to:26%}
+.mat-wide .h5{--d:925ms;--to:33%}
+.mat-wide .h6{--d:1020ms;--to:36%}
+.mat-wide .h7{--d:1115ms;--to:27%}
+.mat-wide .h8{--d:1210ms;--to:33%}
+.mat-wide .h9{--d:1305ms;--to:38%}
+.mat-wide .h10{--d:1400ms;--to:42%}
+.mat-wide .h11{--d:1495ms;--to:46%}
+.mat-wide .h12{--d:1590ms;--to:41%}
+.mat-wide .v0{--d:0ms;--to:-8%}
+.mat-wide .v1{--d:65ms;--to:-8%}
+.mat-wide .v2{--d:130ms;--to:-8%}
+.mat-wide .v3{--d:195ms;--to:-8%}
+.mat-wide .v4{--d:260ms;--to:-8%}
+.mat-wide .v5{--d:325ms;--to:-8%}
+.mat-wide .v6{--d:390ms;--to:2%}
+.mat-wide .v7{--d:455ms;--to:17%}
+.mat-wide .v8{--d:520ms;--to:66%}
+.mat-tall .h0{--d:0ms;--to:-26%}
+.mat-tall .h1{--d:65ms;--to:-26%}
+.mat-tall .h2{--d:130ms;--to:-26%}
+.mat-tall .h3{--d:195ms;--to:-26%}
+.mat-tall .h4{--d:260ms;--to:-2%}
+.mat-tall .v0{--d:1210ms;--to:10%}
+.mat-tall .v1{--d:1115ms;--to:-1%}
+.mat-tall .v2{--d:1020ms;--to:14%}
+.mat-tall .v3{--d:925ms;--to:43%}
+.mat-tall .v4{--d:830ms;--to:49%}
+.mat-tall .v5{--d:735ms;--to:42%}
+.mat-tall .v6{--d:640ms;--to:46%}
+.mat-tall .v7{--d:545ms;--to:42%}
+.mat-tall .v8{--d:450ms;--to:48%}
+.mat-tall .v9{--d:450ms;--to:42%}
+.mat-tall .v10{--d:450ms;--to:46%}
+.mat-tall .v11{--d:450ms;--to:42%}
+.mat-tall .v12{--d:450ms;--to:48%}
+.mat-tall .v13{--d:450ms;--to:42%}
+.mat-tall .v14{--d:450ms;--to:46%}
+.mat-tall .v15{--d:450ms;--to:42%}
+.mat-tall .v16{--d:450ms;--to:48%}
+.mat-tall .v17{--d:450ms;--to:42%}
+.mat-tall .v18{--d:450ms;--to:46%}
+.mat-tall .v19{--d:450ms;--to:42%}
+.mat-tall .v20{--d:450ms;--to:48%}
+.mat-tall .v21{--d:450ms;--to:42%}
+.mat-tall .v22{--d:450ms;--to:46%}
+.mat-tall .v23{--d:450ms;--to:42%}
+.mat-tall .v24{--d:450ms;--to:48%}

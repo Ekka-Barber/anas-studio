@@ -1,0 +1,32 @@
+# The soon page of anas.studio, in Anas's Cloudflare account. See README.md.
+# Static files, plus a few lines of script that pick which of the three
+# designs `/` shows. It holds the domain until the real site launches on
+# Cloudflare Pages (D32, P11); then this Worker and its custom domains go.
+name = "anas-studio-soon"
+compatibility_date = "2026-09-01"
+main = "worker.js"
+# Only the domain: no workers.dev address.
+workers_dev = false
+
+# A file under site/ is served as it is. Any other address (`/`, an old or
+# mistyped link) reaches worker.js, which answers with one of the designs.
+[assets]
+directory = "./site"
+binding = "ASSETS"
+
+# Which page the domain shows: "soon" or "maintenance" (worker.js).
+# `node --env-file=.env artifacts/soon/deploy.cjs --mode=maintenance` sets it
+# for one deploy without editing this file.
+[vars]
+MODE = "soon"
+
+# Custom Domains: Cloudflare creates the DNS records and the certificates.
+[[routes]]
+pattern = "anas.studio"
+custom_domain = true
+
+# ponytail: www shows the same page (its canonical names the bare domain);
+# a redirect would need more script.
+[[routes]]
+pattern = "www.anas.studio"
+custom_domain = true

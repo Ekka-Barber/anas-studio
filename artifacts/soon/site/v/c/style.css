@@ -1,0 +1,425 @@
+/* anas.studio, the soon page, direction C: a door standing open.
+   A sand wall, an aubergine floor, and one doorway onto Anas at his table.
+   Its two leaves are flat colour planes; they swing open once on load.
+   No script: the resting CSS is the finished page, keyframes hold only the start. */
+
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyah/thmanyahsans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyah/thmanyahsans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --sand: #e0c6ad;
+  --paper: #eadac8;
+  --aubergine: #54353b;
+  --aubergine-darkest: #2a191d;
+  --coral: #e1654d;
+  --saffron: #efa032;
+  --saffron-ink: #5a3210;
+
+  --serif: "Thmanyah Serif Display", serif;
+  --sans: "Thmanyah Sans", system-ui, sans-serif;
+
+  --swing: cubic-bezier(0.65, 0, 0.35, 1); /* a heavy door: slow off the latch, slow to rest */
+  --settle: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--sand);
+  color: var(--aubergine);
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact; /* the floor's paper text needs its aubergine on paper too */
+}
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+:lang(ar) {
+  letter-spacing: 0;
+  font-style: normal;
+  text-transform: none;
+}
+
+h1,
+p,
+ul {
+  margin: 0;
+}
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- The stage: wall above, floor below (phone first) ---------- */
+
+.stage {
+  --pad: 16px;
+  /* A closed leaf is half the opening wide; these are how many of its open
+     widths that is, so the entrance can start it folded shut over the photo. */
+  --ks: 0.953;
+  --kc: 4.357;
+  /* How far each leaf's free edge runs past the opening, above and below:
+     never more than the room left for it, or it would cover the words. */
+  --ds: min(4.6vw, 20px);
+  --dc: min(2.4vw, 20px);
+  /* The wall line's width in em: «أهلاً بك» here, «أعود قريباً» on the
+     maintenance page (.maint). */
+  --gw: 2.88;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(240px, 1fr) auto auto;
+  grid-template-areas:
+    "greet greet"
+    "door  door"
+    "host  sig"
+    "foot  foot";
+  min-block-size: 100svh;
+}
+
+/* The floor. */
+.stage::before {
+  content: "";
+  grid-column: 1 / -1;
+  grid-row: 3 / -1;
+  background: var(--aubergine);
+}
+
+.greet {
+  grid-area: greet;
+  margin-block: 18px 22px;
+  margin-inline: var(--pad);
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: min(21vw, 11svh);
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* ---------- The door ---------- */
+
+.door {
+  grid-area: door;
+  display: grid;
+  grid-template-columns: 32fr 61fr 7fr; /* saffron leaf, opening, coral leaf */
+  position: relative;
+}
+
+.opening {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--aubergine-darkest);
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  object-position: 58% 30%; /* keeps his elbow and the enamel mugs inside a narrow door */
+}
+
+/* A leaf is a flat trapezoid: hinged on the photo's edge at the opening's own
+   height, and taller at its free edge because that edge is nearer to us.
+   Transforms and clip paths are physical; the page is right-to-left only. */
+.leaf {
+  grid-row: 1;
+  position: relative;
+  z-index: 1;
+}
+.leaf-saffron {
+  grid-column: 1;
+  margin-block: calc(var(--ds) * -1);
+  margin-inline-end: -1px; /* no hairline of wall between leaf and photo */
+  background: var(--saffron);
+  clip-path: polygon(0 var(--ds), 100% 0, 100% 100%, 0 calc(100% - var(--ds)));
+  transform-origin: 0 50%;
+}
+.leaf-coral {
+  grid-column: 3;
+  margin-block: calc(var(--dc) * -1);
+  margin-inline-start: -1px;
+  background: var(--coral);
+  clip-path: polygon(0 0, 100% var(--dc), 100% calc(100% - var(--dc)), 0 100%);
+  transform-origin: 100% 50%;
+}
+
+.soon {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  z-index: 2;
+  place-self: center;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 13.4vw;
+  line-height: 1.3;
+  color: var(--saffron-ink);
+  white-space: nowrap;
+}
+
+/* ---------- The floor: the host's card ---------- */
+
+.host {
+  grid-area: host;
+  padding-block-start: 30px;
+  padding-inline-start: var(--pad);
+  color: var(--paper);
+}
+.name {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: 1.875rem;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.line {
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.sig {
+  grid-area: sig;
+  align-self: center;
+  inline-size: 116px;
+  aspect-ratio: 1843.2 / 572.904;
+  margin-block-start: 30px;
+  margin-inline: 10px var(--pad);
+  background: currentColor;
+  color: var(--saffron);
+  -webkit-mask: url("/brand/anas-signature.svg") center / contain no-repeat;
+  mask: url("/brand/anas-signature.svg") center / contain no-repeat;
+  clip-path: inset(0);
+}
+
+.foot {
+  grid-area: foot;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0 16px;
+  padding-block: 8px 12px;
+  padding-inline: var(--pad);
+  color: var(--paper);
+  font-size: 0.9375rem;
+}
+.find ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+.find a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--saffron);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+}
+.find a:hover {
+  color: var(--saffron);
+}
+.find a:focus-visible {
+  outline: 2px solid var(--saffron); /* 5:1 on the aubergine floor */
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.domain {
+  display: flex;
+  align-items: center;
+  min-block-size: 44px;
+}
+
+/* ---------- Wide screens: the door at the end, the greeting on the wall ---------- */
+
+/* A landscape phone is too short for a door beside a wall: it keeps the stacked page and scrolls. */
+@media (min-width: 820px) and (min-aspect-ratio: 1/1) and (min-height: 560px) {
+  .stage {
+    --pad: clamp(40px, 5vw, 96px);
+    --gap: clamp(32px, 4vw, 72px);
+    --floor: clamp(120px, 18svh, 176px);
+    --top: clamp(32px, 6svh, 64px);
+    --door-h: calc(100svh - var(--floor) - var(--top));
+    --door-w: min(calc(var(--door-h) * 0.62), 34vw);
+    --ks: 0.806;
+    --kc: 1.923;
+    --ds: calc(var(--door-w) * 0.09);
+    --dc: calc(var(--door-w) * 0.075);
+    --rest: clamp(18px, 3.6svh, 34px);
+    /* The greeting fills the wall beside the door, on one line. */
+    --greet: min(calc((100vw - 2 * var(--pad) - var(--gap) - var(--door-w) * 1.88) / (var(--gw) + 0.12)), 16svh);
+
+    grid-template-columns: minmax(0, 1fr) calc(var(--door-w) * 1.88);
+    grid-template-rows: 1fr auto auto 1.5fr minmax(var(--floor), auto);
+    grid-template-areas:
+      ".     door"
+      "greet door"
+      "sig   door"
+      ".     door"
+      "host  foot";
+    column-gap: var(--gap);
+    padding-inline: var(--pad);
+  }
+  .stage::before {
+    grid-row: 5;
+    margin-inline: calc(var(--pad) * -1);
+  }
+
+  .door {
+    grid-template-columns: 62fr 100fr 26fr;
+    margin-block-start: var(--top);
+  }
+  .photo {
+    object-position: 50% 30%;
+  }
+  .soon {
+    font-size: calc(var(--door-w) * 0.22);
+  }
+
+  .greet {
+    margin: 0;
+    font-size: var(--greet);
+  }
+  .sig {
+    /* Signed under the greeting, ending where the greeting's last letter ends. */
+    align-self: start;
+    justify-self: start;
+    inline-size: calc(var(--greet) * 1.9);
+    margin-block: calc(var(--greet) * 0.14) 0;
+    margin-inline: calc(var(--greet) * (var(--gw) - 1.9)) 0;
+    color: var(--aubergine);
+  }
+
+  .host {
+    align-self: end;
+    padding: 0 0 var(--rest);
+  }
+  .name {
+    font-size: clamp(1.75rem, 2.8vw, 2.75rem);
+  }
+  .line {
+    font-size: 1.0625rem;
+  }
+
+  .foot {
+    align-self: end;
+    align-items: center;
+    padding: 0 0 calc(var(--rest) - 7px);
+    font-size: 1rem;
+  }
+  .find {
+    display: flex;
+    flex-wrap: wrap; /* under a narrow door the sentence sits above its links */
+    align-items: center;
+    gap: 0 24px;
+  }
+  .find p {
+    white-space: nowrap;
+  }
+  .find ul {
+    gap: 0 24px;
+  }
+  .find a {
+    font-size: 1.0625rem;
+  }
+}
+
+/* ---------- The entrance: the door opens once ---------- */
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  .leaf-saffron {
+    animation: open-saffron 1100ms var(--swing) 250ms backwards;
+  }
+  .leaf-coral {
+    animation: open-coral 1100ms var(--swing) 380ms backwards;
+  }
+  .greet {
+    animation: rise 700ms var(--settle) 100ms backwards;
+  }
+  .soon {
+    animation: rise 700ms var(--settle) 1150ms backwards;
+  }
+  .sig {
+    animation: sign 900ms var(--swing) 1050ms backwards;
+  }
+  .host {
+    animation: rise 600ms var(--settle) 1300ms backwards;
+  }
+  .foot {
+    animation: rise 600ms var(--settle) 1420ms backwards;
+  }
+}
+
+/* Shut: each leaf folded back over its half of the opening, at the opening's height. */
+@keyframes open-saffron {
+  from {
+    transform: scaleX(calc(var(--ks) * -1));
+    clip-path: polygon(0 var(--ds), 100% var(--ds), 100% calc(100% - var(--ds)), 0 calc(100% - var(--ds)));
+  }
+}
+@keyframes open-coral {
+  from {
+    transform: scaleX(calc(var(--kc) * -1));
+    clip-path: polygon(0 var(--dc), 100% var(--dc), 100% calc(100% - var(--dc)), 0 calc(100% - var(--dc)));
+  }
+}
+/* The maintenance page's wall line is longer. */
+.maint {
+  --gw: 3.62;
+}
+
+@media (forced-colors: active) {
+  .sig {
+    background: CanvasText;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.3em);
+  }
+}
+@keyframes sign {
+  from {
+    clip-path: inset(0 100% 0 0); /* his hand writes it left to right */
+  }
+}

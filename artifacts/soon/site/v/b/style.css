@@ -1,0 +1,393 @@
+/* anas.studio, coming soon: direction B, the typographic poster.
+   One idea: the word «قريباً» stands on the edge of an aubergine block. What is
+   above the edge is ink on coral; what hangs below it (the three dots and the
+   tail of the ر) is paper inside the block. A saffron strip holds the alif.
+   No script: the entrance is CSS only, and the resting state is the final one. */
+
+@font-face {
+  font-family: "Thmanyah Serif Display";
+  src: url("/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyah/thmanyahsans-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Thmanyah Sans";
+  src: url("/fonts/thmanyah/thmanyahsans-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --coral: #e1654d;
+  --saffron: #efa032;
+  --aubergine: #54353b;
+  --ink: #2a191d; /* on coral 4.9:1, on saffron 7.8:1 */
+  --paper: #eadac8; /* on aubergine 7.9:1 */
+
+  --display: "Thmanyah Serif Display", "Noto Naskh Arabic", "Geeza Pro", serif;
+  --sans: "Thmanyah Sans", "Noto Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --h: 100vh;
+  --g: 20px; /* text gutter */
+  --wl: 12px; /* the word's distance from the inline-end edge */
+
+  /* The word's size. Measured on the face: the word is 1.716em wide, its ink
+     stops 0.04em short of the start edge, the tanween tops out 1.022em above
+     the baseline and the dots hang 0.253em below it. On a phone the word runs
+     edge to edge, so that the ق lands on the text gutter; on a short one it
+     shrinks so the whole page stays on the screen (the rest takes 405px). */
+  --F: max(96px, min((100vw - 32px) / 1.676, (var(--h) - 405px) / 1.3));
+}
+@supports (block-size: 100svh) {
+  :root {
+    --h: 100svh;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:lang(ar) {
+  letter-spacing: 0;
+  font-style: normal;
+  text-transform: none;
+  font-synthesis: none;
+}
+
+html {
+  background: var(--coral);
+  color: var(--ink);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-block-size: var(--h);
+  display: grid;
+  grid-template-rows: 1fr auto;
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+/* ---------- The coral field ---------- */
+
+.sky {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding-block-start: clamp(20px, calc(var(--h) * 0.036), 32px);
+  /* The field ends at the block's edge: the word's tail and lower dots are cut
+     here on purpose, and shown again in paper inside the block. */
+  overflow: hidden;
+  overflow: clip;
+}
+
+.who {
+  margin-inline: var(--g) calc(var(--wl) + var(--F) * 0.28 + 12px);
+  margin-block-end: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(28px, 9.2vw, 36px);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+.line {
+  margin: 2px 0 0;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: clamp(18px, 6vw, 23px);
+  line-height: 1.6;
+  text-wrap: balance;
+}
+
+.signature {
+  display: block;
+  inline-size: min(270px, 100%);
+  aspect-ratio: 1843.2 / 572.904;
+  margin-block-start: clamp(10px, calc(var(--h) * 0.028), 22px);
+  background: currentColor;
+  -webkit-mask: url("/brand/anas-signature.svg") center / contain no-repeat;
+  mask: url("/brand/anas-signature.svg") center / contain no-repeat;
+}
+
+/* ---------- The word ---------- */
+
+/* With this line height the baseline falls exactly 1.04em below the top of the
+   box, so a box 1.04em tall ends on the baseline: the tanween fits inside it,
+   and everything below the baseline hangs out of it. */
+.word {
+  position: relative;
+  z-index: 0;
+  margin: 0;
+  block-size: 1.04em;
+  inline-size: max-content;
+  font-family: var(--display);
+  font-weight: 500;
+  font-size: var(--F);
+  line-height: 1.33;
+  white-space: nowrap;
+}
+.word > span {
+  display: block;
+}
+
+.sky > .word {
+  align-self: flex-end;
+  margin-block-start: auto;
+  margin-inline-end: var(--wl);
+}
+
+/* The saffron strip: it comes down from the top edge to the block and holds the
+   alif and its tanween. On a phone it bleeds off the side. */
+.sky > .word::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset-block-end: 0;
+  block-size: 100vh;
+  inset-inline-end: calc(-1 * var(--wl));
+  inline-size: calc(var(--wl) + 0.28em);
+  background: var(--saffron);
+}
+
+/* ---------- The aubergine block ---------- */
+
+.ground {
+  --ft: calc(var(--F) * 0.253 + clamp(20px, calc(var(--h) * 0.038), 30px));
+  --fb: clamp(18px, calc(var(--h) * 0.044), 34px);
+  position: relative;
+  padding: var(--ft) var(--g) var(--fb);
+  color: var(--paper);
+  overflow: hidden;
+  overflow: clip;
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--aubergine);
+}
+.fill .word {
+  position: absolute;
+  inset-block-start: -1.04em;
+  inset-inline-end: var(--wl);
+  color: var(--paper);
+}
+
+.find,
+.domain {
+  position: relative;
+}
+
+.find p,
+.domain {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.find ul {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 22px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.find a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  color: inherit;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.6;
+  text-decoration: underline;
+  text-decoration-color: var(--saffron);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.4em;
+}
+.find a:hover {
+  color: var(--saffron); /* on aubergine 5:1 */
+  text-decoration-thickness: 3px;
+}
+.find a:focus-visible {
+  outline: 2px solid var(--saffron);
+  outline-offset: 4px;
+}
+
+/* The address sits at the end side, under the strip. Its direction is set on the
+   inner span, so that "end" here still means the page end. */
+.domain {
+  margin-block-start: clamp(8px, calc(var(--h) * 0.02), 16px);
+  text-align: end;
+}
+
+/* ---------- Wide screens: the word on the end side, the credits in a column on the start side ---------- */
+
+@media (min-width: 900px) and (min-aspect-ratio: 5/4) {
+  :root {
+    --g: 56px;
+    --col: clamp(250px, 18.4vw, 320px);
+    --wl: calc(var(--g) + 0.06em);
+    /* Height: top margin + word + the dots + the foot of the block.
+       On a short window the block is as tall as its three links (225px), not
+       as the word's dots, and the word gives way to it.
+       Width: both margins, the column, a gap, and the word with its strip. */
+    --F: min((var(--h) - 148px) / 1.31, (var(--h) - 273px) / 1.04, (100vw - var(--g) * 2 - var(--col) - 64px) / 1.736);
+  }
+
+  .sky {
+    display: grid;
+    padding-block-start: 48px;
+  }
+
+  .who {
+    grid-area: 1 / 1;
+    justify-self: start;
+    align-self: start;
+    inline-size: var(--col);
+    margin-inline: var(--g) 0;
+    margin-block-end: 0;
+  }
+
+  /* Sized from the column, so the full name fills it and the short one sits inside it. */
+  h1 {
+    font-size: calc(var(--col) / 7);
+  }
+  .line {
+    margin-block-start: 6px;
+    font-size: calc(var(--col) / 11.6);
+  }
+  .signature {
+    inline-size: 100%;
+    margin-block-start: 20px;
+  }
+
+  .sky > .word {
+    grid-area: 1 / 1;
+    justify-self: end;
+    align-self: end;
+  }
+  .sky > .word::before {
+    inset-inline-end: -0.06em;
+    inline-size: 0.34em;
+  }
+
+  .ground {
+    --fb: 36px;
+    display: flex;
+    align-items: flex-end;
+    min-block-size: calc(var(--F) * 0.27 + 100px);
+    padding-block-start: 28px;
+  }
+
+  .find ul {
+    flex-direction: column;
+    margin-block-start: 0;
+  }
+  .find a {
+    font-size: 18px;
+  }
+
+  .domain {
+    position: absolute;
+    inset-inline-end: var(--g);
+    inset-block-end: var(--fb);
+    margin: 0;
+    line-height: 44px;
+  }
+}
+
+/* ---------- The entrance: once, and only if motion is welcome ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  .fill {
+    animation: block-up 700ms var(--ease) backwards;
+  }
+  .sky > .word::before {
+    animation: strip-down 800ms var(--ease) 120ms backwards;
+  }
+  /* Both copies of the word move as one: paper while inside the block, ink once above its edge. */
+  .word > span {
+    animation: word-up 1100ms var(--ease) 620ms backwards;
+  }
+  .who > *,
+  .find,
+  .domain {
+    animation: settle 600ms cubic-bezier(0.2, 0.7, 0.2, 1) 1250ms backwards;
+  }
+  .who > .line {
+    animation-delay: 1330ms;
+  }
+  .who > .signature {
+    animation-delay: 1410ms;
+  }
+  .find {
+    animation-delay: 1490ms;
+  }
+  .domain {
+    animation-delay: 1570ms;
+  }
+}
+
+@keyframes block-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes strip-down {
+  from {
+    transform: translateY(-100%);
+  }
+}
+@keyframes word-up {
+  from {
+    transform: translateY(1.3em);
+  }
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@media (forced-colors: active) {
+  .signature {
+    background: CanvasText;
+  }
+}
+
+@media print {
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  * {
+    animation: none !important;
+  }
+}
