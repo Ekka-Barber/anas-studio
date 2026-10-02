@@ -1229,7 +1229,7 @@ describe('runPaymentsReconcile', () => {
   })
   const claim = (attempts: unknown[] = [], events: unknown[] = [], refunds: unknown[] = []) => reply('payment_reconcile_claim', { attempts, events, refunds })
   const run = () => runPaymentsReconcile(deps())
-  const counts = (over: Record<string, number> = {}) => ({ attempts: 0, events: 0, settled: 0, cancelled: 0, errors: 0, skipped: 0, ...over })
+  const counts = (over: Record<string, number> = {}) => ({ attempts: 0, events: 0, refunds: 0, settled: 0, cancelled: 0, errors: 0, skipped: 0, ...over })
 
   it('claims for the configured mode and records one run with counts only', async () => {
     claim()
@@ -1454,11 +1454,164 @@ describe('runPaymentsReconcile', () => {
     expect(called('payment_event_result')[0]!.args).toEqual({ p_event_id: EVENT_ID, p_outcome: 'retry', p_error: 'PAYMENT_FETCH_UNAVAILABLE' })
   })
 
-  it('the refunds of the claim are left alone until round 6: no provider call, no refund function', async () => {
-    claim([], [], [{ refundId: randomUUID(), providerPaymentId: PAYMENT_ID }])
-    expect(await run()).toMatchObject({ status: 'ok', ...counts() })
-    expect(providerCalls()).toBe(0)
-    expect(names()).toEqual(['payment_reconcile_claim', 'job_run_record'])
+  describe('the refund leg', () => {
+    const refundRow = (over: Record<string, unknown> = {}) => ({ refundId: randomUUID(), providerPaymentId: randomUUID(), ...over })
+    const settled = (refundId: string) => ({ ok: true, refundId, status: 'succeeded', amount: 5000 })
+
+    it('fetches the payment of each leased refund and settles it with the total it shows; nothing else is asked of the provider', async () => {
+      const first = refundRow()
+      const review = refundRow()
+      claim([], [], [first, review])
+      client.fetchPayment.mockResolvedValueOnce(good(paymentOf({ id: first.providerPaymentId, status: 'refunded', refunded: 5000 })))
+      client.fetchPayment.mockResolvedValueOnce(good(paymentOf({ id: review.providerPaymentId, refunded: 0 })))
+      reply('refund_settle', (given: Record<string, unknown>) => settled(String(given.p_refund)))
+      expect(await run()).toEqual({ job: 'payments_reconcile', status: 'ok', ...counts({ refunds: 2 }) })
+      expect(client.fetchPayment.mock.calls).toEqual([[first.providerPaymentId], [review.providerPaymentId]])
+      expect(called('refund_settle').map((call) => call.args)).toEqual([
+        { p_refund: first.refundId, p_provider_refunded: 5000 },
+        { p_refund: review.refundId, p_provider_refunded: 0 },
+      ])
+      expect(called('refund_checked')).toHaveLength(0)
+      expect(client.refundPayment).not.toHaveBeenCalled()
+      expect(client.fetchInvoice).not.toHaveBeenCalled()
+      expect(called('job_run_record')[0]!.args).toMatchObject({ p_status: 'ok', p_detail: counts({ refunds: 2 }) })
+    })
+
+    it('runs the refunds after the attempts and the events, and counts every kind', async () => {
+      const row = claimed()
+      const refund = refundRow()
+      claim([row], [{ eventId: EVENT_ID, paymentId: PAYMENT_ID, live: false }], [refund])
+      providerPaid({ outcome: 'paid' })
+      reply('refund_settle', settled(refund.refundId))
+      expect(await run()).toMatchObject({ status: 'ok', attempts: 1, events: 1, refunds: 1, settled: 2, errors: 0 })
+      expect(names()).toEqual([
+        'payment_reconcile_claim',
+        'apply_verified_payment',
+        'apply_verified_payment',
+        'payment_event_result',
+        'refund_settle',
+        'job_run_record',
+      ])
+    })
+
+    it.each([
+      ['unavailable', bad('unavailable'), 'PAYMENT_FETCH_UNAVAILABLE'],
+      ['not found', bad('not_found', 404), 'PAYMENT_FETCH_NOT_FOUND'],
+      ['refused', bad('refused', 401), 'PAYMENT_FETCH_REFUSED'],
+      ['uncertain', bad('uncertain'), 'PAYMENT_FETCH_UNCERTAIN'],
+    ])('a fetch that is %s is a failed check, never "not applied": the refund backs off with the code and is not settled', async (_label, fetched, code) => {
+      const row = refundRow()
+      claim([], [], [row])
+      client.fetchPayment.mockResolvedValue(fetched)
+      expect(await run()).toMatchObject({ status: 'failed', refunds: 1, errors: 1 })
+      expect(called('refund_checked')).toEqual([{ fn: 'refund_checked', args: { p_refund: row.refundId, p_error: code } }])
+      expect(called('refund_settle')).toHaveLength(0)
+    })
+
+    it('a refund with no provider payment id asks for an empty id (the client refuses it without a network call): a failed check', async () => {
+      const row = refundRow({ providerPaymentId: null })
+      claim([], [], [row])
+      client.fetchPayment.mockResolvedValue(bad('refused'))
+      expect(await run()).toMatchObject({ status: 'failed', errors: 1 })
+      expect(client.fetchPayment).toHaveBeenCalledExactlyOnceWith('')
+      expect(called('refund_checked')[0]!.args).toEqual({ p_refund: row.refundId, p_error: 'PAYMENT_FETCH_REFUSED' })
+      expect(called('refund_settle')).toHaveLength(0)
+    })
+
+    it('one failed fetch among good ones makes the run partial: the others are settled', async () => {
+      const rows = [refundRow(), refundRow(), refundRow()]
+      claim([], [], rows)
+      client.fetchPayment.mockResolvedValueOnce(good(paymentOf({ refunded: 100 }))).mockResolvedValueOnce(bad('unavailable')).mockResolvedValueOnce(good(paymentOf({ refunded: 300 })))
+      expect(await run()).toMatchObject({ status: 'partial', refunds: 3, errors: 1 })
+      expect(called('refund_settle').map((call) => call.args.p_refund)).toEqual([rows[0]!.refundId, rows[2]!.refundId])
+      expect(called('refund_checked').map((call) => call.args.p_refund)).toEqual([rows[1]!.refundId])
+    })
+
+    it('after a 429 it stops calling the provider for the rest of the run: the row that met it backs off, the others keep their lease', async () => {
+      const rows = [refundRow(), refundRow(), refundRow()]
+      claim([], [], rows)
+      client.fetchPayment.mockResolvedValue(bad('rate_limited', 429))
+      const summary = await run()
+      expect(summary).toMatchObject({ status: 'partial', refunds: 3, errors: 1, skipped: 2 })
+      expect(providerCalls()).toBe(1)
+      expect(called('refund_checked')).toEqual([{ fn: 'refund_checked', args: { p_refund: rows[0]!.refundId, p_error: 'PAYMENT_FETCH_RATE_LIMITED' } }])
+      expect(called('refund_settle')).toHaveLength(0)
+      expect(called('job_run_record')[0]!.args).toMatchObject({ p_status: 'partial', p_detail: counts({ refunds: 3, errors: 1, skipped: 2 }) })
+    })
+
+    it('a 429 met by an attempt or an event stops the refunds too: the limit is the whole run\'s', async () => {
+      const refunds = [refundRow(), refundRow()]
+      claim([claimed()], [], refunds)
+      client.fetchInvoice.mockResolvedValue(bad('rate_limited', 429))
+      expect(await run()).toMatchObject({ errors: 1, skipped: 2, refunds: 2 })
+      expect(client.fetchPayment).not.toHaveBeenCalled()
+      expect(called('refund_settle')).toHaveLength(0)
+      expect(called('refund_checked')).toHaveLength(0)
+    })
+
+    it('once the run has used its time it takes no more refunds: they keep their lease and the run is still recorded', async () => {
+      const rows = [refundRow(), refundRow(), refundRow()]
+      claim([], [], rows)
+      const clock = vi.spyOn(Date, 'now')
+      const base = 1_800_000_000_000
+      let now = base
+      clock.mockImplementation(() => now)
+      client.fetchPayment.mockImplementationOnce(async () => {
+        now = base + 61_000
+        return good(paymentOf({ refunded: 5000 }))
+      })
+      try {
+        expect(await run()).toMatchObject({ status: 'partial', refunds: 3, skipped: 2, errors: 0 })
+        expect(client.fetchPayment).toHaveBeenCalledTimes(1)
+        expect(called('refund_settle')).toHaveLength(1)
+        expect(called('job_run_record')).toHaveLength(1)
+      } finally {
+        clock.mockRestore()
+      }
+    })
+
+    it('a row that throws is an error of the run, is given a failed check, and the run goes on with the next refund', async () => {
+      const rows = [refundRow(), refundRow()]
+      claim([], [], rows)
+      client.fetchPayment.mockResolvedValue(good(paymentOf({ refunded: 5000 })))
+      reply('refund_settle', sqlError('08006'), settled(rows[1]!.refundId))
+      expect(await run()).toMatchObject({ status: 'partial', refunds: 2, errors: 1 })
+      expect(called('refund_settle').map((call) => call.args.p_refund)).toEqual([rows[0]!.refundId, rows[1]!.refundId])
+      expect(called('refund_checked')).toEqual([{ fn: 'refund_checked', args: { p_refund: rows[0]!.refundId, p_error: 'ROW_FAILED' } }])
+    })
+
+    it('a fetch that throws is the same, and a failed check that cannot be written changes nothing: nothing is thrown', async () => {
+      const rows = [refundRow(), refundRow()]
+      claim([], [], rows)
+      client.fetchPayment.mockRejectedValueOnce(new Error('reset')).mockResolvedValueOnce(good(paymentOf({ refunded: 5000 })))
+      reply('refund_checked', sqlError('08006'))
+      reply('refund_settle', settled(rows[1]!.refundId))
+      expect(await run()).toMatchObject({ status: 'partial', errors: 1 })
+      expect(called('refund_settle').map((call) => call.args.p_refund)).toEqual([rows[1]!.refundId])
+    })
+
+    it('repeating the job changes nothing that is settled: a refund the SQL says is no longer in flight is no error and no check', async () => {
+      const row = refundRow()
+      claim([], [], [row])
+      client.fetchPayment.mockResolvedValue(good(paymentOf({ refunded: 5000 })))
+      reply('refund_settle', { ok: false, code: 'NOT_IN_FLIGHT', refundId: row.refundId, status: 'succeeded', amount: 5000 })
+      for (let round = 0; round < 2; round += 1) {
+        expect(await run()).toMatchObject({ status: 'ok', refunds: 1, errors: 0 })
+      }
+      expect(called('refund_checked')).toHaveLength(0)
+      expect(client.refundPayment).not.toHaveBeenCalled()
+    })
+
+    it('hands the database and the provider ids and a total only: no body, no key, no buyer detail', async () => {
+      const row = refundRow()
+      claim([], [], [row])
+      client.fetchPayment.mockResolvedValue(good(paymentOf({ refunded: 5000 })))
+      reply('refund_settle', settled(row.refundId))
+      await run()
+      const sent = JSON.stringify({ calls: calls.filter((call) => call.fn.startsWith('refund_')), provider: client.fetchPayment.mock.calls })
+      for (const secret of [SECRET_KEY, WEBHOOK_SECRET, 'creditcard', 'mada']) expect(sent).not.toContain(secret)
+      expect(Object.keys(called('refund_settle')[0]!.args).sort()).toEqual(['p_provider_refunded', 'p_refund'])
+    })
   })
 
   it('a row that throws is an error and the run goes on with the next', async () => {
@@ -1549,7 +1702,7 @@ describe('the payments_reconcile job through the outbox function', () => {
     expect(response.status).toBe(200)
     expect(await json(response)).toEqual({
       ok: true,
-      data: [{ job: 'payments_reconcile', status: 'ok', attempts: 0, events: 0, settled: 0, cancelled: 0, errors: 0, skipped: 0 }],
+      data: [{ job: 'payments_reconcile', status: 'ok', attempts: 0, events: 0, refunds: 0, settled: 0, cancelled: 0, errors: 0, skipped: 0 }],
     })
     expect(names()).toEqual(['payment_reconcile_claim', 'job_run_record'])
   })

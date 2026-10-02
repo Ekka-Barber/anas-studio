@@ -563,6 +563,8 @@ export interface PaymentsReconcileSummary {
   status: 'ok' | 'partial' | 'failed' | 'skipped'
   attempts: number
   events: number
+  /** In-flight refunds the run leased (absent from the summary of a skipped run, which leased nothing). */
+  refunds?: number
   /** Rows whose payment ended `paid` or `paid_needs_resolution`. */
   settled: number
   /** Pending attempts of an already paid order whose invoice was cancelled. */
@@ -576,6 +578,7 @@ export interface PaymentsReconcileSummary {
 
 type ClaimedAttempt = UncertainAttempt & { status: string; providerInvoiceId: string | null; orderPaid: boolean }
 type ClaimedEvent = { eventId: string; paymentId: string | null; live: boolean | null }
+type ClaimedRefund = { refundId: string; providerPaymentId: string | null }
 
 /** After the first 429 every further call answers rate_limited at once, so the rest of the run never touches the provider. */
 function stopAfterLimit(client: MoyasarClient, state: { limited: boolean }): MoyasarClient {
@@ -643,16 +646,34 @@ async function reconcileEvent(deps: PaymentDeps, event: ClaimedEvent): Promise<R
 }
 
 /**
- * One run of the `payments_reconcile` job: lease the due attempts and events
- * of the configured mode, settle each from what the provider holds, record
- * the run with counts only. Never begins an attempt (it has no buyer's token):
- * an uncertain one is only adopted or abandoned. Repeating it changes nothing
- * that is already settled. Never throws: a failure is a failed run.
+ * An in-flight refund: the payment is fetched and `refund_settle` decides from
+ * its refunded total (a refund has no id at the provider, its evidence is that
+ * total); a fetch that failed is `refund_checked`, which backs the refund off and,
+ * after 24 hours, raises it to the owners. Nothing settled is touched again: the
+ * claim leases only refunds still in flight.
+ */
+async function reconcileRefund(deps: PaymentDeps, refund: ClaimedRefund): Promise<RowResult> {
+  const payment = await deps.client.fetchPayment(refund.providerPaymentId ?? '')
+  if (!payment.ok) {
+    await deps.rpc('refund_checked', { p_refund: refund.refundId, p_error: failureCode('PAYMENT', payment) })
+    return 'retry'
+  }
+  await deps.rpc('refund_settle', { p_refund: refund.refundId, p_provider_refunded: payment.data.refunded })
+  return 'done'
+}
+
+/**
+ * One run of the `payments_reconcile` job: lease the due attempts, events and
+ * in-flight refunds of the configured mode, settle each from what the provider
+ * holds, record the run with counts only. Never begins an attempt (it has no
+ * buyer's token): an uncertain one is only adopted or abandoned. Repeating it
+ * changes nothing that is already settled. Never throws: a failure is a failed
+ * run.
  */
 export async function runPaymentsReconcile(deps: PaymentDeps): Promise<PaymentsReconcileSummary> {
   const began = Date.now()
   const startedAt = new Date(began).toISOString()
-  const summary: PaymentsReconcileSummary = { job: 'payments_reconcile', status: 'ok', attempts: 0, events: 0, settled: 0, cancelled: 0, errors: 0, skipped: 0 }
+  const summary: PaymentsReconcileSummary = { job: 'payments_reconcile', status: 'ok', attempts: 0, events: 0, refunds: 0, settled: 0, cancelled: 0, errors: 0, skipped: 0 }
   const limit = { limited: false }
   const job: PaymentDeps = { ...deps, client: stopAfterLimit(deps.client, limit) }
   // After a 429, or once the run's time is spent, the rest keep their lease and are picked up when it runs out.
@@ -666,11 +687,14 @@ export async function runPaymentsReconcile(deps: PaymentDeps): Promise<PaymentsR
     const claim = (await deps.rpc('payment_reconcile_claim', { p_mode: deps.config.mode })) as {
       attempts?: ClaimedAttempt[]
       events?: ClaimedEvent[]
+      refunds?: ClaimedRefund[]
     } | null
     const attempts = claim?.attempts ?? []
     const events = claim?.events ?? []
+    const refunds = claim?.refunds ?? []
     summary.attempts = attempts.length
     summary.events = events.length
+    summary.refunds = refunds.length
     for (const row of attempts) {
       if (stop()) {
         summary.skipped += 1
@@ -699,9 +723,24 @@ export async function runPaymentsReconcile(deps: PaymentDeps): Promise<PaymentsR
         summary.errors += 1
       }
     }
-    // Round 6 adds the refund leg here: for each of `claim.refunds` (leased by the claim, not worked yet) it fetches
-    // the payment and answers `refund_settle`, or `refund_checked` when the fetch failed. Until then the lease runs out.
-    const rows = summary.attempts + summary.events
+    for (const row of refunds) {
+      if (stop()) {
+        summary.skipped += 1
+        continue
+      }
+      try {
+        tally(await reconcileRefund(job, row))
+      } catch {
+        summary.errors += 1
+        // Like an attempt: a row that keeps throwing must still back off and reach the 24-hour rule, which live in this SQL call.
+        try {
+          await deps.rpc('refund_checked', { p_refund: row.refundId, p_error: 'ROW_FAILED' })
+        } catch {
+          // The lease is the fallback.
+        }
+      }
+    }
+    const rows = summary.attempts + summary.events + refunds.length
     summary.status = summary.errors + summary.skipped === 0 ? 'ok' : summary.errors >= rows ? 'failed' : 'partial'
   } catch {
     summary.status = 'failed'
@@ -713,6 +752,7 @@ export async function runPaymentsReconcile(deps: PaymentDeps): Promise<PaymentsR
       p_detail: {
         attempts: summary.attempts,
         events: summary.events,
+        refunds: summary.refunds,
         settled: summary.settled,
         cancelled: summary.cancelled,
         errors: summary.errors,

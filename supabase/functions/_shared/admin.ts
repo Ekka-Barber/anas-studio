@@ -22,6 +22,13 @@
  *   payment attempt. An uncertain creation is adopted or abandoned, any other
  *   attempt with an invoice is settled from what the provider holds, and the
  *   reply is the attempt's status.
+ * - `refund-create` (owner, fresh TOTP; P08 round 6): a refund of a paid attempt or of a
+ *   review payment. The provider's refunded total is fetched first (a failed fetch is 503,
+ *   nothing written), `refund_request` reserves the balance, only a new refund reaches the
+ *   provider, and what it answered goes to `refund_result`. A replay answers the stored
+ *   refund. `refund-recheck` (owner) settles one refund from a fresh fetch;
+ *   `refund-record-external` (owner, fresh TOTP) records a refund or a void made at the
+ *   provider. All three live in `refunds.ts`.
  * - `commerce-settings-save` (owner, fresh TOTP): the store's seller details
  *   through `commerce_settings_save`; a stale version answers 409 so the
  *   owner can reload (D34: no tax field anywhere).
@@ -60,6 +67,7 @@ import {
 } from './media.ts'
 import { defaultPaymentDeps, type PaymentDeps, resolveUncertain, settleInvoice } from './payments.ts'
 import { paymentsConfig, type PaymentsConfigReason } from './payments/moyasar.ts'
+import { refundCreate, refundRecheck, refundRecordExternal } from './refunds.ts'
 import { ownerStats, type OwnerStats } from './stats.ts'
 import { type StaffIdentity, type StaffResolver, staffFromRequest } from './staff.ts'
 import { TEST_SECRETS } from './turnstile.ts'
@@ -191,6 +199,17 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
     case 'payment-recheck':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       return paymentRecheck(deps, staff.userId, body.attemptId)
+    case 'refund-create':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return refundCreate(deps, staff.userId, body)
+    case 'refund-recheck':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      return refundRecheck(deps, staff.userId, body)
+    case 'refund-record-external':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return refundRecordExternal(deps, staff.userId, body)
     case 'commerce-settings-save':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
