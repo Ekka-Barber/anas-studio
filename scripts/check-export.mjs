@@ -72,6 +72,9 @@ const SECRET_PATTERNS = [
   ['private key', /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
   ['local jobs secret', /local-jobs-secret-not-for-production/],
   ['local token pepper', /local-pepper-not-for-production/],
+  // P08: a Moyasar secret key (test or live) and the two local emulator values.
+  ['Moyasar secret key', /\bsk_(?:test|live)_[A-Za-z0-9_]{8,}/],
+  ['local Moyasar webhook secret', /local-moyasar-webhook-secret-not-for-production/],
 ]
 const JWT = /eyJ[A-Za-z0-9_-]{10,}\.(eyJ[A-Za-z0-9_-]{10,})\.[A-Za-z0-9_-]{10,}/g
 

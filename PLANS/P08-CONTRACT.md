@@ -1,0 +1,533 @@
+# P08 contract: verified gateway and post-sale operations
+
+Version 3 (2026-10-02). Written by the orchestrator (Opus 5.5) before any worker round. Version 1 was attacked by five Opus auditors at checkpoint 1 (`artifacts/acceptance/P08/checkpoint-1-contract-audit.md`: 89 findings, 3 critical, 18 high); version 2 settled them (the rulings are at the end of that file), and a second Opus pass on version 2 answered `pass` with 9 unsettled and 17 new medium or low points, which this version closes. Every worker and auditor of P08 reads this file first. It is the agreement between the layers: the SQL signatures, the Edge Function requests and replies, the emulator's routes, the environment names and the invariants. Where it differs from `PLANS/DATA-AND-SECURITY.md` it says so in section 13 with the reason; where it differs from the code P07 left, the code is the fact and the difference is a finding to report, not something to paper over.
+
+Rules that hold for every round:
+
+- No network call to Moyasar (`api.moyasar.com`, `checkout.moyasar.com`). Everything runs against the local emulator. E02 and E03 stay open; nothing claims a real payment, a real refund or a closed gate.
+- Every Moyasar shape used is in section 2, each with the page it was read from on 2026-10-02. Nothing else about Moyasar may be assumed. If a round needs a shape that is not in section 2, stop and report it.
+- Money is integer halalas. No floats, no tax (D34).
+- Server-only SQL functions are `security definer`, owned by `postgres`, `set search_path = ''`, fully qualified, `revoke all ... from public, anon, authenticated` and `grant execute ... to service_role`. Functions the admin calls directly are granted to `authenticated` and recheck the caller's active role from `auth.uid()` inside. A stale-version conflict raises `unique_violation` (23505), never 40001.
+- No token, key or secret is stored or logged in clear. No card data is stored. A provider payload is never stored whole: only the fields section 4 names. `last_error`, `error` and `review` reasons hold ASCII codes, never a provider message.
+- One lock order for every writer: the order row, then the attempt row, then every variant of the order (digital ones included) `for update` in ascending id, then the coupon row, then the reservations, then the refund row. A review payment's row is locked in the attempt's place (alone when it has no order). A function that finds its order through an attempt, a return or a variant reads that row without a lock, locks in this order (several orders in ascending id), and reads again before it decides.
+- Arabic messages, ASCII codes, Latin digits. Money pages are calm and official (D38): the title's `calmEnter` only, no reveals, no ticking countdown (DESIGN-AUDIT 33).
+- Workers never touch `PLANS/`, `_archive/`, `deploy/design/` or `.env`, and write only the files their round lists.
+
+## 1. Environment
+
+Edge Function secrets (names only; values live in `supabase/functions/.env` locally, `supabase secrets set` hosted):
+
+| Name | Meaning |
+|---|---|
+| `MOYASAR_API_BASE_URL` | The API base, no trailing slash. The real one is `https://api.moyasar.com/v1`; the local emulator is `http://host.docker.internal:54390/v1`. No default. |
+| `MOYASAR_SECRET_KEY` | The secret API key (`sk_test_…` or `sk_live_…`), HTTP Basic username with an empty password. |
+| `MOYASAR_WEBHOOK_SECRET` | The secret token set on the webhook in the Moyasar dashboard; it arrives as `secret_token` in the webhook body. At least 32 characters. |
+| `PAYMENTS_MODE` | `test` or `live`. |
+| `FUNCTIONS_PUBLIC_URL` | The public base of the Edge Functions as Moyasar and the browser reach it (`https://<ref>.supabase.co/functions/v1`; locally `http://127.0.0.1:54321/functions/v1`), no trailing slash. `SUPABASE_URL` inside the local runtime is an internal address, so every URL handed to Moyasar or to a browser is built on this one; the public Storage base is its origin plus `/storage/v1`. |
+| `PAYMENTS_TEST_ACCESS_CODE` | Only for a hosted site in test mode (the supervised sandbox runs): at least 16 characters. See "The sandbox fence". |
+
+Already present and reused: `SITE_URL`, `TOKEN_HASH_PEPPER`, `JOBS_SECRET`, `TURNSTILE_SECRET_KEY`, `EMAIL_*`.
+
+`paymentsConfig()` in `supabase/functions/_shared/payments/moyasar.ts` is the only reader of these (`checkout.ts` stops reading `PAYMENTS_MODE` itself). It returns `{ ok: true, baseUrl, secretKey, webhookSecret, mode, callbackBase, storageBase, testAccessCode? }` or `{ ok: false, reason }` and never throws. Rules, in order:
+
+1. The first five variables set, else `NOT_CONFIGURED`.
+2. `PAYMENTS_MODE` is `test` or `live`, else `BAD_MODE`.
+3. The key prefix matches the mode: `sk_test_` for `test`, `sk_live_` for `live`, else `KEY_MODE_MISMATCH`.
+4. `MOYASAR_WEBHOOK_SECRET` is at least 32 characters, else `WEAK_WEBHOOK_SECRET`.
+5. `MOYASAR_API_BASE_URL` and `FUNCTIONS_PUBLIC_URL` parse and have no trailing slash, else `BAD_BASE_URL` or `BAD_CALLBACK_BASE`.
+6. A local site (`isHostedSite()` false): `PAYMENTS_MODE=live` is refused (`LIVE_ON_LOCAL`). The API base is either a local host over http (the emulator), or exactly `https://api.moyasar.com/v1`; in the second case `FUNCTIONS_PUBLIC_URL` must be `https:` on a non-local host (a tunnel), else `BAD_CALLBACK_BASE`.
+7. A hosted site: the API base must be exactly `https://api.moyasar.com/v1` (`BAD_BASE_URL` otherwise: the emulator, or any other host, can never serve a hosted site, and the key is never sent anywhere else); `FUNCTIONS_PUBLIC_URL` is `https:` on a non-local host; the two local emulator strings below are refused (`EMULATOR_ON_HOSTED`); in test mode `PAYMENTS_TEST_ACCESS_CODE` must be set and at least 16 characters (`TEST_CODE_REQUIRED`).
+
+Every call to the provider uses one timeout, `MOYASAR_TIMEOUT_MS = 10_000`. Every staleness window in this contract (30 seconds for a `creating` row, 15 minutes for an unapplied refund) is above it on purpose.
+
+Moving from the emulator to the real sandbox is configuration only: `MOYASAR_API_BASE_URL=https://api.moyasar.com/v1`, the sandbox `sk_test_…` key, the webhook secret, a public HTTPS `FUNCTIONS_PUBLIC_URL` (the hosted functions, or a tunnel to the local ones), on a hosted site `PAYMENTS_TEST_ACCESS_CODE`, and in the Moyasar dashboard a webhook at `<FUNCTIONS_PUBLIC_URL>/payments/webhook`, method POST, the same secret, all payment events. No code change.
+
+Local values, written by `pnpm db:env` (round 0): the emulator base URL, `MOYASAR_SECRET_KEY=sk_test_local_emulator_key_not_for_production`, `MOYASAR_WEBHOOK_SECRET=local-moyasar-webhook-secret-not-for-production`, `PAYMENTS_MODE=test`, `FUNCTIONS_PUBLIC_URL=http://127.0.0.1:54321/functions/v1`. `pnpm check:export` refuses these two local strings and any `sk_live_`/`sk_test_` key shape in `out/`.
+
+**The switch.** `finance.commerce_settings.checkout_enabled` is false on every database the migrations create. An owner turns it on with a fresh TOTP (`commerce-checkout-set`), and the function refuses while `paymentsConfig()` is not ok, so it cannot be turned on on a project without keys. Locally the demo seed and the tests set it directly; one e2e opens it through the action. The switch gates new orders only: an order that already exists can still be paid, cancelled and settled after it is turned off or the policy approval is reset.
+
+**The sandbox fence.** Moyasar's test cards are public, so a hosted site in test mode would hand real files and real stock to anyone. In that configuration (`isHostedSite()` and mode `test`): `quote` answers `checkoutEnabled: false` unless the request carries `testAccess` equal to `PAYMENTS_TEST_ACCESS_CODE` (constant time); `create` and `pay` refuse without it (`CHECKOUT_DISABLED`); the store pages read `#test=<code>` from the URL fragment once into sessionStorage, remove it from the address bar, and send it (a fragment never reaches a server log). Every quote carries `testMode` (true whenever the mode is `test`), and the checkout hold view, the return page and the order page then show «وضع تجريبي: لا يُخصم أي مبلغ حقيقي».
+
+## 2. Moyasar: the documented shapes (fetched 2026-10-02)
+
+Read by the orchestrator from the pages named; the runbook (`docs/payments-runbook.md`) repeats this table. `https://docs.moyasar.com` is abbreviated `D`.
+
+| Fact | Source |
+|---|---|
+| Base URL `https://api.moyasar.com/v1`. "The mode for the request is determined by the API Key used for authentication." | `D/docs/api/api-introduction.md` |
+| HTTP Basic auth: username the API key, password empty. Test keys `pk_test_`, `sk_test_`; live keys `pk_live_`, `sk_live_`. All calls over HTTPS. | `D/docs/api/authentication.md` |
+| Errors: body `{ "type", "message", "errors" }`; types `invalid_request_error`, `authentication_error`, `rate_limit_error`, `api_connection_error`, `account_inactive_error`, `api_error`, `3ds_auth_error`; statuses 400, 401, 403, 404, 405 (entity not activated for live), 429, 500, 503. 401 example: `{"type":"authentication_error","message":"Invalid authorization credentials","errors":null}`. | `D/docs/api/errors.md` |
+| Lists return 40 objects per page, newest first, with `meta: { current_page, next_page, prev_page, total_pages, total_count }`. | `D/docs/api/pagination.md` |
+| Metadata: on payments, invoices, payouts, tokens; up to 30 keys, key ≤ 40 chars, value ≤ 500 chars; list payments and list invoices filter by `metadata[key]=value`. | `D/docs/api/metadata.md` |
+| Idempotency exists only for payment creation (`given_id`). Nothing is documented for invoice creation or refunds. | `D/docs/api/idempotency.md` |
+| Create invoice: `POST /invoices`, JSON. `amount` integer required, `>= 100` (smallest unit); `currency` required; `description` required; optional `callback_url` ("will get a POST request with the invoice object when the invoice is paid … not used to redirect the user, this is only used to send a notification"), `success_url` ("the payer will be redirected to when the invoice is paid"), `back_url` ("redirect when the user clicks on the back button"), `expired_at` (ISO 8601; "User will be prevented from paying the invoice once expired"). The guide also lists `metadata`. Replies 201, 400, 401, 403. | `D/api/invoices/01-create-invoice`, `D/docs/guides/invoices/creating-invoices.md` |
+| Invoice object: `id` (uuid), `status` one of `initiated, paid, failed, refunded, canceled, on_hold, expired, voided`, `amount`, `currency`, `description`, `logo_url`, `amount_format`, `url` (the hosted checkout page), `callback_url`, `expired_at`, `created_at`, `updated_at`, `back_url`, `success_url`, `payments[]` (payment objects), `metadata`. | same |
+| Fetch invoice `GET /invoices/:id` (200, 401, 403, 404). List invoices `GET /invoices` with `page`, `id`, `status`, `created[gt]`, `created[lt]`, `metadata[key]`; reply `{ invoices: [...], meta }`. Update `PUT /invoices/:id` (metadata). Cancel `PUT /invoices/:id/cancel` ("so it can no longer be paid"), reply the invoice. | `D/api/invoices/03-list-invoice`, `04-show-invoice`, `05-update-invoice`, `06-cancel-invoice` |
+| Payment object: `id` (uuid), `status` one of `initiated, paid, authorized, failed, refunded, captured, voided, verified, expired`, `amount`, `fee` ("Estimated payment fee (including VAT)"), `currency`, `refunded` ("Refunded amount. Less than or equal to the payment amount"), `refunded_at`, `captured`, `captured_at`, `voided_at`, `description`, `amount_format`, `fee_format`, `refunded_format`, `captured_format`, `invoice_id`, `ip`, `callback_url`, `created_at`, `updated_at`, `metadata`, `source` (`type` one of `creditcard, applepay, samsungpay, stcpay, sadadbill`; `company` one of `mada, visa, master, amex, unionpay`; masked `number`; `message`; `transaction_url`; `gateway_id`; `reference_number`; more). No documented field states live or test on a payment or an invoice. | `D/api/payments/02-fetch-payment` |
+| Payment statuses: `initiated` "created but the cardholder did not pay yet"; `paid` "when the cardholder pays successfully"; `failed`; `authorized` "the cardholder is not charged yet"; `captured`; `refunded` "when the merchant refunds a paid or captured payment successfully"; `voided`; `verified` (tokenization). | `D/docs/api/payments/payment-status-reference.md` |
+| Fetch payment `GET /payments/:id`. List payments `GET /payments` with `page`, `id`, `status`, `created[gt|lt]`, `updated[gt|lt]`, `metadata[key]`, `card_last_digits`, `receipt_no`; reply `{ payments: [...], meta }`. | `D/api/payments/02-fetch-payment`, `03-list-payments` |
+| Refund `POST /payments/:id/refund`, optional JSON `amount` ("less than or equal to the payment amount (or captured). If this field is missing, then the full amount will be refunded"); applies to `paid` or `captured`; "Refund amount cannot exceed the charged amount"; reply the payment object (200) or 400, 401, 403, 404. No refund object and no refund id is documented: the evidence of a refund is the payment's `refunded` total. | `D/api/payments/05-refund-payment`, `D/docs/guides/payment-operations/index.md` |
+| Webhook object: `id` "The event's unique ID", `type`, `created_at`, `secret_token` "assigned by the consumer to secure the webhook", `account_name`, `live` "True if the payment is in live mode or false if it is in test mode", `data` (a payment for `payment_*` events). Event names as documented: `payment_paid`, `payment_faild` (spelled so), `payment_refunded`, `payment_voided`, `payment_authorized`, `payment_captured`, `payment_verified`. "Your endpoint must quickly return a successful status code (2xx)". Retries: 5 more times after the first, waits of 1 minute, 10 minutes, 30 minutes, 1 hour, 2 hours, then dropped. | `D/docs/api/other/webhooks/webhook-reference.md` |
+| Registering a webhook in the dashboard: Endpoint (must be HTTPS), Secret Token ("a password you need to validate on your server"), HTTP Method, Events. | `D/docs/guides/dashboard/setting-up-webhooks.md` |
+
+A read-only workflow (`wf_bdcb3007-35c`: five Sonnet researchers, each re-verified by an Opus agent against the raw pages) covered the same pages and the rest of the documentation; its distilled result is `artifacts/acceptance/P08/moyasar-docs-2026-10-02.md`. What it added or corrected:
+
+| Fact | Source |
+|---|---|
+| The failed-payment event is spelled `payment_faild` in the webhook reference and the dashboard guide and `payment_failed` in the API pages (`GET /v1/webhooks/available_events`, the create-webhook example), which also list `payment_abandoned`; the SADAD guide adds `payment_expired`; settlements add `balance_transferred` (aggregation accounts). | `D/docs/api/other/webhooks/available-webhooks.md`, `D/docs/guides/settlements/settlement-notification.md` |
+| "Your `payment_paid` handler fulfils the order and is idempotent (webhooks can repeat)." Order between events is not documented. | `D/docs/guides/sadad-bill/testing.md` |
+| The webhook secret is set as `shared_secret` (API) or «Secret Token» (dashboard) and delivered as `secret_token`. No header, no HMAC. | `D/docs/api/other/webhooks/create-webhook.md` |
+| The invoice callback is documented only for the change from `initiated` to `paid`, and carries no `secret_token`: it is unauthenticated. No retry policy is documented for it. | `D/docs/guides/invoices/creating-invoices.md` |
+| The API reference's create-invoice request schema omits `metadata`; the guide and the metadata page include it. A documentation conflict, to confirm in the sandbox. | `D/api/invoices/01-create-invoice`, `D/docs/api/metadata.md` |
+| Error `type` strings differ between pages (`invalid_request_error` on the errors page; `invalid_request` and `record_not_found` in the endpoint schemas; 403 `api_error` "User not authorized"). `errors` is a map of field to a string or to an array of strings. | `D/docs/api/errors.md`, `D/api/payments/05-refund-payment` |
+| Refund: "The payment status changes to `refunded`." Allowed from `paid` or `captured`. The reference marks the JSON body required while the guide says a full refund needs none. Whether a partial refund also sets `refunded`, and whether a second refund is accepted afterwards, is not documented. On a failed refund the guide says: fetch the payment; `refunded` means it already succeeded. | `D/docs/guides/payment-operations/index.md` |
+| The go-live checklist: verify server-side before fulfilment, validating `status`, `amount` and `currency`. | `D/docs/getting-started/go-live-checklist.md` |
+| No dispute or chargeback object, endpoint, webhook or payment status is documented. A chargeback shows only as settlement line types `chargeback` and `chargeback_penalty` (and in the settlement CSV); settlements come with an email carrying a CSV, a PDF and an invoice. | `D/api/settlements/03-list-settlement-lines`, `D/docs/guides/settlements/settlement-introduction.md` |
+
+Consequences the code must respect:
+
+- The webhook is authenticated by `secret_token` in the JSON body, compared in constant time (`secretsMatch`). There is no signature to verify and none is invented.
+- A webhook, the invoice `callback_url` POST and the buyer's redirect are all prompts. Payment is decided only by fetching the payment and its invoice with the secret key.
+- The handler accepts any event `type` string and never branches on its spelling; the type is stored, never trusted. An event whose type does not start with `payment_` is stored and closed as `ignored`.
+- Webhooks repeat and arrive in any order: every handler is idempotent on the event id and on the payment id.
+- Mode: the webhook's `live` must equal `PAYMENTS_MODE === 'live'`. Fetched objects carry no mode; the key decides it, `paymentsConfig()` ties the key to the mode, and every SQL entry point takes the configured mode and refuses work on an order or attempt of the other mode (section 6).
+- Account: no fetched object names an account. The secret key scopes it: a payment of another account, or a forged id, answers 404 to our key, which closes the event as `unknown_payment` and changes nothing.
+- The redirect's query string is not documented, so nothing reads it except our own `order` parameter, and the return page still works when that parameter is lost.
+- The client classifies a reply by its HTTP status only, never by the error `type` string; always sends `currency`, and a JSON body on every call that takes one (`{"amount": n}` on every refund). Ids are checked against the UUID shape before they are put in a URL path.
+- Invoice creation has no idempotency: a creation whose outcome is unknown is resolved by listing invoices with `metadata[attempt_id]` and checking each returned invoice's own metadata, amount and currency (the filter itself is not trusted), never by creating again.
+- A refund has no id: its confirmation is `payment.refunded` rising by exactly the requested amount. So at most one refund per payment is in flight, the provider's total is read before every refund, and an unapplied refund is only declared so after 15 minutes.
+- A payment is charged when its status is `paid`, or `refunded` (which the documentation defines as a refund of a paid payment), with the full amount in SAR. `initiated`, `authorized`, `verified`, `failed`, `voided`, `expired` are not charged. `captured` on a hosted invoice is unexpected and goes to review.
+- The invoice description and metadata carry the order number and the attempt id only: no name, email, phone or address.
+- Disputes and payout differences cannot be read from the API: the owner records them by hand from Moyasar's emails and settlement files (`dispute_record`).
+
+To confirm in the real sandbox (E02), because the documentation is silent or contradicts itself; the runbook's "When the Moyasar keys arrive" lists each with what to record:
+
+1. Create-invoice with `metadata`: accepted (a 400 here is the one outcome that needs a code change), kept, and whether the list filter returns only matches; how soon a new invoice appears in the list.
+2. Whether `callback_url` and `success_url` must be HTTPS or public.
+3. The redirect: what Moyasar appends to `success_url` and `back_url`, and whether our own `?order=` survives.
+4. `expired_at`: the formats accepted, whether the reply echoes it, and whether a 3-D Secure payment begun before the expiry or a cancel can still complete.
+5. The cancel reply for a paid, an expired and an already canceled invoice.
+6. The invoice's status after a failed payment (still payable?), after a refund, and what `failed`, `on_hold` and `voided` mean on an invoice; whether a paid invoice accepts a second payment.
+7. The `captured` and `fee` values on an ordinary paid payment.
+8. Refund: whether the reply already carries the new `refunded` total, the status after a partial refund, a second partial refund, whether a body is required.
+9. Webhook: whether a retry reuses the event id, the delivery timeout, `live` and `account_name` in test, which event names fire and how the failed event is spelled.
+10. The invoice callback: its timing, body and retries.
+11. A void and a refund made in the dashboard: the resulting statuses and events.
+12. The 429 threshold against a reconciliation of at most 25 fetches a minute.
+13. Whether the hosted invoice page offers Apple Pay, and the 3-D Secure challenge page.
+
+## 3. States
+
+### Order (`finance.orders.status`)
+
+`pending_payment`, `expired`, `cancelled` (P07) plus `paid`, `paid_needs_resolution`, `refunded`.
+
+| Move | Who |
+|---|---|
+| → `pending_payment` | `checkout_create` |
+| `pending_payment` → `cancelled` | `checkout_cancel` (the buyer's token), refused while a payment attempt is active |
+| `pending_payment` → `expired` | `finance.checkout_expire` (cron) |
+| `pending_payment`, `expired`, `cancelled` → `paid` or `paid_needs_resolution` | `apply_verified_payment` only |
+| `paid_needs_resolution` → `paid` | `order_resolve` (owner) |
+| `paid`, `paid_needs_resolution` → `refunded` | `refund_result`, `refund_settle`, `refund_record_external`, when the confirmed refunds of the order's paying attempt equal its captured amount |
+
+A partial refund does not change the status: the refunded total is read from the ledger. Money is never relabelled: a paid order whose stock is gone is `paid_needs_resolution`, not failed. Only refunds of the paying attempt move the order or its entitlements; refunds of review payments never do.
+
+### Payment attempt (`finance.payment_attempts.status`)
+
+`creating` (the row exists before any network call), `pending` (the invoice exists and its URL is stored), `uncertain` (the creation call's outcome is unknown), `paid`, `review` (its invoice ended in a payment that cannot settle the order: the money is a row of `finance.payment_reviews`), `failed` (the provider refused the creation), `expired`, `cancelled`, `abandoned` (an uncertain creation proven absent).
+
+Active means `creating`, `pending` or `uncertain`; a partial unique index allows one active attempt per order. Every transition is one guarded update (`where status in (...)`), and nothing moves an attempt out of `paid` or `review`. An attempt in `expired`, `cancelled`, `failed` or `abandoned` that has an invoice id still becomes `paid` when a verified payment arrives for that invoice (late payment).
+
+`next_check_at` is the only thing that makes an attempt due for the reconciliation job, whatever its status; a row no one needs to check again has it null.
+
+### Review payment (`finance.payment_reviews`)
+
+Every charged payment that cannot settle an order is one row, keyed by the provider's payment id: a wrong amount or currency, an unexpected status, a second payment on a paid invoice, a payment on an order that another attempt already paid, a payment on an invoice no attempt maps to. Open until `closed_at` is set: when its confirmed refunds equal its amount (`refunded`), or by the owner with a reason. It is never fulfilled, it is refundable by its own payment id, and while an order has an open review row `payment_attempt_begin` refuses a new invoice.
+
+### Refund (`finance.refunds.status`)
+
+`submitting` (written under the locks before the provider call; the balance is reserved), `uncertain`, `succeeded`, `failed`. In flight means `submitting` or `uncertain`; a partial unique index allows one in-flight refund per paying attempt and per review payment. Every outcome of a fetch leads out of the in-flight states (section 6, `refund_settle`); there is no state that waits for ever.
+
+### Others
+
+- Fulfilment (`finance.fulfillments.state`): `preparing` → `shipped` → `delivered`; one row per physical or signed order item, created when the order is paid. A fully refunded item cannot be moved to `shipped`. "Fully refunded" means, everywhere in this contract: its refunded total is above zero and equals its paid total, or its order is `refunded` (so a line that cost nothing under a coupon is not "refunded" by another line's refund).
+- Return request (`finance.return_requests.state`): `requested` → `approved` | `rejected`; `approved` → `received`; `received` → `refunded` (when a refund linked to it succeeds). A buyer's request never issues a refund.
+- Entitlement: granted (`revoked_at is null`) or revoked.
+- Notification (`public.notifications.status`): `pending` → `confirmed` → `unsubscribed`; `pending` → `unsubscribed`; `unsubscribed` → `pending` (a new subscription).
+- Dispute: append-only rows per `(kind, provider_ref)`; the latest row is the current state.
+
+## 4. Schema
+
+Everything in this section is created by round 2's `20261002100000_payment_core.sql`, so later migrations add functions only. New tables are in `finance` (no API role has any grant) except `public.notifications`.
+
+### Changes to P07 tables
+
+- `finance.orders`: status check widened to the six states; `paid_at timestamptz`; `access_token_version integer not null default 0`. `access_token_expires_at` is set to `now() + 7 days` when the order is paid, when a link is reissued and when a file is attached to its entitlement.
+- `public.product_variants`: `preorder boolean not null default false`, `preorder_capacity integer check (preorder_capacity > 0)`, `preorder_ships_on date`, `preorder_note text` (1 to 300 chars, no control characters), and `check (not preorder or (preorder_capacity is not null and preorder_ships_on is not null and preorder_note is not null))`. `anon` may select `preorder, preorder_ships_on, preorder_note` (never the capacity). The owner's insert and update grants gain the four columns and lose `digital_asset`, which only `paid_asset_set` writes from now on.
+- `finance.order_items`: `preorder boolean not null default false`, `preorder_ships_on date`, `preorder_note text` (snapshots).
+- `finance.inventory_reservations`: `preorder boolean not null default false` (a snapshot: this flag, not the variant's current one, decides at commit, at `order_resolve` and at restock). Digital lines of a preorder variant get a reservation too (they count against the capacity).
+- `finance.email_outbox.kind` check widened: `receipt`, `contact_notice`, `availability`, `order_link`, `order_shipped`, `order_refunded`, `order_ready`, `notify_confirm`, `owner_alert`. Priorities and the daily budget are in section 8. A payload never carries a token, an address or a card detail: only ids.
+- `finance.buyer_retention_purge()` deletes the payment attempts and events of the expired and cancelled orders it removes, and skips an order that has an attempt in `creating`, `pending`, `uncertain`, `paid` or `review`, an attempt that still has a `next_check_at` or whose `last_error` is `UNVERIFIED`, an open review payment, or a dispute.
+- Storage bucket `paid-files`: private, no policies, `file_size_limit` 104857600, `allowed_mime_types` `application/pdf` and `application/epub+zip`.
+
+### Availability of a variant (one rule, used everywhere)
+
+- Not a preorder, `stock is null` (digital): unlimited.
+- Not a preorder, stock set: `stock − finance.active_holds(variant)`. Stock is decremented when a reservation is committed (payment), so committed units are already out of `stock`.
+- Preorder: `preorder_capacity − (units of committed reservations of the variant whose own preorder flag is true) − finance.active_holds(variant)`; `stock` is ignored and never decremented for a preorder line. A preorder variant whose `preorder_ships_on` is before today (Asia/Riyadh) is not for sale (`UNAVAILABLE`): the buyer must not be shown a date that has passed. The preorder "policy" the plan asks for is the approved store, delivery and refund revisions that every checkout already requires, plus the note and the date.
+
+Never negative: every decrement happens under the locks of the rule above. The owner enters real stock net of confirmed preorders; the variant form shows their count.
+
+The public state of a variant (`catalog_availability`, the subscription rule and the availability sweep) ignores unpaid holds, so a hold that comes and goes never flaps it: `available` (digital, or stock above zero), `preorder` (capacity left and a delivery date that has not passed), `out_of_stock`, `unpriced`. While another order's hold takes the last units the page still offers the item and the quote answers `OUT_OF_STOCK` with `held: true`, shown as «الكمية محجوزة مؤقتًا لطلب آخر؛ حاول بعد قليل.»: true for at most 20 minutes.
+
+### New tables
+
+`finance.payment_attempts`: `id uuid pk`, `order_id` → orders, `status`, `amount_halalas integer > 0`, `currency text = 'SAR'`, `environment` (`test`|`live`), `provider_invoice_id text unique`, `provider_payment_id text unique`, `invoice_url text`, `invoice_expires_at timestamptz not null`, `captured_halalas integer`, `fee_halalas integer`, `source_type text`, `source_company text`, `provider_status text` (the payment's last fetched status), `provider_refunded_halalas integer not null default 0`, `paid_at`, `fetched_at`, `next_check_at`, `check_count integer not null default 0`, `error_count integer not null default 0`, `last_error text` (≤ 120), `created_at`, `updated_at`. Unique partial index on `(order_id) where status in ('creating','pending','uncertain')`.
+
+`finance.payment_reviews`: `provider_payment_id text pk`, `provider_invoice_id text`, `attempt_id uuid` (null for an unmapped invoice), `order_id uuid` (null likewise), `environment`, `amount_halalas integer`, `currency text`, `provider_status text`, `reason text` (`AMOUNT_MISMATCH`, `CURRENCY_MISMATCH`, `UNEXPECTED_STATUS`, `SECOND_PAYMENT`, `ORDER_ALREADY_PAID`, `UNMAPPED_INVOICE`), `provider_refunded_halalas integer not null default 0`, `closed_at`, `closed_reason text`, `created_at`.
+
+`finance.payment_events`: `event_id text pk` (1 to 200 chars), `type text` (≤ 60), `live boolean`, `provider_payment_id text` (a UUID shape or null), `payload_hash text` (sha256 hex of the raw body; the body itself is not stored), `received_at`, `processed_at`, `outcome text`, `error text` (≤ 120), `attempts integer not null default 0`, `next_check_at timestamptz`.
+
+`finance.entitlements`: `id uuid pk`, `order_id`, `order_item_id unique`, `variant_id`, `asset_id` → paid_assets (null when the variant had no file yet), `granted_at`, `revoked_at`, `revoke_reason text`.
+
+`finance.paid_assets`: `id uuid pk`, `variant_id`, `storage_key text unique`, `filename text` (1 to 120 chars, no control characters, no `/` or `\`), `mime text` (`application/pdf` or `application/epub+zip`), `bytes bigint`, `created_by uuid`, `created_at`.
+
+`finance.download_tokens`: `token_hash text pk` (64 hex), `entitlement_id`, `expires_at` (15 minutes), `uses integer not null default 0`, `max_uses integer not null default 3`, `created_at`, `last_used_at`.
+
+`finance.fulfillments`: `id uuid pk`, `order_id`, `order_item_id unique`, `state`, `carrier text` (≤ 80), `tracking text` (≤ 120), `dedication_done boolean not null default false`, `shipped_at`, `delivered_at`, `updated_by uuid`, `version integer not null default 1`, `updated_at`.
+
+`finance.return_requests`: `id uuid pk`, `order_id`, `items jsonb` (`[{itemId, quantity}]`), `reason text` (1 to 500), `state`, `staff_note text` (≤ 500), `decided_by uuid`, `received_by uuid`, `restocked jsonb`, `refund_id uuid`, `created_at`, `updated_at`.
+
+`finance.refunds`: `id uuid pk`, `order_id` (null for an unmapped review payment), `attempt_id` (the paying attempt) or `review_payment_id` (exactly one of the two), `amount_halalas integer > 0`, `reason text` (1 to 300), `allocation jsonb` (`{items:[{itemId, amount}], shipping}`; `{}` for an unallocated refund), `status`, `idempotency_key uuid unique`, `request_hash text`, `source text` (`admin` or `provider_dashboard`), `provider_refunded_before integer`, `provider_refunded_after integer`, `return_id uuid`, `requested_by uuid`, `error text` (≤ 120), `next_check_at timestamptz`, `check_count integer not null default 0`, `created_at`, `updated_at`, `succeeded_at`. Unique partial indexes on `(attempt_id)` and on `(review_payment_id)` `where status in ('submitting','uncertain')`.
+
+`finance.disputes`: `id uuid pk`, `kind` (`chargeback`, `payout_difference`, `fee_difference`, `other`), `provider_ref text` (1 to 120), `seq integer` (1 for the first row of a reference), `attempt_id uuid` or `review_payment_id text` (both null allowed for `payout_difference` and `fee_difference`), `environment`, `amount_halalas integer > 0`, `direction` (`against_seller`, `for_seller`), `occurred_on date`, `reason text` (1 to 500), `resolution text` (≤ 500, null while open), `decision` (`none`, `entitlement_revoked`, `entitlement_kept`, `fulfillment_stopped`), `item_ids uuid[]`, `recorded_by uuid`, `created_at`. `unique (kind, provider_ref, seq)`. A trigger refuses update and delete for everyone.
+
+`public.notifications`: `id uuid pk`, `email` (the contact grammar), `variant_id`, `status`, `token_version integer not null default 1`, `consent_revision integer`, `confirm_sent_at`, `confirmed_at`, `unsubscribed_at`, `notified_revision integer not null default 0`, `created_at`, `updated_at`, `unique (email, variant_id)`. RLS on: owner and operations select; nobody writes through the API.
+
+`finance.variant_availability`: `variant_id pk`, `sellable boolean not null default false`, `revision integer not null default 0`, `changed_at`. One row per variant that ever had a subscriber, created by `notify_subscribe` with `sellable = false`.
+
+## 5. Tokens
+
+One module, `supabase/functions/_shared/tokens.ts` (the functions moved out of `checkout.ts`, same outputs for version 0):
+
+- Order access token: `hmacBase64Url(pepper, version === 0 ? 'order-access:' + idempotencyKey : 'order-access:' + idempotencyKey + ':' + version)`; its stored hash is `sha256Hex(pepper + ':order:' + token)`. The buyer's link is `SITE_URL/orders#<orderNumber>.<token>`: the fragment never reaches a server log or a Referer, and the order page moves it into sessionStorage and removes it from the address bar.
+- Download token: 32 random bytes, base64url, minted by the `download` function; stored hash `sha256Hex(pepper + ':download:' + token)`.
+- Notification token: `<notificationId>.<hmacBase64Url(pepper, 'notify:' + notificationId + ':' + tokenVersion)>`; nothing about it is stored. A confirm link is valid for 7 days after `confirm_sent_at`.
+- Comparisons are constant time (`secretsMatch`).
+- `TOKEN_HASH_PEPPER` is the key of all three and of the throttle hashes, so it is never rotated casually: a new value kills every link already mailed (`.env.example` already says so; the runbook repeats it).
+
+## 6. SQL functions
+
+`service_role` only unless a row says otherwise. Business refusals return `{ ok: false, code }`; malformed calls raise. `p_mode` is always the configured mode (`test` or `live`) from `paymentsConfig()`; a function that takes it refuses or skips an order or attempt whose `environment` differs.
+
+### Payment core (round 2, `20261002100000_payment_core.sql`)
+
+`payment_attempt_begin(p_order_number text, p_access_token_hash text, p_mode text, p_ip_hash text) returns jsonb`
+: `p_ip_hash` is null from `create` and the caller's hash from `pay`, which is then throttled 30 per hour per IP hash (54000 when over). Order by number; a wrong or expired token answers `NOT_FOUND`. Locks the order. `ORDER_NOT_PAYABLE` (with `status` and `reason`) unless `pending_payment`, in the configured mode (`MODE_CHANGED`), without an open review payment (`UNDER_REVIEW`); `HOLD_EXPIRED` when the hold has under 60 seconds left; `TOTAL_BELOW_MINIMUM` under 100 halalas; `TOO_MANY_ATTEMPTS` when the order already has 5 attempts. Every `ok` reply carries `order` (`finance.order_summary`). An active attempt answers `{ok:true, state:'pending', attemptId, invoiceUrl, order}`, `{ok:true, state:'creating', attemptId, order}` (a `creating` row younger than 30 seconds: another request is making the invoice), or `{ok:true, state:'uncertain', attemptId, createdAt, amount, currency, order}` (an `uncertain` row, or a `creating` row older than 30 seconds, which it marks `uncertain`). Otherwise it inserts `creating` with `next_check_at = now() + 30 seconds` (so the job reaches a creation whose function died) and answers `{ok:true, state:'new', attemptId, amount, currency, expiresAt, order}`. Every move to `uncertain`, here or anywhere, sets `next_check_at = now()`.
+
+`payment_attempt_created(p_attempt uuid, p_invoice_id text, p_invoice_url text, p_expires_at timestamptz) returns jsonb`
+: `creating` or `uncertain` → `pending`, stores the id, the URL and the provider's own expiry when it echoed one, `next_check_at = now() + 1 minute`. The same id again is a no-op `{ok:true}`. Another id on the row, or the id already on another attempt, is `{ok:false, code:'INVOICE_CONFLICT'}` (never a raised 23505). On an attempt in any other status it stores the invoice id when the row has none, leaves the status, and answers `{ok:false, code:'ATTEMPT_CLOSED'}`: the caller cancels that invoice and never returns its URL, and a payment on it still reaches the attempt through the late-payment rule.
+
+`payment_attempt_close(p_attempt uuid, p_status text, p_error text) returns jsonb`
+: Allowed moves only: `creating` → `failed` | `uncertain`; `uncertain` → `abandoned`; `pending` → `cancelled` | `expired`. A closed attempt that has an invoice id gets one last check: `next_check_at = greatest(invoice_expires_at, now()) + 10 minutes`; one without an invoice id (`failed`, `abandoned`) gets `next_check_at` null. Anything else is `{ok:false, code:'BAD_TRANSITION'}`.
+
+`apply_verified_payment(p_invoice_id text, p_payment jsonb, p_invoice jsonb, p_mode text, p_live boolean, p_event_id text) returns jsonb`
+: `p_payment = {id, status, amount, currency, fee, refunded, invoiceId, sourceType, sourceCompany}` and `p_invoice = {id, status, amount, currency}`, both normalized by the function from what it fetched with the secret key; `p_live` is the webhook's `live` or null; `p_event_id` is null outside a webhook and is written to the audit row of a settlement. The captured amount is always `p_payment.amount`, never the provider's `captured` field. Answers `{outcome, orderNumber?, reason?}`, deciding in this order:
+  1. `rejected` (`INVOICE_MISMATCH`): `p_payment.invoiceId` or `p_invoice.id` is not `p_invoice_id`. Nothing changes.
+  2. No attempt has this invoice id: `unknown_invoice`. When the payment is charged (`paid` or `refunded`) it also records a review payment `UNMAPPED_INVOICE` (once) and queues an owner alert.
+  3. `rejected` (`MODE_MISMATCH`): the attempt's environment is not `p_mode`, or `p_live` is not null and disagrees with it. Nothing changes.
+  4. The payment is the attempt's own (`provider_payment_id` equal, or the attempt has none): `fetched_at`, `provider_status` and `provider_refunded_halalas = greatest(old, p_payment.refunded)` are written whatever follows. On a `paid` attempt: when the provider's refunded total is above the attempt's confirmed plus in-flight refunds, one owner alert `external_refund:<attemptId>:<total>`; when the status is none of `paid`, `refunded` (a void, for instance), one owner alert `provider_status:<attemptId>:<status>`.
+  5. Status `captured` → `review` (`UNEXPECTED_STATUS`).
+  6. Status not charged (anything but `paid` and `refunded`) → `not_paid`.
+  7. Charged: the attempt is `paid` with this payment id → `already_paid`. The attempt is `paid` or `review` with another payment id → `review` (`SECOND_PAYMENT`; the attempt is untouched). The attempt is `review` with this payment id → `review` again, nothing new. The amount or currency differs from the attempt, or the invoice's amount differs → `review` (`AMOUNT_MISMATCH`, `CURRENCY_MISMATCH`). The order was already paid through another attempt → `review` (`ORDER_ALREADY_PAID`). In each `review` case one `finance.payment_reviews` row holds the payment id, amount, currency, status and reason (inserted once), an unpaid attempt becomes `review`, stores the payment id and gets `next_check_at` null, one owner alert is queued, and the order is not touched.
+  8. Otherwise the first verified payment. Under the locks every line is checked (this function never raises for stock). A line whose own hold is still held and unexpired needs only the units to exist: `stock >= quantity`, or for a preorder reservation `preorder_capacity − committed preorder units >= quantity` (other orders' holds do not count against it; it fails only when the owner lowered the stock or the capacity meanwhile). A line whose hold was released or has expired is reacquired by the full availability rule, other orders' holds included. If every line passes → `paid`: reservations become `committed` (released or expired ones are reacquired), stock is decremented for non-preorder stocked lines, the order's coupon redemption becomes `committed` whatever the coupon's limit, dates or switch now say (the price was charged; the audit row marks an over-limit commit), the order becomes `paid` (`paid_at`, a fresh 7-day token expiry), the attempt becomes `paid` (`captured_halalas`, `fee_halalas`, source type and company, `provider_payment_id`, `paid_at`, `next_check_at` null), one entitlement per digital item, one fulfilment (`preparing`) per physical or signed item, one `receipt` outbox row (`receipt:<orderId>`), one owner alert per variant that crossed its low-stock threshold (`low_stock:<variantId>:<orderId>`), audit `order.paid`. If a line fails → `paid_needs_resolution`: nothing is committed, granted or decremented; the order becomes `paid_needs_resolution` (`paid_at` set), the attempt `paid` with the same columns the `paid` branch writes (`provider_payment_id`, `captured_halalas`, `fee_halalas`, the source, `paid_at`, `next_check_at` null), one owner alert (`needs_resolution:<orderId>`), one `receipt` (`receipt:<orderId>`, rendered as "the payment arrived and the order is under review"), audit `order.paid_needs_resolution`. Any other active attempt of the order is given `next_check_at = now()` so the job cancels its invoice.
+  Calling it again with the same facts changes nothing beyond step 4 and answers `already_paid`.
+
+`payment_event_record(p_event_id text, p_type text, p_live boolean, p_payment_id text, p_payload_hash text) returns jsonb`
+: `{state:'recorded'}` or `{state:'duplicate', processed}`. Durable before the webhook answers. A new row has `next_check_at = now() + 30 seconds`.
+
+`payment_event_result(p_event_id text, p_outcome text, p_error text) returns void`
+: `attempts + 1`. `p_outcome = 'retry'`: `next_check_at = now() + least(2^attempts, 60) minutes`; at 10 attempts the event is closed `exhausted` (processed, `next_check_at` null) with one owner alert `event_exhausted:<eventId>`. Any other outcome sets `processed_at` and clears `next_check_at`.
+
+`payment_check_begin(p_order_number text, p_access_token_hash text, p_ip_hash text, p_mode text) returns jsonb`
+: For the return page. Throttled 120 per hour per IP hash (54000 when over). Answers `{state, hasToken, invoiceUrl?, check?}`. `state`: `pending` while the order has an attempt in `creating`, `pending` or `uncertain`, whatever the order's status (an attempt stays `pending` until the job closes it, at least 10 minutes after its invoice expired, so a payment made in the hold's last minute is never shown as "expired"); otherwise `paid`, `needs_resolution`, `review` (an open review payment and no paid attempt), `refunded`, `expired`, `cancelled`; `unknown` when there is no such order in this mode (the same shape, so the reply reveals nothing more). `hasToken` is whether the token matched; `invoiceUrl` only with a matching token and a `pending` attempt. `check = {attemptId, providerInvoiceId}` when the order has an attempt worth asking about whose `fetched_at` is older than 5 seconds (the call sets `fetched_at`, so two callers do not both fetch). Worth asking: it has an invoice id, and it is `pending` or `uncertain`, or it is `expired`, `cancelled`, `failed` or `abandoned` and its invoice expired less than 24 hours ago; never `paid` or `review`.
+
+`payment_state(p_order_number text, p_access_token_hash text, p_mode text) returns jsonb`
+: The same `{state, hasToken, invoiceUrl?}` with no throttle hit and no check: the second read after a settle.
+
+`payment_callback_begin(p_invoice_id text, p_ip_hash text, p_mode text) returns jsonb`
+: For the invoice callback. Throttled 60 per hour per IP hash; over the limit it answers `{}` silently. `{check: {attemptId, providerInvoiceId}}` under the same "worth asking" and 5-second rules, else `{}`.
+
+`payment_attempt_ref(p_actor uuid, p_attempt uuid, p_mode text) returns jsonb`
+: Owner recheck from `p_actor`. `{attemptId, status, providerInvoiceId, providerPaymentId, orderNumber, createdAt, amount, currency}` for the owner's «أعد الفحص», or `NOT_FOUND`.
+
+`payment_reconcile_claim(p_mode text) returns jsonb`
+: Leases due work of the configured mode with `for update skip locked`, each kind ordered by its due time: at most 10 attempts with `next_check_at <= now()` (a `creating` row older than 30 seconds first becomes `uncertain`), at most 10 events with `next_check_at <= now()`, at most 5 in-flight refunds with `next_check_at <= now()`. The lease pushes each row's `next_check_at` two minutes ahead, so an overlapping run does not take it. Answers `{attempts: [{attemptId, status, providerInvoiceId, orderNumber, orderPaid, createdAt, amount, currency}], events: [{eventId, paymentId, live}], refunds: [{refundId, providerPaymentId}]}`.
+
+`payment_attempt_checked(p_attempt uuid, p_source text, p_ok boolean, p_provider_status text, p_error text) returns void`
+: After a check that did not settle. `p_source` is `job` or `prompt`; a prompt (callback, verify, cancel) writes `fetched_at` only, so the buyer's own return page never pushes the job's schedule out. For the job: on an error `error_count + 1`, `next_check_at = now() + least(2^error_count, 60) minutes`; on a good answer `check_count + 1`, `error_count = 0`, `next_check_at = now() + least(2^check_count, 30) minutes`. Terminal rules: a `pending` attempt whose provider status is `expired` or `canceled` more than 10 minutes after its expiry becomes `expired` or `cancelled`; any attempt whose invoice expired more than 24 hours ago gets `next_check_at` null and, when still `pending` or `uncertain`, becomes `expired`, and when its last check was an error it is also marked `last_error = 'UNVERIFIED'` with one owner alert `attempt_unverified:<attemptId>`; the last check of a closed attempt (`expired`, `cancelled`, `failed`, `abandoned`) clears `next_check_at` when it answered and backs off like any other when it errored. It never touches an attempt that is `paid` or `review`.
+
+`public.payments_kick() returns boolean` (cron every minute, like `outbox_kick`)
+: When a row of the three kinds is due and Vault has `functions_url` and `jobs_secret`: `net.http_post` to `<functions_url>/outbox` with `{"job":"payments_reconcile"}`. Rows that wait for a person have no due time and never trigger it.
+
+`finance.owner_alert(p_alert text, p_subject text, p_payload jsonb)` (internal)
+: One `owner_alert` outbox row per active owner, priority 0, dedupe key `<p_alert>:<p_subject>:<userId>`, `on conflict do nothing`, payload `{alert, …ids}`. Used by every alert named in this contract.
+
+### Checkout (round 4, `20261002110000_checkout_payment.sql`)
+
+- `finance.checkout_price`: applies the availability rule, adds `preorder: null | {shipsOn, note}` to each line, puts the preorder fields in the hash text, and adds the error `TOTAL_BELOW_MINIMUM` (`minimum: 100`) when the valid lines' total is under 100 halalas (a coupon that brings the total to zero included; I48 item 4).
+- `checkout_quote`: `checkoutEnabled` is true only when the switch is on, the seller is configured and the policies are approved (I48 item 2). The function ANDs `paymentsConfig().ok` and the sandbox fence, and adds `testMode`.
+- `checkout_create`: gains `p_ip_hash` already; no new parameter. The per-email exclusive hold and the per-email throttle are removed (I48 item 3; section 13). What remains: Turnstile in the function, one unexpired pending order per checkout session (under its advisory lock, as before), 10 creates per hour per IP hash, and 500 orders per day in total, now taken only when an order is actually created (after every refusal, just before the insert), so refused requests no longer spend it (I44 item 2). `ACTIVE_HOLD` means "this checkout session already holds an order": the reply is `{ok:false, code:'ACTIVE_HOLD', holdExpiresAt}` and, only when the request's email hash equals the held order's, also `order`, `idempotencyKey` and `tokenVersion`, so the function can return that order's access token to the tab that made it (the session id alone, which the table keeps in clear, is not enough). Preorder snapshots are written to the order items and reservations, and preorder digital lines get reservations.
+- The function's Zod schema refuses control characters in the name, naming the field (I48 item 5).
+- `checkout_cancel(p_order_number text, p_access_token_hash text)`: also answers `{ok:false, code:'PAYMENT_ACTIVE', attempt:{attemptId, status, providerInvoiceId}}` while an attempt is active, and cancels nothing.
+- `commerce_checkout_set(p_actor uuid, p_expected_version integer, p_enabled boolean) returns integer`: owner only; enabling also requires the seller and the approved policies; audit `commerce.checkout`.
+
+Policy consent (I48 item 1): the site embeds the revisions it rendered. One loader, `src/lib/policies.ts`, returns each published policy's data and seq in one fetch per build; the policy pages and the checkout page both use it, so the seq the form sends is the seq of the text the same build shows. `CheckoutForm` sends them as `policyRevisions` (only the keys the quote lists). `checkout_create` already refuses anything but the approved set (`POLICY_CHANGED`), so an order can only bind a revision the buyer's build actually showed. When the built revisions differ from the quote's, the form says the policies are being updated and keeps the button off.
+
+### Order mail (round 5, `20261002120000_order_emails.sql`)
+
+- `order_email_data(p_order uuid, p_refund uuid default null, p_item_ids uuid[] default null) returns jsonb`: `{orderId, orderNumber, status, environment, customerName, customerEmail, idempotencyKey, tokenVersion, totals, lines:[{itemId, title, variantTitle, quantity, total, fulfillment, preorder, hasFile}], seller, paidAt, refundedHalalas, refund?: {amount}, shipment?: {carrier, tracking, itemIds}}`. Everything from the order's own snapshots: a later price or title change never changes a receipt.
+- `notify_email_data(p_id uuid) returns jsonb`: `{status, tokenVersion, email, productTitle, variantTitle, slug}`.
+- `alert_email_data(p_payload jsonb) returns jsonb`: the few facts an owner alert shows (order number, SKU and stock, amounts, the reason code), by alert type.
+- `outbox_claim(p_limit integer, p_lease_seconds integer, p_daily_quota integer, p_reserve integer, p_monthly_quota integer default 3000, p_low_reserve integer default 30)`: three tiers instead of two (section 8: priority 2 stops at `p_daily_quota − p_reserve − p_low_reserve`), and the inactive-recipient rule covers `owner_alert` (the recipient must still be an active owner); `outbox_replay` likewise.
+
+### Refunds (round 6, `20261002130000_refunds.sql`)
+
+`refund_request(p_actor uuid, p_order uuid, p_attempt uuid, p_review_payment text, p_amount integer, p_reason text, p_allocation jsonb, p_idempotency_key uuid, p_request_hash text, p_return uuid, p_provider_refunded integer) returns jsonb`
+: Owner recheck. Exactly one of `p_attempt` (the order's paying attempt) and `p_review_payment`; `p_order` is null for a review payment that has no order. `p_provider_refunded` is the payment's `refunded` total the function fetched a moment ago. Under the locks: the same key and hash answers `{ok:true, state:'duplicate', refundId, status, amount}` and nothing else happens; the same key with another hash is `IDEMPOTENCY_CONFLICT`. `NOT_REFUNDABLE` unless the target is a `paid` attempt or a review payment that is not closed as `refunded` (one the owner closed by hand can still be refunded). `REFUND_IN_FLIGHT` when another refund of the target is in flight (checked first, so our own unsettled refund is never mistaken for an outside one). The target's `provider_refunded_halalas` becomes `greatest(old, p_provider_refunded)`. `PROVIDER_AHEAD` when the fetched total is above the target's confirmed refunds (a refund exists at the provider that the ledger does not hold: the owner records it first), `PROVIDER_BEHIND` when below. `EXCEEDS_BALANCE` when `confirmed + p_amount > captured` (the review payment's amount for a review target). `INVALID_ALLOCATION` unless: for a paying attempt, the item amounts plus `shipping` equal `p_amount`, each item's refunded total stays within `line_subtotal − discount`, and shipping within `shipping_halalas`; for a review payment the allocation is `{}`. `INVALID_RETURN` unless `p_return` is null or a `received` return of this order with no refund linked. Inserts `submitting` with `provider_refunded_before = p_provider_refunded` and `next_check_at = now() + 1 minute`. Answers `{ok:true, state:'new', refundId, providerPaymentId, amount}`.
+
+`refund_result(p_refund uuid, p_outcome text, p_provider_refunded integer, p_error text) returns jsonb`
+: Acts only on an in-flight refund; on any other it changes nothing and answers `{ok:false, code:'NOT_IN_FLIGHT'}` (with one owner alert `refund_mismatch:<refundId>` when the outcome was `succeeded` and the row is `failed`). `succeeded` is accepted only when `p_provider_refunded = provider_refunded_before + amount`; then the success effects below. A `succeeded` call with another total becomes `uncertain` (the job settles it). `failed` (the provider answered a 4xx): status, the balance is free again, audit. `uncertain`: status only.
+
+Success effects (shared with `refund_settle` and `refund_record_external`): status, `succeeded_at`, `provider_refunded_after`, the target's `provider_refunded_halalas`. For a paying attempt: entitlements are revoked for every item whose refunded total is above zero and equals its paid total, and for all items (zero-paid ones included) when the attempt is fully refunded; preorder reservations of fully refunded items are released (their capacity is free again); the order becomes `refunded` when the confirmed refunds equal the captured amount; a linked return becomes `refunded`; one `order_refunded` outbox row (`order_refunded:<refundId>`, payload `{orderId, refundId}`); audit `refund.succeeded`. For a review payment: the row is closed (`refunded`) when its refunds equal its amount; nothing else. Stock is never touched by a refund; an unshipped refunded unit goes back on sale only when the owner edits the stock (the runbook says so).
+
+`refund_settle(p_refund uuid, p_provider_refunded integer) returns jsonb`
+: For an in-flight refund, from a fresh fetch of the payment, under the locks. Total ≥ before + amount → success effects, and any surplus above before + amount is recorded in the same transaction as one more `succeeded` refund with `source = 'provider_dashboard'`, unallocated. Total = before: when the refund is younger than 15 minutes nothing changes (`next_check_at` backs off: 1, 2, 4, 8 minutes); older → `failed` with `NOT_APPLIED`. Before < total < before + amount → someone refunded from the dashboard while ours was in flight: the difference is recorded as a `provider_dashboard` refund, this refund's `provider_refunded_before` becomes the fetched total, and it stays in flight under the same 15-minute rule (it is never failed early, because our own call may still land). Total < before (the provider's total went down, which the documentation does not allow) → `failed` (`PROVIDER_TOTAL_DECREASED`) with an owner alert. Every branch ends within 15 minutes of the last change. `refund_checked(p_refund uuid, p_error text)` records a fetch that failed: `check_count + 1`, `next_check_at = now() + least(2^check_count, 60) minutes`; a refund in flight for more than 24 hours gets `next_check_at` null and one owner alert `refund_unverified:<refundId>`, and then waits for the owner's «أعد الفحص». A refund that was closed `NOT_APPLIED` and lands later is caught by the next `refund_request` (`PROVIDER_AHEAD`) and adopted by `refund_record_external`.
+
+`refund_record_external(p_actor uuid, p_attempt uuid, p_review_payment text, p_provider_refunded integer, p_provider_status text, p_reason text) returns jsonb`
+: Owner recheck; no refund of the target in flight. The delta is `p_provider_refunded − confirmed refunds`; for a status `voided` the delta is the whole unrefunded amount. It must be positive. When the delta equals the amount of the target's most recent `NOT_APPLIED` refund, that refund is reopened as `succeeded` with its own allocation (audit `refund.late_applied`); otherwise one `succeeded` refund with `source = 'provider_dashboard'`, unallocated. Success effects apply (an unallocated full refund revokes every entitlement). Audit `refund.external`.
+
+`refund_ref(p_actor uuid, p_refund uuid) returns jsonb`
+: Owner recheck. `{refundId, status, providerPaymentId}` or `NOT_FOUND`.
+
+### Delivery (round 7, `20261002140000_delivery.sql`)
+
+`order_access(p_order_number text, p_access_token_hash text, p_ip_hash text, p_mode text) returns jsonb`
+: Throttled 120 per hour per IP hash. `NOT_FOUND` for anything but a matching, unexpired token. Answers the buyer's view: `{order: <order_summary plus paidAt, refunded, testMode>, payment: {state, invoiceUrl?}, items: [{itemId, title, variantTitle, quantity, fulfillment, preorder, state?, carrier?, tracking?, download?: {available, revoked}, returnable: <quantity still returnable>}], returns: [{id, state, createdAt}]}`. No contact details, no provider ids.
+
+`order_recover_list(p_ip_hash text, p_email text) returns jsonb` and `order_recover_apply(p_ip_hash text, p_items jsonb) returns integer`
+: Throttled 3 per hour per email hash and 10 per hour per IP hash, and 20 `order_link` mails per day in total. The list answers up to 5 of the address's most recent paid, under-review or refunded orders as `[{orderId, idempotencyKey, tokenVersion, expired}]`. Recovery never kills a working link: for an order whose stored token has not expired the function derives nothing new and passes `{orderId, version: tokenVersion}` with no hash; only for an expired one it derives the next version's token and passes `{orderId, version: tokenVersion + 1, tokenHash}`. Apply (guarded on the version it was given) sets the new hash and version where one was passed, a fresh 7-day expiry in both cases, and queues at most one `order_link` mail per order per day (`order_link:<orderId>:<version>:<utc date>`). The function always calls both, with `[]` on a miss, and the HTTP reply is the same whatever happened.
+
+`download_issue(p_order_number text, p_access_token_hash text, p_item uuid, p_download_token_hash text, p_ip_hash text) returns jsonb`
+: The order token must match; the item must have a granted entitlement with a file; the order is not `refunded`. At most 10 tokens per entitlement per day (`TOO_MANY_DOWNLOADS`). Inserts the token row. `{ok:true, expiresAt}`.
+
+`download_redeem(p_download_token_hash text, p_ip_hash text) returns jsonb`
+: Under the token row's lock: unexpired, `uses < max_uses`, entitlement not revoked, order not `refunded`; increments `uses`. `{ok:true, storageKey, filename, mime}` or `NOT_FOUND` for every failure.
+
+`paid_asset_set(p_actor uuid, p_variant uuid, p_storage_key text, p_filename text, p_mime text, p_bytes bigint) returns jsonb`
+: Owner recheck; the variant must be digital. Locks the orders whose entitlements it will change in ascending id, then the variant. Inserts the asset and sets `product_variants.digital_asset` to the key. Granted entitlements of the variant that have no file get this one, their orders get a fresh 7-day token expiry, and one `order_ready` mail is queued per such entitlement (`order_ready:<entitlementId>`): the delivery of a digital preorder. An entitlement that already has a file keeps it.
+
+`return_request_create(p_order_number text, p_access_token_hash text, p_items jsonb, p_reason text, p_ip_hash text) returns jsonb`
+: The buyer's request: a `paid` order, physical or signed items already `shipped` or `delivered`, each quantity within what was bought minus the quantities of the item's earlier returns that were not rejected. 5 per day per order. `{ok:true, returnId}` or `NOT_FOUND`, `NOT_RETURNABLE`, `INVALID_ITEMS`, `TOO_MANY_REQUESTS`.
+
+### Order operations (round 7b, `20261002145000_order_operations.sql`)
+
+Granted to `authenticated`, role rechecked inside (owner or operations unless noted):
+
+- `orders_list(p_filter text, p_query text, p_before timestamptz, p_limit integer) returns jsonb`: `p_filter` in `all, paid, to_ship, needs_resolution, pending, refunded, review`; `p_query` null, an exact order number or a normalized email (the customer's history, C20); at most 50 rows, keyset on `created_at`. `to_ship` leaves out fully refunded items.
+- `order_detail(p_order uuid) returns jsonb`: everything the order screen shows: contact and address, items, payment attempts with provider ids, amounts, mode, source and fetch times, review payments, events (type, time, outcome), fulfilments, entitlements, refunds, returns. For an owner only: the disputes and the order's audit rows.
+- `fulfillment_update(p_order uuid, p_item_ids uuid[], p_state text, p_carrier text, p_tracking text, p_dedication_done boolean) returns jsonb`: forward moves only; `shipped` needs a carrier and a tracking value; a signed item needs `dedication_done` before `shipped`; `ITEM_REFUNDED` for a fully refunded item; queues one `order_shipped` mail per call (`order_shipped:<orderId>:<md5 of the sorted item ids>`, payload `{orderId, itemIds}`); audit.
+- `return_decide(p_return uuid, p_decision text, p_note text)` (`approved` | `rejected`, from `requested` only).
+- `return_receive(p_return uuid, p_restock jsonb) returns jsonb`: `approved` → `received`, once (locks: the order, the return, then the variants in id order). `p_restock` (`[{itemId, quantity}]`) may be non-empty only for an owner (operations mark the goods received; only the owner says they are sellable); every item must belong to the return, each quantity at most the return's own for it; the quantities are added to the variants' stock under their locks, for reservations that were not preorders; the audit row records each variant's stock from and to. Stock comes back only here.
+- `order_resolve(p_order uuid) returns jsonb` (owner): for `paid_needs_resolution`. Fully refunded lines are skipped (nothing is committed, granted or shipped for them); every other line must be available or the answer is `STOCK_UNAVAILABLE`; on success it does what `paid` does for the remaining lines (commit, entitlements, fulfilments, a receipt keyed `receipt:<orderId>:resolved`), audit `order.resolved`. So the owner can refund the line that cannot be delivered and deliver the rest.
+- `orders_alerts() returns jsonb`: `{needsResolution, review, toShip, uncertainRefunds, unverifiedAttempts, exhaustedEvents, externalRefunds, lowStock: [{variantId, sku, title, stock, threshold}]}`.
+- `reconciliation_list() returns jsonb` (owner): attempts that are `uncertain`, `UNVERIFIED`, or `paid` with a provider status other than `paid`/`refunded` or a provider refunded total above the confirmed refunds; open review payments; in-flight refunds; unprocessed and exhausted events.
+- `review_close(p_payment text, p_reason text)` (owner): closes an open review payment with a reason (for instance money the bank reversed); audit. It stays refundable.
+
+### Notifications (round 8, `20261002150000_notifications.sql`)
+
+- `catalog_availability() returns table (variant_id uuid, state text)`, granted to `anon` and `authenticated`: for every enabled variant of a published product, the public state of section 4. No numbers.
+- `notify_subscribe(p_ip_hash text, p_email text, p_variant uuid, p_consent_revision integer) returns jsonb`: throttled 5 per hour per IP hash, 30 per day in total, and one confirmation mail per address per day across variants. Only for a variant that is published, enabled and `out_of_stock`. Creates or re-opens the row as `pending` (a `confirmed` row stays) and creates the variant's `finance.variant_availability` row (`sellable = false`) when it has none. `p_consent_revision` is the privacy policy seq the visitor's build showed, or null while no privacy policy is published; it is stored as given. Queues `notify_confirm` (`notify_confirm:<id>:<token_version>:<utc date>`). Always answers `{ok:true}`.
+- `notify_token_info(p_id uuid) returns jsonb` (`{tokenVersion, status, confirmSentAt}` or null), `notify_confirm(p_id uuid, p_token_version integer) returns jsonb`, `notify_unsubscribe(p_id uuid, p_token_version integer) returns jsonb` (bumps `token_version`, so old links die).
+- `finance.availability_sweep()` (cron every minute): for each `variant_availability` row that has a confirmed subscriber, computes `sellable` (published, enabled, priced, public state `available` or `preorder`); on false → true it adds one to the revision and queues one `availability` mail per confirmed subscriber whose `notified_revision` is lower (`availability:<variantId>:<revision>:<notificationId>`), then sets their `notified_revision`; on true → false it stores false. Because the row starts false at the first subscription, a subscriber who confirms after the restock is notified by the next sweep. The dispatcher rechecks the row is still `confirmed` when it sends.
+- Purges (daily cron): `unsubscribed` rows after 30 days, `pending` rows after 7 days, with their unsent outbox rows.
+
+### Statistics, disputes, privacy (round 9, `20261002170000_stats_disputes.sql`)
+
+- `owner_commerce_stats(p_from timestamptz, p_to timestamptz, p_environment text) returns jsonb` (`service_role`; the `admin` function's `stats` action passes the site's own mode): `{environment, paidOrders, grossPaid, refundsConfirmed, netCollected, customers, review: {open, captured, refunded}, disputes: {count, againstSeller, forSeller}}`. `grossPaid` is the sum of `captured_halalas` of `paid` attempts with `paid_at` in the range; `paidOrders` is the count of those attempts' orders (a `paid_needs_resolution` or later `refunded` order included); `customers` is their distinct `customer_id`; `refundsConfirmed` is the sum of `succeeded` refunds of paying attempts with `succeeded_at` in the range; `netCollected` is gross minus those refunds. Review payments (their captured and refunded sums) and disputes (the latest row of each reference) are reported beside it and are in neither. Test and live never mix.
+- `dispute_record(p_actor uuid, p_kind text, p_provider_ref text, p_follows integer, p_attempt uuid, p_review_payment text, p_amount integer, p_direction text, p_occurred_on date, p_reason text, p_resolution text, p_decision text, p_item_ids uuid[], p_environment text) returns jsonb`: owner recheck. `p_follows` is the seq of the row this one follows (0 for the first). When a row with seq `p_follows + 1` already exists for the reference it is returned (`duplicate: true`) and nothing changes: a repeated reconciliation never double-counts. Otherwise the row is inserted (a follow-up needs its predecessor). A target is a `paid` attempt or a review payment, and is required for a `chargeback`. `entitlement_revoked` revokes the named items' entitlements; `fulfillment_stopped` needs named items still `preparing` and is only recorded. Never creates a refund, never changes the attempt. Audit `dispute.recorded` (redacted: reference, amount, kind, decision).
+- `disputes_list() returns jsonb` (`authenticated`, owner): every reference with its rows.
+- `privacy_buyer_export(p_email text) returns jsonb` and `privacy_buyer_erase(p_email text) returns jsonb`: like the P06 privacy functions they have no API grant at all (revoked from every API role and from `service_role`); the owner runs them as the migration role, per `docs/privacy-data-map.md`, and each run is one line of the deletion ledger. Both are safe to repeat. The export is that address's customer row, orders, items, fulfilments (carrier, tracking), entitlements, refunds, returns, notification rows and the mails sent to it (kind, time, status), without staff notes. The erase deletes its notification rows and their unsent mail; deletes expired and cancelled orders by the retention purge's rule (never one with an attempt in `creating`, `pending`, `uncertain`, `paid` or `review`, an `UNVERIFIED` attempt, an open review payment or a dispute) with their attempts, items, reservations and coupon rows; replaces the address in its outbox rows the way `privacy_erase_staff` does; deletes the customer row when no order is left; and reports every kept order with its reason (paid orders: accounting retention, E08). One count-only audit row.
+
+## 7. Edge Functions
+
+JSON envelope as ARCHITECTURE states. Public functions set `verify_jwt = false` and check the site Origin (except the two provider endpoints). Body limits: 64 KiB, webhooks 256 KiB. Every handler takes injectable dependencies (`rpc`, the Moyasar client, the Turnstile verifier) like `handleCheckout`, so unit tests reach every branch without a network.
+
+### `checkout` (existing, `_shared/checkout.ts`)
+
+- `quote`: lines gain `preorder`; the reply gains `testMode`; `checkoutEnabled` as sections 1 and 6. The request may carry `testAccess`.
+- `create`: refuses with 503 `CHECKOUT_DISABLED` before any database call when `paymentsConfig()` is not ok or the sandbox fence is not passed, so no order is created that nothing can pay. The order's environment is the configured mode. After `checkout_create` succeeds (new, or a duplicate that is still `pending_payment` with a matching token) it runs the invoice step and answers `{order, accessToken, payment}`. `payment` is `{state:'ready', url}`, `{state:'preparing'}` (another request is creating it, or the creation is being resolved), `{state:'unavailable'}` (the provider refused, or answered 429) or `{state:'closed', code}` (a refusal of `payment_attempt_begin`: `HOLD_EXPIRED`, `ORDER_NOT_PAYABLE`, `TOO_MANY_ATTEMPTS`). `ACTIVE_HOLD` answers 409 with `fields: {holdExpiresAt}` and, when the SQL returned the order, `{order, accessToken}`; the page then calls `pay`.
+- `pay` `{action:'pay', orderNumber, accessToken, testAccess?}`: throttled 30 per hour per IP hash. The invoice step alone, for a retry or a reload. Answers `{order, payment}`. Refusals: `NOT_FOUND` 404, `CHECKOUT_DISABLED` 503 (payments not configured, or the fence), `RATE_LIMITED` 429; the begin refusals `ORDER_NOT_PAYABLE` (with `status`), `HOLD_EXPIRED`, `TOO_MANY_ATTEMPTS` and `TOTAL_BELOW_MINIMUM` answer 200 with `payment: {state:'closed', code, status?}` and the order.
+- `cancel`: on `PAYMENT_ACTIVE` with a `pending` attempt it calls `cancelInvoice`. A 200 whose status is `canceled` → close the attempt (`cancelled`) and cancel the order. Any other reply → `fetchInvoice` and decide from it: `canceled` or `expired` → close the attempt and cancel the order; a charged payment in it → `settleInvoice`, and answer the order's real status; anything else, an unreachable provider, or an attempt in `creating` or `uncertain` → 409 `PAYMENT_ACTIVE` «الدفع قيد المعالجة؛ حاول بعد لحظات.» and nothing is cancelled.
+
+The invoice step (`_shared/payments.ts`, `startPayment`):
+
+1. `payment_attempt_begin`. `pending` → return its URL. `creating` → `preparing`. A refusal → `closed`.
+2. `uncertain` → `listInvoices({metadata: {attempt_id}})`. A match is an invoice whose own `metadata.attempt_id` is the attempt id and whose amount and currency are the attempt's. Exactly one match → `payment_attempt_created` and return its URL. More than one → `preparing`, owner alert `attempt_duplicate_invoices:<attemptId>`. A good answer with no match → when the attempt is younger than 60 seconds `preparing` (the first call may still land); older → `payment_attempt_close(…, 'abandoned')` and begin again once. The list failed → `preparing`.
+3. `new` → `createInvoice({amount, currency: 'SAR', description: 'طلب ' + orderNumber, callback_url: callbackBase + '/payments/callback', success_url: SITE_URL + '/checkout/return?order=' + orderNumber, back_url: the same, expired_at: new Date(expiresAt).toISOString(), metadata: {order_number, attempt_id}})`. 201 → `payment_attempt_created` (with the reply's `expired_at` when it parses); on `ATTEMPT_CLOSED` or `INVOICE_CONFLICT` → `cancelInvoice` best effort and `preparing`. A 4xx or 429 → `payment_attempt_close(…, 'failed')` and `unavailable`. A timeout, a network error, a 5xx or an unreadable 2xx → `payment_attempt_close(…, 'uncertain')` and `preparing`. No SQL lock is held across the call, and it is never repeated blindly.
+
+The reconciliation job never begins an attempt (it has no token): for an uncertain one it only adopts or abandons.
+
+### `payments` (new, `_shared/payments.ts`, `verify_jwt = false`)
+
+- `POST /payments/webhook`: 404 when `paymentsConfig()` is not ok. Bounded read; JSON; required `id`, `type`, `secret_token` (strings) and `live` (boolean); `data.id` optional. A wrong `secret_token` → 401 and nothing is stored. Then `payment_event_record` (a failure here is 500, so Moyasar retries). `duplicate` → 200, nothing more (the job owns an unprocessed event). A type that does not start with `payment_` → closed `ignored`. No `data.id`, or one that is not a UUID → closed `no_payment_id`. A `live` that is not the configured mode → closed `mode_mismatch`. Otherwise `settlePayment(data.id, live, eventId)` inline, bounded by the client timeout; the answer is 200 `{ok:true}` whatever it does; a settle that could not finish leaves the event for the job (`retry`).
+- `POST /payments/callback`: the invoice object, unauthenticated. Reads only `id` (a UUID or nothing happens); `payment_callback_begin` with the caller's IP hash; when it returns a check, `settleInvoice`. Always 200 `{ok:true}`.
+- `POST /payments` `{action:'verify', orderNumber, accessToken?}` (site Origin): `payment_check_begin`; when it returns a check, `settleInvoice`, then `payment_state`. Answers `{state, hasToken, invoiceUrl?, testMode}`; a throttle answers 429.
+
+`settlePayment(paymentId, live, eventId)`: `fetchPayment` (404 → the event is closed `unknown_payment`; another failure → `retry`) → its `invoice_id` (none → `no_invoice`) → `fetchInvoice` → `apply_verified_payment` → `payment_event_result` with the outcome. `settleInvoice(attemptId, invoiceId, source)`: `fetchInvoice`; every entry of `payments[]` whose status is `paid`, `refunded` or `captured`, oldest first, is fetched and applied; unless the attempt ended `paid` or `review`, it always finishes with `payment_attempt_checked(attemptId, source, true, invoice.status, null)` (also after a `rejected` or `not_paid` outcome, so no attempt is re-leased for ever); a failed fetch is `payment_attempt_checked(…, false, null, code)` and is never read as "not paid".
+
+### `outbox` jobs (existing `_shared/jobs.ts`)
+
+`{"job":"payments_reconcile"}` → `runPaymentsReconcile`: `payment_reconcile_claim(mode)`; each attempt through the uncertain resolution (adopt or abandon) or `settleInvoice(…, 'job')`, and a `pending` attempt whose order is already paid (`orderPaid`) is cancelled at the provider (`cancelInvoice`, then `payment_attempt_close`); each event through `settlePayment`; each refund through `fetchPayment` and `refund_settle` (or `refund_checked` when the fetch failed). The refund leg is added in round 6, with the refund functions. It stops calling the provider for the rest of the run after a 429. One `job_run_record('payments_reconcile', …)` with counts only. Repeating it changes nothing that is already settled.
+
+The dispatcher (`_shared/outbox.ts`) renders the new kinds from the data functions of round 5: `receipt` (paid: order number, lines, totals, the order link, download notes, preorder notes, the seller's name; under review: the payment arrived and the order is being reviewed; a test order says it is a test; never called a tax invoice), `order_link`, `order_ready`, `order_shipped`, `order_refunded`, `notify_confirm`, `availability` (with the unsubscribe link, and only while the row is `confirmed`, else the row is closed without sending), `owner_alert`. Plain text, isolates around user values, like `renderContactNotice`.
+
+### `orders` (new, `_shared/orders.ts`, `verify_jwt = false`, site Origin)
+
+`get` `{orderNumber, accessToken}` → `order_access`. `recover` `{email, turnstileToken}` → Turnstile (action `order-recover`), the two recover functions, always 200 `{sent: true}`. `return-request` `{orderNumber, accessToken, items, reason}`.
+
+### `download` (new, `_shared/download.ts`, `verify_jwt = false`, site Origin)
+
+`issue` `{orderNumber, accessToken, itemId}` → mints the token, `download_issue`, answers `{downloadToken, expiresAt}`. `redeem` `{downloadToken}` → `download_redeem`, then a 60-second signed URL from `paid-files` with the download name (`createSignedUrl(key, 60, {download: filename})`), rebuilt on the public Storage base (section 1), answers `{url}`. The storage key appears only inside that 60-second URL; it is unguessable (`assets/<variantId>/<assetId>`) and is never mailed or stored in the browser. The reply and the order page send `Referrer-Policy: no-referrer`; whether Storage's own file response carries `nosniff` is a hosted check (I32).
+
+### `notify` (new, `_shared/notify.ts`, `verify_jwt = false`, site Origin)
+
+`subscribe` `{variantId, email, consentRevision, turnstileToken}` (Turnstile action `notify`; `consentRevision` an integer or null), `confirm` `{token}`, `unsubscribe` `{token}`. The replies of `subscribe` are identical for every outcome.
+
+### `admin` (existing, `_shared/admin.ts`): new actions
+
+| Action | Who | Does |
+|---|---|---|
+| `commerce-checkout-set` `{enabled, expectedVersion}` | owner, fresh TOTP | Refuses `enabled: true` unless `paymentsConfig().ok` (`PAYMENTS_NOT_CONFIGURED`); `commerce_checkout_set`. |
+| `payment-recheck` `{attemptId}` | owner | `payment_attempt_ref`, then the uncertain resolution or `settleInvoice(…, 'prompt')`; answers the attempt's status. |
+| `refund-create` `{orderId?, attemptId?, reviewPaymentId?, amount, reason, allocation, idempotencyKey, returnId?}` | owner, fresh TOTP | The payment id comes from `payment_attempt_ref` (or is the review payment's own id; `orderId` may be absent only then). `fetchPayment` first (a failure answers 503 and nothing is written); `refund_request` with the fetched total. Only `state: 'new'` goes on: `refundPayment(providerPaymentId, amount)`; `refund_result` (`succeeded` with the reply's `refunded`; a 4xx → `failed`; a timeout, 5xx, 429 or unreadable reply → `uncertain`). `duplicate` answers the stored refund and never calls the provider. |
+| `refund-recheck` `{refundId}` | owner | `refund_ref`, `fetchPayment`, `refund_settle`. |
+| `refund-record-external` `{attemptId?, reviewPaymentId?, reason}` | owner, fresh TOTP | `payment_attempt_ref` (or the review row's own id), `fetchPayment`, `refund_record_external`. |
+| `dispute-record` `{kind, providerRef, follows, attemptId?, reviewPaymentId?, amount, direction, occurredOn, reason, resolution?, decision, itemIds?}` | owner, fresh TOTP | `dispute_record` with the configured mode. |
+| `paid-file-ticket` `{variantId, filename, mime, bytes}` | owner | A signed upload URL under `incoming/<uuid>` in `paid-files` (the function mints the uuid). |
+| `paid-file-complete` `{variantId, ticket, filename, mime}` | owner | `ticket` must be a UUID. Reads the object's size and stored content type from its metadata and its first bytes with a ranged request (never the whole object); refuses a stored type that differs from the declared one, a head that is not `%PDF-` (or, for EPUB, a ZIP whose first entry is `mimetype` = `application/epub+zip`), or a size over the bucket's limit; moves the object to `assets/<variantId>/<assetId>`; `paid_asset_set`. The daily `media_sweep` job also removes `paid-files/incoming/` objects older than 24 hours. |
+| `stats` `{from?, to?}` | owner | Adds `commerce` from `owner_commerce_stats` (the last 30 days by default; `from` and `to` validated), read on every call; only the analytics part stays cached. |
+| `status` | owner | Adds `payments: {configured, reason?, mode, emulator}` (booleans, the mode and the reason code only). |
+
+## 8. Mail budget
+
+Resend's free plan sends 100 a day. `outbox_claim` gains a third tier:
+
+| Priority | Kinds | Sent while the day's sends are under |
+|---|---|---|
+| 0 | `receipt`, `order_shipped`, `order_refunded`, `order_ready`, `owner_alert` | 100 |
+| 1 | `contact_notice` (at most 40 messages a day), `order_link` (at most 20 a day) | 80 |
+| 2 | `notify_confirm` (at most 30 a day), `availability` | 50 |
+
+So availability notices are deferred before recovery links, and those before receipts (VERIFICATION). Priority 0 holds only mail that a payment or a staff action causes; nothing a visitor can trigger is in it.
+
+## 9. The emulator (`tests/support/moyasar-emulator.ts`)
+
+A plain Node HTTP server (erasable TypeScript only, so `node tests/support/moyasar-emulator.ts` runs it), port 54390, in memory. It exports `startEmulator(options)` for the tests (`port`, `host` default `127.0.0.1`, `secretKey`, `publicBase` default `http://127.0.0.1:54390` used for every invoice `url`, never the Host header) and runs standalone for `pnpm emulator` and Playwright. It refuses to start when `SITE_URL` in its environment is a hosted site.
+
+Moyasar routes, exactly the shapes of section 2 and nothing else, behind Basic auth with the configured secret key (anything else → 401 `authentication_error`):
+
+- `POST /v1/invoices` (validates `amount` integer ≥ 100, `currency`, `description`; 400 with `errors` otherwise; stores `metadata`; echoes `expired_at`), `GET /v1/invoices/:id`, `GET /v1/invoices` (`page`, `id`, `status`, `metadata[key]`, 40 per page with `meta`), `PUT /v1/invoices/:id/cancel` (an `initiated` invoice becomes `canceled`; a `canceled` one answers 200 again; a `paid` or `expired` one answers 400 by default);
+- `GET /v1/payments/:id`, `GET /v1/payments` (`page`, `id`, `status`, `metadata[key]`), `POST /v1/payments/:id/refund` (`amount` optional; more than what is left → 400; the status becomes `refunded` and `refunded` holds the running total).
+
+Errors use the documented bodies: 400 `{type:'invalid_request_error', message:'Validation Failed', errors:{field:[…]}}`, 401 `authentication_error`, 404 `record_not_found`. An invoice past its `expired_at` reports `expired` and refuses payment.
+
+Switches for what the documentation leaves open, so both sides are tested (`POST /__emulator/config`): `refuseSecondRefund` (a refund of a payment already `refunded` → 400), `partialRefundKeepsPaid` (a partial refund leaves the status `paid`), `dropInvoiceMetadata` (invoices keep no metadata), `ignoreMetadataFilter` (the list returns every invoice), `cancelPaidReturns200` (a cancel of a paid invoice answers 200 with status `paid`), `dropExpiredAt` (the reply carries no `expired_at`), plus `webhookUrl`, `webhookSecret`, `autoWebhook`, `autoCallback`, `live`.
+
+Not Moyasar, the test harness. These routes and the stand-in page answer only loopback and private peers; `webhookUrl` and every invoice's `callback_url` and `success_url` must be on a local host; recorded calls never include the Authorization header. Every control POST is JSON (`content-type: application/json`, body `{}` when empty; 415 otherwise), and the Host and Origin of a control request or of the stand-in page must name a local host (403 otherwise), so `publicBase` is a local URL too.
+
+- `GET /invoices/:id`: the stand-in for the hosted page, clearly labelled as the local emulator, with buttons: pay, fail, 3-D Secure (a second step that then pays or fails), back. It creates the payment and sends the webhook and the callback as configured. A paid payment redirects to `success_url`; back redirects to `back_url`; a failed payment or a rejected 3-D Secure step stays on the page with a notice and leaves the invoice payable (a harness choice: what Moyasar does after a failure is sandbox item 6). An invoice turns `paid` when one of its payments does; no other invoice transition is assumed (a test sets one with `/__emulator/invoice`).
+- `POST /__emulator/pay` `{invoiceId, status, amount?, currency?, force?}` (any documented payment status; `force` pays an invoice that is expired, canceled or already paid, for the late-payment and second-payment tests), `POST /__emulator/payment` `{paymentId, status?, refunded?}` (a dashboard refund or void), `POST /__emulator/invoice` `{invoiceId, status?, expiredAt?}`, `POST /__emulator/webhook` `{paymentId, type, secretToken?, live?, eventId?, times?}` (the payment id may be one the emulator does not hold), `POST /__emulator/fault` `{route, mode, times, delayMs?}` (`mode`: `timeout`, `500`, `429`, `drop_after_commit`: the change is made and the connection is cut before the reply; `commit_after_delay`: the connection is cut at once and the change is made `delayMs` later), `GET /__emulator/state` (invoices, payments and the calls received, for assertions such as "one invoice per attempt" and "one refund call"), `POST /__emulator/reset`.
+
+## 10. Public pages and admin
+
+All public pages are static shells; data comes from the functions at run time. `public/_headers` gives `/orders`, `/checkout/return` and `/notify/*` `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, `X-Robots-Tag: noindex`; `scripts/check-export.mjs` requires the new pages.
+
+- `/checkout`: after `create`, when `payment.state` is `ready` the hold view shows the total, the time the hold ends as a plain clock time in Riyadh («محجوز حتى 14:35»), «ادفع الآن» (a plain link to the invoice URL) and «إلغاء الطلب». `preparing` → «نجهّز صفحة الدفع…» with a retry (`pay`). `unavailable` → «تعذّر تجهيز الدفع؛ حاول بعد لحظات.» with the retry. `closed` → the hold ended or the order is no longer payable. After a reload the view calls `pay` to get the order and its payment again. When the hold's time passes (one timer, no visible counting) or the server says so, the view says the hold ended and the stored pending order is cleared (I48 item 3); it is also cleared on `paid`, `cancelled`, `expired` and `NOT_FOUND`, not only on a successful cancel. The cart is never cleared before `paid`.
+- `/checkout/return` (`src/components/store/PaymentReturn.tsx`): the order number is the `order` query value when its first 8 characters match the order-number pattern, else this tab's stored pending order; with neither, a link to `/orders` (recovery). The token comes from the stored pending order only. Calls `verify` at 0, 2, 4, 8, 15 and 30 seconds, then offers «تحديث». «جارٍ التحقق من الدفع…» until a state arrives. `paid` → «تم الدفع. رقم الطلب …», the order link when the tab has the token, «أرسلنا رابط الطلب إلى بريدك» always, and only now the cart and the stored order are cleared. `pending` → the verification text and, with the token, «متابعة الدفع». `needs_resolution` and `review` → «وصلتنا دفعتك ونراجع طلبك؛ سنتواصل معك عبر البريد.» `refunded` → «أُعيد مبلغ هذا الطلب.» `expired`, `cancelled` → the hold ended, back to the cart. `unknown` → «لم نجد هذا الطلب.» with the recovery link. A 429 → «حاول بعد قليل.» Nothing on this page trusts the query string beyond the order number.
+- `/orders` (`src/components/store/OrderPage.tsx`): the fragment `#<orderNumber>.<token>`, moved to sessionStorage and removed from the address bar; `get`; shows the status, lines, totals, payment state, shipping state with tracking, preorder notes, a download button per digital item (`issue` then `redeem`, then the browser follows the URL), a return request form for returnable items, and the refunded total. Without a token: the recovery form (email, Turnstile) with one generic answer.
+- `/notify/confirm` and `/notify/unsubscribe` (`src/components/store/NotifyAction.tsx`): the token from the fragment, one button, the result.
+- `/store/[slug]`: a client island reads `catalog_availability()` and shows, per variant, the add control, «طلب مسبق» with the delivery note and date, or «غير متوفر حاليًا» with the availability form (`src/components/store/AvailabilityForm.tsx`: email, Turnstile, the privacy revision the build rendered, one generic answer). The cart and checkout show a preorder line's note and date before the buyer pays.
+
+Admin: `/admin/orders` (list with the filters, a search by order number or email, the alerts line), `/admin/orders/view?id=` (`OrderView`: verified evidence, items, fulfilment controls with the signed checklist, returns, `RefundView` with the step-up dialog, review payments), `/admin/orders/reconciliation` (`ReconciliationView`: uncertain and unverified attempts with «أعد الفحص», in-flight refunds, external refunds to record, review payments, events, disputes and the form to record one). The nav gains «الطلبات» for owner and operations. `AdminHome` shows the alerts. The commerce settings form gains the checkout switch and the payments status. The variant form gains the preorder fields, the count of confirmed preorders and the paid-file upload; `src/admin/tables/notifications.ts` is a read-only list; the customers list links to a customer's orders. The statistics screen shows the commerce figures with the sentence that gross minus confirmed refunds excludes gateway fees, chargebacks and payout timing and is neither bank-settled cash nor profit, and labels a test environment.
+
+## 11. Invariants and the tests that hold them
+
+1. Money settles once: any number of webhooks, callbacks, verifies and reconciliation runs for one payment, in any order and at the same time, produce one `paid` attempt, one stock decrement, one coupon commit, one receipt, one entitlement per digital item.
+2. Nothing but a fetched charged payment of the exact amount in SAR on the invoice mapped to the order, in the configured mode, marks it paid: a forged redirect, a wrong or missing `secret_token`, another invoice, another amount, another currency, a wrong `live`, the other mode's key, a payment our key cannot fetch (another account), and the statuses `initiated`, `authorized`, `verified`, `failed`, `voided` do not.
+3. One active attempt per order; an uncertain creation is resolved by listing and checking the invoice's own metadata, never by a second payable invoice; a late 201 never hands the buyer a URL the ledger does not map.
+4. A refund never exceeds what was captured, under concurrency and across a timeout: one refund in flight per payment, the provider's total read first, a retry with the same key never reaches the provider twice, an unapplied refund is declared only after 15 minutes, and a late-landing refund blocks the next one until it is recorded.
+5. Stock and preorder capacity never go negative and nothing is sold beyond them, including a payment that arrives after its hold expired or after the owner lowered the stock (`paid_needs_resolution`).
+6. No token or secret in clear in the database, the logs, the outbox payloads or `out/`.
+7. A refund or a revocation stops new download links; a download token expires in 15 minutes and yields at most 3 signed URLs of 60 seconds.
+8. An availability notice goes once per revision to a confirmed subscriber and never to a pending or unsubscribed one; holds do not flap it.
+9. Disputes are append-only, never create a refund, and are never counted twice.
+10. Statistics equal the ledger: gross, refunds and net for a range equal the sums of the rows, test and live apart, review money in neither.
+11. Anomalous money is never lost and never fulfilled: every charged payment that does not settle an order is a review row, alerted, refundable, and outside gross.
+
+Test matrix (the file each proof lives in, and its round):
+
+| Proof (VERIFICATION, WORK-PACKAGES) | File | Round |
+|---|---|---|
+| The emulator's documented shapes, its switches and faults | `tests/unit/moyasar-emulator.test.ts` | 1 |
+| The client's classification by status, `paymentsConfig()` rule by rule | `tests/unit/moyasar-client.test.ts` | 1 |
+| `apply_verified_payment`'s decision table; duplicates, reordering and two connections at once; late payment (reacquire, needs resolution, lowered stock, coupon past its limit, preorder capacity); mode mismatch; review payments; attempt transitions; the claim's leases and terminal rules; retention | `tests/integration/payment.test.ts`, `tests/integration/buyer-retention.test.ts` | 2 |
+| Forged secret, wrong `live`, unknown payment (404), another invoice, amount, currency, statuses; crash before and after the durable event; timeout after provider success (one invoice); late 201; callback and verify throttles; repeated reconciliation | `tests/unit/payments.test.ts` (injected), `tests/integration/payment-http.test.ts` (the real functions and the emulator) | 3 |
+| Checkout: holds without the email rule, the daily cap, `ACTIVE_HOLD` with and without the email, total below the minimum, preorder pricing and capacity races, cancel against every provider answer, the switch, the sandbox fence | `tests/integration/checkout.test.ts`, `tests/unit/checkout.test.ts`, `tests/e2e/checkout-api.spec.ts` | 4 |
+| The checkout form, the hold view, the return page for every state, the built policy revisions | `tests/e2e/cart-checkout.spec.ts`, `tests/unit/policies.test.ts` | 4b |
+| Receipts and every other kind render from snapshots (a price change does not rewrite a receipt); the three tiers; two owners each get an alert; a revoked owner gets none; unsubscribe at send | `tests/integration/order-emails.test.ts`, `tests/unit/email.test.ts` | 5 |
+| Refund reserve under concurrency, replay with one provider call, timeout then late landing, `PROVIDER_AHEAD`, every `refund_settle` branch, external and void, partial entitlement revocation (a zero-paid item included), review-payment refunds leave the order alone | `tests/integration/refunds.test.ts`, `tests/unit/admin-refunds.test.ts` | 6 |
+| Order access by token, recovery without enumeration and without killing a live link, download issue and redeem bounds and races, revocation, paid-file checks, returns | `tests/integration/download.test.ts`, `tests/integration/orders-access.test.ts`, `tests/unit/orders.test.ts` | 7 |
+| Fulfilment moves and refusals, returns and bounded restock (shipped stock not restored by a refund), resolve after a partial refund, alerts, role denials for every function granted to `authenticated` (anon, editor, revoked owner) | `tests/integration/order-operations.test.ts` | 7b |
+| Opt-in, confirmation, sellable transition, once per revision, retry dedupe, unsubscribe at send, no notice to pending or unsubscribed, confirm after restock, holds do not flap | `tests/integration/notify.test.ts`, `tests/unit/notify.test.ts` | 8 |
+| Statistics against the ledger (test excluded from live, a refunded review payment, a fee and timing discrepancy recorded as a dispute), a synthetic chargeback with its follow-up, repeated recording, buyer export and erase with their exceptions | `tests/integration/stats.test.ts`, `tests/integration/privacy-requests.test.ts` | 9 |
+| The journeys in the browser at 360 and 1440: book and non-book purchase to receipt and admin, failed, 3-D Secure, cancelled, refund with step-up, download, return, availability opt-in to notice to unsubscribe, preorder, a dispute, opening checkout through the owner's switch | `tests/e2e/orders.spec.ts` | 12 |
+
+## 12. Rounds
+
+Each round is one fresh `sonnet-worker` (Sonnet 5.5, effort max), then an Opus `auditor` (effort xhigh) on its diff, then at most two re-fix rounds with fresh workers. The orchestrator rules on the findings, reads the money, token and migration diffs itself, runs the checks and commits the accepted round. The exact files of a round are in its brief and in the lock.
+
+| Round | Scope |
+|---|---|
+| 0 | Orchestrator: this contract, `supabase/config.toml` entries, `scripts/local-env.mjs`, `.env.example`, `scripts/check-export.mjs` secret patterns, function placeholders, the stack restart. |
+| 1 | The emulator and its tests; the Moyasar client with `paymentsConfig()`; the runbook's source table. |
+| 2 | `20261002100000_payment_core.sql`: the whole schema of section 4 and the payment core functions; `tests/integration/payment.test.ts`; the retention test. |
+| 3 | `tokens.ts`, `_shared/payments.ts` (`startPayment` with the uncertain resolution, `settlePayment`, `settleInvoice`), the `payments` function, the reconciliation job (attempts and events), `payment-recheck` and the `status` addition in `admin`; the unit and HTTP tests. |
+| 4 | `20261002110000_checkout_payment.sql`; the checkout function calling `startPayment`, `pay`, `cancel`, the fence; `commerce-checkout-set`; the P07 tests that change. |
+| 4b | `src/lib/policies.ts`, the checkout form and hold view, the return page, the switch in the commerce settings form, `public/_headers` and the export check for `/checkout/return` (round 10 adds its own pages), the cart-checkout e2e. |
+| 5 | `20261002120000_order_emails.sql`, every new mail kind in the dispatcher. |
+| 6 | `20261002130000_refunds.sql`, the refund actions in `admin`, the reconciliation job's refund leg. |
+| 7 | `20261002140000_delivery.sql`, the `orders` and `download` functions, the paid-file actions, `paid-files` in `scripts/backup.mjs` and `scripts/restore-check.mjs`, the `incoming/` sweep. |
+| 7b | `20261002145000_order_operations.sql`. |
+| 8 | `20261002150000_notifications.sql`, the `notify` function, the sweep, `src/admin/tables/notifications.ts`. |
+| 9 | `20261002170000_stats_disputes.sql`, the `stats` and `dispute-record` actions. |
+| 10 | The public order page, the notify pages, the product page island with availability and preorder, the cart and checkout preorder notes. |
+| 11 | The admin: orders, order view with refunds, reconciliation and disputes, home alerts, the variant form (preorder, paid file), statistics, the customers link. |
+| 12 | `tests/e2e/orders.spec.ts`; the documents: the runbook with "When the Moyasar keys arrive", `docs/operations.md`, `docs/privacy-data-map.md`, `docs/development.md`. |
+| Close | Orchestrator: the acceptance battery, and the plan documents (COVERAGE C20, C26, C28, C29, C30; ISSUES; EXECUTION-STATUS; HANDOFF; ARCHITECTURE; DATA-AND-SECURITY; VERIFICATION's file count). |
+
+## 13. Where this differs from DATA-AND-SECURITY and ARCHITECTURE, and why
+
+1. **No per-email hold.** DATA limits active holds "by guest checkout session and normalized recipient". The per-email limit is removed: anyone could hold a known address, the refusal confirmed that a live order exists (AUDIT-2 X-SEC-4, I48 item 3), and it never bound an abuser, who rotates emails freely; it only ever stopped the address's real owner. The session limit, the IP throttle (still secondary), Turnstile and the daily total remain. Residual, recorded in `docs/operations.md`: many sessions from many addresses can hold scarce stock for 20 minutes at a time.
+2. **`requested` is folded into `submitting`.** The refund row is written and the balance reserved in one step; safety across a timeout comes from reading the provider's total before every refund and from the 15-minute window, not from a second state.
+3. **A refund's evidence is the payment's total, not a refund id**, because the provider documents none. A dashboard refund of exactly an in-flight amount cannot be told apart from our own; the ledger still equals the provider.
+4. **Dashboard refunds are unallocated** (DATA allocates partial refunds to items): the ledger cannot know which item a refund made outside the admin was for; a full one revokes everything.
+5. **Mail that passes the reserve.** DATA lets only receipts pass it; `order_shipped`, `order_refunded`, `order_ready` and `owner_alert` do too, because only a payment or a staff action causes them. In exchange availability mail stops earlier (section 8).
+6. **Entitlement without a file.** DATA grants "if asset ready"; a digital item whose variant has no file yet (a preorder) is granted with no file, and the file is attached and mailed when the owner uploads it.
+7. **Checks back off.** DATA says pending attempts are reconciled every minute. The job runs every minute; each attempt is re-checked at growing intervals (1, 2, 4 … 30 minutes), because the webhook, the callback and the return page are the fast path and the provider's rate limit is unknown.
+8. **The return page's order number is in the query**, not the fragment (ARCHITECTURE): the provider's redirect cannot be relied on to carry a fragment. The number alone yields only the order's state; the token never leaves the tab.
+9. **Statistics on a test site show test payments**, labelled, never mixed with live ones (ARCHITECTURE says test payments are excluded; they are, from live figures).
+10. **Privacy functions have no API grant**, as in P06; the contract's first version said otherwise.
+11. **Notification tokens are derived, not stored** (DATA says "hash token"): nothing secret is kept at all.
+12. **Disputes may have no payment** (`payout_difference`, `fee_difference`) and are append-only per reference, so an outcome can be added later without changing a row.

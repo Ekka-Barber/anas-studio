@@ -426,6 +426,22 @@ verify_jwt = false
 [functions.outbox]
 verify_jwt = false
 
+# P08: public endpoints that verify their own callers. `payments` takes the
+# Moyasar webhook (its `secret_token`), the invoice callback and the return
+# page's check; `orders`, `download` and `notify` check the site origin and a
+# hashed token (PLANS/P08-CONTRACT.md, section 7).
+[functions.payments]
+verify_jwt = false
+
+[functions.orders]
+verify_jwt = false
+
+[functions.download]
+verify_jwt = false
+
+[functions.notify]
+verify_jwt = false
+
 # Pinned, not left to the CLI default: a future default change or a
 # --no-verify-jwt deploy flag must not silently expose the staff endpoints.
 [functions.admin]

@@ -25,6 +25,7 @@
     "db:env": "node scripts/local-env.mjs",
     "db:import": "node scripts/import-content.mjs",
     "db:demo-catalog": "node scripts/seed-demo-catalog.mjs",
+    "emulator": "node tests/support/moyasar-emulator.ts",
     "bootstrap:owner": "node scripts/bootstrap-owner.mjs",
     "backup": "node scripts/backup.mjs",
     "restore-check": "node scripts/restore-check.mjs"

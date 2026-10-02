@@ -35,6 +35,14 @@ const localWebhookSecret = `whsec_${Buffer.from('anas-studio-local-webhook-secre
 // Docker, so they reach the host's Mailpit through host.docker.internal.
 // RESEND_API_KEY is empty on purpose: with a local SITE_URL no real email is
 // ever sent anyway (supabase/functions/_shared/email.ts).
+//
+// P08 (D38): payments run against the local Moyasar emulator
+// (`pnpm emulator`, tests/support/moyasar-emulator.ts, port 54390 on the
+// host), never against Moyasar. The key and the webhook secret are fixed local
+// strings the emulator accepts; `sk_test_` only matches the documented prefix
+// of a test key. FUNCTIONS_PUBLIC_URL is the functions' address as the
+// emulator and the browser reach it (inside the runtime SUPABASE_URL is an
+// internal address).
 const functionValues = `SITE_URL=http://localhost:3000
 JOBS_SECRET=local-jobs-secret-not-for-production
 TOKEN_HASH_PEPPER=local-pepper-not-for-production
@@ -43,6 +51,11 @@ RESEND_API_KEY=
 EMAIL_DEV_MAILPIT_URL=http://host.docker.internal:54324
 EMAIL_FROM="أنس <noreply@anas.studio>"
 RESEND_WEBHOOK_SECRET=${localWebhookSecret}
+MOYASAR_API_BASE_URL=http://host.docker.internal:54390/v1
+MOYASAR_SECRET_KEY=sk_test_local_emulator_key_not_for_production
+MOYASAR_WEBHOOK_SECRET=local-moyasar-webhook-secret-not-for-production
+PAYMENTS_MODE=test
+FUNCTIONS_PUBLIC_URL=${status.API_URL}/functions/v1
 `
 
 const functionsPath = 'supabase/functions/.env'
