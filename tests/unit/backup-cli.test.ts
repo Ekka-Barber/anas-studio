@@ -2,7 +2,7 @@
 // missing or empty `--out` value (an unset shell variable) must not send the
 // backup to the home directory while the owner believes it went to a USB drive.
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,6 +28,18 @@ function backup(args: string[]) {
   delete env.ANASAQ_BACKUP_PASSPHRASE
   return spawnSync(process.execPath, ['scripts/backup.mjs', ...args], { cwd: repoRoot, encoding: 'utf8', env })
 }
+
+/** The buckets a script lists in its `BUCKETS` constant, in order. */
+function bucketsOf(script: string): string[] {
+  const list = /const BUCKETS = \[([^\]]*)\]/.exec(readFileSync(join(repoRoot, 'scripts', script), 'utf8'))?.[1] ?? ''
+  return [...list.matchAll(/'([a-z0-9_-]+)'/g)].map((match) => match[1]!)
+}
+
+describe('what a backup holds', () => {
+  it('every bucket of the store, the paid files included: they are the product, and a restore without them is not a restore', () => {
+    expect(bucketsOf('backup.mjs')).toEqual(['media-private', 'media-public', 'paid-files'])
+  })
+})
 
 describe('backup arguments', () => {
   it('--help prints the usage and exits 0', () => {

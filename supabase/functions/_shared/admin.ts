@@ -41,6 +41,12 @@
  *   PAYMENTS_NOT_CONFIGURED) while the payment settings are not working, and
  *   (422 NOT_READY) until the seller is named and the policies approved; a
  *   stale version answers 409. Turning it off is always allowed.
+ * - `paid-file-ticket` and `paid-file-complete` (owner; P08 round 7): the paid
+ *   file of a digital variant. The ticket is a signed upload URL under
+ *   `incoming/<ticket>` in the private `paid-files` bucket; the completion checks
+ *   the object's stored type, its size and its first bytes (a PDF, or an EPUB's
+ *   own first ZIP entry), moves it to `assets/<variant>/<asset>` and records it
+ *   through `paid_asset_set`. Both live in `paid-files.ts`.
  *
  * The media and commerce SQL functions recheck the actor's role themselves;
  * the owner-only `stats` and `status` checks and every TOTP step-up (the SQL
@@ -65,6 +71,7 @@ import {
   verifyObjectHead,
   type TicketRequest,
 } from './media.ts'
+import { paidFileComplete, type PaidFileStore, paidFileStore, paidFileTicket } from './paid-files.ts'
 import { defaultPaymentDeps, type PaymentDeps, resolveUncertain, settleInvoice } from './payments.ts'
 import { paymentsConfig, type PaymentsConfigReason } from './payments/moyasar.ts'
 import { refundCreate, refundRecheck, refundRecordExternal } from './refunds.ts'
@@ -97,6 +104,8 @@ export interface AdminDeps {
   store: MediaStore
   /** Only tests set it; otherwise the payment dependencies come from the environment (null while payments are not configured). */
   payments?: PaymentDeps
+  /** Only tests set it; otherwise the paid-file actions use the `paid-files` bucket of Supabase Storage. */
+  paidFiles?: PaidFileStore
 }
 
 export function storageStore(): MediaStore {
@@ -222,6 +231,12 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
       return commerceCheckoutSet(deps, staff.userId, body)
+    case 'paid-file-ticket':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      return paidFileTicket({ files: deps.paidFiles ?? paidFileStore() }, body)
+    case 'paid-file-complete':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      return paidFileComplete({ rpc: deps.rpc, files: deps.paidFiles ?? paidFileStore() }, staff.userId, body)
     default:
       return fail(422, 'INVALID', 'إجراء غير معروف.')
   }

@@ -1,9 +1,6 @@
-// The `orders` Edge Function (P08, D32). Round 0 placeholder: the endpoint is
-// declared in supabase/config.toml and answers 503 until its round delivers
-// the handler in `../_shared/` (PLANS/P08-CONTRACT.md, section 7).
-Deno.serve(() =>
-  Response.json(
-    { ok: false, error: { code: 'UNAVAILABLE', message: 'تعذّر إكمال الإجراء.' }, requestId: crypto.randomUUID() },
-    { status: 503, headers: { 'cache-control': 'no-store' } },
-  ),
-)
+// The `orders` Edge Function (P08, D32): the buyer's order page, link recovery and
+// return request. All logic lives in `../_shared/orders.ts`, which the unit tests
+// import directly.
+import { handleOrders } from '../_shared/orders.ts'
+
+Deno.serve((request) => handleOrders(request))

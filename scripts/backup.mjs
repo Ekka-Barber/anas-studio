@@ -22,7 +22,8 @@ import { writeBackup } from './lib/backup-format.mjs'
 import { promptHidden } from './lib/passphrase.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const BUCKETS = ['media-private', 'media-public']
+// The paid files (`paid-files`, P08) are the product: a restore without them is not a restore.
+const BUCKETS = ['media-private', 'media-public', 'paid-files']
 
 function usage(exit) {
   console.log('Usage: pnpm backup [--linked] [--local] [--out <dir>]')
@@ -168,7 +169,7 @@ try {
     }
   }
 
-  // 2. Storage: every object of both buckets. The recursive download needs a
+  // 2. Storage: every object of the three buckets. The recursive download needs a
   //    RELATIVE destination: on Windows an absolute path like C:\... parses
   //    as a URL scheme in the CLI, which answers "Unsupported operation"
   //    (verified live; CLI source apps/cli-go/internal/storage/cp/cp.go). An

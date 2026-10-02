@@ -115,6 +115,10 @@ describe('admin function: who may do what', () => {
     ['operations', 'status'],
     ['operations', 'stats'],
     [null, 'media-complete'],
+    ['editor', 'paid-file-ticket'],
+    ['operations', 'paid-file-ticket'],
+    ['editor', 'paid-file-complete'],
+    ['operations', 'paid-file-complete'],
   ] as const)('%s is refused %s with 403', async (role, action) => {
     const response = await handleAdmin(post({ action }), { rpc, staff: staffAs(role), store: memoryStore() })
     expect(response.status).toBe(403)
@@ -541,17 +545,90 @@ describe('outbox function (jobs bearer gate)', () => {
     const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
     expect(await response.json()).toEqual({
       ok: true,
-      data: [{ job: 'media_sweep', status: 'ok', objects: 130, tickets: 7 }],
+      data: [{ job: 'media_sweep', status: 'ok', objects: 130, tickets: 7, paidFiles: 0 }],
     })
     expect(store.objects.size).toBe(0)
     expect(store.removed.every((key) => key.startsWith(`${PRIVATE_BUCKET}/quarantine/`))).toBe(true)
     expect(rpc).toHaveBeenCalledWith('job_run_record', {
       p_job: 'media_sweep',
       p_status: 'ok',
-      p_detail: { objects: 130, tickets: 7 },
+      p_detail: { objects: 130, tickets: 7, paidFiles: 0 },
       p_started_at: expect.any(String),
     })
     expect(rpc).not.toHaveBeenCalledWith('outbox_claim', expect.anything())
+  })
+
+  it('media_sweep also removes the paid files\' abandoned uploads under incoming/, and never anything under assets/', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const store = memoryStore()
+    const abandoned = Array.from({ length: 120 }, () => `incoming/${randomUUID()}`)
+    const kept = [`assets/${randomUUID()}/${randomUUID()}`, `incoming/${randomUUID()}`]
+    for (const key of [...abandoned, ...kept]) store.objects.set(`paid-files/${key}`, new Uint8Array([1]))
+    const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+      // What `public.paid_files_sweep_candidates` answers: the old parts under incoming/, oldest first.
+      if (fn === 'paid_files_sweep_candidates') {
+        return abandoned.filter((key) => store.objects.has(`paid-files/${key}`)).slice(0, args.p_limit as number)
+      }
+      return null
+    })
+    const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
+    expect(await response.json()).toEqual({ ok: true, data: [{ job: 'media_sweep', status: 'ok', objects: 0, tickets: 0, paidFiles: 120 }] })
+    expect(store.removed).toHaveLength(120)
+    expect(store.removed.every((key) => key.startsWith('paid-files/incoming/'))).toBe(true)
+    // What was not listed is still there: a fresh part and every asset.
+    expect([...store.objects.keys()].sort()).toEqual(kept.map((key) => `paid-files/${key}`).sort())
+    expect(rpc).toHaveBeenCalledWith('job_run_record', {
+      p_job: 'media_sweep',
+      p_status: 'ok',
+      p_detail: { objects: 0, tickets: 0, paidFiles: 120 },
+      p_started_at: expect.any(String),
+    })
+  })
+
+  it('media_sweep fails the run, and removes nothing, when the list names a key that is not under incoming/', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const store = memoryStore()
+    const asset = `assets/${randomUUID()}/${randomUUID()}`
+    store.objects.set(`paid-files/${asset}`, new Uint8Array([1]))
+    store.objects.set(`paid-files/incoming/${randomUUID()}`, new Uint8Array([1]))
+    const rpc = vi.fn(async (fn: string) => (fn === 'paid_files_sweep_candidates' ? [`incoming/${randomUUID()}`, asset] : null))
+    const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
+    expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed', paidFiles: 0 }] })
+    expect(store.removed).toEqual([])
+    expect(store.objects.has(`paid-files/${asset}`)).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_job: 'media_sweep', p_status: 'failed' }))
+    // The same guard holds for the media bucket: a key outside quarantine/ is never removed.
+    const media = memoryStore()
+    media.objects.set(`${PRIVATE_BUCKET}/originals/${randomUUID()}`, new Uint8Array([1]))
+    const original = `originals/${randomUUID()}`
+    const mediaRpc = vi.fn(async (fn: string) => (fn === 'media_sweep_candidates' ? [original] : null))
+    const mediaResponse = await handleJobs(jobRequest('{"job":"media_sweep"}'), mediaRpc, () => media)
+    expect(await mediaResponse.json()).toMatchObject({ data: [{ status: 'failed', objects: 0 }] })
+    expect(media.removed).toEqual([])
+  })
+
+  it('media_sweep sweeps the paid files even when the media sweep failed, and the other way round', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const store = memoryStore()
+    const part = `incoming/${randomUUID()}`
+    store.objects.set(`paid-files/${part}`, new Uint8Array([1]))
+    // The media bucket's removal is refused by Storage (the part stays listed); the paid files go on regardless.
+    const failing = {
+      ...store,
+      async remove(bucket: string, keys: string[]) {
+        if (bucket === PRIVATE_BUCKET) return
+        return store.remove(bucket, keys)
+      },
+    }
+    let listed = 0
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === 'media_sweep_candidates') return ['quarantine/a/original']
+      if (fn === 'paid_files_sweep_candidates') return store.objects.has(`paid-files/${part}`) && listed++ < 1 ? [part] : []
+      return null
+    })
+    const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => failing)
+    expect(await response.json()).toMatchObject({ data: [{ job: 'media_sweep', status: 'failed', objects: 0, paidFiles: 1 }] })
+    expect(store.objects.has(`paid-files/${part}`)).toBe(false)
   })
 
   it('media_sweep records a failed run when Storage keeps a removed part', async () => {

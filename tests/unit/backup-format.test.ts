@@ -148,6 +148,26 @@ describe('writeBackup / readBackup', () => {
     expect(readFileSync(join(emptyDest, 'nested', 'deep', 'empty.txt')).length).toBe(0)
   })
 
+  it('round-trips the paid files\' layout: extensionless objects nested under storage/paid-files/assets/<variant>/', async () => {
+    const variant = '3f2a6c1e-8b1d-4f6a-9c3e-0d5b7a1e2c44'
+    const asset = '9b1d2e4f-6a7c-4d8e-a0b1-c2d3e4f5a6b7'
+    const dir = join(src, 'paid', 'assets', variant)
+    mkdirSync(dir, { recursive: true })
+    const pdf = Buffer.concat([Buffer.from('%PDF-1.7\n'), randomBytes(4096)])
+    writeFileSync(join(dir, asset), pdf)
+    const path = `storage/paid-files/assets/${variant}/${asset}`
+    expect(assertSafeEntryPath(path)).toBe(path)
+
+    const paidOut = join(root, 'backup-paid.enc')
+    const paidDest = join(root, 'dest-paid')
+    const manifest = await writeBackup(paidOut, [ENTRIES[0]!, { path, file: join(dir, asset) }], key)
+    expect(manifest.files.map((f: { path: string }) => f.path)).toEqual(['a.txt', path])
+    expect(manifest.files[1]).toMatchObject({ size: pdf.length, sha256: createHash('sha256').update(pdf).digest('hex') })
+    await readBackup(paidOut, key, paidDest)
+    // The bytes of the product come back exactly.
+    expect(readFileSync(join(paidDest, ...path.split('/'))).equals(pdf)).toBe(true)
+  })
+
   it('works with a string passphrase too (real scrypt on both sides)', async () => {
     const stringOut = join(root, 'backup-string.enc')
     const stringDest = join(root, 'dest-string')
@@ -310,6 +330,9 @@ describe('writeBackup / readBackup', () => {
 describe('assertSafeEntryPath', () => {
   it('accepts normal relative paths', () => {
     expect(assertSafeEntryPath('storage/media-private/originals/x')).toBe('storage/media-private/originals/x')
+    expect(assertSafeEntryPath('storage/paid-files/assets/3f2a6c1e-8b1d-4f6a-9c3e-0d5b7a1e2c44/9b1d2e4f-6a7c-4d8e-a0b1-c2d3e4f5a6b7')).toBe(
+      'storage/paid-files/assets/3f2a6c1e-8b1d-4f6a-9c3e-0d5b7a1e2c44/9b1d2e4f-6a7c-4d8e-a0b1-c2d3e4f5a6b7',
+    )
     expect(assertSafeEntryPath('data.sql')).toBe('data.sql')
   })
 

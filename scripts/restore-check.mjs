@@ -38,6 +38,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PROJECT_ID = 'anasaq-restore-check'
 const CONTAINER = `supabase_db_${PROJECT_ID}`
 const DUMP_FILES = ['roles.sql', 'schema.sql', 'data.sql', 'history_schema.sql', 'history_data.sql']
+// The buckets `pnpm backup` holds (scripts/backup.mjs). The paid files are the product: a restore without them is not a restore.
+const BUCKETS = ['media-private', 'media-public', 'paid-files']
 
 function usage(exit) {
   console.log('Usage: pnpm restore-check <file> [--extract <dir>]')
@@ -128,6 +130,9 @@ function patchConfig(configPath) {
       }
       if (/^\s*#/.test(line)) return line
       if (section === '' && /^project_id\s*=/.test(line)) return `project_id = "${PROJECT_ID}"`
+      // `supabase init` limits every upload to 50 MiB, the project's own config (supabase/config.toml) to 100 MiB, the
+      // size of the largest paid file: without this a paid file over 50 MiB could not be restored into the scratch stack.
+      if (section === 'storage' && /^file_size_limit\s*=/.test(line)) return 'file_size_limit = "100MiB"'
       if (DISABLE.has(section) && /^\s*enabled\s*=\s*true\s*$/.test(line)) return line.replace(/true/, 'false')
       const port = line.match(/^(\s*\w*port\s*=\s*)(\d+)\s*$/)
       if (port) return `${port[1]}${Number(port[2]) + 1000}`
@@ -303,6 +308,21 @@ function restoredRowCounts(tables) {
   return counts
 }
 
+/** {bucket id: object rows} of the restored database, one query. */
+function restoredBucketCounts() {
+  const result = docker(
+    ['exec', CONTAINER, 'psql', '-U', 'postgres', '--dbname', 'postgres', '-At', '-F', '|', '-c', 'select bucket_id, count(*)::bigint from storage.objects group by bucket_id'],
+    { encoding: 'utf8', timeout: 120000 },
+  )
+  mustSucceed(result, 'count restored storage objects per bucket')
+  const counts = new Map()
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const [bucket, count] = line.split('|')
+    if (bucket) counts.set(bucket, Number(count))
+  }
+  return counts
+}
+
 /** jobname of every row in the restored `cron.job`, or null when it cannot be read (no pg_cron). */
 function restoredCronJobs() {
   const result = docker(
@@ -431,10 +451,15 @@ async function main() {
       if (!ok) problems.push(`${table}: ${expected} rows in data.sql, ${actual} in the restored database`)
       console.log(`  ${table.padEnd(width)}  ${expected} -> ${actual ?? 'MISSING'}  ${ok ? 'ok' : 'FAIL'}`)
     }
+    // Every bucket a backup holds is listed, an empty one too, and each must hold as many objects as the restored
+    // database has rows for it: a backup that left a bucket out (the paid files) fails here, by name.
+    const bucketRows = restoredBucketCounts()
     console.log('\nStorage objects (sha256 verified):')
-    for (const [bucket, { verified, total }] of objects.perBucket) {
-      const ok = verified === total
-      if (!ok) problems.push(`${bucket}: ${verified}/${total} objects verified`)
+    for (const bucket of new Set([...BUCKETS, ...objects.perBucket.keys(), ...bucketRows.keys()])) {
+      const { verified, total } = objects.perBucket.get(bucket) ?? { verified: 0, total: 0 }
+      const rowCount = bucketRows.get(bucket) ?? 0
+      const ok = verified === total && total === rowCount
+      if (!ok) problems.push(`${bucket}: ${verified}/${total} objects verified, ${rowCount} object rows in the restored database`)
       console.log(`  ${bucket.padEnd(width)}  ${total} objects, ${verified} verified  ${ok ? 'ok' : 'FAIL'}`)
     }
     if (objectRows !== objects.expected) {

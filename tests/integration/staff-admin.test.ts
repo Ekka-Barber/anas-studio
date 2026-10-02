@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest'
 
 import { anonClient, callStaffAdmin, createStaff, serviceClient, signIn, stepUp, uniqueEmail } from './support'
 
-describe('staff-admin', () => {
+// Each case signs real users in and enrols a TOTP through the local auth service: about 3.5 seconds alone, so the
+// default 5 seconds fails as soon as the stack is busy (a full test:db run).
+describe('staff-admin', { timeout: 20_000 }, () => {
   it('rejects a call with no token', async () => {
     const result = await callStaffAdmin(anonClient(), { action: 'invite' })
     expect(result.status).toBe(401)

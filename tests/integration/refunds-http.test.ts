@@ -518,7 +518,7 @@ describe('a refund the provider answers badly', () => {
     // It lands.
     await vi.waitFor(() => expect(paymentOnEmulator(p.paymentId).refunded).toBe(1200), { timeout: 20_000, interval: 100 })
     await makeDue(refundId)
-    await runJob()
+    expect((await runJob()).status).toBe(200)
     expect(await refundOf(refundId)).toMatchObject({ status: 'succeeded', provider_refunded_after: 1200 })
     expect(await confirmed(p.attemptId)).toBe(1200)
     expect(refundCalls()).toHaveLength(1)

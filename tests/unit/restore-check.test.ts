@@ -4,7 +4,7 @@
 // never a stack trace.
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -21,6 +21,31 @@ function restoreCheck(args: string[], passphrase?: string) {
   if (passphrase !== undefined) env.ANASAQ_BACKUP_PASSPHRASE = passphrase
   return spawnSync(process.execPath, ['scripts/restore-check.mjs', ...args], { cwd: repoRoot, encoding: 'utf8', env })
 }
+
+describe('what restore-check proves', () => {
+  /** The buckets a script lists in its `BUCKETS` constant, in order. */
+  const bucketsOf = (script: string): string[] => {
+    const list = /const BUCKETS = \[([^\]]*)\]/.exec(readFileSync(join(repoRoot, 'scripts', script), 'utf8'))?.[1] ?? ''
+    return [...list.matchAll(/'([a-z0-9_-]+)'/g)].map((match) => match[1]!)
+  }
+
+  it('lists the same buckets as the backup, the paid files included, so a backup that left one out cannot pass', () => {
+    expect(bucketsOf('restore-check.mjs')).toEqual(bucketsOf('backup.mjs'))
+    expect(bucketsOf('restore-check.mjs')).toContain('paid-files')
+  })
+
+  it('lets the scratch stack take the largest paid file: its storage limit is the project\'s own, not `supabase init`\'s 50 MiB', () => {
+    const project = /^\[storage\]\r?\n(?:[^\r\n]*\r?\n)*?file_size_limit = "([^"]+)"/m.exec(readFileSync(join(repoRoot, 'supabase', 'config.toml'), 'utf8'))?.[1]
+    expect(project).toBe('100MiB')
+    expect(readFileSync(join(repoRoot, 'scripts', 'restore-check.mjs'), 'utf8')).toContain(`file_size_limit = "${project}"`)
+  })
+
+  it('compares each bucket with the restored database\'s own rows for it, not only the sum of all objects', () => {
+    const source = readFileSync(join(repoRoot, 'scripts', 'restore-check.mjs'), 'utf8')
+    expect(source).toMatch(/group by bucket_id/)
+    expect(source).toMatch(/object rows in the restored database/)
+  })
+})
 
 describe('restore-check --extract', () => {
   it('refuses a directory inside the repository before it reads anything', () => {
