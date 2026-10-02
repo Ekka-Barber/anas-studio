@@ -18,6 +18,8 @@ export const CITY_KEY = 'anasaq:city'
 export const COUPON_KEY = 'anasaq:coupon'
 export const DEDICATIONS_KEY = 'anasaq:dedications'
 export const IDEMPOTENCY_KEY = 'anasaq:idempotency'
+/** The sandbox access code of a hosted site in test mode (P08 contract section 1), kept for the tab only. */
+export const TEST_ACCESS_KEY = 'anasaq:test-access'
 /** Fired on `window` after every cart write, so the «السلة (n)» link can refresh. */
 export const CART_EVENT = 'anasaq:cart'
 
@@ -41,6 +43,8 @@ export interface CartV1 {
 export const EMPTY_CART: CartV1 = { version: 1, lines: [] }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+/** The shape of an order number, as the checkout function and the SQL accept it. */
+export const ORDER_NUMBER = /^[2-9A-HJ-NP-Z]{8}$/
 
 // ---------------------------------------------------------------------------
 // Pure parse / serialize
@@ -367,6 +371,105 @@ export function readSavedCoupon(): { coupon: string; tooLong: boolean } {
   return { coupon: '', tooLong: true }
 }
 
+/** The code of a `#test=<code>` URL fragment, or null for any other fragment. At most 200 characters, the function's own limit. */
+export function parseTestFragment(hash: string): string | null {
+  const match = /^#test=([^&]+)$/.exec(hash)
+  if (match === null) return null
+  try {
+    const code = decodeURIComponent(match[1]!)
+    return code.length <= 200 ? code : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The sandbox fence's browser half: moves a `#test=<code>` fragment into
+ * sessionStorage and takes it out of the address bar (path and query stay).
+ * A fragment never reaches a server log; the code itself goes nowhere but the
+ * `testAccess` field of the checkout calls.
+ */
+export function readTestFragment(): void {
+  if (typeof window === 'undefined') return
+  const code = parseTestFragment(window.location.hash)
+  if (code === null) return
+  writeSessionValue(TEST_ACCESS_KEY, code)
+  try {
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+  } catch {
+    // The address bar keeps the fragment; the code is stored all the same.
+  }
+}
+
+/** The sandbox access code this tab holds, or null. */
+export function readTestAccess(): string | null {
+  return readSessionValue(TEST_ACCESS_KEY) || null
+}
+
+/**
+ * The moment of an ISO time as the database writes it (microseconds and an
+ * offset), in milliseconds, or NaN. The fraction is cut to milliseconds first:
+ * that is the one form every browser's parser is specified to read.
+ */
+export function instantOf(iso: string): number {
+  return Date.parse(iso.replace(/(\.\d{3})\d+/, '$1'))
+}
+
+/** A clock time in Riyadh as «14:35» (24-hour, Latin digits), for «محجوز حتى …». */
+export function formatRiyadhTime(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(
+    instantOf(iso),
+  )
+}
+
+/**
+ * The revisions `create` sends (P08 contract section 6): the ones the page's
+ * build rendered, for the policies the quote lists and no others. `stale` when
+ * the build lacks one of them or holds another revision: the policies are
+ * being updated, so the form waits instead of binding a revision the buyer was
+ * not shown.
+ */
+export function builtPolicyRevisions(
+  built: Record<string, number>,
+  quoted: Record<string, number>,
+): { revisions: Record<string, number>; stale: boolean } {
+  const revisions: Record<string, number> = {}
+  let stale = false
+  for (const [id, seq] of Object.entries(quoted)) {
+    const mine = Object.hasOwn(built, id) ? built[id] : undefined
+    if (mine === undefined) {
+      stale = true
+      continue
+    }
+    revisions[id] = mine
+    if (mine !== seq) stale = true
+  }
+  return { revisions, stale }
+}
+
+/** Seconds after the return page opened at which it asks `verify`; «تحديث» takes over after the last. */
+export const VERIFY_SCHEDULE_SECONDS = [0, 2, 4, 8, 15, 30] as const
+
+/** The order the return page is about, and the token this tab may use for it (null: it holds none). */
+export interface ReturnTarget {
+  orderNumber: string
+  accessToken: string | null
+}
+
+/**
+ * The return page's order. The number is the `order` query value when its
+ * first 8 characters (upper-cased) are an order number, since the payment page
+ * may append its own parameters after it; else this tab's stored pending
+ * order; else none. The token is the stored order's, and only when its number
+ * is the same. Nothing else in the address is read.
+ */
+export function returnOrder(search: string, stored: PendingOrder | null): ReturnTarget | null {
+  const queried = new URLSearchParams(search).get('order')?.slice(0, 8).toUpperCase() ?? ''
+  const orderNumber = ORDER_NUMBER.test(queried) ? queried : (stored?.orderNumber ?? null)
+  if (orderNumber === null) return null
+  return { orderNumber, accessToken: stored?.orderNumber === orderNumber ? stored.accessToken : null }
+}
+
 /** The buyer's checkout session id, one per tab, minted once. */
 export function checkoutSession(): string {
   const existing = readSessionValue(CHECKOUT_SESSION_KEY)
@@ -381,20 +484,25 @@ export interface PendingOrder {
   accessToken: string
 }
 
+/** An order number and a token in the shapes the function issues, or null (what `ACTIVE_HOLD` hands back, or what storage holds). */
+export function pendingOrderOf(value: { orderNumber?: unknown; accessToken?: unknown }): PendingOrder | null {
+  if (
+    typeof value.orderNumber === 'string' &&
+    typeof value.accessToken === 'string' &&
+    ORDER_NUMBER.test(value.orderNumber) &&
+    /^[A-Za-z0-9_-]{43}$/.test(value.accessToken)
+  ) {
+    return { orderNumber: value.orderNumber, accessToken: value.accessToken }
+  }
+  return null
+}
+
 /** The pending order this tab created, in sessionStorage only (survives reload, never localStorage). */
 export function readPendingOrder(): PendingOrder | null {
   const raw = readSessionValue(PENDING_ORDER_KEY)
   if (typeof raw !== 'string') return null
   try {
-    const parsed = JSON.parse(raw) as { orderNumber?: unknown; accessToken?: unknown }
-    if (
-      typeof parsed.orderNumber === 'string' &&
-      typeof parsed.accessToken === 'string' &&
-      /^[2-9A-HJ-NP-Z]{8}$/.test(parsed.orderNumber) &&
-      /^[A-Za-z0-9_-]{43}$/.test(parsed.accessToken)
-    ) {
-      return { orderNumber: parsed.orderNumber, accessToken: parsed.accessToken }
-    }
+    return pendingOrderOf(JSON.parse(raw) as { orderNumber?: unknown; accessToken?: unknown })
   } catch {
     // Fall through: an unreadable value is no pending order.
   }

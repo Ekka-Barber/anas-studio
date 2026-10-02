@@ -1,12 +1,17 @@
+// Relative, not `@/`: the unit tests (tests/unit/store-checkout.test.ts) import this file, and the unit config has no alias.
+import { instantOf, readTestAccess } from '../../lib/cart'
+
 /**
- * The `checkout` Edge Function as the browser calls it (P07): the live
- * `quote`, `create` and `cancel` over plain `fetch`, with no
- * `@supabase/supabase-js` on public pages (the public JS budget, D32).
+ * The `checkout` Edge Function as the browser calls it (P07, P08): the live
+ * `quote`, `create`, `pay` and `cancel` over plain `fetch`, and the `payments`
+ * function's `verify` for the return page, with no `@supabase/supabase-js` on
+ * public pages (the public JS budget, D32).
  *
- * The function is public (`verify_jwt = false` in supabase/config.toml) and
- * checks the site Origin itself; the browser's cross-origin POST carries it
+ * The functions are public (`verify_jwt = false` in supabase/config.toml) and
+ * check the site Origin themselves; the browser's cross-origin POST carries it
  * automatically. Every reply is shape-checked before anything renders, so a
- * malformed reply throws instead of showing nonsense prices. The checks are
+ * malformed reply throws instead of showing nonsense prices, and a payment
+ * this file does not recognise is never read as paid. The checks are
  * plain functions: the replies come from our own function (the inputs are
  * validated with Zod there, D14), and even `zod/mini` added 24 KiB of gzip
  * to the cart and checkout pages, past the 150 KiB public budget.
@@ -40,6 +45,12 @@ function fulfillment(value: unknown): Fulfillment {
   return (FULFILLMENTS as readonly unknown[]).includes(value) ? (value as Fulfillment) : malformed()
 }
 
+/** A preorder line's delivery date (YYYY-MM-DD) and note, as the buyer was shown them. */
+export interface Preorder {
+  shipsOn: string
+  note: string
+}
+
 export interface QuoteLine {
   line: number
   variantId: string
@@ -55,6 +66,7 @@ export interface QuoteLine {
   discount: number
   total: number
   dedication: string | null
+  preorder: Preorder | null
 }
 
 export interface QuoteError {
@@ -82,6 +94,8 @@ export interface Price {
 export interface Quote extends Price {
   checkoutEnabled: boolean
   policyRevisions: Record<string, number>
+  /** The payments run in test mode: no real money moves (P08 contract section 1). */
+  testMode: boolean
 }
 
 export interface OrderSummary {
@@ -104,7 +118,20 @@ export interface OrderSummary {
     unitPrice: number
     discount: number
     total: number
+    preorder: Preorder | null
   }>
+}
+
+function parsePreorder(value: unknown): Preorder | null {
+  if (value === null || value === undefined) return null
+  const o = obj(value)
+  return { shipsOn: str(o.shipsOn), note: str(o.note) }
+}
+
+/** An ISO timestamp the browser can read, such as the hold's end. */
+function timestamp(value: unknown): string {
+  const text = str(value)
+  return Number.isNaN(instantOf(text)) ? malformed() : text
 }
 
 function parseLine(value: unknown): QuoteLine {
@@ -124,6 +151,7 @@ function parseLine(value: unknown): QuoteLine {
     discount: count(o.discount),
     total: count(o.total),
     dedication: o.dedication === null || o.dedication === undefined ? null : str(o.dedication),
+    preorder: parsePreorder(o.preorder),
   }
 }
 
@@ -166,6 +194,7 @@ function parseQuote(value: unknown): Quote {
     ...parsePrice(o),
     checkoutEnabled: bool(o.checkoutEnabled),
     policyRevisions: Object.fromEntries(Object.entries(revisions).map(([key, seq]) => [key, count(seq)])),
+    testMode: o.testMode === true,
   }
 }
 
@@ -175,7 +204,7 @@ function parseOrder(value: unknown): OrderSummary {
     id: str(o.id),
     orderNumber: str(o.orderNumber),
     status: str(o.status),
-    holdExpiresAt: str(o.holdExpiresAt),
+    holdExpiresAt: timestamp(o.holdExpiresAt),
     subtotal: count(o.subtotal),
     discount: count(o.discount),
     shipping: count(o.shipping),
@@ -193,6 +222,7 @@ function parseOrder(value: unknown): OrderSummary {
         unitPrice: count(line.unitPrice),
         discount: count(line.discount),
         total: count(line.total),
+        preorder: parsePreorder(line.preorder),
       }
     }),
   }
@@ -202,21 +232,94 @@ function parseOrder(value: unknown): OrderSummary {
 export const priceSchema = { parse: parsePrice }
 export const orderSchema = { parse: parseOrder }
 
+/** Where the buyer may be sent: http(s) only, whatever a reply said. */
+const WEB_URL = /^https?:\/\/\S+$/i
+
+/** What `create` and `pay` say about paying an order (P08 contract section 7). */
+export type PaymentView =
+  | { state: 'ready'; url: string }
+  | { state: 'preparing' }
+  | { state: 'unavailable' }
+  | { state: 'closed'; code: string; status?: string; reason?: string }
+
+/** The `payment` of a `create` or `pay` reply. Anything not recognised is `preparing`: never paid, never closed, never a link to follow. */
+export function parsePayment(value: unknown): PaymentView {
+  if (typeof value !== 'object' || value === null) return { state: 'preparing' }
+  const o = value as Record<string, unknown>
+  if (o.state === 'ready' && typeof o.url === 'string' && WEB_URL.test(o.url)) return { state: 'ready', url: o.url }
+  if (o.state === 'unavailable') return { state: 'unavailable' }
+  if (o.state === 'closed' && typeof o.code === 'string') {
+    return {
+      state: 'closed',
+      code: o.code,
+      ...(typeof o.status === 'string' ? { status: o.status } : {}),
+      ...(typeof o.reason === 'string' ? { reason: o.reason } : {}),
+    }
+  }
+  return { state: 'preparing' }
+}
+
+const VERIFY_STATES = ['paid', 'needs_resolution', 'refunded', 'pending', 'review', 'expired', 'cancelled', 'unknown'] as const
+export type VerifyState = (typeof VERIFY_STATES)[number]
+
+/** What the `payments` function's `verify` answers for the return page. */
+export interface Verify {
+  state: VerifyState
+  /** The token this tab sent matched the order. */
+  hasToken: boolean
+  invoiceUrl: string | null
+  testMode: boolean
+}
+
+/** A `verify` reply. A state this does not recognise is `pending`: the page keeps asking and never says paid. */
+export function parseVerify(value: unknown): Verify {
+  const o = obj(value)
+  return {
+    state: (VERIFY_STATES as readonly unknown[]).includes(o.state) ? (o.state as VerifyState) : 'pending',
+    hasToken: o.hasToken === true,
+    invoiceUrl: typeof o.invoiceUrl === 'string' && WEB_URL.test(o.invoiceUrl) ? o.invoiceUrl : null,
+    testMode: o.testMode === true,
+  }
+}
+
 export interface CheckoutError {
   code: string
   message: string
-  fields?: { quote?: unknown; policyRevisions?: unknown; fieldErrors?: unknown }
+  /** `ACTIVE_HOLD` carries `holdExpiresAt` and, for the buyer who made the hold, `order` and `accessToken`. */
+  fields?: {
+    quote?: unknown
+    policyRevisions?: unknown
+    fieldErrors?: unknown
+    order?: unknown
+    accessToken?: unknown
+    holdExpiresAt?: unknown
+  }
 }
 
-/** One checkout action; a rejected fetch means a network failure (caller retries). */
-export async function postCheckout<T>(body: unknown): Promise<{ status: number; ok: boolean; data?: T; error?: CheckoutError }> {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/checkout`, {
+type Reply<T> = { status: number; ok: boolean; data?: T; error?: CheckoutError }
+
+async function postFunction<T>(name: string, body: unknown): Promise<Reply<T>> {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/${name}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
   const envelope = (await response.json()) as { ok: boolean; data?: T; error?: CheckoutError }
   return { status: response.status, ok: envelope.ok, data: envelope.data, error: envelope.error }
+}
+
+/** The actions that carry the sandbox access code; `cancel` and `verify` have strict schemas that refuse it. */
+const WITH_TEST_ACCESS = new Set(['quote', 'create', 'pay'])
+
+/** One checkout action; a rejected fetch means a network failure (caller retries). */
+export function postCheckout<T>(body: { action: string; [field: string]: unknown }): Promise<Reply<T>> {
+  const testAccess = WITH_TEST_ACCESS.has(body.action) ? readTestAccess() : null
+  return postFunction<T>('checkout', testAccess === null ? body : { ...body, testAccess })
+}
+
+/** One `payments` action: the return page's `verify`. Same envelope and failure rules as `postCheckout`. */
+export function postPayments<T>(body: { action: 'verify'; orderNumber: string; accessToken?: string }): Promise<Reply<T>> {
+  return postFunction<T>('payments', body)
 }
 
 /** The cart's live price; throws (Arabic message) when the function is unreachable or malformed. */
@@ -255,6 +358,8 @@ export function quoteErrorMessage(error: QuoteError): string {
       return 'استُنفدت الكمية المتاحة لهذا الكود.'
     case 'COUPON_NOT_APPLICABLE':
       return 'لا ينطبق هذا الكود على منتجات السلة.'
+    case 'TOTAL_BELOW_MINIMUM':
+      return 'قيمة الطلب أقل من الحد الأدنى للدفع.'
     case 'EMPTY_CART':
       return 'سلتك فارغة.'
     case 'DEDICATION_NOT_ALLOWED':

@@ -695,7 +695,7 @@ describe('create: the invoice step', () => {
     [
       'the begin refused: the order is not payable',
       { ok: false, code: 'ORDER_NOT_PAYABLE', status: 'cancelled', reason: 'NOT_PENDING', order: begunPending.order },
-      { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'cancelled' },
+      { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'cancelled', reason: 'NOT_PENDING' },
     ],
   ])('%s: the order exists and the payment is %j', async (_label, begun, payment) => {
     scripted('payment_attempt_begin', begun)
@@ -1054,7 +1054,7 @@ describe('pay', () => {
       [{ ok: false, code: 'TOTAL_BELOW_MINIMUM', order: begunPending.order }, { state: 'closed', code: 'TOTAL_BELOW_MINIMUM' }],
       [
         { ok: false, code: 'ORDER_NOT_PAYABLE', status: 'expired', reason: 'NOT_PENDING', order: begunPending.order },
-        { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'expired' },
+        { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'expired', reason: 'NOT_PENDING' },
       ],
     ]
     for (const [begun, payment] of cases) {

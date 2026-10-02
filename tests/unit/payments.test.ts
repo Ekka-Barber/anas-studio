@@ -710,8 +710,8 @@ describe('startPayment: the begin step', () => {
 
   it.each([
     [{ ok: false, code: 'HOLD_EXPIRED', order }, { state: 'closed', code: 'HOLD_EXPIRED' }],
-    [{ ok: false, code: 'ORDER_NOT_PAYABLE', status: 'paid', reason: 'NOT_PENDING', order }, { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'paid' }],
-    [{ ok: false, code: 'ORDER_NOT_PAYABLE', status: 'pending_payment', reason: 'UNDER_REVIEW', order }, { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'pending_payment' }],
+    [{ ok: false, code: 'ORDER_NOT_PAYABLE', status: 'paid', reason: 'NOT_PENDING', order }, { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'paid', reason: 'NOT_PENDING' }],
+    [{ ok: false, code: 'ORDER_NOT_PAYABLE', status: 'pending_payment', reason: 'UNDER_REVIEW', order }, { state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'pending_payment', reason: 'UNDER_REVIEW' }],
     [{ ok: false, code: 'TOO_MANY_ATTEMPTS', order }, { state: 'closed', code: 'TOO_MANY_ATTEMPTS' }],
     [{ ok: false, code: 'TOTAL_BELOW_MINIMUM', order }, { state: 'closed', code: 'TOTAL_BELOW_MINIMUM' }],
   ])('a refusal of the begin is a closed payment with the order, and the provider is never called', async (refusal, payment) => {

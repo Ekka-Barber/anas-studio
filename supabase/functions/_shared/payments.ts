@@ -102,7 +102,7 @@ export type PaymentView =
   | { state: 'ready'; url: string }
   | { state: 'preparing' }
   | { state: 'unavailable' }
-  | { state: 'closed'; code: string; status?: string }
+  | { state: 'closed'; code: string; status?: string; reason?: string }
 
 export type StartResult =
   | { kind: 'not_found' }
@@ -111,7 +111,7 @@ export type StartResult =
 
 /** What `payment_attempt_begin` answers (the contract, section 6). */
 type Begin =
-  | { ok: false; code: string; status?: string; order?: unknown }
+  | { ok: false; code: string; status?: string; reason?: string; order?: unknown }
   | { ok: true; state: 'pending'; attemptId: string; invoiceUrl: string; order: unknown }
   | { ok: true; state: 'creating'; attemptId: string; order: unknown }
   | { ok: true; state: 'uncertain'; attemptId: string; createdAt: string; amount: number; currency: string; order: unknown }
@@ -248,7 +248,12 @@ export async function startPayment(
   }
   if (!begun.ok) {
     if (begun.code === 'NOT_FOUND') return { kind: 'not_found' }
-    return answer(begun.order, { state: 'closed', code: begun.code, ...(begun.status ? { status: begun.status } : {}) })
+    return answer(begun.order, {
+      state: 'closed',
+      code: begun.code,
+      ...(begun.status ? { status: begun.status } : {}),
+      ...(begun.reason ? { reason: begun.reason } : {}),
+    })
   }
   if (begun.state === 'pending') return answer(begun.order, { state: 'ready', url: begun.invoiceUrl })
   if (begun.state === 'new') return answer(begun.order, await createInvoice(deps, orderNumber, site, begun))

@@ -302,6 +302,11 @@
   padding-inline: 0.25rem;
 }
 
+/* The store settings' «الشراء» box: its lines are spaced by the box's own gap, not by paragraph margins. */
+.switchBox > p {
+  margin: 0;
+}
+
 .toolbar {
   display: flex;
   flex-wrap: wrap;

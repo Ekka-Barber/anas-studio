@@ -6,6 +6,8 @@
 // is on (a fixture, restored). The spec removes or retires everything it
 // creates in afterAll: orders are deleted, the products archived, the rates
 // and coupons disabled (no deletes — orders reference rows).
+// P08 round 4b: the owner's checkout switch in the commerce settings form, with
+// the step-up dialog, and an operations member who does not see it.
 import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -13,7 +15,7 @@ import { join } from 'node:path'
 import { Client } from 'pg'
 import { expect, test, type Locator } from '@playwright/test'
 
-import { createStaff, readStatus, signInByCode, SITE_ORIGIN } from './helpers'
+import { createStaff, readCodeFromMailpit, readStatus, SENT_MESSAGE, signInByCode, SITE_ORIGIN, totpCode } from './helpers'
 import { shotsDir } from './shots'
 
 const status = readStatus()
@@ -271,6 +273,92 @@ test('the policies collection lists its four fixed documents', async ({ page }) 
   for (const name of ['سياسة المتجر', 'سياسة التوصيل', 'سياسة الاسترجاع', 'سياسة الخصوصية']) {
     await expect(page.getByRole('link', { name, exact: true })).toBeVisible()
   }
+})
+
+test('the owner closes and reopens checkout with the switch, through the step-up dialog', async ({ page }) => {
+  const switcher = await createStaff('owner')
+  // The store is ready to open: the seller named, the policies approved, checkout on.
+  await db.query(
+    `update finance.commerce_settings set checkout_enabled = true, seller_legal_name = 'بائع الاختبار', seller_address = 'تبوك',
+       seller_registration = 'P08-E2E', policy_revisions = '{"store":1,"delivery":1,"refund":1}'::jsonb, version = version + 1
+     where id = 1`,
+  )
+
+  // Sign in by email code and enrol TOTP (the auth.spec.ts way), then sign out and in again by code (aal1):
+  // enrolment itself verified a TOTP, and the switch below must ask for one.
+  await page.goto('/admin/sign-in')
+  await page.getByLabel('البريد الإلكتروني').fill(switcher.email)
+  await page.getByRole('button', { name: 'أرسل الرمز' }).click()
+  await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
+  const firstCode = await readCodeFromMailpit(switcher.email)
+  await page.getByLabel('رمز الدخول').fill(firstCode)
+  await page.getByRole('button', { name: 'تحقق' }).click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await page.locator('nav').getByRole('link', { name: 'الأمان' }).click()
+  await expect(page).toHaveURL(/\/admin\/security$/)
+  const secret = await page.locator('[class*="secret"]').innerText()
+  await page.getByLabel('رمز التحقق').fill(totpCode(secret))
+  await page.getByRole('button', { name: 'تفعيل' }).click()
+  await expect(page.getByText('تطبيق المصادقة مفعّل')).toBeVisible()
+  await page.locator('nav').getByRole('button', { name: 'تسجيل الخروج' }).click()
+  await expect(page).toHaveURL(/\/admin\/sign-in$/)
+  await signInByCode(page, switcher.email, firstCode)
+
+  await page.goto('/admin/settings')
+  await expect(page.getByRole('heading', { name: 'إعدادات المتجر' })).toBeVisible()
+  const purchase = page.getByRole('group', { name: 'الشراء' })
+  // The payments sentence is what `status` says, nothing more: here the emulator, in test mode.
+  await expect(purchase.getByText('الدفع مضبوط: وضع تجريبي، محاكٍ محلي')).toBeVisible()
+  await expect(purchase.getByText('الشراء مفتوح')).toBeVisible()
+
+  // Closing asks for a fresh TOTP: the dialog opens, and the same call goes through after it.
+  await purchase.getByRole('button', { name: 'أغلق الشراء' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByLabel('رمز التحقق').fill(totpCode(secret))
+  await dialog.getByRole('button', { name: 'تحقق' }).click()
+  await expect(page.getByText('تم إغلاق الشراء.')).toBeVisible()
+  await expect(purchase.getByText('الشراء مغلق')).toBeVisible()
+  await expect(purchase.getByRole('button', { name: 'افتح الشراء' })).toBeVisible()
+  expect((await db.query('select checkout_enabled from finance.commerce_settings where id = 1')).rows[0]).toEqual({ checkout_enabled: false })
+
+  // Reopening goes through with the fresh TOTP still valid, and the state and the version update without a reload.
+  const closedVersion = (await db.query<{ version: number }>('select version from finance.commerce_settings where id = 1')).rows[0]!.version
+  await expect(page.getByText(`إصدار الإعدادات: ${closedVersion}`)).toBeVisible()
+  await purchase.getByRole('button', { name: 'افتح الشراء' }).click()
+  await expect(page.getByText('تم فتح الشراء.')).toBeVisible()
+  await expect(purchase.getByText('الشراء مفتوح')).toBeVisible()
+  await expect(purchase.getByRole('button', { name: 'أغلق الشراء' })).toBeVisible()
+  expect((await db.query('select checkout_enabled from finance.commerce_settings where id = 1')).rows[0]).toEqual({ checkout_enabled: true })
+  await expect(page.getByText(`إصدار الإعدادات: ${closedVersion + 1}`)).toBeVisible()
+
+  // A change made elsewhere meanwhile: the stale version is refused with the function's words, and nothing changes.
+  await db.query('update finance.commerce_settings set version = version + 1 where id = 1')
+  await purchase.getByRole('button', { name: 'أغلق الشراء' }).click()
+  await expect(page.getByText('تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')).toBeVisible()
+  expect((await db.query('select checkout_enabled from finance.commerce_settings where id = 1')).rows[0]).toEqual({ checkout_enabled: true })
+
+  // Opening with no seller named is refused too, in the function's words, and the store stays closed.
+  await db.query('update finance.commerce_settings set checkout_enabled = false, seller_legal_name = null, version = version + 1 where id = 1')
+  await page.reload()
+  await expect(purchase.getByText('الشراء مغلق')).toBeVisible()
+  await purchase.getByRole('button', { name: 'افتح الشراء' }).click()
+  await expect(page.getByText('أكمل بيانات البائع واعتمد السياسات أولًا.')).toBeVisible()
+  await expect(purchase.getByText('الشراء مغلق')).toBeVisible()
+  expect((await db.query('select checkout_enabled from finance.commerce_settings where id = 1')).rows[0]).toEqual({ checkout_enabled: false })
+  // The later screenshots find the store as it was ready to open (afterAll restores what the database held before).
+  await db.query(
+    "update finance.commerce_settings set checkout_enabled = true, seller_legal_name = 'بائع الاختبار', version = version + 1 where id = 1",
+  )
+})
+
+test('an operations member does not see the checkout switch', async ({ page }) => {
+  const operations = await createStaff('operations')
+  await signInByCode(page, operations.email)
+  await page.goto('/admin/settings')
+  await expect(page.getByText('هذه الصفحة للمالك فقط.')).toBeVisible()
+  await expect(page.getByRole('group', { name: 'الشراء' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^(افتح|أغلق) الشراء$/ })).toHaveCount(0)
 })
 
 test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page }) => {

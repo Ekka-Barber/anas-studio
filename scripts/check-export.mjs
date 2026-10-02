@@ -35,6 +35,8 @@ const REQUIRED = [
   'store.html',
   'cart.html',
   'checkout.html',
+  // P08: where the payment page sends the buyer back.
+  'checkout/return.html',
   'policies/store.html',
   'policies/delivery.html',
   'policies/refund.html',

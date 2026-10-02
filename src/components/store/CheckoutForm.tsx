@@ -1,11 +1,14 @@
 'use client'
 
 /**
- * The checkout screen (P07): the same live `quote` as the cart, shown as the
- * summary the buyer confirms. Digital-only carts see no phone, city or
+ * The checkout screen (P07, P08): the same live `quote` as the cart, shown as
+ * the summary the buyer confirms. Digital-only carts see no phone, city or
  * address; physical and signed carts require all three. Policy consent links
- * the exact revisions the quote carried (the function rejects any other set
- * with POLICY_CHANGED). Turnstile renders explicitly with the site key and
+ * the exact revisions the quote carried; what `create` sends are the revisions
+ * this build rendered (`builtRevisions`, from `src/lib/policies.ts`), and while
+ * they differ from the quote's the policies are being updated and the button
+ * stays off (the function rejects any other set with POLICY_CHANGED).
+ * Turnstile renders explicitly with the site key and
  * action `checkout` into its box when the box mounts, and every create
  * attempt resets it: a token is single-use, so a retry gets a fresh one. A
  * missing site key disables submission honestly; otherwise the button stays
@@ -16,16 +19,24 @@
  * `create` sends one `checkoutSession` per tab and an `idempotencyKey` reused
  * only when retrying the identical request (a digest of it, kept with the key
  * in sessionStorage so a reload keeps the retry) after a network failure.
- * Success keeps `{orderNumber, accessToken}` in
- * sessionStorage only, never clears the cart (DATA step 5: nothing settles
- * before payment verification, P08) and offers «إلغاء الطلب».
+ * Success keeps `{orderNumber, accessToken}` in sessionStorage only and
+ * never clears the cart (DATA step 5: nothing settles before payment
+ * verification). The hold view then shows the order, the time the hold ends
+ * and, per the reply's `payment`, «ادفع الآن» (a plain link to the invoice),
+ * a retry (`pay`) or why payment cannot start; after a reload one `pay` brings
+ * the same view back. One timer, no interval and nothing counting on screen,
+ * ends the view at the hold's end. The stored order is forgotten when the
+ * order ends (cancelled, expired, hold over, not found) and kept when a
+ * payment of it arrived: the return page clears the cart and the order on
+ * `paid`.
  */
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import {
+  builtPolicyRevisions,
   checkoutSession,
   clearIdempotency,
   clearPendingOrder,
@@ -33,8 +44,11 @@ import {
   COUPON_KEY,
   digestText,
   fingerprintCreate,
+  formatRiyadhTime,
+  instantOf,
   MAX_COUPON,
   normalizeCoupon,
+  pendingOrderOf,
   readIdempotency,
   readPendingOrder,
   readSavedCoupon,
@@ -47,12 +61,24 @@ import {
   type CreateRequestCore,
   type PendingOrder,
 } from '@/lib/cart'
-import { ActionButton } from '@/components/weave/Action'
+import { ActionButton, ActionLink } from '@/components/weave/Action'
 import { formatMoney, normalizeSaudiMobile } from '@/lib/format'
 import { useTurnstile } from '@/lib/turnstile'
 
 import { useCart } from './CartProvider'
-import { fetchCities, fetchQuote, orderSchema, postCheckout, priceSchema, quoteErrorMessage, type CityRate, type Quote } from './quote'
+import {
+  fetchCities,
+  fetchQuote,
+  orderSchema,
+  parsePayment,
+  postCheckout,
+  priceSchema,
+  quoteErrorMessage,
+  type CityRate,
+  type OrderSummary,
+  type PaymentView,
+  type Quote,
+} from './quote'
 import styles from './store.module.css'
 
 type Field = 'email' | 'name' | 'phone' | 'city' | 'address' | 'consent'
@@ -77,7 +103,13 @@ const POLICY_LABELS: Record<string, string> = {
   privacy: 'سياسة الخصوصية',
 }
 
-export function CheckoutForm() {
+/** The statuses that mean a payment of the order arrived (a cancel also answers `review`: a charged payment waits for the owner). */
+const RECEIVED = new Set(['paid', 'paid_needs_resolution', 'refunded', 'review'])
+
+/** What the hold view knows of the payment; `closed` is never shown as a payment: it ends the order or settles it. */
+type LivePayment = Exclude<PaymentView, { state: 'closed' }>
+
+export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string, number> }) {
   const cartState = useCart()
   const [quote, setQuote] = useState<Quote | null>(null)
   const [quoteKey, setQuoteKey] = useState('')
@@ -96,7 +128,14 @@ export function CheckoutForm() {
   const [consent, setConsent] = useState(false)
   const [pending, setPending] = useState<PendingOrder | null>(null)
   const [orderTotal, setOrderTotal] = useState<number | null>(null)
-  const [closed, setClosed] = useState<'cancelled' | 'expired' | null>(null)
+  // The hold's end (an ISO time) while the order waits for payment, and what the payment is.
+  const [holdEnds, setHoldEnds] = useState<string | null>(null)
+  const [payment, setPayment] = useState<LivePayment>({ state: 'preparing' })
+  // Why the hold view has nothing to pay: the order ended, a payment of it arrived, or it cannot be paid from here
+  // (`blocked`: the order still holds its stock, so the view keeps the cancel).
+  const [closed, setClosed] = useState<'cancelled' | 'expired' | 'received' | 'blocked' | null>(null)
+  // ACTIVE_HOLD without the order: the clock time the buyer's session holds one until.
+  const [heldUntil, setHeldUntil] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({})
   const [submitting, setSubmitting] = useState(false)
@@ -116,6 +155,8 @@ export function CheckoutForm() {
   const formRef = useRef<HTMLFormElement>(null)
   const orderBoxRef = useRef<HTMLDivElement>(null)
   const focusOrderBox = useRef(false)
+  // True once the held order's payment is known (a `create` reply carried it); until then one `pay` fetches it.
+  const paymentKnown = useRef(false)
 
   useEffect(() => {
     // Deferred to a microtask so the setStates are not synchronous within the
@@ -156,6 +197,8 @@ export function CheckoutForm() {
   // Stale: the buyer changed the cart, city or coupon and the new quote is not in
   // yet, or its refresh failed: the summary on screen is not the current one.
   const stale = quote !== null && quoteKey !== currentKey
+  // The build's policy texts against the quote's: while they differ the form waits.
+  const policiesStale = quote !== null && builtPolicyRevisions(builtRevisions, quote.policyRevisions).stale
   // A press that Turnstile answered with a failure is over: a later recovery
   // must not submit it without a new press.
   if (turnstileFailed && awaitingToken) setAwaitingToken(false)
@@ -190,13 +233,109 @@ export function CheckoutForm() {
     if (awaitingToken && token !== '') formRef.current?.requestSubmit()
   }, [awaitingToken, token])
 
-  // Focus follows the buyer's own action (create, cancel) into the order box,
+  // The order is over: this tab forgets its token and its key (so the same
+  // cart can be ordered again) and the hold view says why. Not for a payment
+  // that arrived: that is `received`, and nothing is cleared until the return
+  // page sees `paid`.
+  const endOrder = useCallback((status: 'cancelled' | 'expired') => {
+    clearPendingOrder()
+    clearIdempotency()
+    idempotencyRef.current = null
+    fingerprintRef.current = null
+    setClosed(status)
+    setSubmitError('')
+  }, [])
+
+  // What a `create` or `pay` reply says of the order: the hold view with its
+  // payment, or the reason there is none.
+  const showOrder = useCallback(
+    (order: OrderSummary, reply: PaymentView | null) => {
+      setOrderTotal(order.total)
+      if (RECEIVED.has(order.status) || (reply?.state === 'closed' && RECEIVED.has(reply.status ?? ''))) {
+        setClosed('received')
+      } else if (order.status === 'expired' || order.status === 'cancelled') {
+        endOrder(order.status)
+      } else if (reply?.state === 'closed') {
+        // A payment of it waits for the owner's review: that is a payment received. A hold that ran out is over.
+        // Anything else (the payment mode changed, too many attempts) claims no payment: the order cannot be paid
+        // from here and still holds its stock, so the view offers the cancel.
+        if (reply.reason === 'UNDER_REVIEW') setClosed('received')
+        else if (reply.code === 'HOLD_EXPIRED') endOrder('expired')
+        else setClosed('blocked')
+      } else {
+        setHoldEnds(order.holdExpiresAt)
+        setPayment(reply ?? { state: 'preparing' })
+      }
+    },
+    [endOrder],
+  )
+
+  // The function does not know the order, or its token no longer fits: forget it and show the form again.
+  const forgetOrder = useCallback((message: string) => {
+    clearPendingOrder()
+    clearIdempotency()
+    idempotencyRef.current = null
+    fingerprintRef.current = null
+    setHoldEnds(null)
+    setClosed(null)
+    setPending(null)
+    setSubmitError(message)
+  }, [])
+
+  // `pay` for the order this tab holds: its order and the state of its payment
+  // (after a reload, for «أعد المحاولة», and when the hold's time has passed).
+  const loadPayment = useCallback(
+    async (order: PendingOrder): Promise<void> => {
+      setSubmitting(true)
+      setSubmitError('')
+      try {
+        const reply = await postCheckout<{ order: unknown; payment: unknown }>({
+          action: 'pay',
+          orderNumber: order.orderNumber,
+          accessToken: order.accessToken,
+        })
+        if (reply.ok && reply.data !== undefined) {
+          showOrder(orderSchema.parse(reply.data.order), parsePayment(reply.data.payment))
+        } else if (reply.error?.code === 'NOT_FOUND') {
+          forgetOrder(reply.error.message)
+        } else if (reply.error?.code === 'CHECKOUT_DISABLED') {
+          setPayment({ state: 'unavailable' })
+          setSubmitError('الشراء غير متاح حاليًا، ويفتح قريبًا.')
+        } else {
+          setSubmitError(reply.error?.message ?? 'تعذّر تجهيز الدفع؛ حاول بعد لحظات.')
+        }
+      } catch {
+        setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [showOrder, forgetOrder],
+  )
+
+  // An order read back from storage (a reload) or handed back by ACTIVE_HOLD: one `pay` brings its payment.
+  useEffect(() => {
+    if (pending === null || paymentKnown.current) return
+    paymentKnown.current = true
+    // Deferred like the other mount effects (react-hooks/set-state-in-effect).
+    void Promise.resolve().then(() => loadPayment(pending))
+  }, [pending, loadPayment])
+
+  // One timer to the hold's end: no interval, and nothing counts on screen (DESIGN-AUDIT 33). The device's clock only
+  // decides when to ask: the function says whether the hold is over, so a clock that runs ahead ends nothing.
+  useEffect(() => {
+    if (pending === null || holdEnds === null || closed !== null) return
+    const timer = setTimeout(() => void loadPayment(pending), Math.max(0, instantOf(holdEnds) - Date.now()))
+    return () => clearTimeout(timer)
+  }, [pending, holdEnds, closed, loadPayment])
+
+  // Focus follows the buyer's own action (create, cancel, retry) into the order box,
   // which replaces the form and the button that had it. Not on a page load.
   useEffect(() => {
     if (!focusOrderBox.current) return
     focusOrderBox.current = false
     orderBoxRef.current?.focus()
-  }, [pending, closed])
+  }, [pending, closed, payment])
 
   // In the store's own order (store, delivery, refund, privacy), not the
   // stored JSON's key order.
@@ -250,6 +389,12 @@ export function CheckoutForm() {
       document.getElementById(`checkout-${first}`)?.focus()
       return
     }
+    const policies = builtPolicyRevisions(builtRevisions, quote.policyRevisions)
+    if (policies.stale) {
+      // The note under the form says why; nothing is sent until the build and the quote agree.
+      setAwaitingToken(false)
+      return
+    }
     if (stale || !quote.ok) {
       // The summary already says why; a create now would only spend an attempt.
       setAwaitingToken(false)
@@ -275,7 +420,7 @@ export function CheckoutForm() {
       email: trimmedEmail,
       name,
       phone: phone.trim() || undefined,
-      policyRevisions: quote.policyRevisions,
+      policyRevisions: policies.revisions,
       quoteHash: quote.quoteHash,
     }
     // Reuse the idempotency key only for the identical request (a retry after
@@ -291,8 +436,9 @@ export function CheckoutForm() {
 
     setSubmitting(true)
     setSubmitError('')
+    setHeldUntil('')
     try {
-      const reply = await postCheckout<{ order: unknown; accessToken?: string }>({
+      const reply = await postCheckout<{ order: unknown; accessToken?: string; payment?: unknown }>({
         action: 'create',
         idempotencyKey: idempotencyRef.current,
         checkoutSession: sessionRef.current,
@@ -301,24 +447,22 @@ export function CheckoutForm() {
       })
       if (reply.ok && reply.data !== undefined) {
         const order = orderSchema.parse(reply.data.order)
-        setOrderTotal(order.total)
-        if (order.status === 'expired' || order.status === 'cancelled') {
-          // A duplicate reply for an order that already ended is no live hold:
-          // show it closed, keep its token out of storage, mint a new key next time.
-          clearIdempotency()
-          idempotencyRef.current = null
-          fingerprintRef.current = null
-          focusOrderBox.current = true
-          setPending({ orderNumber: order.orderNumber, accessToken: reply.data.accessToken ?? '' })
-          setClosed(order.status)
+        const accessToken = reply.data.accessToken
+        const over = order.status === 'expired' || order.status === 'cancelled'
+        if (!accessToken && !over && !RECEIVED.has(order.status)) {
+          setSubmitError('تعذّر إتمام الطلب.')
           return
         }
-        if (reply.data.accessToken) {
-          const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: reply.data.accessToken }
-          writePendingOrder(saved)
-          focusOrderBox.current = true
-          setPending(saved)
-        }
+        // A duplicate reply for an order that already ended is no live hold: show it closed, keep
+        // its token out of storage and mint a new key next time (showOrder does the rest).
+        const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: accessToken ?? '' }
+        if (accessToken && !over) writePendingOrder(saved)
+        const reported = reply.data.payment === undefined ? null : parsePayment(reply.data.payment)
+        // Only a live order whose reply lacked its payment needs a `pay` to learn it.
+        paymentKnown.current = order.status !== 'pending_payment' || reported !== null
+        focusOrderBox.current = true
+        setPending(saved)
+        showOrder(order, reported)
         return
       }
       const error = reply.error
@@ -326,7 +470,7 @@ export function CheckoutForm() {
         // QUOTE_CHANGED or a cart refusal: re-render with the fresh quote (the
         // new total, or the cart's own errors) and ask the buyer to confirm.
         const fresh = priceSchema.parse(error.fields.quote)
-        setQuote({ ...fresh, checkoutEnabled: quote.checkoutEnabled, policyRevisions: quote.policyRevisions })
+        setQuote({ ...fresh, checkoutEnabled: quote.checkoutEnabled, policyRevisions: quote.policyRevisions, testMode: quote.testMode })
         setQuoteFailed(false)
         setSubmitError(error.message)
         return
@@ -353,12 +497,22 @@ export function CheckoutForm() {
         }
       }
       if (error?.code === 'ACTIVE_HOLD') {
-        const mine = readPendingOrder()
+        // The function hands the held order and its token back to the buyer who made it (the same email);
+        // a tab that kept it in storage has it already. Either way the hold view takes over and `pay` follows.
+        const fields = error.fields ?? {}
+        const handedNumber =
+          typeof fields.order === 'object' && fields.order !== null ? (fields.order as { orderNumber?: unknown }).orderNumber : undefined
+        const mine = pendingOrderOf({ orderNumber: handedNumber, accessToken: fields.accessToken }) ?? readPendingOrder()
         if (mine) {
+          writePendingOrder(mine)
+          paymentKnown.current = false
           focusOrderBox.current = true
           setPending(mine)
           setSubmitError('')
           return
+        }
+        if (typeof fields.holdExpiresAt === 'string' && !Number.isNaN(instantOf(fields.holdExpiresAt))) {
+          setHeldUntil(formatRiyadhTime(fields.holdExpiresAt))
         }
       }
       setSubmitError(error?.message ?? 'تعذّر إتمام الطلب.')
@@ -383,18 +537,19 @@ export function CheckoutForm() {
         orderNumber: pending.orderNumber,
         accessToken: pending.accessToken,
       })
-      // The function answers the order's status; a hold that already ran out
-      // says `expired`, and anything else is no release this tab can show.
+      // The function answers the order's status: a hold that already ran out says
+      // `expired`; a payment that arrived meanwhile says what became of it (nothing is
+      // cleared then, the return page tells the rest); anything else is no release.
       const status = reply.data?.status
       if (reply.ok && (status === 'cancelled' || status === 'expired')) {
-        clearPendingOrder()
-        // The order has ended: its key must not be reused for a new one.
-        clearIdempotency()
-        idempotencyRef.current = null
-        fingerprintRef.current = null
         focusOrderBox.current = true
-        setClosed(status)
+        endOrder(status)
+      } else if (reply.ok && status !== undefined && RECEIVED.has(status)) {
+        focusOrderBox.current = true
+        setClosed('received')
         setSubmitError('')
+      } else if (reply.error?.code === 'NOT_FOUND') {
+        forgetOrder(reply.error.message)
       } else {
         setSubmitError(reply.error?.message ?? 'تعذّر إلغاء الطلب.')
       }
@@ -409,7 +564,7 @@ export function CheckoutForm() {
     return <p className={styles.note}>جارٍ تحميل الطلب…</p>
   }
 
-  // A pending order this tab created: the hold view, with its cancel.
+  // A pending order this tab created: the hold view, with its payment and its cancel.
   if (pending !== null) {
     return (
       <div
@@ -417,14 +572,32 @@ export function CheckoutForm() {
         tabIndex={-1}
         role="group"
         aria-labelledby="checkout-order-number"
-        aria-describedby="checkout-order-state"
+        aria-describedby={closed !== null || holdEnds !== null ? 'checkout-order-state' : undefined}
         className={styles.orderBox}
       >
         <p id="checkout-order-number" className={styles.orderNumber}>
           رقم الطلب: <span dir="ltr">{pending.orderNumber}</span>
         </p>
         {orderTotal !== null && <p>الإجمالي: {formatMoney(orderTotal)}</p>}
-        {closed !== null ? (
+        {closed === 'received' ? (
+          <>
+            <p id="checkout-order-state" className={styles.note} role="status">
+              وصلتنا دفعة هذا الطلب.
+            </p>
+            <Link href={`/checkout/return?order=${pending.orderNumber}`} prefetch={false} className={styles.plainLink}>
+              عرض حالة الطلب
+            </Link>
+          </>
+        ) : closed === 'blocked' ? (
+          <>
+            <p id="checkout-order-state" className={styles.note} role="status">
+              تعذّر تجهيز الدفع لهذا الطلب. ألغِ الطلب ثم اطلب من جديد.
+            </p>
+            <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
+              إلغاء الطلب
+            </ActionButton>
+          </>
+        ) : closed !== null ? (
           <>
             <p id="checkout-order-state" className={styles.note} role="status">
               {closed === 'expired' ? 'انتهت مدة حجز الطلب.' : 'أُلغي الطلب.'}
@@ -435,11 +608,43 @@ export function CheckoutForm() {
           </>
         ) : (
           <>
-            <p id="checkout-order-state" className={styles.note}>حُجز طلبك لمدة 20 دقيقة. الدفع يُضاف في المرحلة القادمة، ولن يُخصم أي مبلغ الآن.</p>
+            {holdEnds !== null && (
+              <p id="checkout-order-state" className={styles.note}>
+                محجوز حتى <span dir="ltr">{formatRiyadhTime(holdEnds)}</span>
+              </p>
+            )}
+            {payment.state === 'ready' && <ActionLink href={payment.url}>ادفع الآن</ActionLink>}
+            {payment.state === 'preparing' && (
+              <p className={styles.note} role="status">
+                نجهّز صفحة الدفع…
+              </p>
+            )}
+            {payment.state === 'unavailable' && (
+              <p className={styles.warning} role="alert">
+                تعذّر تجهيز الدفع؛ حاول بعد لحظات.
+              </p>
+            )}
+            {payment.state !== 'ready' && (
+              <ActionButton
+                variant="outline"
+                onClick={() => {
+                  focusOrderBox.current = true
+                  void loadPayment(pending)
+                }}
+                disabled={submitting}
+              >
+                أعد المحاولة
+              </ActionButton>
+            )}
             <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
               إلغاء الطلب
             </ActionButton>
           </>
+        )}
+        {quote?.testMode === true && (
+          <p className={styles.note} role="note">
+            وضع تجريبي: لا يُخصم أي مبلغ حقيقي
+          </p>
         )}
         {submitError !== '' && <p className={styles.warning} role="alert">{submitError}</p>}
       </div>
@@ -745,7 +950,21 @@ export function CheckoutForm() {
             {submitError}
           </p>
         )}
-        <ActionButton type="submit" className={styles.submit} disabled={!turnstileAvailable || submitting || waiting || stale || noCities}>
+        {heldUntil !== '' && (
+          <p className={styles.note}>
+            لديك طلب محجوز من هذه الجلسة حتى <span dir="ltr">{heldUntil}</span>.
+          </p>
+        )}
+        {policiesStale && (
+          <p className={styles.warning} role="note">
+            نحدّث السياسات الآن؛ حاول بعد قليل.
+          </p>
+        )}
+        <ActionButton
+          type="submit"
+          className={styles.submit}
+          disabled={!turnstileAvailable || submitting || waiting || stale || noCities || policiesStale}
+        >
           {submitting || waiting ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
         </ActionButton>
       </div>

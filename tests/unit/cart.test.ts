@@ -17,8 +17,19 @@ import {
   DEDICATIONS_KEY,
   digestText,
   EMPTY_CART,
+  formatRiyadhTime,
+  instantOf,
+  ORDER_NUMBER,
+  parseTestFragment,
+  pendingOrderOf,
+  PENDING_ORDER_KEY,
   readIdempotency,
+  readPendingOrder,
+  readTestAccess,
+  readTestFragment,
+  TEST_ACCESS_KEY,
   writeIdempotency,
+  writePendingOrder,
   fingerprintCreate,
   MAX_COUPON,
   MAX_LINES,
@@ -346,5 +357,140 @@ describe('audit 2: a stale tab and an over-long coupon', () => {
     expect(readSavedCoupon()).toEqual({ coupon: '', tooLong: true })
     expect(session.store.get(COUPON_KEY)).toBe('')
     expect(readSavedCoupon()).toEqual({ coupon: '', tooLong: false })
+  })
+})
+
+describe('P08: the sandbox access code in the URL fragment', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reads only a `#test=<code>` fragment, decoded, at most 200 characters', () => {
+    expect(parseTestFragment('#test=secret-code-1234')).toBe('secret-code-1234')
+    expect(parseTestFragment('#test=a%20b%2Bc')).toBe('a b+c')
+    expect(parseTestFragment('#test=' + 'x'.repeat(200))).toHaveLength(200)
+    expect(parseTestFragment('#test=' + 'x'.repeat(201))).toBeNull()
+    // Any other fragment is left alone: an anchor, an empty code, a longer list, a broken escape.
+    for (const hash of ['', '#', '#main', '#test=', '#test', '#testing=abc', '#test=abc&x=1', '#x&test=abc', '#test=%E0%A4%A']) {
+      expect(parseTestFragment(hash), hash).toBeNull()
+    }
+  })
+
+  it('stores the code for the tab, removes the fragment and keeps the path and query', () => {
+    const session = memoryArea()
+    const local = { getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn() }
+    const location = { hash: '#test=secret-code-1234', pathname: '/checkout', search: '?utm=1' }
+    const history = {
+      state: { next: 1 },
+      replaceState: vi.fn((_state: unknown, _title: string, url: string) => {
+        // What the browser does: the address loses its fragment.
+        location.hash = new URL(url, 'http://localhost:3000').hash
+      }),
+    }
+    vi.stubGlobal('window', { sessionStorage: session, localStorage: local, location, history })
+    expect(readTestAccess()).toBeNull()
+
+    readTestFragment()
+    expect(session.store.get(TEST_ACCESS_KEY)).toBe('secret-code-1234')
+    expect(readTestAccess()).toBe('secret-code-1234')
+    expect(history.replaceState).toHaveBeenCalledTimes(1)
+    expect(history.replaceState).toHaveBeenCalledWith({ next: 1 }, '', '/checkout?utm=1')
+    // Once: the fragment is gone, so a second call changes nothing and never overwrites the stored code.
+    readTestFragment()
+    expect(history.replaceState).toHaveBeenCalledTimes(1)
+    expect(readTestAccess()).toBe('secret-code-1234')
+    // Never localStorage.
+    expect(local.getItem).not.toHaveBeenCalled()
+    expect(local.setItem).not.toHaveBeenCalled()
+  })
+
+  it('does nothing without a fragment, and survives denied storage or history', () => {
+    const session = memoryArea()
+    const replaceState = vi.fn()
+    vi.stubGlobal('window', {
+      sessionStorage: session,
+      location: { hash: '#main', pathname: '/cart', search: '' },
+      history: { state: null, replaceState },
+    })
+    readTestFragment()
+    expect(session.store.size).toBe(0)
+    expect(replaceState).not.toHaveBeenCalled()
+
+    vi.stubGlobal('window', {
+      sessionStorage: session,
+      location: { hash: '#test=secret-code-1234', pathname: '/cart', search: '' },
+      history: {
+        state: null,
+        replaceState: () => {
+          throw new DOMException('denied', 'SecurityError')
+        },
+      },
+    })
+    expect(() => readTestFragment()).not.toThrow()
+    expect(readTestAccess()).toBe('secret-code-1234')
+
+    vi.stubGlobal('window', {
+      get sessionStorage(): never {
+        throw new DOMException('denied', 'SecurityError')
+      },
+      location: { hash: '#test=secret-code-1234', pathname: '/cart', search: '' },
+      history: { state: null, replaceState },
+    })
+    expect(() => readTestFragment()).not.toThrow()
+    expect(readTestAccess()).toBeNull()
+  })
+
+  it('reads an empty stored code as no code', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    session.setItem(TEST_ACCESS_KEY, '')
+    expect(readTestAccess()).toBeNull()
+  })
+})
+
+describe('P08: the hold\'s clock time and the pending order', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('shows the hold\'s end as a 24-hour Riyadh clock time with Latin digits', () => {
+    expect(formatRiyadhTime('2026-10-02T11:35:00+00:00')).toBe('14:35')
+    expect(formatRiyadhTime('2026-10-02T21:05:00Z')).toBe('00:05')
+    // The database writes microseconds and an offset.
+    expect(formatRiyadhTime('2026-10-02T11:35:59.123456+00:00')).toBe('14:35')
+    expect(formatRiyadhTime('2026-10-02T09:07:00+03:00')).toBe('09:07')
+  })
+
+  it('reads the database\'s microsecond times as the same moment as their millisecond form, and nothing else as a time', () => {
+    expect(instantOf('2026-10-02T11:35:59.123456+00:00')).toBe(Date.UTC(2026, 9, 2, 11, 35, 59, 123))
+    expect(instantOf('2026-10-02T11:35:59.9+00:00')).toBe(Date.UTC(2026, 9, 2, 11, 35, 59, 900))
+    expect(instantOf('2026-10-02T11:35:59+00:00')).toBe(Date.UTC(2026, 9, 2, 11, 35, 59))
+    for (const bad of ['', 'soon', '2026-13-45T00:00:00Z']) expect(instantOf(bad), bad).toBeNaN()
+  })
+
+  it('accepts an order number and a token only in the shapes the function issues', () => {
+    const token = 'A'.repeat(43)
+    expect(ORDER_NUMBER.test('ABCD2345')).toBe(true)
+    // No 0, 1, I, O, a lower-case letter or a wrong length.
+    for (const bad of ['ABCD2340', 'ABCD2341', 'ABCI2345', 'ABCO2345', 'abcd2345', 'ABCD234', 'ABCD23456']) {
+      expect(ORDER_NUMBER.test(bad), bad).toBe(false)
+    }
+    expect(pendingOrderOf({ orderNumber: 'ABCD2345', accessToken: token })).toEqual({ orderNumber: 'ABCD2345', accessToken: token })
+    expect(pendingOrderOf({ orderNumber: 'ABCD2345', accessToken: 'short' })).toBeNull()
+    expect(pendingOrderOf({ orderNumber: 'abcd2345', accessToken: token })).toBeNull()
+    expect(pendingOrderOf({ orderNumber: 5, accessToken: token })).toBeNull()
+    expect(pendingOrderOf({ orderNumber: 'ABCD2345' })).toBeNull()
+    expect(pendingOrderOf({})).toBeNull()
+  })
+
+  it('keeps the pending order in sessionStorage and reads back only a well-formed one', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    const order = { orderNumber: 'ABCD2345', accessToken: 'B'.repeat(43) }
+    expect(readPendingOrder()).toBeNull()
+    writePendingOrder(order)
+    expect(readPendingOrder()).toEqual(order)
+    session.setItem(PENDING_ORDER_KEY, 'null')
+    expect(readPendingOrder()).toBeNull()
+    session.setItem(PENDING_ORDER_KEY, JSON.stringify({ orderNumber: 'ABCD2345', accessToken: 'x' }))
+    expect(readPendingOrder()).toBeNull()
+    session.setItem(PENDING_ORDER_KEY, 'not json')
+    expect(readPendingOrder()).toBeNull()
   })
 })

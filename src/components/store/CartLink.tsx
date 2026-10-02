@@ -8,7 +8,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { CART_EVENT, cartCount, readCart } from '@/lib/cart'
+import { CART_EVENT, cartCount, readCart, readTestFragment } from '@/lib/cart'
 
 import styles from './store.module.css'
 
@@ -16,6 +16,8 @@ export function CartLink() {
   const [count, setCount] = useState<number | null>(null)
 
   useEffect(() => {
+    // The store pages have no CartProvider: the sandbox access code of a `#test=` link is kept here.
+    readTestFragment()
     const refresh = () => setCount(cartCount(readCart().cart))
     // Deferred to a microtask so the setState is not synchronous within the
     // effect body (react-hooks/set-state-in-effect, like CollectionForm).

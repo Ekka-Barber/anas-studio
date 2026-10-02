@@ -24,6 +24,13 @@
 /book/*
   X-Robots-Tag: noindex
 
+# P08: where the payment page sends the buyer back. The order number is in the
+# query, so the page is never indexed, cached or passed on in a Referer.
+/checkout/return
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Robots-Tag: noindex
+
 # Built assets are content-hashed and safe to cache for a year.
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable

@@ -498,7 +498,7 @@ describe('the paid journey', () => {
     // The page asking again is told the order is no longer payable, and the provider is not asked to do anything.
     const closed = await pay(placed)
     expect(closed.status).toBe(200)
-    expect(closed.body.data.payment).toEqual({ state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'paid' })
+    expect(closed.body.data.payment).toEqual({ state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'paid', reason: 'NOT_PENDING' })
     const cancelled = await cancel(placed)
     expect(cancelled.status).toBe(200)
     expect(cancelled.body.data).toEqual({ status: 'paid' })
@@ -529,7 +529,7 @@ describe('cancel', () => {
     expect((await cancel(placed)).body).toEqual({ ok: true, data: { status: 'cancelled' } })
     expect(emulatorCalls(CANCEL_INVOICE)).toBe(1)
     // A cancelled order cannot be paid: no invoice is made for it.
-    expect((await pay(placed)).body.data.payment).toEqual({ state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'cancelled' })
+    expect((await pay(placed)).body.data.payment).toEqual({ state: 'closed', code: 'ORDER_NOT_PAYABLE', status: 'cancelled', reason: 'NOT_PENDING' })
     expect(emulatorCalls(CREATE_INVOICE)).toBe(1)
   })
 

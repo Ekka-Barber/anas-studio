@@ -8,11 +8,13 @@
  * false is what shows the honest «السلة مؤقتة…» note. Another tab's change
  * (the `storage` event) is read back at once, and every edit is applied to
  * the latest stored cart, so a stale tab never overwrites what another added.
+ * On mount it also moves a `#test=<code>` fragment (the sandbox access code of
+ * a hosted site in test mode) into sessionStorage, before the first quote.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import { CART_STORAGE_KEY, readCart, updateStoredCart, type CartV1 } from '@/lib/cart'
+import { CART_STORAGE_KEY, readCart, readTestFragment, updateStoredCart, type CartV1 } from '@/lib/cart'
 
 interface CartState {
   ready: boolean
@@ -28,6 +30,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<{ cart: CartV1; persistent: boolean } | null>(null)
 
   useEffect(() => {
+    readTestFragment()
     // Deferred to a microtask so the setState is not synchronous within the
     // effect body (react-hooks/set-state-in-effect, like CollectionForm).
     void Promise.resolve().then(() => setState(readCart()))

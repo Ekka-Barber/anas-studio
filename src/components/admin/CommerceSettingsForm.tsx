@@ -9,9 +9,11 @@
  * the policy approval (`commerce-policies-approve`) through the same dialog:
  * the owner approves the published policy revisions, listed here with their
  * names and version numbers, and the checkout policy is what he approved.
- * Payment stays off until the payment gateway (P08) and there is no tax
- * field of any kind (D34): prices are what the buyer pays. Only existing
- * admin CSS classes.
+ * P08 adds «الشراء»: the payments status the `admin` function's `status`
+ * action reports (names and booleans, never a key) and the owner's checkout
+ * switch (`commerce-checkout-set`), through the same dialog. There is no tax
+ * field of any kind (D34): prices are what the buyer pays. Existing admin CSS
+ * classes, plus one rule for the «الشراء» box.
  */
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
@@ -19,13 +21,17 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { POLICY_DOC_LABELS, type PolicyDocId } from '@/admin/collections/policies'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
+import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
 import { commerceSettingsSchema } from '../../../supabase/functions/_shared/commerce-settings.ts'
 
 import { StepUp } from './StepUp'
 import { formatRiyadh } from '@/lib/format'
 import styles from './admin.module.css'
 
+type PaymentsStatus = SettingsStatus['payments']
+
 type CommerceRow = {
+  checkoutEnabled: boolean
   currency: string
   version: number
   configuredAt: string | null
@@ -50,9 +56,17 @@ function policyName(kind: string, revision: unknown): string {
   return `${label}: نسخة ${String(revision)}`
 }
 
+/** What `status` says of the payments, in one plain sentence; nothing beyond it. */
+function paymentsLine(payments: PaymentsStatus): string {
+  if (!payments.configured) return 'الدفع غير مضبوط'
+  if (payments.mode === 'live') return 'الدفع مضبوط: وضع حي'
+  return payments.emulator ? 'الدفع مضبوط: وضع تجريبي، محاكٍ محلي' : 'الدفع مضبوط: وضع تجريبي'
+}
+
 export function CommerceSettingsForm() {
   const [row, setRow] = useState<CommerceRow | null>(null)
   const [loadError, setLoadError] = useState(false)
+  const [payments, setPayments] = useState<PaymentsStatus | 'loading' | 'failed'>('loading')
   const [legalName, setLegalName] = useState('')
   const [address, setAddress] = useState('')
   const [registration, setRegistration] = useState('')
@@ -75,6 +89,10 @@ export function CommerceSettingsForm() {
       setLegalName(loaded.sellerLegalName ?? '')
       setAddress(loaded.sellerAddress ?? '')
       setRegistration(loaded.sellerRegistration ?? '')
+    })()
+    void (async () => {
+      const result = await callFunction<{ payments: PaymentsStatus }>('admin', { action: 'status' })
+      if (active) setPayments(result.ok ? result.data.payments : 'failed')
     })()
     return () => {
       active = false
@@ -150,7 +168,6 @@ export function CommerceSettingsForm() {
         <li>
           العملة: ريال سعودي (<span dir="ltr">SAR</span>)، للقراءة فقط.
         </li>
-        <li>الدفع مغلق حاليًا؛ يُفتح بعد ربط بوابة الدفع.</li>
         <li>
           مراجعات السياسات المعتمدة:{' '}
           {policyEntries.length === 0
@@ -225,7 +242,30 @@ export function CommerceSettingsForm() {
           اعتماد السياسات المنشورة
         </button>
       </div>
-      <p className={styles.message}>الشراء يفتح بعد ربط بوابة الدفع (المرحلة القادمة).</p>
+
+      <fieldset className={`${styles.fieldset} ${styles.switchBox}`}>
+        <legend className={styles.legend}>الشراء</legend>
+        <p className={styles.message}>
+          {payments === 'loading' ? 'يحمّل...' : payments === 'failed' ? 'تعذّر قراءة حالة الدفع.' : paymentsLine(payments)}
+        </p>
+        <p>{row.checkoutEnabled ? 'الشراء مفتوح' : 'الشراء مغلق'}</p>
+        <p className={styles.message}>يتحكم المفتاح في استقبال الطلبات الجديدة فقط؛ الطلبات القائمة تُدفع وتُلغى كما هي.</p>
+        <div className={styles.row}>
+          <button
+            type="button"
+            className={styles.button}
+            disabled={busy}
+            onClick={() =>
+              void runAction(
+                { action: 'commerce-checkout-set', enabled: !row.checkoutEnabled, expectedVersion: row.version },
+                row.checkoutEnabled ? 'تم إغلاق الشراء.' : 'تم فتح الشراء.',
+              )
+            }
+          >
+            {row.checkoutEnabled ? 'أغلق الشراء' : 'افتح الشراء'}
+          </button>
+        </div>
+      </fieldset>
 
       {needsEnrollment && (
         <p className={styles.error} role="alert">
