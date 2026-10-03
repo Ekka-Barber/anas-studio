@@ -58,7 +58,11 @@ feature is unavailable instead of quietly wrong.
   `EMAIL_FROM`, `RESEND_WEBHOOK_SECRET`, `EMAIL_DEV_MAILPIT_URL` (local
   only), and `ANALYTICS_TOKEN` / `CLOUDFLARE_ZONE_ID` for the owner
   statistics (unset locally, so `/admin/stats` honestly says «غير متاح»; the
-  live account proof is gate E11). `SUPABASE_URL` and the service-role key
+  live account proof is gate E11). From P08 the Moyasar values
+  `MOYASAR_API_BASE_URL`, `MOYASAR_SECRET_KEY`, `MOYASAR_WEBHOOK_SECRET`,
+  `PAYMENTS_MODE` and `FUNCTIONS_PUBLIC_URL` (and `PAYMENTS_TEST_ACCESS_CODE`,
+  for a hosted site in test mode only; see "Payments locally (P08)").
+  `SUPABASE_URL` and the service-role key
   are provided by Supabase to every function and never set by hand.
 
 ## Local database
@@ -133,7 +137,7 @@ pnpm db:reset
 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:import   # imports content/initial-content.json, skips already-published docs
 pnpm db:env
 pnpm build               # the static export in out/
-pnpm check:export        # the 51 required files (every public and admin page) present, no secret in out/
+pnpm check:export        # the 59 required files (every public and admin page) present, no secret in out/
 ```
 
 `db:import` connects with `DATABASE_URL` (the local `postgres` superuser) and
@@ -274,6 +278,121 @@ the function verifies the staff token and owner role before its cache. There
 is no inbox screen (D31): a contact message arrives as a notice in the
 owner's mailbox — locally in Mailpit — with Reply-To set to the visitor.
 
+## Payments locally (P08)
+
+Payments run against a local stand-in for Moyasar, never against Moyasar. The
+only calls ever made to Moyasar from this repository were one owner-approved
+sandbox pass of 2026-10-02 that created, read, listed and cancelled eight test
+invoices (no payment; [payments-runbook](payments-runbook.md#what-the-sandbox-answered-2026-10-02),
+"What the sandbox answered"); E02 and E03 are open.
+
+**The values.** `pnpm db:env` writes the five payment values into
+`supabase/functions/.env` and, for the tests, `.env.local`:
+`MOYASAR_API_BASE_URL` (the emulator as the functions' container reaches it,
+`http://host.docker.internal:54390/v1`), `MOYASAR_SECRET_KEY` and
+`MOYASAR_WEBHOOK_SECRET` (fixed local strings the emulator accepts: they are not
+credentials, and the runbook's emulator section names them), `PAYMENTS_MODE`
+(`test`) and `FUNCTIONS_PUBLIC_URL` (the stack's API address plus
+`/functions/v1`). `PAYMENTS_TEST_ACCESS_CODE` is not written: it exists only for a
+hosted site in test mode. `paymentsConfig()` refuses `PAYMENTS_MODE=live` for a
+local site, and `pnpm check:export` fails a built export that holds either local
+string or any `sk_test_` or `sk_live_` key shape. As for the P06 values, restart
+the functions after the first `db:env`.
+
+**The emulator.** `pnpm emulator` starts `tests/support/moyasar-emulator.ts` on
+`127.0.0.1:54390` (Node 24 runs the file directly; it refuses to start when
+`SITE_URL` names a hosted site). It implements only the documented Moyasar
+routes, a stand-in for the hosted invoice page at `/invoices/<id>` (pay, fail,
+3-D Secure, back) and the `/__emulator/*` control routes and switches that the
+tests and a developer use to pay, refund, void, delay, drop or repeat things.
+The routes, the switches, the faults and what the emulator chooses where
+Moyasar's documentation is silent are all in
+[payments-runbook](payments-runbook.md#the-local-emulator). Playwright starts it
+by itself and reuses one that is running;
+the database tests that need it start their own.
+
+**Reconciling by hand.** Locally the Vault values that let pg_cron call the
+functions are unset, so the payment job does not run by itself. Run it as the
+email job (`JOBS_SECRET` from `supabase/functions/.env`, never pasted anywhere):
+
+```sh
+curl -X POST -H "authorization: Bearer $JOBS_SECRET" -H "content-type: application/json" \
+  -d '{"job":"payments_reconcile"}' http://127.0.0.1:54321/functions/v1/outbox
+```
+
+The reply is counts only (`attempts`, `events`, `refunds`, `settled`, `cancelled`,
+`errors`, `skipped`). `{"job":"media_sweep"}` runs the media sweep the same way.
+
+**What the P08 rounds learned about the local stack.**
+
+- The edge runtime does not reload `supabase/functions/_shared` on its own. After
+  an edit under `supabase/functions`, run
+  `docker restart supabase_edge_runtime_ANASAQ.ME` before any test that calls a
+  function over HTTP (`pnpm test:db` needs it too). If the functions answer 503
+  the container has exited: `docker start supabase_edge_runtime_ANASAQ.ME`.
+- If sign-in e2e tests fail with `fetch failed: other side closed`, Mailpit's
+  forwarded port (54324) died after a Docker restart while its container still
+  runs: `docker restart supabase_inbucket_ANASAQ.ME`.
+- After a change to `supabase/config.toml` (the Auth hook lives there), restart
+  with `supabase stop` then `supabase start`, never `--no-backup`.
+- Test runs add staff, orders and mail every time. Past about 1,000 staff rows the
+  team screen (PostgREST's `max_rows`) hides a new invite and `auth.spec.ts`
+  fails. Before an acceptance battery, check that every local row is test data,
+  then `pnpm db:reset`, both imports (`pnpm db:import` and `pnpm db:demo-catalog`,
+  with `DATABASE_URL` as above) and a restart of the edge runtime. Never against
+  the hosted project.
+- Check free memory before a full e2e run: at about 6 GB free it crashes, 10 GB
+  or more is safe. After every e2e run, restore `next-env.d.ts` (the dev server
+  rewrites this tracked file: `git restore next-env.d.ts`), and remove
+  `.next/e2e` if `pnpm typecheck` then fails on truncated generated types
+  (TS1128).
+- Mail made by a run counts against the day's sends (`docs/operations.md`, "The
+  mail budget"): confirmation and availability mail (priority 2) stops at 50 a
+  day, so a spec that waits for one can find the budget spent (the email job's
+  last run says `QUOTA_HELD`).
+
+**Running the P08 tests.** The file that proves each rule is in the contract's
+test matrix (`PLANS/P08-CONTRACT.md`, section 11).
+
+- **Unit:** `pnpm test`. No stack is needed: the client tests start the emulator
+  inside the process.
+- **Database:**
+  `TEST_ENV=local DATABASE_URL=<DB_URL from supabase status -o json> pnpm exec vitest run --mode db tests/integration/<file>`,
+  with the edge runtime up. The files that call the real functions over HTTP
+  (`payment-http`, `checkout-http`, `refunds-http`, `orders-http`, `disputes-http`
+  and `notify-http`) need it restarted after any `_shared` edit. `payment-http`,
+  `checkout-http`, `refunds-http` and `orders-http` start their own emulator on
+  port 54390 and stop with a message when the port is busy: stop a running
+  `pnpm emulator`, or a Playwright run, first.
+- **End to end:** `pnpm exec playwright test tests/e2e/<spec>`. These need the
+  emulator, which Playwright starts: `cart-checkout.spec.ts`,
+  `checkout-api.spec.ts` and `orders.spec.ts`. These do not: `order-page.spec.ts`
+  and `product-availability.spec.ts` (the functions they test are mocked where the
+  spec says so, and Cloudflare's Turnstile script is stubbed), and
+  `orders-admin.spec.ts`, `orders-money.spec.ts` and the P08 block of
+  `store-admin.spec.ts` (the variant form's preorder fields and paid file, the
+  sign-ups list and the commerce figures) (the real stack with a real sign-in;
+  the money spec mocks the `admin` function's replies). A spec that loads
+  Cloudflare's Turnstile test widget needs the network.
+- **The journeys spec**, `tests/e2e/orders.spec.ts` (ten journeys at 360 and 1440
+  px, no mocks), takes 7 to 11 minutes for both widths, depending on the
+  machine's load. Run it in the background with Playwright's own
+  `--global-timeout`, and never under a shorter outer cap (a foreground tool's
+  10 minute limit, a `timeout` wrapper): Playwright's own global timeout still
+  lets the spec's cleanup run, but a killed run skips it and leaves published test
+  products, enabled shipping rates, active test staff and the test seller behind.
+  `-g "at 360px"` or `-g "at 1440px"` runs one width.
+
+  ```sh
+  pnpm exec playwright test tests/e2e/orders.spec.ts --global-timeout=900000 --reporter=list
+  ```
+
+  Reset the database first when test rows have piled up. After a killed run,
+  retire what it left with `pnpm db:reset`, both imports and an edge runtime
+  restart (`pnpm db:demo-catalog` also restores the demo seller the spec replaced).
+  The spec's screenshots go to `test-results/screenshots/P08`, or to
+  `artifacts/acceptance/P08/screenshots` only for an `ACCEPTANCE_PACKAGE=P08` run.
+
 ## Running the application
 
 ```sh
@@ -305,13 +424,15 @@ pnpm test:e2e        # playwright against next dev and the local functions
 pnpm check:frozen    # re-hashes deploy/ against the recorded manifest
 pnpm check:copy      # Latin digits only, no placeholder copy (src, supabase/functions, content, scripts; .ts .tsx .json .mjs)
 pnpm check:budgets   # public JavaScript budget, on out/
-pnpm check:export    # the static export has all 51 required files and holds no secret
+pnpm check:export    # the static export has all 59 required files and holds no secret
 pnpm check           # lint + typecheck + check:frozen + check:copy + test
 ```
 
 `pnpm test:e2e` starts `pnpm dev` itself unless one is already running at
 `http://localhost:3000` (the origin the local `contact` function accepts); it
-needs the local stack with the functions serving. Its report goes to the
+needs the local stack with the functions serving, and it starts the local
+Moyasar emulator (`pnpm emulator`, port 54390) unless one is already running.
+Its report goes to the
 git-ignored `test-results/playwright-report/`; for a package acceptance run, set
 `ACCEPTANCE_PACKAGE=P06` (for example) to keep the report under
 `artifacts/acceptance/P06/` instead. Accepted reports of other packages are
@@ -320,7 +441,8 @@ never touched.
 Spec screenshots follow the same rule: they go to
 `artifacts/acceptance/<pkg>/screenshots` only when `ACCEPTANCE_PACKAGE` names
 the spec's own package (P05 media, P06 owner-operations, P07
-cart-checkout/store-admin, DESIGN-B visual), and to
+cart-checkout and store-admin's P07 block, P08 orders, order-page, orders-admin,
+orders-money, product-availability and store-admin's P08 block, DESIGN-B visual), and to
 `test-results/screenshots/<pkg>` otherwise. Another package's acceptance run
 (for example AUDIT-1) therefore leaves them under `test-results/`.
 
@@ -328,6 +450,8 @@ The e2e tests that edit content (`cms.spec`, `media.spec`) change live
 documents and put them back in `afterEach`. If a run is killed hard, restore
 the fixture by hand with
 `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:import --force`.
+The P08 journeys spec cleans up after itself too, and what a killed run leaves
+behind is described in "Payments locally (P08)".
 
 ### `pnpm test:db` refuses a non-local database
 
