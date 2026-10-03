@@ -21,6 +21,11 @@ const PAGES: { route: string; slug: string }[] = [
   { route: '/scenes', slug: 'scenes' },
   { route: '/contact', slug: 'contact' },
   { route: '/store', slug: 'store' },
+  // P08: the buyer's order page (no link in the address: it shows its recovery form) and the two links of the
+  // availability mails (no token: «الرابط غير مكتمل.»).
+  { route: '/orders', slug: 'orders' },
+  { route: '/notify/confirm', slug: 'notify-confirm' },
+  { route: '/notify/unsubscribe', slug: 'notify-unsubscribe' },
 ]
 
 const WIDTHS = [360, 768, 1024, 1440]

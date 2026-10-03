@@ -12,8 +12,9 @@ const opened = new Set<string>()
 let current: { path: string; returning: boolean } | null = null
 
 // The money and policy pages stay still apart from their title's short fade
-// (the owner, 2026-09-28: serious pages look official, no show).
-const CALM = ['/cart', '/checkout', '/policies']
+// (the owner, 2026-09-28: serious pages look official, no show). The order
+// page and the notification links are P08's money pages.
+const CALM = ['/cart', '/checkout', '/policies', '/orders', '/notify']
 const isCalm = (path: string) => CALM.some((prefix) => path === prefix || path.startsWith(`${prefix}/`))
 
 /**

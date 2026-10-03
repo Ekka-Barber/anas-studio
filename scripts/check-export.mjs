@@ -37,6 +37,10 @@ const REQUIRED = [
   'checkout.html',
   // P08: where the payment page sends the buyer back.
   'checkout/return.html',
+  // P08: the buyer's order page and the two links of the availability mails.
+  'orders.html',
+  'notify/confirm.html',
+  'notify/unsubscribe.html',
   'policies/store.html',
   'policies/delivery.html',
   'policies/refund.html',

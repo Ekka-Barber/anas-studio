@@ -100,3 +100,21 @@ test('تواصل shows the form but cannot send, and keeps the channels and serv
   await requests.first().click()
   await expect(page).toHaveURL(/#contact-form$/)
 })
+
+// P08: the order page and the two links of the availability mails need script to do anything: with it off they
+// show their title and say so, and offer no control that would do nothing.
+for (const route of ['/orders', '/notify/confirm', '/notify/unsubscribe']) {
+  test(`${route}: the order and notification pages say they need JavaScript and offer no dead control`, async ({ page }) => {
+    await page.goto(route)
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.locator('main noscript')).toBeVisible()
+    // Playwright's text engine skips a <noscript> that holds a bare text node, so its text is read from the element.
+    expect(await page.locator('main noscript').evaluate((element) => element.textContent)).toContain('JavaScript')
+    // No loading line is baked into the static page: without script nothing would ever end it.
+    await expect(page.locator('main').getByText('جارٍ تحميل الطلب…')).toHaveCount(0)
+    await expect(page.locator('main').getByRole('button')).toHaveCount(0)
+    await expect(page.locator('main').getByRole('textbox')).toHaveCount(0)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow, `horizontal overflow on ${route}`).toBeLessThanOrEqual(1)
+  })
+}

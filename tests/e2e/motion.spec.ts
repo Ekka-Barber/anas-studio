@@ -24,7 +24,7 @@ import { expect, test, type Page } from '@playwright/test'
 type Reveals = { held: Set<Element>; played: Set<Element> }
 
 const STORY = ['/', '/book', '/built', '/started', '/passed', '/shelf', '/scenes', '/contact', '/store', '/store/demo-khous']
-const CALM = ['/cart', '/checkout', '/policies/privacy']
+const CALM = ['/cart', '/checkout', '/policies/privacy', '/orders', '/notify/confirm']
 
 test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' })
 

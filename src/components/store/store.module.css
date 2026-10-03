@@ -594,3 +594,29 @@
 .summaryPanel legend + * {
   clear: both;
 }
+
+/* ---- the buyer's order page and the notification links (P08) ---- */
+
+/* A block of the order page under its status line: the lines, the returns, the forms. */
+.orderSection {
+  margin-block-start: 32px;
+}
+/* Long Arabic titles, notes and a tracking value wrap instead of widening the card. */
+.wrap {
+  overflow-wrap: anywhere;
+}
+/* The return form and the recovery form: small, each control at the start, at its own width. */
+.smallForm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+}
+.smallForm .field {
+  inline-size: 100%;
+  max-inline-size: 28rem;
+  margin-block-end: 0;
+}
+.smallForm .panelTitle {
+  margin-block-end: 0;
+}

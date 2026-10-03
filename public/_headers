@@ -31,6 +31,19 @@
   Cache-Control: no-store
   X-Robots-Tag: noindex
 
+# P08: the buyer's order page and the two links of the availability mails. Their
+# addresses carry a token in the fragment, so no page is indexed, cached or passed
+# on in a Referer.
+/orders
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Robots-Tag: noindex
+
+/notify/*
+  Referrer-Policy: no-referrer
+  Cache-Control: no-store
+  X-Robots-Tag: noindex
+
 # Built assets are content-hashed and safe to cache for a year.
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
