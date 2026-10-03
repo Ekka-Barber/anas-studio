@@ -540,7 +540,8 @@ Each round is one fresh `sonnet-worker` (Sonnet 5.5, effort max), then an Opus `
 | 11a | The admin's orders: the list (filters, search, the alerts line), the order view (evidence, items, fulfilment with the signed checklist, entitlements, returns with the owner's restock, the resolution, review payments and their closing, disputes and audit read-only), the nav entry, the home alerts, the customers list's link to a customer's orders. Brief: `artifacts/acceptance/P08/tools/round-11a.json`. |
 | 11b | The admin's money actions: `RefundView` with the step-up, the payment and refund rechecks, external refunds, review-payment refunds, the reconciliation screen, the dispute form. Brief: `round-11b.json`. |
 | 11c | `20261003110000_variant_admin_info.sql`; the variant form (the preorder fields, the count of confirmed preorders, the paid-file upload), the read-only list of availability sign-ups (`src/admin/tables/notifications.ts`, moved here from round 8), the statistics screen's commerce figures. Brief: `round-11c.json`. |
-| 12 | `tests/e2e/orders.spec.ts`; the documents: the runbook with "When the Moyasar keys arrive", `docs/operations.md`, `docs/privacy-data-map.md`, `docs/development.md`. |
+| 12a | `tests/e2e/orders.spec.ts`: the journeys of section 11's last row on the real stack and the emulator, no mocks. Brief: `round-12a.json`. |
+| 12b | The documents: the runbook with "When the Moyasar keys arrive", `docs/operations.md`, `docs/privacy-data-map.md`, `docs/development.md`. Brief: `round-12b.json`. |
 | Close | Orchestrator: the acceptance battery, and the plan documents (COVERAGE C20, C26, C28, C29, C30; ISSUES; EXECUTION-STATUS; HANDOFF; ARCHITECTURE; DATA-AND-SECURITY; VERIFICATION's file count). |
 
 ## 13. Where this differs from DATA-AND-SECURITY and ARCHITECTURE, and why
