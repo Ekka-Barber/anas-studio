@@ -60,4 +60,4 @@ The zone adds Cloudflare Web Analytics to the page by itself, so the Content-Sec
 
 ## At launch (P11)
 
-The real site goes on Cloudflare Pages (D32). Before attaching anas.studio to the Pages project, free the name: delete this Worker (`npx wrangler delete --name anas-studio-soon`, with the same two variables), which removes its Custom Domains and DNS records, then add the domain to Pages. When the real site is live, this Worker becomes the gate that shows these pages in front of it when the owner switches the state (SITE-STATE-1).
+The real site goes on Cloudflare Pages (D32). The launch sequence is in `PLANS/WORK-PACKAGES.md` (P11) and `PLANS/SITE-STATE-CONTRACT.md`: the gate goes in front of the Pages project first, still showing these pages (the stored state is `soon`); anas.studio and www then move from this Worker to the Pages project; the owner opens the site with «افتح الموقع»; and this Worker is deleted (`npx wrangler delete --name anas-studio-soon`, with the same two variables) once nothing routes to it. The real site is never on the domain without the gate in front of it.

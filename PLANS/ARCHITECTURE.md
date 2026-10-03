@@ -52,7 +52,7 @@ No in-memory timers. Without the Vault values (the local stack) the HTTP jobs do
 
 - The Supabase CLI stack in Docker (Postgres, Auth, Storage, Edge runtime, Studio, Mailpit, pg_cron) is the only backend during development. `supabase db reset` rebuilds it from `supabase/migrations/`, which is the only migration history. `pnpm db:env` writes `.env.local` and `supabase/functions/.env`.
 - `pnpm dev` renders every page live against the local stack. `pnpm build` writes the static export to `out/`; `pnpm check:export` confirms it is complete and holds no secret.
-- Nothing is deployed until P11, and only with the owner's authorization. The hosted Free project may pause while idle; that is harmless before orders. The P08 Moyasar sandbox proof (E02) needs a public webhook URL: the hosted `payments` function, once the owner authorizes it, or the gate stays open.
+- Nothing is deployed until P11, and only with the owner's authorization; the one exception is the soon page on anas.studio (D46, the Worker `anas-studio-soon`). The hosted Free project may pause while idle; that is harmless before orders. The P08 Moyasar sandbox proof (E02) needs a public webhook URL: the hosted `payments` function, once the owner authorizes it, or the gate stays open.
 
 ## File map
 

@@ -1,6 +1,6 @@
 # ANASAQ (anas.studio): start here
 
-`PLANS/` is the plan of record. Revised 2026-09-30 (D41). Since D29 a custom Supabase admin replaces Payload, and work stays local until P11.
+`PLANS/` is the plan of record. Revised 2026-10-03 (D47; P08 in progress). Since D29 a custom Supabase admin replaces Payload, and work stays local until P11.
 
 Read in order: [DECISIONS.md](DECISIONS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [DATA-AND-SECURITY.md](DATA-AND-SECURITY.md), [WORK-PACKAGES.md](WORK-PACKAGES.md), [VERIFICATION.md](VERIFICATION.md), then [EXECUTION-STATUS.md](EXECUTION-STATUS.md) and the open items in [ISSUES.md](ISSUES.md). Consult [COVERAGE.md](COVERAGE.md) (offer C-IDs), [DESIGN-AUDIT.md](DESIGN-AUDIT.md) (before any UI work), [research-final.md](research-final.md) (limits and package choices) and [SOURCE-NOTES.md](SOURCE-NOTES.md) (source precedence) when a task needs them. The session kickoff is [KICKOFF.md](KICKOFF.md).
 

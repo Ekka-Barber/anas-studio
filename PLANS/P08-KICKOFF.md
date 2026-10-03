@@ -1,5 +1,7 @@
 # P08 kickoff prompt
 
+Note (2026-10-03): this prompt was written before the keys arrived and before P08 began. Since then Anas's Moyasar test keys are in the git-ignored `.env`, and the owner approved one read-only sandbox pass, which is done (`artifacts/acceptance/P08/moyasar-sandbox-2026-10-02.md`); no other Moyasar call is allowed, and E02 and E03 stay open. P08 stopped after round 10a to continue in a new session: read `PLANS/HANDOFF.md` ("How to continue P08") and `PLANS/P08-CONTRACT.md` section 12 before anything below.
+
 Paste everything below the line into a new session opened in this repository. It is written as the owner's message. The session needs the Workflow tool, so keep the word "ultracode" in it.
 
 ---
