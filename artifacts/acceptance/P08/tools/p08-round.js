@@ -3,7 +3,7 @@ export const meta = {
   description: 'One P08 round: a fresh Sonnet worker builds, an Opus auditor audits the diff, at most two re-fix rounds with fresh workers',
   phases: [
     { title: 'Build', detail: 'one sonnet-worker (Sonnet 5.5, effort max)', model: 'sonnet' },
-    { title: 'Audit', detail: 'one auditor (Opus 5.5, effort xhigh) on the round diff', model: 'opus' },
+    { title: 'Audit', detail: 'one auditor (Opus 5.5, effort max) on the round diff', model: 'opus' },
     { title: 'Re-fix', detail: 'a fresh sonnet-worker per fix round, then the auditor again', model: 'sonnet' },
   ],
 }
@@ -15,7 +15,7 @@ if (!a || !a.round || !a.brief || !Array.isArray(a.files) || !Array.isArray(a.ch
 }
 
 const WORKER = { agentType: 'sonnet-worker', model: 'sonnet', effort: 'max' }
-const AUDITOR = { agentType: 'auditor', model: 'opus', effort: 'xhigh' }
+const AUDITOR = { agentType: 'auditor', model: 'opus', effort: 'max' }
 
 const WORKER_REPORT = {
   type: 'object',
@@ -81,7 +81,7 @@ const RULES = `Ground rules (ANASAQ P08):
 - Write ONLY the paths listed below. Never touch PLANS/, _archive/, deploy/design/, .env, .anasaq-execution.lock or .claude/. Never commit, never push, never run git commands that change the tree (no checkout, stash, reset, restore).
 - No network call to Moyasar (api.moyasar.com, checkout.moyasar.com), ever. Every provider shape is in the contract's section 2; do not add any from memory.
 - The local Supabase stack is running. Never stop it. Apply a new migration with: pnpm exec supabase migration up --local. Only when a migration of THIS round was edited after it had been applied (so it cannot be applied again), rebuild the local database, in one foreground command with a timeout: pnpm exec supabase db reset && pnpm db:import && pnpm db:demo-catalog (both imports need DATABASE_URL=<DB_URL from "pnpm exec supabase status -o json">). Do that at most twice in the round, never to hide a failing test. If the functions answer 503 afterwards: docker start supabase_edge_runtime_ANASAQ.ME. Never edit a migration of an earlier round: add to this round's own file.
-- Database tests: TEST_ENV=local DATABASE_URL=<DB_URL from "pnpm exec supabase status -o json"> pnpm exec vitest run --mode db <file>. Never print a key or a secret; never read .env (the generated .env.local and supabase/functions/.env are local test values and may be read).
+- Database tests: TEST_ENV=local DATABASE_URL=<DB_URL from "pnpm exec supabase status -o json"> pnpm exec vitest run --mode db <file>. Never print a key or a secret. Never open, read, grep or print any .env file (the repository's .env, .env.local or supabase/functions/.env), not even to derive a test value: values reach the tests through process.env and the scripts that already load them.
 - Money is integer halalas. Arabic user-facing text, ASCII codes, Latin digits. No em dashes in Arabic copy (pnpm check:copy enforces the house rules).
 - Token discipline: read each file once, batch edits, run each long command once in the foreground with a timeout, no sleep or polling loops, no background process left running. After two failed attempts at the same problem, stop and report.
 - Match the surrounding code's style, comment density and naming. The smallest change that fully does the job; no speculative options, no new dependency.`
