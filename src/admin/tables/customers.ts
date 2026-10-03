@@ -43,4 +43,7 @@ export const customersConfig: TableConfig = {
         : null,
   }),
   fromRow: (row) => ({ email: row.email, name: row.name, phone: row.phone ?? null }),
+  // The orders screen reads `#q=` once and takes it out of the address bar, so the address never travels in a query string.
+  rowLink: (row) =>
+    typeof row.email === 'string' ? { href: `/admin/orders#q=${encodeURIComponent(row.email)}`, label: 'طلباته' } : null,
 }

@@ -59,6 +59,8 @@ export interface TableConfig {
   validate?: (values: Record<string, unknown>) => Array<{ field: string; message: string }>
   /** A «تجريبي» badge's text on list rows, or null (D37; only products carry the flag). */
   listBadge?: (row: Record<string, unknown>) => string | null
+  /** One extra link on each list row (the customers list: that customer's orders), or null for a row with none. */
+  rowLink?: (row: Record<string, unknown>) => { href: string; label: string } | null
 }
 
 export const tables = {

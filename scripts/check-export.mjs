@@ -63,6 +63,9 @@ const REQUIRED = [
   'admin/content.html',
   ...['rooms', 'posts', 'site_settings', 'taxonomies', 'policies', 'scenes'].map((c) => `admin/content/${c}.html`),
   ...['email', 'media', 'security', 'settings', 'stats', 'store', 'team'].map((p) => `admin/${p}.html`),
+  // P08: the staff's orders, and one order's view (its id travels in `?id=`).
+  'admin/orders.html',
+  'admin/orders/view.html',
   ...['coupons', 'customers', 'products', 'shipping-rates'].flatMap((t) => [`admin/store/${t}.html`, `admin/store/${t}/edit.html`]),
   'admin/store/variants/edit.html',
 ]

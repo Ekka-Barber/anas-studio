@@ -14,6 +14,8 @@ import { COLLECTION_LABELS } from '@/admin/collections'
 import { formatNumber, formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction, documentHref } from '@/lib/supabase/functions'
+// Relative, not `@/`: tests/unit/admin-ops.test.ts imports this file, and the unit config has no alias.
+import { alertCounts, parseOrdersAlerts, type OrdersAlerts } from '../../lib/admin-orders'
 
 import styles from './admin.module.css'
 import { ROLE_LABEL, type StaffRole } from './TableList'
@@ -64,6 +66,8 @@ const PUBLISH_FAILED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 const ATTENTION_CAP = 200
 
 const LOADING: Count = { state: 'loading' }
+/** How many low-stock variants the home lists; the rest are counted. */
+const LOW_STOCK_SHOWN = 10
 
 interface JobRun {
   job: string
@@ -155,6 +159,9 @@ export function AdminHome() {
     { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: string | null }
   >({ state: 'loading' })
   const [scheduled, setScheduled] = useState<Count>(LOADING)
+  const [orders, setOrders] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: OrdersAlerts }>({
+    state: 'loading',
+  })
   // The owner's audit trail (RLS: owner only) of scheduled publishes that failed.
   const [publishFailed, setPublishFailed] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: PublishFailure[] }
@@ -193,6 +200,18 @@ export function AdminHome() {
           ? { state: 'error' }
           : { state: 'ok', value: (runs.data as JobRun[]) ?? [], dueSince: (due.data as string | null) ?? null },
       )
+    }
+
+    async function loadOrders() {
+      const supabase = getSupabaseBrowserClient()
+      const { data, error } = await supabase.rpc('orders_alerts')
+      if (!active) return
+      try {
+        setOrders(error ? { state: 'error' } : { state: 'ok', value: parseOrdersAlerts(data) })
+      } catch {
+        // A reply that is not what it should be is a failure, not zero.
+        setOrders({ state: 'error' })
+      }
     }
 
     async function loadScheduled() {
@@ -259,7 +278,7 @@ export function AdminHome() {
 
       // A role that never sees a section does not ask for it: the call would be refused.
       const jobs: Promise<void>[] = []
-      if (role === 'owner' || role === 'operations') jobs.push(loadEmail(), loadJobs())
+      if (role === 'owner' || role === 'operations') jobs.push(loadEmail(), loadJobs(), loadOrders())
       if (role === 'owner' || role === 'editor') jobs.push(loadScheduled())
       if (role === 'owner') jobs.push(loadPublishFailures())
       if (role === 'owner' && sessionData.session) jobs.push(loadVisits())
@@ -297,6 +316,43 @@ export function AdminHome() {
             )}
           </p>
           <Link href="/admin/email">فتح البريد</Link>
+        </section>
+      )}
+
+      {(own?.role === 'owner' || own?.role === 'operations') && (
+        <section>
+          <h2>الطلبات</h2>
+          {orders.state === 'loading' && <p className={styles.message}>يحمّل...</p>}
+          {orders.state === 'error' && <p className={styles.error}>تعذّر التحميل</p>}
+          {orders.state === 'ok' && (
+            <>
+              <ul className={styles.metaList}>
+                {alertCounts(orders.value, own?.role === 'owner').map((count) => (
+                  <li key={count.label}>
+                    {count.label}: {formatNumber(count.value)}
+                  </li>
+                ))}
+              </ul>
+              {orders.value.lowStock.length > 0 && (
+                <>
+                  <h3>مخزون منخفض</h3>
+                  <ul className={styles.metaList}>
+                    {orders.value.lowStock.slice(0, LOW_STOCK_SHOWN).map((low) => (
+                      <li key={low.variantId}>
+                        {low.title} (<bdi dir="ltr">{low.sku}</bdi>): {formatNumber(low.stock)} من حد {formatNumber(low.threshold)}
+                      </li>
+                    ))}
+                    {orders.value.lowStock.length > LOW_STOCK_SHOWN && (
+                      <li>و{formatNumber(orders.value.lowStock.length - LOW_STOCK_SHOWN)} غيرها</li>
+                    )}
+                  </ul>
+                </>
+              )}
+            </>
+          )}
+          <Link className={styles.target} href="/admin/orders">
+            فتح الطلبات
+          </Link>
         </section>
       )}
 

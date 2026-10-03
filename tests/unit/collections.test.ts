@@ -365,6 +365,17 @@ describe('the table configs (P07 round 2)', () => {
     expect(config.readOnly).toEqual(['email'])
   })
 
+  it("customers: one link per row, to that customer's orders, the address in the fragment and never in a query string (P08 round 11a)", () => {
+    const link = tables.customers.rowLink?.({ email: 'Buyer+1@example.com' })
+    expect(link).toEqual({ href: '/admin/orders#q=Buyer%2B1%40example.com', label: 'طلباته' })
+    expect(link?.href).not.toContain('?')
+    expect(tables.customers.rowLink?.({ email: null })).toBeNull()
+    // No other table has one.
+    for (const key of Object.keys(tables) as TableKey[]) {
+      if (key !== 'customers') expect(tables[key].rowLink, key).toBeUndefined()
+    }
+  })
+
   it('a coupon percentage maps to basis points in both directions, and the unused value is null', () => {
     const config = tables.coupons
     expect(config.toRow({ kind: 'percent', percent: 1250, amount_halalas: null })).toMatchObject({

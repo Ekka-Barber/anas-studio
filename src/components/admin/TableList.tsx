@@ -102,11 +102,17 @@ export function TableList({ table }: { table: TableKey }) {
               {config.listColumns.map((column) => (
                 <th key={column.key}>{column.label}</th>
               ))}
+              {config.rowLink && (
+                <th>
+                  <span className="visually-hidden">إجراء</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
             {(rows ?? []).map((row) => {
               const badge = config.listBadge?.(row) ?? null
+              const link = config.rowLink?.(row) ?? null
               return (
                 <tr key={String(row.id)}>
                   {config.listColumns.map((column, index) => (
@@ -124,6 +130,15 @@ export function TableList({ table }: { table: TableKey }) {
                       )}
                     </td>
                   ))}
+                  {config.rowLink && (
+                    <td data-label="إجراء">
+                      {link && (
+                        <Link className={styles.target} href={link.href}>
+                          {link.label}
+                        </Link>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )
             })}

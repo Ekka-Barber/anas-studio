@@ -28,10 +28,11 @@ export function useStaffRole(): StaffRole {
 }
 
 /** The screens whose tables do not fit the reading measure (the email
- * problems, the team, each store table's list): the shell is one layout for
- * every page, so the width is read from the path, not passed by the page. */
+ * problems, the team, each store table's list, the orders and an order's
+ * view): the shell is one layout for every page, so the width is read from the
+ * path, not passed by the page. */
 export function isWidePath(pathname: string): boolean {
-  return /^\/admin\/(?:email|team|store\/[^/]+)\/?$/.test(pathname)
+  return /^\/admin\/(?:email|team|orders(?:\/view)?|store\/[^/]+)\/?$/.test(pathname)
 }
 
 /** The editor's unsaved drafts (`draftKey` in CollectionForm). They hold a
@@ -158,6 +159,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/content">المحتوى</Link>}
         {(gate.role === 'owner' || gate.role === 'editor') && <Link href="/admin/media">المكتبة</Link>}
         {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/store">المتجر</Link>}
+        {(gate.role === 'owner' || gate.role === 'operations') && <Link href="/admin/orders">الطلبات</Link>}
         {gate.role === 'owner' && <Link href="/admin/stats">الإحصاءات</Link>}
         {gate.role === 'owner' && <Link href="/admin/settings">الإعدادات</Link>}
         <Link href="/admin/security">الأمان</Link>

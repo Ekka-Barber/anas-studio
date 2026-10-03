@@ -111,7 +111,8 @@
 .message {
   color: var(--aub-muted);
 }
-.message:empty {
+.message:empty,
+.error:empty {
   margin: 0;
 }
 
@@ -136,6 +137,19 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* A link, or a checkbox with its words, that is a control of its own: a 44px target. */
+.target {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 2.75rem;
+}
+
+/* An id or a code with no space in it breaks rather than push the page sideways. */
+.break {
+  overflow-wrap: anywhere;
 }
 
 /* Wide tables scroll inside their own box on phones, never the page. */
@@ -190,6 +204,11 @@
   }
 
   .responsive thead {
+    display: none;
+  }
+
+  /* A cell with nothing in it (a refund of 0, a line with no dedication) would show its label alone. */
+  .responsive td:empty {
     display: none;
   }
 
@@ -295,6 +314,13 @@
   flex-direction: column;
   gap: 0.75rem;
   max-inline-size: 100%;
+}
+
+/* A stack of cards (the payments, the returns of an order): apart, not touching. */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .legend {
