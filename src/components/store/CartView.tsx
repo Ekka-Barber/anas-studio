@@ -414,7 +414,11 @@ export function CartView() {
               الشراء غير متاح حاليًا، ويفتح قريبًا.
             </p>
           )}
-          {quote !== null && quote.checkoutEnabled && (
+          {/* A refused line (sold out, held for another order, short) cannot be bought: no way on until it is dealt with. */}
+          {quote !== null && quote.checkoutEnabled && invalidVariants.length > 0 && (
+            <p className={styles.note}>أزل غير المتاح أو عدّل الكمية لإتمام الطلب.</p>
+          )}
+          {quote !== null && quote.checkoutEnabled && invalidVariants.length === 0 && (
             <ActionLink href="/checkout">المتابعة لإتمام الطلب</ActionLink>
           )}
         </div>

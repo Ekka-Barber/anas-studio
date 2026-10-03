@@ -34,7 +34,9 @@ export function readStatus(): Status {
 export const status = readStatus()
 
 /** A local Edge Function's URL (D32: the server endpoints live there, not in Next). */
-export function functionUrl(name: 'contact' | 'resend-webhook' | 'outbox' | 'admin'): string {
+export function functionUrl(
+  name: 'contact' | 'resend-webhook' | 'outbox' | 'admin' | 'checkout' | 'payments' | 'orders' | 'download' | 'notify',
+): string {
   return `${status.FUNCTIONS_URL}/${name}`
 }
 
@@ -208,6 +210,8 @@ export interface LocalEnv {
   EMAIL_DEV_MAILPIT_URL?: string
   TOKEN_HASH_PEPPER?: string
   TURNSTILE_SECRET_KEY?: string
+  /** The emulator's webhook `secret_token`, a fixed local test value (P08). */
+  MOYASAR_WEBHOOK_SECRET?: string
 }
 
 /**
@@ -230,6 +234,99 @@ export function svixHeaders(secret: string, rawBody: string, atMs = Date.now()):
   const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64')
   const signature = createHmac('sha256', key).update(`${id}.${timestamp}.${rawBody}`).digest('base64')
   return { 'svix-id': id, 'svix-timestamp': String(timestamp), 'svix-signature': `v1,${signature}` }
+}
+
+// ---- P08 round 12a: the Moyasar emulator, the mail job and Mailpit ------------------------------------------------
+// The emulator is a local test harness (contract section 9), never Moyasar; the jobs endpoint and Mailpit are the
+// local stack's. Nothing here leaves the machine.
+
+/** The emulator as the browser and the tests reach it (the invoice pages and the control routes). */
+export const EMULATOR_URL = 'http://127.0.0.1:54390'
+
+/** A control call to the emulator (`/__emulator/<path>`, JSON, answered 200). */
+export async function emulatorControl(path: string, body: unknown = {}): Promise<Record<string, unknown>> {
+  const response = await fetch(`${EMULATOR_URL}/__emulator/${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  expect(response.status, `emulator ${path}`).toBe(200)
+  return (await response.json()) as Record<string, unknown>
+}
+
+/** What `GET /__emulator/state` answers, reduced to what the journeys assert on. */
+export interface EmulatorState {
+  invoices: Array<{ id: string; status: string; amount: number; url: string; metadata: Record<string, string> }>
+  payments: Array<{ id: string; status: string; amount: number; refunded: number; invoice_id: string }>
+  calls: Array<{ route: string; status: number | null; body: unknown }>
+  deliveries: Array<{ kind: string; type: string | null; status: number | null }>
+}
+
+export async function emulatorState(): Promise<EmulatorState> {
+  const response = await fetch(`${EMULATOR_URL}/__emulator/state`)
+  expect(response.status, 'emulator state').toBe(200)
+  return (await response.json()) as EmulatorState
+}
+
+/**
+ * Forgets everything the emulator holds and points its webhook at the local `payments` function, with the local secret
+ * the function checks, the webhook and the invoice callback on. A reset returns it to its own start-up configuration,
+ * so every test calls this.
+ */
+export async function armEmulator(): Promise<void> {
+  const secret = localEnv().MOYASAR_WEBHOOK_SECRET
+  if (!secret) throw new Error('armEmulator: MOYASAR_WEBHOOK_SECRET is missing from .env.local; run pnpm db:env')
+  await emulatorControl('reset')
+  await emulatorControl('config', {
+    webhookUrl: `${status.FUNCTIONS_URL}/payments/webhook`,
+    webhookSecret: secret,
+    autoWebhook: true,
+    autoCallback: true,
+  })
+}
+
+/** One run of the email job, as the cron makes it (`JOBS_SECRET` from `.env.local`): up to ten due rows are sent through Mailpit. */
+export async function runOutbox(): Promise<{ claimed: number; accepted: number; reason?: string }> {
+  const response = await fetch(functionUrl('outbox'), { method: 'POST', headers: { authorization: `Bearer ${localEnv().JOBS_SECRET}` } })
+  expect(response.status, 'outbox job').toBe(200)
+  const body = (await response.json()) as { data?: Array<{ job: string; claimed: number; accepted: number; reason?: string }> }
+  const run = body.data?.find((entry) => entry.job === 'email_outbox')
+  return { claimed: run?.claimed ?? 0, accepted: run?.accepted ?? 0, ...(run?.reason ? { reason: run.reason } : {}) }
+}
+
+export interface Mail {
+  id: string
+  subject: string
+}
+
+/** Every message Mailpit holds for `address`, newest first (subjects only; `readMail` has the text). */
+export async function mailsTo(address: string): Promise<Mail[]> {
+  const search = (await fetch(`${status.MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${address}`)}`).then((r) => r.json())) as {
+    messages?: Array<{ ID: string; Subject: string }>
+  }
+  return (search.messages ?? []).map((message) => ({ id: message.ID, subject: message.Subject }))
+}
+
+/** The plain text of one message. */
+export async function readMail(id: string): Promise<string> {
+  const message = (await fetch(`${status.MAILPIT_URL}/api/v1/message/${id}`).then((r) => r.json())) as { Text?: string }
+  return message.Text ?? ''
+}
+
+/**
+ * Runs the email job until a message to `address` whose subject holds `subject` is in Mailpit, and returns its text.
+ * One run takes at most ten rows, so a backlog from another suite may need a few; the last run is named when none comes.
+ */
+export async function waitForMail(address: string, subject: string, timeoutMs = 60_000): Promise<string> {
+  const deadline = Date.now() + timeoutMs
+  let last = 'no run'
+  for (;;) {
+    last = JSON.stringify(await runOutbox())
+    const found = (await mailsTo(address)).find((mail) => mail.subject.includes(subject))
+    if (found) return readMail(found.id)
+    if (Date.now() > deadline) throw new Error(`No mail «${subject}» for ${address}; the last job run: ${last}`)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
 }
 
 /** Signs in at `/admin/sign-in` by email code and waits for `/admin`. */

@@ -20,6 +20,11 @@
   gap: 16px 40px;
 }
 
+/* A title with one long unbreakable run (an ISBN, a Latin edition name) wraps instead of scrolling the page sideways. */
+.head h1 {
+  overflow-wrap: anywhere;
+}
+
 .page {
   min-block-size: 50vh;
 }
