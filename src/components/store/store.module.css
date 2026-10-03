@@ -201,6 +201,34 @@
   font-weight: 700;
 }
 
+/* A preorder's date and note: a row of their own under the title and price, on the product page, in the cart and in the checkout summary. */
+.preorderNote {
+  flex-basis: 100%;
+}
+.preorderNote p {
+  margin: 0;
+}
+
+/* The availability sign-up under an out-of-stock variant: a row of its own; the sentence that replaces the form stands in the same place. */
+.availability {
+  flex-basis: 100%;
+}
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+/* Cloudflare's widget is 300px wide. On a narrow phone the row's padding leaves it less than that, so its box takes the row's whole width and centres it. */
+@media (max-width: 380px) {
+  .availability .turnstileBox {
+    display: flex;
+    justify-content: center;
+    align-self: stretch;
+    margin-inline: calc(clamp(18px, 2vw, 28px) * -1);
+  }
+}
+
 /* ---- shared controls ---- */
 
 .textButton {

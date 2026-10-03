@@ -2015,6 +2015,47 @@ describe('payment_check_begin, payment_state and payment_callback_begin', () => 
     expect(await state(reviewed)).toEqual({ state: 'pending', hasToken: true })
   })
 
+  it('the invoice link ends with the invoice: given while invoice_expires_at is ahead, never after, by the return page\'s reads and the order page\'s alike (round 10b)', async () => {
+    const placed = await plain()
+    const started = await start(placed)
+    const url = `http://127.0.0.1:54390/invoices/${started.invoiceId}`
+    const orderAccess = (): Promise<any> =>
+      call('order_access', { p_order_number: placed.number, p_access_token_hash: placed.hash, p_ip_hash: ipHash(), p_mode: 'test' })
+    const expiry = (sql: string) => postgres.query(`update finance.payment_attempts set invoice_expires_at = ${sql} where id = $1`, [started.attemptId])
+
+    // The invoice has time left: the link, by every read that gives one.
+    expect(await state(placed)).toEqual({ state: 'pending', hasToken: true, invoiceUrl: url })
+    expect((await check(placed)).invoiceUrl).toBe(url)
+    expect((await orderAccess()).payment).toEqual({ state: 'pending', invoiceUrl: url })
+
+    // Its own end has passed (an invoice is made to end with the hold) while the job has not closed the attempt: the
+    // payment is still pending and still worth asking about, so a payment made in the last minute is found, but there
+    // is no invoice left to follow.
+    await expiry("now() - interval '1 second'")
+    expect(await state(placed)).toEqual({ state: 'pending', hasToken: true })
+    // (The first check above spent the 5 seconds between two checks.)
+    await postgres.query('update finance.payment_attempts set fetched_at = null where id = $1', [started.attemptId])
+    expect(await check(placed)).toEqual({
+      state: 'pending',
+      hasToken: true,
+      check: { attemptId: started.attemptId, providerInvoiceId: started.invoiceId },
+    })
+    expect((await orderAccess()).payment).toEqual({ state: 'pending' })
+
+    // The order's own status does not matter, only the invoice's end: an order whose hold ended while its attempt is
+    // still open shows no link either, and a later expiry gives the link back (it is the time that decides).
+    await postgres.query("update finance.orders set status = 'expired' where id = $1", [placed.id])
+    expect(await state(placed)).toEqual({ state: 'pending', hasToken: true })
+    await expiry("now() + interval '1 minute'")
+    expect(await state(placed)).toEqual({ state: 'pending', hasToken: true, invoiceUrl: url })
+
+    // The job closes the attempt: the state is the order's, as before, and still no link.
+    await expiry("now() - interval '15 minutes'")
+    expect(await close(started.attemptId, 'expired')).toMatchObject({ ok: true })
+    expect(await state(placed)).toEqual({ state: 'expired', hasToken: true })
+    expect((await orderAccess()).payment).toEqual({ state: 'expired' })
+  })
+
   it('check: an attempt worth asking about is returned once, then not for 5 seconds (the call sets fetched_at); never a paid or review one', async () => {
     const placed = await plain()
     const started = await start(placed)

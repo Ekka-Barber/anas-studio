@@ -2,9 +2,10 @@
  * Build-time store loaders (P07, D32): the published products and their
  * enabled variants, read through the Data API with the publishable key
  * exactly as `src/lib/content.ts` reads `published_documents`. Anon's grants
- * (migration 20260927160000) allow exactly these columns — stock never
- * reaches the browser — and every row is parsed with Zod, so a malformed
- * catalog row fails the build and the last good deployment stays live.
+ * (migration 20260927160000, and 20261002100000 for a preorder's date and
+ * note) allow exactly these columns — stock and preorder capacity never reach
+ * the browser — and every row is parsed with Zod, so a malformed catalog row
+ * fails the build and the last good deployment stays live.
  *
  * The cover resolves like a content image: a manifest id renders through
  * `public/images/manifest.json` (`<Picture>`), a media-library id is read
@@ -38,6 +39,9 @@ const variantRowSchema = z.object({
   fulfillment: z.enum(['digital', 'physical', 'signed']),
   price_halalas: z.number().int().nullable(),
   sort_order: z.number().int(),
+  preorder: z.boolean(),
+  preorder_ships_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+  preorder_note: z.string().nullable(),
 })
 
 export interface StoreVariant {
@@ -48,6 +52,8 @@ export interface StoreVariant {
   fulfillment: 'digital' | 'physical' | 'signed'
   priceHalalas: number | null
   sortOrder: number
+  /** The delivery date (YYYY-MM-DD) and note of a variant the owner made a preorder; null for every other. */
+  preorder: { shipsOn: string; note: string } | null
 }
 
 export interface StoreProduct {
@@ -79,7 +85,7 @@ async function fetchCatalog(): Promise<StoreProduct[]> {
   const productRows = productRowSchema.array().parse(await productResponse.json())
 
   const variantParams = new URLSearchParams({
-    select: 'id,product_id,sku,title,fulfillment,price_halalas,sort_order',
+    select: 'id,product_id,sku,title,fulfillment,price_halalas,sort_order,preorder,preorder_ships_on,preorder_note',
     enabled: 'eq.true',
     order: 'sort_order.asc',
   })
@@ -103,6 +109,11 @@ async function fetchCatalog(): Promise<StoreProduct[]> {
       fulfillment: row.fulfillment,
       priceHalalas: row.price_halalas,
       sortOrder: row.sort_order,
+      // The date and the note count only while the flag is on (the owner may leave them in the row after turning it off), and a check constraint fills them in whenever it is: never half of a preorder.
+      preorder:
+        row.preorder && row.preorder_ships_on !== null && row.preorder_note !== null
+          ? { shipsOn: row.preorder_ships_on, note: row.preorder_note }
+          : null,
     })
     byProduct.set(row.product_id, list)
   }
@@ -123,3 +134,12 @@ async function fetchCatalog(): Promise<StoreProduct[]> {
 
 /** The published catalog, ordered by `sort_order` then title; one fetch per render via React `cache`. */
 export const getProducts = cache(fetchCatalog)
+
+/**
+ * The privacy policy revision an availability sign-up records (P08 contract
+ * section 6): the `seq` of the policy this build rendered (`getPublishedPolicies`),
+ * or null while none is published. Stored as given: the policy's wording is the owner's.
+ */
+export function consentRevision(policies: { privacy: { seq: number } | null }): number | null {
+  return policies.privacy?.seq ?? null
+}

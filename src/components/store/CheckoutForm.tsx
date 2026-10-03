@@ -21,19 +21,20 @@
  * in sessionStorage so a reload keeps the retry) after a network failure.
  * Success keeps `{orderNumber, accessToken}` in sessionStorage only and
  * never clears the cart (DATA step 5: nothing settles before payment
- * verification). The hold view then shows the order, the time the hold ends
- * and, per the reply's `payment`, «ادفع الآن» (a plain link to the invoice),
- * a retry (`pay`) or why payment cannot start; after a reload one `pay` brings
- * the same view back. One timer, no interval and nothing counting on screen,
- * ends the view at the hold's end. The stored order is forgotten when the
- * order ends (cancelled, expired, hold over, not found) and kept when a
- * payment of it arrived: the return page clears the cart and the order on
- * `paid`.
+ * verification). The hold view (`HoldView.tsx`, loaded on demand: the page's
+ * first script is at the public budget) then shows the order, the time the
+ * hold ends and, per the reply's `payment`, «ادفع الآن» (a plain link to the
+ * invoice), a retry (`pay`) or why payment cannot start; after a reload one
+ * `pay` brings the same view back. It tells this form when the order ends
+ * (cancelled, expired, hold over) or is not found, and the stored order is
+ * forgotten then; it is kept when a payment of it arrived: the return page
+ * clears the cart and the order on `paid`. A preorder line shows its date and
+ * note in the summary before the buyer confirms.
  */
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentProps, FormEvent } from 'react'
 
 import {
   builtPolicyRevisions,
@@ -61,25 +62,41 @@ import {
   type CreateRequestCore,
   type PendingOrder,
 } from '@/lib/cart'
-import { ActionButton, ActionLink } from '@/components/weave/Action'
+import { ActionButton } from '@/components/weave/Action'
 import { formatMoney, normalizeSaudiMobile } from '@/lib/format'
 import { useTurnstile } from '@/lib/turnstile'
 
 import { useCart } from './CartProvider'
+import type { HoldStart, HoldView as HoldViewComponent } from './HoldView'
 import {
   fetchCities,
   fetchQuote,
   orderSchema,
   parsePayment,
   postCheckout,
+  preorderSentence,
   priceSchema,
   quoteErrorMessage,
+  RECEIVED,
   type CityRate,
-  type OrderSummary,
-  type PaymentView,
   type Quote,
 } from './quote'
 import styles from './store.module.css'
+
+// What the buyer sees only after `create` is its own chunk: the checkout page's first script is at the public budget.
+// The fallback is the sentence the page already shows while the cart is read. When the chunk cannot be loaded (the
+// connection, or the site changed since this page was opened) the order is still kept in this tab, so a reload brings
+// the view back through `pay`.
+function HoldViewLost(_props: ComponentProps<typeof HoldViewComponent>) {
+  return (
+    <p className={styles.warning} role="alert">
+      تعذّر تحميل الطلب؛ حدّث الصفحة.
+    </p>
+  )
+}
+const HoldView = lazy(() =>
+  import('./HoldView').then((module) => ({ default: module.HoldView })).catch(() => ({ default: HoldViewLost })),
+)
 
 type Field = 'email' | 'name' | 'phone' | 'city' | 'address' | 'consent'
 
@@ -103,12 +120,6 @@ const POLICY_LABELS: Record<string, string> = {
   privacy: 'سياسة الخصوصية',
 }
 
-/** The statuses that mean a payment of the order arrived (a cancel also answers `review`: a charged payment waits for the owner). */
-const RECEIVED = new Set(['paid', 'paid_needs_resolution', 'refunded', 'review'])
-
-/** What the hold view knows of the payment; `closed` is never shown as a payment: it ends the order or settles it. */
-type LivePayment = Exclude<PaymentView, { state: 'closed' }>
-
 export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string, number> }) {
   const cartState = useCart()
   const [quote, setQuote] = useState<Quote | null>(null)
@@ -127,13 +138,10 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
   const [couponNote, setCouponNote] = useState('')
   const [consent, setConsent] = useState(false)
   const [pending, setPending] = useState<PendingOrder | null>(null)
-  const [orderTotal, setOrderTotal] = useState<number | null>(null)
-  // The hold's end (an ISO time) while the order waits for payment, and what the payment is.
-  const [holdEnds, setHoldEnds] = useState<string | null>(null)
-  const [payment, setPayment] = useState<LivePayment>({ state: 'preparing' })
-  // Why the hold view has nothing to pay: the order ended, a payment of it arrived, or it cannot be paid from here
-  // (`blocked`: the order still holds its stock, so the view keeps the cancel).
-  const [closed, setClosed] = useState<'cancelled' | 'expired' | 'received' | 'blocked' | null>(null)
+  // What `create` said of the pending order (null: the hold view asks `pay`), and whether the buyer's own action
+  // opened the view, which then takes the focus.
+  const [start, setStart] = useState<HoldStart | null>(null)
+  const [openedByBuyer, setOpenedByBuyer] = useState(false)
   // ACTIVE_HOLD without the order: the clock time the buyer's session holds one until.
   const [heldUntil, setHeldUntil] = useState('')
   const [submitError, setSubmitError] = useState('')
@@ -153,10 +161,6 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
   const idempotencyRef = useRef<string | null>(null)
   const fingerprintRef = useRef<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
-  const orderBoxRef = useRef<HTMLDivElement>(null)
-  const focusOrderBox = useRef(false)
-  // True once the held order's payment is known (a `create` reply carried it); until then one `pay` fetches it.
-  const paymentKnown = useRef(false)
 
   useEffect(() => {
     // Deferred to a microtask so the setStates are not synchronous within the
@@ -233,109 +237,25 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
     if (awaitingToken && token !== '') formRef.current?.requestSubmit()
   }, [awaitingToken, token])
 
-  // The order is over: this tab forgets its token and its key (so the same
-  // cart can be ordered again) and the hold view says why. Not for a payment
-  // that arrived: that is `received`, and nothing is cleared until the return
-  // page sees `paid`.
-  const endOrder = useCallback((status: 'cancelled' | 'expired') => {
+  // The order is over (cancelled, or its hold is over): this tab forgets its token and its key, so the same cart can
+  // be ordered again. Not for a payment that arrived: nothing is cleared until the return page sees `paid`.
+  const endKey = useCallback(() => {
     clearPendingOrder()
     clearIdempotency()
     idempotencyRef.current = null
     fingerprintRef.current = null
-    setClosed(status)
-    setSubmitError('')
   }, [])
-
-  // What a `create` or `pay` reply says of the order: the hold view with its
-  // payment, or the reason there is none.
-  const showOrder = useCallback(
-    (order: OrderSummary, reply: PaymentView | null) => {
-      setOrderTotal(order.total)
-      if (RECEIVED.has(order.status) || (reply?.state === 'closed' && RECEIVED.has(reply.status ?? ''))) {
-        setClosed('received')
-      } else if (order.status === 'expired' || order.status === 'cancelled') {
-        endOrder(order.status)
-      } else if (reply?.state === 'closed') {
-        // A payment of it waits for the owner's review: that is a payment received. A hold that ran out is over.
-        // Anything else (the payment mode changed, too many attempts) claims no payment: the order cannot be paid
-        // from here and still holds its stock, so the view offers the cancel.
-        if (reply.reason === 'UNDER_REVIEW') setClosed('received')
-        else if (reply.code === 'HOLD_EXPIRED') endOrder('expired')
-        else setClosed('blocked')
-      } else {
-        setHoldEnds(order.holdExpiresAt)
-        setPayment(reply ?? { state: 'preparing' })
-      }
-    },
-    [endOrder],
-  )
 
   // The function does not know the order, or its token no longer fits: forget it and show the form again.
-  const forgetOrder = useCallback((message: string) => {
-    clearPendingOrder()
-    clearIdempotency()
-    idempotencyRef.current = null
-    fingerprintRef.current = null
-    setHoldEnds(null)
-    setClosed(null)
-    setPending(null)
-    setSubmitError(message)
-  }, [])
-
-  // `pay` for the order this tab holds: its order and the state of its payment
-  // (after a reload, for «أعد المحاولة», and when the hold's time has passed).
-  const loadPayment = useCallback(
-    async (order: PendingOrder): Promise<void> => {
-      setSubmitting(true)
-      setSubmitError('')
-      try {
-        const reply = await postCheckout<{ order: unknown; payment: unknown }>({
-          action: 'pay',
-          orderNumber: order.orderNumber,
-          accessToken: order.accessToken,
-        })
-        if (reply.ok && reply.data !== undefined) {
-          showOrder(orderSchema.parse(reply.data.order), parsePayment(reply.data.payment))
-        } else if (reply.error?.code === 'NOT_FOUND') {
-          forgetOrder(reply.error.message)
-        } else if (reply.error?.code === 'CHECKOUT_DISABLED') {
-          setPayment({ state: 'unavailable' })
-          setSubmitError('الشراء غير متاح حاليًا، ويفتح قريبًا.')
-        } else {
-          setSubmitError(reply.error?.message ?? 'تعذّر تجهيز الدفع؛ حاول بعد لحظات.')
-        }
-      } catch {
-        setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
-      } finally {
-        setSubmitting(false)
-      }
+  const forget = useCallback(
+    (message: string) => {
+      endKey()
+      setStart(null)
+      setPending(null)
+      setSubmitError(message)
     },
-    [showOrder, forgetOrder],
+    [endKey],
   )
-
-  // An order read back from storage (a reload) or handed back by ACTIVE_HOLD: one `pay` brings its payment.
-  useEffect(() => {
-    if (pending === null || paymentKnown.current) return
-    paymentKnown.current = true
-    // Deferred like the other mount effects (react-hooks/set-state-in-effect).
-    void Promise.resolve().then(() => loadPayment(pending))
-  }, [pending, loadPayment])
-
-  // One timer to the hold's end: no interval, and nothing counts on screen (DESIGN-AUDIT 33). The device's clock only
-  // decides when to ask: the function says whether the hold is over, so a clock that runs ahead ends nothing.
-  useEffect(() => {
-    if (pending === null || holdEnds === null || closed !== null) return
-    const timer = setTimeout(() => void loadPayment(pending), Math.max(0, instantOf(holdEnds) - Date.now()))
-    return () => clearTimeout(timer)
-  }, [pending, holdEnds, closed, loadPayment])
-
-  // Focus follows the buyer's own action (create, cancel, retry) into the order box,
-  // which replaces the form and the button that had it. Not on a page load.
-  useEffect(() => {
-    if (!focusOrderBox.current) return
-    focusOrderBox.current = false
-    orderBoxRef.current?.focus()
-  }, [pending, closed, payment])
 
   // In the store's own order (store, delivery, refund, privacy), not the
   // stored JSON's key order.
@@ -433,6 +353,8 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
       writeIdempotency({ digest: fingerprint, key })
     }
     sessionRef.current ??= checkoutSession()
+    // The hold view's chunk loads while `create` runs, so it is there when the reply is (the same module `lazy` asks for).
+    void import('./HoldView').catch(() => undefined)
 
     setSubmitting(true)
     setSubmitError('')
@@ -453,16 +375,14 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
           setSubmitError('تعذّر إتمام الطلب.')
           return
         }
-        // A duplicate reply for an order that already ended is no live hold: show it closed, keep
-        // its token out of storage and mint a new key next time (showOrder does the rest).
+        // A duplicate reply for an order that already ended is no live hold: the hold view shows it closed and
+        // tells this form, which forgets the key, so its token stays out of storage and the next order gets a new key.
         const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: accessToken ?? '' }
         if (accessToken && !over) writePendingOrder(saved)
         const reported = reply.data.payment === undefined ? null : parsePayment(reply.data.payment)
-        // Only a live order whose reply lacked its payment needs a `pay` to learn it.
-        paymentKnown.current = order.status !== 'pending_payment' || reported !== null
-        focusOrderBox.current = true
+        setStart({ order, payment: reported })
+        setOpenedByBuyer(true)
         setPending(saved)
-        showOrder(order, reported)
         return
       }
       const error = reply.error
@@ -505,8 +425,8 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         const mine = pendingOrderOf({ orderNumber: handedNumber, accessToken: fields.accessToken }) ?? readPendingOrder()
         if (mine) {
           writePendingOrder(mine)
-          paymentKnown.current = false
-          focusOrderBox.current = true
+          setStart(null)
+          setOpenedByBuyer(true)
           setPending(mine)
           setSubmitError('')
           return
@@ -528,38 +448,6 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
     }
   }
 
-  async function cancelOrder(): Promise<void> {
-    if (pending === null || submitting) return
-    setSubmitting(true)
-    try {
-      const reply = await postCheckout<{ status: string }>({
-        action: 'cancel',
-        orderNumber: pending.orderNumber,
-        accessToken: pending.accessToken,
-      })
-      // The function answers the order's status: a hold that already ran out says
-      // `expired`; a payment that arrived meanwhile says what became of it (nothing is
-      // cleared then, the return page tells the rest); anything else is no release.
-      const status = reply.data?.status
-      if (reply.ok && (status === 'cancelled' || status === 'expired')) {
-        focusOrderBox.current = true
-        endOrder(status)
-      } else if (reply.ok && status !== undefined && RECEIVED.has(status)) {
-        focusOrderBox.current = true
-        setClosed('received')
-        setSubmitError('')
-      } else if (reply.error?.code === 'NOT_FOUND') {
-        forgetOrder(reply.error.message)
-      } else {
-        setSubmitError(reply.error?.message ?? 'تعذّر إلغاء الطلب.')
-      }
-    } catch {
-      setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   if (cartState === null || !cartState.ready) {
     return <p className={styles.note}>جارٍ تحميل الطلب…</p>
   }
@@ -567,87 +455,16 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
   // A pending order this tab created: the hold view, with its payment and its cancel.
   if (pending !== null) {
     return (
-      <div
-        ref={orderBoxRef}
-        tabIndex={-1}
-        role="group"
-        aria-labelledby="checkout-order-number"
-        aria-describedby={closed !== null || holdEnds !== null ? 'checkout-order-state' : undefined}
-        className={styles.orderBox}
-      >
-        <p id="checkout-order-number" className={styles.orderNumber}>
-          رقم الطلب: <span dir="ltr">{pending.orderNumber}</span>
-        </p>
-        {orderTotal !== null && <p>الإجمالي: {formatMoney(orderTotal)}</p>}
-        {closed === 'received' ? (
-          <>
-            <p id="checkout-order-state" className={styles.note} role="status">
-              وصلتنا دفعة هذا الطلب.
-            </p>
-            <Link href={`/checkout/return?order=${pending.orderNumber}`} prefetch={false} className={styles.plainLink}>
-              عرض حالة الطلب
-            </Link>
-          </>
-        ) : closed === 'blocked' ? (
-          <>
-            <p id="checkout-order-state" className={styles.note} role="status">
-              تعذّر تجهيز الدفع لهذا الطلب. ألغِ الطلب ثم اطلب من جديد.
-            </p>
-            <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
-              إلغاء الطلب
-            </ActionButton>
-          </>
-        ) : closed !== null ? (
-          <>
-            <p id="checkout-order-state" className={styles.note} role="status">
-              {closed === 'expired' ? 'انتهت مدة حجز الطلب.' : 'أُلغي الطلب.'}
-            </p>
-            <Link href="/cart" prefetch={false} className={styles.plainLink}>
-              العودة إلى السلة
-            </Link>
-          </>
-        ) : (
-          <>
-            {holdEnds !== null && (
-              <p id="checkout-order-state" className={styles.note}>
-                محجوز حتى <span dir="ltr">{formatRiyadhTime(holdEnds)}</span>
-              </p>
-            )}
-            {payment.state === 'ready' && <ActionLink href={payment.url}>ادفع الآن</ActionLink>}
-            {payment.state === 'preparing' && (
-              <p className={styles.note} role="status">
-                نجهّز صفحة الدفع…
-              </p>
-            )}
-            {payment.state === 'unavailable' && (
-              <p className={styles.warning} role="alert">
-                تعذّر تجهيز الدفع؛ حاول بعد لحظات.
-              </p>
-            )}
-            {payment.state !== 'ready' && (
-              <ActionButton
-                variant="outline"
-                onClick={() => {
-                  focusOrderBox.current = true
-                  void loadPayment(pending)
-                }}
-                disabled={submitting}
-              >
-                أعد المحاولة
-              </ActionButton>
-            )}
-            <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
-              إلغاء الطلب
-            </ActionButton>
-          </>
-        )}
-        {quote?.testMode === true && (
-          <p className={styles.note} role="note">
-            وضع تجريبي: لا يُخصم أي مبلغ حقيقي
-          </p>
-        )}
-        {submitError !== '' && <p className={styles.warning} role="alert">{submitError}</p>}
-      </div>
+      <Suspense fallback={<p className={styles.note}>جارٍ تحميل الطلب…</p>}>
+        <HoldView
+          pending={pending}
+          start={start}
+          testMode={quote?.testMode === true}
+          focusOnOpen={openedByBuyer}
+          onEnd={endKey}
+          onForget={forget}
+        />
+      </Suspense>
     )
   }
 
@@ -718,6 +535,13 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
             <li key={line.variantId}>
               {line.productTitle}: {line.variantTitle} × {line.quantity}
               <span className={styles.summaryPrice}>{formatMoney(line.total)}</span>
+              {/* A preorder's date and note are read before the buyer confirms. */}
+              {line.preorder !== null && (
+                <div className={styles.preorderNote}>
+                  <p className={styles.note}>{preorderSentence(line.preorder)}</p>
+                  <p className={`${styles.note} ${styles.wrap}`}>{line.preorder.note}</p>
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -5,13 +5,16 @@
  * «أضف إلى السلة». It writes the cart directly through `src/lib/cart.ts`
  * (the product page has no `CartProvider`), so it also works when storage is
  * denied — the memory cart keeps it for the tab. After adding it says so and
- * links to the cart.
+ * links to the cart. A variant that is a preorder right now (`preorder`, from
+ * `VariantAction`) says «اطلب مسبقًا» on its button: the same cart line, and
+ * the cart and the checkout carry its note and date before payment.
  */
+// Relative, not `@/`: the unit tests import `VariantAction`, which imports this file, and the unit config has no alias.
 import Link from 'next/link'
 import { useState } from 'react'
 
-import { ActionButton } from '@/components/weave/Action'
-import { addLine, cartCount, MAX_LINES, MAX_QUANTITY, readCart, writeCart } from '@/lib/cart'
+import { addLine, cartCount, MAX_LINES, MAX_QUANTITY, readCart, writeCart } from '../../lib/cart'
+import { ActionButton } from '../weave/Action'
 
 import styles from './store.module.css'
 
@@ -21,7 +24,8 @@ function toQuantity(text: string): number {
   return Number.isFinite(next) ? Math.min(MAX_QUANTITY, Math.max(1, next)) : 1
 }
 
-export function AddToCart({ variantId, label }: { variantId: string; label: string }) {
+export function AddToCart({ variantId, label, preorder = false }: { variantId: string; label: string; preorder?: boolean }) {
+  const verb = preorder ? 'اطلب مسبقًا' : 'أضف إلى السلة'
   // The field keeps a draft so it can be emptied and retyped; leaving it clamps.
   const [draft, setDraft] = useState('1')
   // The status node stays mounted (a live region inserted already filled is
@@ -63,8 +67,8 @@ export function AddToCart({ variantId, label }: { variantId: string; label: stri
           onBlur={() => setDraft(String(toQuantity(draft)))}
         />
       </label>
-      <ActionButton onClick={add} aria-label={`أضف إلى السلة: ${label}`}>
-        أضف إلى السلة
+      <ActionButton onClick={add} aria-label={`${verb}: ${label}`}>
+        {verb}
       </ActionButton>
       <p className={note === '' ? 'visually-hidden' : styles.addedNote} role="status">
         {note}

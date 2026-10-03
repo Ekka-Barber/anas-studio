@@ -1,15 +1,17 @@
 import type { Metadata } from 'next'
 
 import { Picture } from '@/components/public/Picture'
-import { AddToCart } from '@/components/store/AddToCart'
 import { CartLink } from '@/components/store/CartLink'
 import styles from '@/components/store/store.module.css'
+import { preorderSentence } from '@/components/store/quote'
+import { VariantAction } from '@/components/store/VariantAction'
 import { Band } from '@/components/weave/Band'
 import { Edge } from '@/components/weave/Edge'
 import { enter } from '@/components/weave/motion'
 import { RichText } from '@/lib/richtext'
 import { formatMoney } from '@/lib/format'
-import { getProducts } from '@/lib/store'
+import { getPublishedPolicies } from '@/lib/policies'
+import { consentRevision, getProducts } from '@/lib/store'
 
 import NotFound from '../../not-found'
 
@@ -17,7 +19,12 @@ import NotFound from '../../not-found'
  * One published product (P07): a static page per published slug, rebuilt
  * after each catalog change (D32). Every enabled variant is a row with its
  * title and its configured price; an unpriced variant says «غير مسعّر» and
- * gets no button (D06: unconfigured means unavailable, never free).
+ * gets no button (D06: unconfigured means unavailable, never free). A priced
+ * row is the `VariantAction` island (P08): it reads the live availability and
+ * offers the add control, a preorder, or the availability sign-up, which
+ * records the revision of the privacy policy this build rendered. The price
+ * and a preorder's delivery sentence are formatted here, at build time, so the
+ * island carries no formatting code.
  */
 export const dynamicParams = false
 
@@ -45,6 +52,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params
   const product = (await getProducts()).find((entry) => entry.slug === slug)
   if (!product) return <NotFound />
+  // The privacy policy's revision as this build rendered it (the policy page and the checkout read the same loader).
+  const privacyRevision = consentRevision(await getPublishedPolicies())
 
   return (
     <main id="main" className={styles.page}>
@@ -89,10 +98,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 {variant.priceHalalas === null ? (
                   <p className={styles.unpriced}>غير مسعّر</p>
                 ) : (
-                  <>
-                    <p className={styles.variantPrice}>{formatMoney(variant.priceHalalas)}</p>
-                    <AddToCart variantId={variant.id} label={`${product.title}: ${variant.title}`} />
-                  </>
+                  <VariantAction
+                    variantId={variant.id}
+                    label={`${product.title}: ${variant.title}`}
+                    price={formatMoney(variant.priceHalalas)}
+                    preorder={
+                      variant.preorder && {
+                        shipsOn: variant.preorder.shipsOn,
+                        sentence: preorderSentence(variant.preorder),
+                        note: variant.preorder.note,
+                      }
+                    }
+                    privacyRevision={privacyRevision}
+                  />
                 )}
               </li>
             ))}

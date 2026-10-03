@@ -1,5 +1,6 @@
 // Relative, not `@/`: the unit tests (tests/unit/store-checkout.test.ts) import this file, and the unit config has no alias.
 import { instantOf, readTestAccess } from '../../lib/cart'
+import { formatDate } from '../../lib/format'
 
 /**
  * The `checkout` Edge Function as the browser calls it (P07, P08): the live
@@ -51,6 +52,18 @@ export interface Preorder {
   note: string
 }
 
+/**
+ * «طلب مسبق: يُسلَّم في 15 أكتوبر 2026»: the words of the product page (built
+ * with it), the cart and the checkout summary, the same as the order page's. The
+ * date is the Riyadh calendar day, Latin digits.
+ */
+export function preorderSentence(preorder: Preorder): string {
+  return `طلب مسبق: يُسلَّم في ${formatDate(preorder.shipsOn)}`
+}
+
+/** The order statuses that mean a payment of the order arrived (a cancel also answers `review`: a charged payment waits for the owner). */
+export const RECEIVED = new Set(['paid', 'paid_needs_resolution', 'refunded', 'review'])
+
 export interface QuoteLine {
   line: number
   variantId: string
@@ -75,6 +88,8 @@ export interface QuoteError {
   variantId?: string
   available?: number
   minimum?: number
+  /** `OUT_OF_STOCK` only: the units exist and another order's unpaid hold takes them (true for at most 20 minutes). */
+  held?: boolean
 }
 
 export interface Price {
@@ -163,6 +178,7 @@ function parseError(value: unknown): QuoteError {
     ...(o.variantId === undefined ? {} : { variantId: str(o.variantId) }),
     ...(o.available === undefined ? {} : { available: count(o.available) }),
     ...(o.minimum === undefined ? {} : { minimum: count(o.minimum) }),
+    ...(o.held === undefined ? {} : { held: bool(o.held) }),
   }
 }
 
@@ -339,6 +355,7 @@ export async function fetchQuote(input: {
 export function quoteErrorMessage(error: QuoteError): string {
   switch (error.code) {
     case 'OUT_OF_STOCK':
+      if (error.held === true) return 'الكمية محجوزة مؤقتًا لطلب آخر؛ حاول بعد قليل.'
       return typeof error.available === 'number'
         ? `الكمية المطلوبة غير متوفرة؛ المتاح: ${error.available}.`
         : 'الكمية المطلوبة غير متوفرة الآن.'

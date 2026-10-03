@@ -33,7 +33,7 @@ import { ActionButton, ActionLink } from '@/components/weave/Action'
 import { formatMoney } from '@/lib/format'
 
 import { useCart } from './CartProvider'
-import { fetchCities, fetchQuote, quoteErrorMessage, type CityRate, type Quote } from './quote'
+import { fetchCities, fetchQuote, preorderSentence, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
 
 /**
@@ -227,6 +227,7 @@ export function CartView() {
               const lineErrors = errors.filter((error) => error.variantId === line.variantId)
               // The line's name for its controls: never empty, even when the quote refused the line.
               const name = quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : 'منتج في السلة'
+              const preorder = quoteLine?.preorder ?? null
               return (
                 <li key={line.variantId} className={styles.lineCard}>
                   <div className={styles.lineHead}>
@@ -282,6 +283,13 @@ export function CartView() {
                       حذف
                     </button>
                   </div>
+                  {/* A preorder's date and note are read before the buyer pays. */}
+                  {preorder !== null && (
+                    <div className={styles.preorderNote}>
+                      <p className={styles.note}>{preorderSentence(preorder)}</p>
+                      <p className={`${styles.note} ${styles.wrap}`}>{preorder.note}</p>
+                    </div>
+                  )}
                   {(quoteLine?.fulfillment === 'signed' || line.dedication !== undefined) && (
                     <label className={styles.dedication}>
                       نص الإهداء
