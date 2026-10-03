@@ -70,6 +70,8 @@ const REQUIRED = [
   'admin/orders/reconciliation.html',
   ...['coupons', 'customers', 'products', 'shipping-rates'].flatMap((t) => [`admin/store/${t}.html`, `admin/store/${t}/edit.html`]),
   'admin/store/variants/edit.html',
+  // P08: the availability sign-ups, a read-only list: no edit page (checked below).
+  'admin/store/notifications.html',
 ]
 
 // Every public page is Arabic RTL; losing the html attributes would scramble
@@ -98,6 +100,7 @@ const failures = []
 for (const file of REQUIRED) {
   if (!existsSync(path.join(outDir, file))) failures.push(`missing ${file}`)
 }
+if (existsSync(path.join(outDir, 'admin/store/notifications/edit.html'))) failures.push('unexpected admin/store/notifications/edit.html (the sign-ups have no edit page)')
 for (const page of RTL_PAGES) {
   if (!existsSync(path.join(outDir, page))) continue // already recorded as missing
   const head = readFileSync(path.join(outDir, page), 'utf8').slice(0, 600)

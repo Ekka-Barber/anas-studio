@@ -381,7 +381,7 @@ Granted to `authenticated`, role rechecked inside (owner or operations unless no
 
 ### Admin reads (round 11c, `20261003110000_variant_admin_info.sql`)
 
-- `variant_admin_info(p_variant uuid) returns jsonb`, granted to `authenticated`, the role rechecked inside (`finance.require_staff(false)`: owner or operations): `{ok:true, preorderUnits, file: {filename, mime, bytes, createdAt} | null}` or `{ok:false, code:'NOT_FOUND'}`. `preorderUnits` is the sum of the quantities of the variant's committed reservations whose own preorder flag is true: the confirmed preorders the owner nets out of real stock (section 4). Held and released reservations are not counted. `file` is the `finance.paid_assets` row whose `storage_key` is the variant's `digital_asset`, null when there is none. No storage key, no order or buyer detail. Read-only, no lock.
+- `variant_admin_info(p_variant uuid) returns jsonb`, granted to `authenticated`, the role rechecked inside (`finance.require_staff(false)`: owner or operations): `{ok:true, preorderUnits, file: {filename, mime, bytes, createdAt} | null}` or `{ok:false, code:'NOT_FOUND'}`. `preorderUnits` is the sum of the quantities of the variant's committed reservations whose own preorder flag is true and whose order line is not yet shipped or delivered: the confirmed preorders still owed, which the owner nets out of real stock (section 4); shipped copies have already left the stock he counts (the orchestrator's ruling on R11C-3; the capacity rule still counts every committed one). Held and released reservations are not counted. `file` is the `finance.paid_assets` row whose `storage_key` is the variant's `digital_asset`, null when there is none. No storage key, no order or buyer detail. Read-only, no lock.
 
 ## 7. Edge Functions
 

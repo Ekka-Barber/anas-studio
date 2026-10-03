@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { defaultsForFields, type Field } from '../../admin/fields'
+import { isDay } from '../../lib/admin-commerce'
 import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIsoOrNull } from '../../lib/money-input'
 import { isMediaId, mediaUrl } from '../../lib/media-ref'
 
@@ -377,9 +378,15 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
             className={styles.input}
             type="text"
             dir="auto"
+            aria-describedby={field.hint ? `${id}-hint` : undefined}
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
           />
+          {field.hint && (
+            <p id={`${id}-hint`} className={styles.message}>
+              {field.hint}
+            </p>
+          )}
         </div>
       )
     case 'textarea':
@@ -480,6 +487,26 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
               // A year past four digits is not a time: the field keeps its last valid value.
               const iso = riyadhLocalToIsoOrNull(local)
               if (iso !== null) onChange(iso)
+            }}
+          />
+        </div>
+      )
+    case 'date':
+      return (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={id}>
+            {field.label}
+          </label>
+          {/* The value is the day itself, 'YYYY-MM-DD'. A year past four digits is not a day: the field keeps its last valid value. */}
+          <input
+            id={id}
+            className={styles.input}
+            type="date"
+            value={typeof value === 'string' ? value : ''}
+            onChange={(event) => {
+              const day = event.target.value
+              if (day === '') onChange(field.nullable ? null : '')
+              else if (isDay(day)) onChange(day)
             }}
           />
         </div>

@@ -8,17 +8,19 @@
  *
  * Who does what (DATA "Authorization"): only the owner writes; operations
  * reads products, variants, rates and customers and writes nothing; editors
- * see nothing of the store. Coupons are owner-only even to read (RLS).
+ * see nothing of the store. Coupons are owner-only even to read (RLS). The
+ * availability sign-ups are a read-only list (`edit: false`, P08 round 11c).
  */
 import type { Field } from '../fields'
 
 import { couponsConfig } from './coupons'
 import { customersConfig } from './customers'
+import { notificationsConfig } from './notifications'
 import { productsConfig } from './products'
 import { shippingRatesConfig } from './shipping-rates'
 import { variantsConfig } from './variants'
 
-export type TableKey = 'products' | 'variants' | 'shipping-rates' | 'coupons' | 'customers'
+export type TableKey = 'products' | 'variants' | 'shipping-rates' | 'coupons' | 'customers' | 'notifications'
 
 /** A form field plus the visibility rule a table form needs (a variant's
  *  stock exists only for physical and signed editions). */
@@ -32,6 +34,8 @@ export interface ListColumn {
   text?: (row: Record<string, unknown>) => string
   /** Other row columns `text` reads, added to the list's select. */
   extra?: readonly string[]
+  /** `ltr` for a cell of Latin text (an address, a SKU), so the right-to-left table does not scramble it. */
+  dir?: 'ltr'
 }
 
 export interface TableConfig {
@@ -43,6 +47,8 @@ export interface TableConfig {
   read: 'staff' | 'owner'
   /** The owner is the only writer; `insert: false` also removes «جديد». */
   insert: boolean
+  /** `false` for a list with no form (the sign-ups): its rows carry no link and it has no edit route. */
+  edit?: boolean
   listColumns: readonly ListColumn[]
   fields: readonly TableField[]
   /** Field names rendered as values, not inputs (the customer's email). */
@@ -69,4 +75,5 @@ export const tables = {
   'shipping-rates': shippingRatesConfig,
   coupons: couponsConfig,
   customers: customersConfig,
+  notifications: notificationsConfig,
 } as const satisfies Record<TableKey, TableConfig>

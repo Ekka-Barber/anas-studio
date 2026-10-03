@@ -116,8 +116,8 @@ export function TableList({ table }: { table: TableKey }) {
               return (
                 <tr key={String(row.id)}>
                   {config.listColumns.map((column, index) => (
-                    <td key={column.key} data-label={column.label}>
-                      {index === 0 ? (
+                    <td key={column.key} data-label={column.label} dir={column.dir}>
+                      {index === 0 && config.edit !== false ? (
                         <Link href={`/admin/store/${table}/edit?id=${row.id}`}>{cellText(config, column, row)}</Link>
                       ) : (
                         cellText(config, column, row)

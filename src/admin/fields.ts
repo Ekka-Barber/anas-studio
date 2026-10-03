@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { isDay } from '../lib/admin-commerce'
 import { isMediaId } from '../lib/media-ref'
 
 import { richTextSchema, type RichTextDocument } from './richtext'
@@ -30,6 +31,7 @@ export type FieldType =
   | 'number'
   | 'money'
   | 'datetime'
+  | 'date'
 
 interface FieldBase {
   name: string
@@ -54,8 +56,12 @@ export type Field =
       nonBlank?: boolean
       maxLength?: number
       pattern?: { regex: RegExp; message: string }
+      /** A line under the input, for what a label cannot say (who sees the text). */
+      hint?: string
     })
   | (FieldBase & { type: 'datetime'; after?: string })
+  // A calendar day, `YYYY-MM-DD` (a preorder's delivery date): no time, no zone.
+  | (FieldBase & { type: 'date' })
   // `optionLabels` gives the Arabic text shown for each stored option value.
   | (FieldBase & { type: 'select'; options: readonly string[]; optionLabels?: Readonly<Record<string, string>> })
   | (FieldBase & { type: 'group'; fields: readonly Field[] })
@@ -78,7 +84,7 @@ export type Field =
  */
 // prettier-ignore
 type BaseValue<F extends Field> =
-  F extends { type: 'text' | 'textarea' | 'slug' | 'image' | 'video' | 'datetime' } ? string :
+  F extends { type: 'text' | 'textarea' | 'slug' | 'image' | 'video' | 'datetime' | 'date' } ? string :
   F extends { type: 'paragraphs' | 'relation' } ? string[] :
   F extends { type: 'number' | 'money' } ? number :
   F extends { type: 'boolean' } ? boolean :
@@ -169,6 +175,7 @@ function defaultForField(field: Field): unknown {
     case 'money':
       return 0
     case 'datetime':
+    case 'date':
       return ''
     case 'richtext':
       return { root: { type: 'root', children: [] } }
@@ -266,6 +273,7 @@ const slugSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/, {
   message: 'حروف لاتينية صغيرة وأرقام وشرطات، حتى 80 حرفًا، ولا يبدأ بشرطة.',
 })
 const isoDateSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), { message: 'تاريخ غير صالح.' })
+const daySchema = z.string().refine(isDay, { message: 'تاريخ غير صالح.' })
 
 const HIDDEN_FIELD: Field = { name: 'hidden', label: 'مخفي', type: 'boolean', required: false }
 
@@ -299,6 +307,8 @@ function baseSchemaFor(field: Field): z.ZodTypeAny {
       return z.array(slugSchema)
     case 'datetime':
       return isoDateSchema
+    case 'date':
+      return daySchema
     case 'number': {
       // Every catalog number is a Postgres `integer`: without these bounds an
       // overflow (22003) would reach the owner as «تعذّر الحفظ.», naming nothing.

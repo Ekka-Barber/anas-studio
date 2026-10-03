@@ -19,13 +19,14 @@ import { useEffect, useState } from 'react'
 
 import { schemaFromFields } from '@/admin/fields'
 import { tables, type TableField, type TableKey } from '@/admin/tables'
-import { formatRiyadh } from '@/lib/format'
+import { formatDate, formatRiyadh } from '@/lib/format'
 import { formatRiyalsInput } from '@/lib/money-input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { defaultsForFields, FieldInput } from './FieldInput'
 import { useStaffRole } from './AdminShell'
 import { cellText } from './TableList'
+import { VariantCommerce } from './VariantCommerce'
 import styles from './admin.module.css'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -97,6 +98,7 @@ function readOnlyText(field: TableField, value: unknown): string {
   }
   if (field.type === 'boolean') return value ? 'نعم' : 'لا'
   if (field.type === 'datetime') return formatRiyadh(String(value))
+  if (field.type === 'date') return formatDate(String(value))
   return String(value)
 }
 
@@ -119,6 +121,8 @@ export function TableForm({ table }: { table: TableKey }) {
   const [products, setProducts] = useState<ProductOption[]>([])
   const [variantsError, setVariantsError] = useState(false)
   const [productsError, setProductsError] = useState(false)
+  // What the variant row holds now: the paid file and the preorder count follow the saved variant, not the unsaved form.
+  const [savedVariant, setSavedVariant] = useState<{ digital: boolean; preorder: boolean } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -157,7 +161,10 @@ export function TableForm({ table }: { table: TableKey }) {
       setValues(config.fromRow ? config.fromRow(row as Record<string, unknown>) : (row as Record<string, unknown>))
       setRowId(idParam)
       setVersion(typeof row.version === 'number' ? row.version : null)
-      if (table === 'variants') setProductId(typeof row.product_id === 'string' ? row.product_id : null)
+      if (table === 'variants') {
+        setProductId(typeof row.product_id === 'string' ? row.product_id : null)
+        setSavedVariant({ digital: row.fulfillment === 'digital', preorder: row.preorder === true })
+      }
     })()
     return () => {
       active = false
@@ -235,11 +242,29 @@ export function TableForm({ table }: { table: TableKey }) {
     const saved = savedRows[0]!
     setRowId(saved.id)
     setVersion(saved.version)
+    if (table === 'variants') setSavedVariant({ digital: values.fulfillment === 'digital', preorder: values.preorder === true })
     if (idParam !== saved.id) {
       const search = table === 'variants' && productId ? `?id=${saved.id}&product=${productId}` : `?id=${saved.id}`
       window.history.replaceState(null, '', `/admin/store/${table}/edit${search}`)
     }
     setMessage('تم الحفظ.')
+  }
+
+  /**
+   * A paid file's record updates the variant row, and the catalog's touch trigger bumps its `version`: without this the next
+   * save would match no row and call it a conflict, and «حمّل آخر نسخة» would throw away what was typed. The version is read
+   * again and taken only when it is exactly the one step the record made; a row another session changed as well is not
+   * taken, and its save still ends in the conflict message. A read that fails leaves the version, and so the message.
+   */
+  async function takeRecordedVersion(): Promise<void> {
+    if (rowId === null) return
+    try {
+      const { data } = await getSupabaseBrowserClient().from(config.table).select('version').eq('id', rowId).maybeSingle()
+      const read: unknown = data?.version
+      if (typeof read === 'number') setVersion((held) => (held !== null && read === held + 1 ? read : held))
+    } catch {
+      // The version stays.
+    }
   }
 
   // Mirrors TableList: editors see nothing of the store, operations cannot read coupons (RLS).
@@ -378,6 +403,17 @@ export function TableForm({ table }: { table: TableKey }) {
         </div>
       )}
       {!owner && message === null && <p className={styles.message}>هذه الصفحة للقراءة فقط.</p>}
+
+      {table === 'variants' && rowId !== null && savedVariant !== null && (
+        <VariantCommerce
+          key={rowId}
+          variantId={rowId}
+          digital={savedVariant.digital}
+          preorder={savedVariant.preorder}
+          owner={owner}
+          onRecorded={takeRecordedVersion}
+        />
+      )}
 
       {table === 'products' && rowId !== null && (
         <div className={styles.field}>

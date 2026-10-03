@@ -12,7 +12,7 @@ import {
   siteSettingsStoredSchema,
 } from '../../src/admin/collections/site-settings'
 import { tables, type TableKey } from '../../src/admin/tables'
-import { equalData, type Field, schemaFromFields } from '../../src/admin/fields'
+import { defaultsForFields, equalData, type Field, schemaFromFields } from '../../src/admin/fields'
 import { startedRoomSchema } from '../../src/admin/collections/rooms'
 import { SCENE_CATEGORIES } from '../../src/content/scenes'
 import { formatMediaRef } from '../../src/lib/media-ref'
@@ -280,6 +280,32 @@ describe('the number, money and datetime field types (P07 round 2)', () => {
   })
 })
 
+describe('the date field type (P08 round 11c)', () => {
+  const dayFields = [
+    { name: 'day', label: 'اليوم', type: 'date', nullable: true },
+    { name: 'due', label: 'الموعد', type: 'date' },
+  ] as const satisfies Field[]
+  const days = schemaFromFields(dayFields)
+
+  it('accepts a real calendar day, and null only where the field is nullable', () => {
+    expect(days.safeParse({ day: '2026-10-03', due: '2024-02-29' }).success).toBe(true)
+    expect(days.safeParse({ day: null, due: '2030-01-01' }).success).toBe(true)
+    expect(days.safeParse({ day: '2026-10-03', due: null }).success).toBe(false)
+  })
+
+  it('refuses what is not a day: a time, a five-digit year, an impossible date, an empty text', () => {
+    for (const bad of ['', '2026-02-30', '2026-13-01', '20261-01-01', '2026-10-03T00:00:00Z', '03/10/2026', 'ليس يومًا']) {
+      const result = days.safeParse({ day: null, due: bad })
+      expect(result.success, bad).toBe(false)
+      expect(result.error?.issues[0]?.message, bad).toBe('تاريخ غير صالح.')
+    }
+  })
+
+  it('starts as null when nullable and as an empty text otherwise', () => {
+    expect(defaultsForFields(dayFields)).toEqual({ day: null, due: '' })
+  })
+})
+
 describe('the policies collection (P07 round 2)', () => {
   const lexicalBody = {
     root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: 'نص السياسة', format: 0 }] }] },
@@ -311,7 +337,8 @@ describe('the policies collection (P07 round 2)', () => {
 // supabase/migrations/20260927160000_catalog_and_checkout.sql (insert and
 // update grants) and 20261002100000_payment_core.sql (the variants' preorder
 // columns gained, `digital_asset` lost): a config whose `toRow` outputs
-// anything else writes a column the migrations never granted.
+// anything else writes a column the migrations never granted. The availability
+// sign-ups are read-only (`public.notifications` grants `select` alone): no column.
 const GRANTED: Record<TableKey, readonly string[]> = {
   products: ['slug', 'title', 'summary', 'body', 'cover_image', 'status', 'sort_order'],
   variants: [
@@ -343,6 +370,7 @@ const GRANTED: Record<TableKey, readonly string[]> = {
     'enabled',
   ],
   customers: ['name', 'phone'],
+  notifications: [],
 }
 
 describe('the table configs (P07 round 2)', () => {
@@ -396,6 +424,52 @@ describe('the table configs (P07 round 2)', () => {
       stock: null,
     })
     expect(config.toRow({ sku: 'ABC-1', fulfillment: 'signed', stock: 3 })).toMatchObject({ sku: 'ABC-1', stock: 3 })
+  })
+
+  it("a variant sends the preorder flag always, and its three fields only while it is on (the table's check)", () => {
+    const config = tables.variants
+    const on = {
+      sku: 'ABC-1',
+      fulfillment: 'physical',
+      stock: 3,
+      preorder: true,
+      preorder_capacity: 40,
+      preorder_ships_on: '2030-01-01',
+      preorder_note: '  يصلك بعد الطباعة ',
+    }
+    expect(config.toRow(on)).toMatchObject({ preorder: true, preorder_capacity: 40, preorder_ships_on: '2030-01-01', preorder_note: 'يصلك بعد الطباعة' })
+    // A digital preorder keeps its null stock.
+    expect(config.toRow({ ...on, fulfillment: 'digital' })).toMatchObject({ stock: null, preorder: true, preorder_capacity: 40 })
+    // Off: false and null for the three, whatever the hidden fields still hold, and for a form that never touched them.
+    const off = { preorder: false, preorder_capacity: null, preorder_ships_on: null, preorder_note: null }
+    expect(config.toRow({ ...on, preorder: false })).toMatchObject(off)
+    expect(config.toRow({ sku: 'A', fulfillment: 'physical', stock: 1 })).toMatchObject(off)
+    // A date field the owner cleared is null, never an empty text the column would refuse.
+    expect(config.toRow({ ...on, preorder_ships_on: '' })).toMatchObject({ preorder_ships_on: null })
+    // The loaded row keeps the stored preorder fields for the form.
+    expect(config.fromRow?.({ ...on, stock: null })).toMatchObject({ stock: 0, preorder: true, preorder_ships_on: '2030-01-01' })
+  })
+
+  it('notifications: a read-only list for owner and operations, newest first, with no form and no edit page (P08 round 11c)', () => {
+    const config = tables.notifications
+    expect(config).toMatchObject({ table: 'notifications', label: 'طلبات الإشعار', read: 'staff', insert: false, edit: false })
+    expect(config.fields).toEqual([])
+    expect(config.toRow({ email: 'a@b.co', status: 'pending' })).toEqual({})
+    expect(config.order).toEqual([{ column: 'created_at', ascending: false }])
+    // The SKU is the row's variant, read as an embedded relation; the address and the SKU read left to right.
+    expect(config.listColumns.map((column) => column.key)).toEqual(['email', 'product_variants(sku)', 'status', 'consent_revision', 'created_at', 'confirmed_at'])
+    expect(config.listColumns.filter((column) => column.dir === 'ltr').map((column) => column.key)).toEqual(['email', 'product_variants(sku)'])
+    const cell = (key: string, row: Record<string, unknown>) => config.listColumns.find((column) => column.key === key)!.text!(row)
+    expect(cell('status', { status: 'pending' })).toBe('بانتظار التأكيد')
+    expect(cell('status', { status: 'confirmed' })).toBe('مؤكَّد')
+    expect(cell('status', { status: 'unsubscribed' })).toBe('ألغى الاشتراك')
+    expect(cell('status', { status: 'something-new' })).toBe('something-new')
+    expect(cell('consent_revision', { consent_revision: 3 })).toBe('3')
+    expect(cell('consent_revision', { consent_revision: null })).toBe('بلا')
+    expect(cell('product_variants(sku)', { product_variants: { sku: 'BOOK-01' } })).toBe('BOOK-01')
+    expect(cell('product_variants(sku)', { product_variants: null })).toBe('لا يوجد')
+    // The others keep their edit page.
+    for (const key of Object.keys(tables) as TableKey[]) expect(tables[key].edit !== false, key).toBe(key !== 'notifications')
   })
 
   it('a shipping fee may be zero (money min 0), a price may not', () => {

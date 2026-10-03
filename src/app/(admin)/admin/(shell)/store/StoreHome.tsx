@@ -54,6 +54,9 @@ export function StoreHome() {
         <Link href="/admin/store/customers" className={styles.tile}>
           العملاء
         </Link>
+        <Link href="/admin/store/notifications" className={styles.tile}>
+          طلبات الإشعار
+        </Link>
         {role === 'owner' && (
           <Link href="/admin/content/policies" className={styles.tile}>
             السياسات
