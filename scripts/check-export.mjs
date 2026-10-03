@@ -66,6 +66,8 @@ const REQUIRED = [
   // P08: the staff's orders, and one order's view (its id travels in `?id=`).
   'admin/orders.html',
   'admin/orders/view.html',
+  // P08: the owner's reconciliation screen.
+  'admin/orders/reconciliation.html',
   ...['coupons', 'customers', 'products', 'shipping-rates'].flatMap((t) => [`admin/store/${t}.html`, `admin/store/${t}/edit.html`]),
   'admin/store/variants/edit.html',
 ]

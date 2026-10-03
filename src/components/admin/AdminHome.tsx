@@ -329,7 +329,13 @@ export function AdminHome() {
               <ul className={styles.metaList}>
                 {alertCounts(orders.value, own?.role === 'owner').map((count) => (
                   <li key={count.label}>
-                    {count.label}: {formatNumber(count.value)}
+                    {count.href === undefined ? (
+                      `${count.label}: ${formatNumber(count.value)}`
+                    ) : (
+                      <Link className={styles.target} href={count.href}>
+                        {count.label}: {formatNumber(count.value)}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

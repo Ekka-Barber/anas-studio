@@ -1,30 +1,42 @@
-// P08 round 11a: the staff's order screens, the parts that need no React
+// P08 rounds 11a and 11b: the staff's order screens, the parts that need no React
 // (`src/lib/admin-orders.ts`): the Arabic words of every state, the strict
 // parsers of `orders_list`, `order_detail` and `orders_alerts` against the exact
 // shapes round 7b documents (artifacts/acceptance/P08/rounds/round-07b.md), the
 // reading of the action replies and their sentences, and the search box's
-// normalization. The screens themselves are proven in tests/e2e/orders-admin.spec.ts.
+// normalization; round 11b adds the reconciliation and disputes parsers, the money replies and their words.
+// The screens themselves are proven in tests/e2e/orders-admin.spec.ts and tests/e2e/orders-money.spec.ts.
 import { describe, expect, it, vi } from 'vitest'
 
 import { isWidePath } from '../../src/components/admin/AdminShell'
 import {
   alertCounts,
   ATTEMPT_STATUS_LABELS,
+  clean,
+  closeReason,
+  DISPUTE_DECISION_LABELS,
+  DISPUTE_DIRECTION_LABELS,
+  DISPUTE_KIND_LABELS,
   FULFILLMENT_STATE_LABELS,
   FULFILLMENT_TYPE_LABELS,
   isUuid,
   labelOf,
+  NEEDS_REASON,
   normalizeOrderQuery,
   ORDER_FILTER_LABELS,
   ORDER_FILTERS,
   ORDER_STATUS_LABELS,
   parseActionReply,
+  parseDisputes,
   parseOrderDetail,
   parseOrdersAlerts,
   parseOrdersList,
+  parseReconciliation,
+  RECONCILIATION_PATH,
+  RECONCILIATION_REASON_LABELS,
   REFUND_SOURCE_LABELS,
   REFUND_STATUS_LABELS,
   refusalText,
+  RESERVED_REASON,
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
@@ -110,6 +122,23 @@ describe('the words of every state', () => {
     ],
     ['refund status', REFUND_STATUS_LABELS, { submitting: 'قيد الإرسال', uncertain: 'غير مؤكد', succeeded: 'تم', failed: 'لم يتم' }],
     ['refund source', REFUND_SOURCE_LABELS, { admin: 'من اللوحة', provider_dashboard: 'من لوحة Moyasar' }],
+    [
+      'reconciliation reason',
+      RECONCILIATION_REASON_LABELS,
+      {
+        UNCERTAIN: 'إنشاء غير مؤكد',
+        UNVERIFIED: 'لم يُتحقق منها',
+        PROVIDER_STATUS: 'حالة مختلفة لدى Moyasar',
+        EXTERNAL_REFUND: 'استرداد لدى Moyasar غير مسجّل',
+      },
+    ],
+    ['dispute kind', DISPUTE_KIND_LABELS, { chargeback: 'اعتراض بطاقة', payout_difference: 'فرق تحويل', fee_difference: 'فرق رسوم', other: 'أخرى' }],
+    ['dispute direction', DISPUTE_DIRECTION_LABELS, { against_seller: 'على البائع', for_seller: 'لصالح البائع' }],
+    [
+      'dispute decision',
+      DISPUTE_DECISION_LABELS,
+      { none: 'بلا إجراء', entitlement_revoked: 'سحب الملفات', entitlement_kept: 'إبقاء الملفات', fulfillment_stopped: 'إيقاف الشحن' },
+    ],
   ]
 
   it.each(tables)('%s: every value has its word, and no other', (_name, labels, expected) => {
@@ -473,9 +502,10 @@ describe('parseOrdersAlerts and alertCounts', () => {
       { label: 'تحتاج حلًا', value: 1 },
       { label: 'للشحن', value: 3 },
       { label: 'دفعات قيد المراجعة', value: 2 },
-      // uncertainRefunds 4 + unverifiedAttempts 5 + exhaustedEvents 6 + externalRefunds 7
-      { label: 'تحتاج مطابقة', value: 22 },
+      // uncertainRefunds 4 + unverifiedAttempts 5 + exhaustedEvents 6 + externalRefunds 7; it links to the reconciliation screen
+      { label: 'تحتاج مطابقة', value: 22, href: '/admin/orders/reconciliation' },
     ])
+    expect(RECONCILIATION_PATH).toBe('/admin/orders/reconciliation')
   })
 })
 
@@ -630,12 +660,185 @@ describe('the sentence of a refusal', () => {
     expect(text('close', 'NOT_FOUND')).toBe('لم نجد هذه الدفعة.')
   })
 
+  it('says the two refusals of a dismissal', () => {
+    expect(text('dismiss', 'NOT_FOUND')).toBe('لم نجد هذا الإشعار.')
+    expect(text('dismiss', 'NOT_EXHAUSTED')).toBe('لا يحتاج هذا الإشعار إلى مراجعة.')
+  })
+
   it('says «could not save» for a code it does not know, and never an exception', () => {
-    for (const action of ['fulfil', 'decide', 'receive', 'resolve', 'close'] as const) {
+    for (const action of ['fulfil', 'decide', 'receive', 'resolve', 'close', 'dismiss'] as const) {
       expect(text(action, 'SOMETHING_NEW'), action).toBe(SAVE_FAILED)
       expect(text(action, 'constructor'), action).toBe(SAVE_FAILED)
     }
     // A code that is another action's: not this one's.
     expect(text('close', 'ORDER_NOT_PAID')).toBe(SAVE_FAILED)
+  })
+})
+
+describe('closeReason', () => {
+  it('sends the typed line trimmed, a control character as a space', () => {
+    expect(closeReason('  عكسها البنك  ')).toEqual({ ok: true, reason: 'عكسها البنك' })
+    expect(closeReason('a\tb')).toEqual({ ok: true, reason: 'a b' })
+    expect(clean(' x\u0007y ')).toBe('x y')
+  })
+
+  it('refuses nothing typed, and the refund path’s own word in any letter case (it would make the payment unrefundable)', () => {
+    expect(closeReason('   ')).toEqual({ ok: false, message: NEEDS_REASON })
+    for (const word of ['refunded', 'Refunded', ' REFUNDED ']) expect(closeReason(word), word).toEqual({ ok: false, message: RESERVED_REASON })
+    expect(closeReason('refunded twice')).toMatchObject({ ok: true })
+  })
+})
+
+// --- round 11b: the reconciliation screen (the SHAPE lines of round 7b and round 9, read against the SQL) -----------
+
+const attemptRow = {
+  id: D,
+  orderId: A,
+  status: 'paid',
+  environment: 'test',
+  amount: 10600,
+  currency: 'SAR',
+  providerInvoiceId: INVOICE,
+  providerPaymentId: PAYMENT,
+  providerStatus: 'voided',
+  providerRefunded: 1000,
+  captured: 10600,
+  fee: 150,
+  sourceType: 'creditcard',
+  sourceCompany: 'mada',
+  invoiceExpiresAt: ISO,
+  paidAt: ISO,
+  fetchedAt: ISO,
+  checkCount: 1,
+  errorCount: 0,
+  lastError: null,
+  createdAt: ISO,
+  orderNumber: 'ABCD2345',
+  refunded: 0,
+  reasons: ['PROVIDER_STATUS', 'EXTERNAL_REFUND'],
+}
+const reviewRow = {
+  paymentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  invoiceId: INVOICE,
+  attemptId: D,
+  orderId: A,
+  environment: 'test',
+  amount: 10600,
+  currency: 'SAR',
+  providerStatus: 'paid',
+  reason: 'SECOND_PAYMENT',
+  providerRefunded: 0,
+  refunded: 0,
+  closedAt: null,
+  closedReason: null,
+  createdAt: ISO,
+  orderNumber: 'ABCD2345',
+}
+const refundRow = {
+  id: E,
+  orderId: A,
+  attemptId: D,
+  reviewPaymentId: null,
+  returnId: null,
+  status: 'uncertain',
+  amount: 1000,
+  reason: 'استرداد',
+  source: 'admin',
+  allocation: { items: [{ itemId: B, amount: 1000 }], shipping: 0 },
+  providerRefundedBefore: 0,
+  providerRefundedAfter: null,
+  error: 'REFUND_TIMEOUT',
+  nextCheckAt: ISO,
+  createdAt: ISO,
+  succeededAt: null,
+  orderNumber: 'ABCD2345',
+}
+const eventRow = {
+  eventId: 'evt_1',
+  type: 'payment_paid',
+  live: false,
+  paymentId: PAYMENT,
+  receivedAt: ISO,
+  processedAt: null,
+  outcome: 'exhausted',
+  error: 'FETCH_FAILED',
+  attempts: 10,
+  nextCheckAt: null,
+}
+const reconciliation = { attempts: [attemptRow], reviews: [reviewRow], refunds: [refundRow], events: [eventRow] }
+
+describe('parseReconciliation', () => {
+  it('reads the four lists with what each carries beyond the order screen’s own rows', () => {
+    const parsed = parseReconciliation(reconciliation)
+    expect(parsed.attempts[0]).toMatchObject({ id: D, orderId: A, orderNumber: 'ABCD2345', refunded: 0, reasons: ['PROVIDER_STATUS', 'EXTERNAL_REFUND'], providerStatus: 'voided' })
+    expect(parsed.reviews[0]).toMatchObject({ paymentId: reviewRow.paymentId, orderNumber: 'ABCD2345', closedAt: null })
+    expect(parsed.refunds[0]).toMatchObject({ id: E, status: 'uncertain', orderNumber: 'ABCD2345', error: 'REFUND_TIMEOUT' })
+    expect(parsed.events[0]).toMatchObject({ eventId: 'evt_1', outcome: 'exhausted', attempts: 10 })
+    expect(parseReconciliation({ attempts: [], reviews: [], refunds: [], events: [] })).toEqual({ attempts: [], reviews: [], refunds: [], events: [] })
+  })
+
+  it('refuses a missing key or a wrong type, in every list and every row', () => {
+    expectStrict(parseReconciliation, reconciliation)
+  })
+
+  it('reads a review payment and a refund that have no order (the number is null), and refuses an attempt with none', () => {
+    const parsed = parseReconciliation({
+      ...reconciliation,
+      reviews: [{ ...reviewRow, orderId: null, attemptId: null, orderNumber: null, amount: null }],
+      refunds: [{ ...refundRow, orderId: null, attemptId: null, reviewPaymentId: reviewRow.paymentId, orderNumber: null }],
+    })
+    expect(parsed.reviews[0]).toMatchObject({ orderId: null, orderNumber: null, amount: null })
+    expect(parsed.refunds[0]).toMatchObject({ orderId: null, orderNumber: null })
+    expect(() => parseReconciliation({ ...reconciliation, attempts: [{ ...attemptRow, orderNumber: null }] })).toThrow()
+    expect(() => parseReconciliation({ ...reconciliation, attempts: [{ ...attemptRow, reasons: 'EXTERNAL_REFUND' }] })).toThrow()
+  })
+
+  it('keeps a reason it has no word for as it comes', () => {
+    expect(parseReconciliation({ ...reconciliation, attempts: [{ ...attemptRow, reasons: ['SOMETHING_NEW'] }] }).attempts[0]!.reasons).toEqual(['SOMETHING_NEW'])
+  })
+})
+
+const disputeRow = {
+  id: A,
+  kind: 'chargeback',
+  providerRef: 'CB-1',
+  seq: 1,
+  attemptId: D,
+  reviewPaymentId: null,
+  environment: 'test',
+  amount: 500,
+  direction: 'against_seller',
+  occurredOn: '2026-10-02',
+  reason: 'نزاع',
+  resolution: null,
+  decision: 'none',
+  itemIds: [B],
+  createdAt: ISO,
+  orderNumber: 'ABCD2345',
+}
+const disputeList = {
+  references: [{ kind: 'chargeback', providerRef: 'CB-1', rows: [disputeRow, { ...disputeRow, id: C, seq: 2, resolution: 'سُحب الملف', decision: 'entitlement_revoked' }] }],
+}
+
+describe('parseDisputes', () => {
+  it('reads each reference with its rows in order, each row with the number of its order', () => {
+    const parsed = parseDisputes(disputeList)
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).toMatchObject({ kind: 'chargeback', providerRef: 'CB-1' })
+    expect(parsed[0]!.rows.map((row) => row.seq)).toEqual([1, 2])
+    expect(parsed[0]!.rows[0]).toMatchObject({ attemptId: D, orderNumber: 'ABCD2345', itemIds: [B], decision: 'none' })
+    expect(parseDisputes({ references: [] })).toEqual([])
+  })
+
+  it('refuses a missing key or a wrong type, in every reference and every row', () => {
+    expectStrict(parseDisputes, disputeList)
+  })
+
+  it('reads a payout difference with no payment and no order, and refuses a reference with no rows', () => {
+    const difference = { ...disputeRow, kind: 'payout_difference', attemptId: null, orderNumber: null, itemIds: [] }
+    expect(parseDisputes({ references: [{ kind: 'payout_difference', providerRef: 'P-1', rows: [difference] }] })[0]!.rows[0]).toMatchObject({ attemptId: null, orderNumber: null })
+    expect(() => parseDisputes({ references: [{ kind: 'chargeback', providerRef: 'CB-1', rows: [] }] })).toThrow()
+    expect(() => parseDisputes({ references: {} })).toThrow()
+    expect(() => parseDisputes(null)).toThrow()
   })
 })

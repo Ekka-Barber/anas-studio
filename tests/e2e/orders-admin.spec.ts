@@ -573,8 +573,9 @@ for (const width of [360, 1440]) {
         expect(JSON.stringify(detail)).not.toMatch(/token|invoiceUrl|idempotency|storage/i)
 
         await expect(page.getByRole('heading', { level: 1 })).toHaveText(s.mixed.number)
-        await expect(main(page).locator('h2')).toHaveText(['العميل والتوصيل', 'العناصر', 'الدفع', 'الشحن', 'الملفات', 'النزاعات', 'السجل'])
-        await expect(main(page).locator('h3')).toHaveCount(0)
+        // The owner's money section comes last: the paying attempt can be refunded (round 11b); the payment's webhook events are its only subsection here.
+        await expect(main(page).locator('h2')).toHaveText(['العميل والتوصيل', 'العناصر', 'الدفع', 'الشحن', 'الملفات', 'النزاعات', 'السجل', 'الاستردادات'])
+        await expect(main(page).locator('h3')).toHaveText(['إشعارات الدفع'])
         // Header: status, badge, times (a paid order has no hold to show).
         const header = main(page).locator('ul').first()
         await expect(header).toContainText('الحالة: مدفوع')
@@ -752,8 +753,10 @@ for (const width of [360, 1440]) {
         await expect(disputes.locator('span[dir="ltr"]', { hasText: 'CB-2026-0007' })).toBeVisible()
         await expect(disputes).toContainText('التسلسل: 2')
         await expect(disputes).toContainText(`المبلغ: ${formatMoney(4500)}`)
-        await expect(disputes.locator('span[dir="ltr"]', { hasText: 'against_seller' })).toBeVisible()
-        await expect(disputes.locator('span[dir="ltr"]', { hasText: 'entitlement_revoked' })).toBeVisible()
+        // The words round 11b gives the kind, the direction and the decision (a value it has none for stays its code).
+        await expect(disputes).toContainText('النوع: اعتراض بطاقة')
+        await expect(disputes).toContainText('الاتجاه: على البائع')
+        await expect(disputes).toContainText('القرار: سحب الملفات')
         await expect(disputes).toContainText('اعتراض من حامل البطاقة')
         await expect(disputes).toContainText('سُحب الملف')
         await expect(disputes.getByRole('button')).toHaveCount(0)

@@ -10,8 +10,10 @@
  * only shapes itself by it (owner and operations; the owner's alone: the
  * restock, the resolution, the closing, the disputes and the audit). Nothing is
  * optimistic: after a call the order is read again and the screen shows that.
- * The contact is for fulfilment: no link, no other use is offered. Refunds, the
- * rechecks and the dispute form are round 11b.
+ * The contact is for fulfilment: no link, no other use is offered. The owner's money
+ * actions (round 11b) are `RefundView`, `DisputeForm` and the rechecks: each a call of the
+ * `admin` function (through the step-up dialog where it moves money), said on this screen's
+ * one status line or alert line, and followed by a new reading of the order.
  */
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -20,6 +22,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { preorderSentence } from '@/components/store/quote'
 import {
   ATTEMPT_STATUS_LABELS,
+  clean,
+  closeReason,
+  DISPUTE_DECISION_LABELS,
+  DISPUTE_DIRECTION_LABELS,
+  DISPUTE_KIND_LABELS,
   FULFILLMENT_STATE_LABELS,
   FULFILLMENT_TYPE_LABELS,
   isUuid,
@@ -40,46 +47,27 @@ import {
   type OrderDetail,
   type Refusal,
 } from '@/lib/admin-orders'
+import { disputeLines, inFlight as refundInFlight, REREAD_FAILED } from '@/lib/admin-money'
 import { formatDate, formatMoney, formatNumber, formatRiyadh } from '@/lib/format'
 import { clampQuantity } from '@/lib/orders'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
-import { Enum, TestBadge } from './OrdersView'
+import { DisputeForm } from './DisputeForm'
+import { Enum, Fact, ltr, ltrLong, NONE, TestBadge } from './OrdersView'
+import { recheckAttempt, recheckRefund, RefundView, useFocusBack, useStepUp, type Money, type Said } from './RefundView'
 
 type Load = { kind: 'loading' } | { kind: 'failed' } | { kind: 'missing' } | { kind: 'ready'; detail: OrderDetail }
 type Item = OrderDetail['items'][number]
 type Reply = { data: unknown; error: { code?: string } | null }
 
-const NONE = 'لا يوجد'
 const NO_ITEMS = 'اختر عناصر من هذا الطلب.'
 const NEEDS_CARRIER = 'أدخل شركة الشحن ورقم التتبع.'
-const NEEDS_REASON = 'أدخل سبب الإغلاق.'
-const RESERVED_REASON = 'لا يُقبل هذا السبب؛ اكتب سببًا آخر.'
 
-/** A typed line as the functions read it: control characters become spaces, the ends are trimmed. */
-const clean = (text: string): string => text.replace(/\p{Cc}/gu, ' ').trim()
 const nameOf = (item: Pick<Item, 'productTitle' | 'variantTitle'>): string =>
   [item.productTitle, item.variantTitle].filter((part) => part !== '').join(': ')
 const when = (iso: string | null): string => (iso === null ? NONE : formatRiyadh(iso))
-/** A code, a phone or a status of the provider: left to right and plain text, so it can be selected. */
-const ltr = (value: string | null): ReactNode => (value === null || value === '' ? NONE : <span dir="ltr">{value}</span>)
-/** The same for what can be long and has no space to break at (an id, an email, a tracking number, a JSON summary): it breaks rather than push the page sideways. */
-const ltrLong = (value: string | null): ReactNode =>
-  value === null || value === '' ? NONE : (
-    <span dir="ltr" className={styles.break}>
-      {value}
-    </span>
-  )
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <li>
-      {label}: {children}
-    </li>
-  )
-}
 
 /** The order as `order_detail` answers now; a reply that is not what it should be is a failure, not a half-drawn order. */
 async function fetchDetail(id: string): Promise<Load> {
@@ -118,6 +106,10 @@ export function OrderView() {
   const [restock, setRestock] = useState<Record<string, string>>({})
   const [closeReasons, setCloseReasons] = useState<Record<string, string>>({})
   const [confirming, setConfirming] = useState(false)
+  const step = useStepUp()
+  const focusBack = useFocusBack()
+  // The attempt or review payment whose dispute form is open (`attempt:<id>` or `review:<paymentId>`).
+  const [openDispute, setOpenDispute] = useState<string | null>(null)
 
   useEffect(() => {
     if (!allowed || !valid) return
@@ -159,6 +151,17 @@ export function OrderView() {
   }
 
   /**
+   * The order read again after an action. A reading that fails leaves what is drawn as it is: an order replaced by
+   * the failure would take its refund form, and the idempotency key a repeat of the refund needs, with it. True when
+   * it failed, so that the screen says so.
+   */
+  async function reread(orderId: string): Promise<boolean> {
+    const next = await fetchDetail(orderId)
+    setLoad((current) => (next.kind === 'failed' && current.kind === 'ready' && current.detail.order.id === orderId ? current : next))
+    return next.kind === 'failed'
+  }
+
+  /**
    * One call and what follows it: the button is off while it is in flight (a second press sends
    * nothing), the order is read again whatever the answer (a refusal may mean it changed), and the
    * result goes to the status or the alert line, which takes the focus.
@@ -172,12 +175,13 @@ export function OrderView() {
     setAlert('')
     let line: 'status' | 'alert' = 'alert'
     let text: ReactNode = SAVE_FAILED
+    let unread = false
     try {
       const { data, error } = await call()
       if (error) {
         text = error.code === '42501' ? NO_PERMISSION : SAVE_FAILED
       } else {
-        setLoad(await fetchDetail(load.detail.order.id))
+        unread = await reread(load.detail.order.id)
         const reply = parseActionReply(data)
         if (reply.ok) {
           line = 'status'
@@ -191,7 +195,35 @@ export function OrderView() {
     }
     inFlight.current = false
     setBusy(null)
-    report(line, text)
+    if (unread) report('alert', <>{text} {REREAD_FAILED}</>)
+    else report(line, text)
+  }
+
+  /**
+   * A money action (the owner's calls of the `admin` function): the same guard as `act` against a second press
+   * and the same new reading of the order whatever the answer; `task` answers the sentence, or null for none
+   * (the owner closed the code dialog: the focus goes back to the control that was pressed).
+   */
+  async function moneyRun(key: string, task: () => Promise<Said | null>): Promise<void> {
+    if (inFlight.current || load.kind !== 'ready') return
+    inFlight.current = true
+    const orderId = load.detail.order.id
+    focusBack.mark()
+    setBusy(key)
+    setStatus('')
+    setAlert('')
+    let said: Said | null = { line: 'alert', text: SAVE_FAILED }
+    try {
+      said = await task()
+    } catch {
+      // The sentence stays «تعذّر الحفظ».
+    }
+    const unread = await reread(orderId)
+    inFlight.current = false
+    setBusy(null)
+    if (unread) report('alert', said === null ? REREAD_FAILED : <>{said.text} {REREAD_FAILED}</>)
+    else if (said !== null) report(said.line, said.text)
+    else focusBack.back()
   }
 
   function reload() {
@@ -290,11 +322,18 @@ export function OrderView() {
   }
 
   function closeReview(paymentId: string) {
-    const reason = clean(closeReasons[paymentId] ?? '')
-    if (reason === '') return report('alert', NEEDS_REASON)
-    // `refunded` is the word the refund path writes; a person using it would make the payment unrefundable.
-    if (reason.toLowerCase() === 'refunded') return report('alert', RESERVED_REASON)
-    void act(`close:${paymentId}`, 'close', () => rpc('review_close', { p_payment: paymentId, p_reason: reason }), () => 'أُغلقت المراجعة.')
+    const reason = closeReason(closeReasons[paymentId] ?? '')
+    if (!reason.ok) return report('alert', reason.message)
+    void act(`close:${paymentId}`, 'close', () => rpc('review_close', { p_payment: paymentId, p_reason: reason.reason }), () => 'أُغلقت المراجعة.')
+  }
+
+  function toggleDispute(key: string) {
+    setOpenDispute((current) => (current === key ? null : key))
+  }
+
+  function clear() {
+    setStatus('')
+    setAlert('')
   }
 
   if (!allowed) {
@@ -309,6 +348,8 @@ export function OrderView() {
   const state = valid ? load.kind : 'missing'
   const detail = valid && load.kind === 'ready' ? load.detail : null
   const off = busy !== null
+  // What the money controls need of this screen: the guard, the sentence on its two lines, the step-up.
+  const money: Money = { busy: off, run: moneyRun, say: report, clear, ask: step.ask }
 
   return (
     <div>
@@ -336,6 +377,8 @@ export function OrderView() {
       )}
       {state === 'missing' && <p>{ORDER_NOT_FOUND}</p>}
       {detail !== null && sections(detail)}
+      {/* Always mounted. Closing it gives the focus back to the control that asked for the code (`moneyRun`: that control was off). */}
+      {step.dialog}
     </div>
   )
 
@@ -348,6 +391,11 @@ export function OrderView() {
       return item === undefined ? itemId : nameOf(item)
     }
     const controls = order.status === 'paid'
+    // The owner's money controls: the lines a dispute can name, and the paying attempt a refund is made against (not once the order is refunded).
+    const disputable = disputeLines(d)
+    const refundTarget = owner && order.status !== 'refunded' ? (d.attempts.find((attempt) => attempt.status === 'paid') ?? null) : null
+    // The owner's «أعد الفحص» of a refund in flight: a column only while there is one.
+    const rechecks = owner && d.refunds.some((refund) => refundInFlight(refund.status))
     const picked = d.fulfillments.filter((entry) => selected.includes(entry.itemId))
     const dedicate = picked.some((entry) => itemOf(entry.itemId)?.fulfillment === 'signed' && !entry.dedicationDone)
 
@@ -464,6 +512,32 @@ export function OrderView() {
                   {attempt.fetchedAt !== null && <Fact label="آخر تحقق من المزوّد">{formatRiyadh(attempt.fetchedAt)}</Fact>}
                   {attempt.lastError !== null && <Fact label="آخر خطأ">{ltr(attempt.lastError)}</Fact>}
                 </ul>
+                {owner && (
+                  <div className={styles.row}>
+                    <button
+                      type="button"
+                      className={styles.buttonSecondary}
+                      disabled={off}
+                      onClick={() => void money.run(`recheck:${attempt.id}`, () => recheckAttempt(attempt.id))}
+                    >
+                      أعد الفحص
+                    </button>
+                    {attempt.status === 'paid' && (
+                      <button
+                        type="button"
+                        className={styles.buttonSecondary}
+                        aria-expanded={openDispute === `attempt:${attempt.id}`}
+                        disabled={off}
+                        onClick={() => toggleDispute(`attempt:${attempt.id}`)}
+                      >
+                        تسجيل اعتراض
+                      </button>
+                    )}
+                  </div>
+                )}
+                {openDispute === `attempt:${attempt.id}` && (
+                  <DisputeForm mode={{ kind: 'payment', target: { attemptId: attempt.id } }} lines={disputable} money={money} onClose={() => setOpenDispute(null)} />
+                )}
               </div>
             ))}
           </div>
@@ -519,10 +593,76 @@ export function OrderView() {
                         </div>
                       </div>
                     )}
+                    {owner && review.closedReason !== 'refunded' && (
+                      <RefundView
+                        subject={{
+                          kind: 'review',
+                          paymentId: review.paymentId,
+                          orderId: review.orderId,
+                          remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
+                        }}
+                        money={money}
+                      />
+                    )}
+                    {owner && (
+                      <div className={styles.row}>
+                        <button
+                          type="button"
+                          className={styles.buttonSecondary}
+                          aria-expanded={openDispute === `review:${review.paymentId}`}
+                          disabled={off}
+                          onClick={() => toggleDispute(`review:${review.paymentId}`)}
+                        >
+                          تسجيل اعتراض
+                        </button>
+                      </div>
+                    )}
+                    {openDispute === `review:${review.paymentId}` && (
+                      <DisputeForm
+                        mode={{ kind: 'payment', target: { reviewPaymentId: review.paymentId } }}
+                        lines={disputable}
+                        money={money}
+                        onClose={() => setOpenDispute(null)}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
             </>
+          )}
+          <h3>إشعارات الدفع</h3>
+          {d.events.length === 0 && <p className={styles.message}>لا توجد إشعارات.</p>}
+          {d.events.length > 0 && (
+            <div className={styles.tableWrap}>
+              <table className={`${styles.table} ${styles.responsive}`}>
+                <thead>
+                  <tr>
+                    <th>النوع</th>
+                    <th>النتيجة</th>
+                    <th>وقت الاستلام</th>
+                    <th>وقت المعالجة</th>
+                    <th>المحاولات</th>
+                    <th>الخطأ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.events.map((event) => (
+                    <tr key={event.eventId}>
+                      <td data-label="النوع">{ltrLong(event.type)}</td>
+                      <td data-label="النتيجة">{ltrLong(event.outcome)}</td>
+                      <td data-label="وقت الاستلام" className={styles.cellNowrap}>
+                        {formatRiyadh(event.receivedAt)}
+                      </td>
+                      <td data-label="وقت المعالجة" className={styles.cellNowrap}>
+                        {when(event.processedAt)}
+                      </td>
+                      <td data-label="المحاولات">{formatNumber(event.attempts)}</td>
+                      <td data-label="الخطأ">{event.error !== null && ltrLong(event.error)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 
@@ -800,13 +940,19 @@ export function OrderView() {
               {d.disputes.map((dispute) => (
                 <div key={dispute.id} className={styles.listItem}>
                   <ul className={styles.metaList}>
-                    <Fact label="النوع">{ltr(dispute.kind)}</Fact>
+                    <Fact label="النوع">
+                      <Enum labels={DISPUTE_KIND_LABELS} code={dispute.kind} />
+                    </Fact>
                     <Fact label="المرجع">{ltrLong(dispute.providerRef)}</Fact>
                     <Fact label="التسلسل">{formatNumber(dispute.seq)}</Fact>
                     <Fact label="المبلغ">{formatMoney(dispute.amount)}</Fact>
-                    <Fact label="الاتجاه">{ltr(dispute.direction)}</Fact>
+                    <Fact label="الاتجاه">
+                      <Enum labels={DISPUTE_DIRECTION_LABELS} code={dispute.direction} />
+                    </Fact>
                     <Fact label="التاريخ">{formatDate(dispute.occurredOn)}</Fact>
-                    <Fact label="القرار">{ltr(dispute.decision)}</Fact>
+                    <Fact label="القرار">
+                      <Enum labels={DISPUTE_DECISION_LABELS} code={dispute.decision} />
+                    </Fact>
                     <Fact label="السبب">
                       <bdi>{dispute.reason}</bdi>
                     </Fact>
@@ -849,49 +995,67 @@ export function OrderView() {
           </section>
         )}
 
-        {d.refunds.length > 0 && (
+        {(d.refunds.length > 0 || refundTarget !== null) && (
           <section>
             <h2>الاستردادات</h2>
-            <div className={styles.tableWrap}>
-              <table className={`${styles.table} ${styles.responsive}`}>
-                <thead>
-                  <tr>
-                    <th>الحالة</th>
-                    <th>المبلغ</th>
-                    <th>السبب</th>
-                    <th>المصدر</th>
-                    <th>وقت الطلب</th>
-                    <th>وقت النجاح</th>
-                    <th>الخطأ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.refunds.map((refund) => (
-                    <tr key={refund.id}>
-                      <td data-label="الحالة" className={styles.cellNowrap}>
-                        <Enum labels={REFUND_STATUS_LABELS} code={refund.status} />
-                      </td>
-                      <td data-label="المبلغ" className={styles.cellNowrap}>
-                        {formatMoney(refund.amount)}
-                      </td>
-                      <td data-label="السبب">
-                        <bdi>{refund.reason}</bdi>
-                      </td>
-                      <td data-label="المصدر" className={styles.cellNowrap}>
-                        <Enum labels={REFUND_SOURCE_LABELS} code={refund.source} />
-                      </td>
-                      <td data-label="وقت الطلب" className={styles.cellNowrap}>
-                        {formatRiyadh(refund.createdAt)}
-                      </td>
-                      <td data-label="وقت النجاح" className={styles.cellNowrap}>
-                        {refund.succeededAt !== null && formatRiyadh(refund.succeededAt)}
-                      </td>
-                      <td data-label="الخطأ">{refund.error !== null && ltr(refund.error)}</td>
+            {d.refunds.length > 0 && (
+              <div className={styles.tableWrap}>
+                <table className={`${styles.table} ${styles.responsive}`}>
+                  <thead>
+                    <tr>
+                      <th>الحالة</th>
+                      <th>المبلغ</th>
+                      <th>السبب</th>
+                      <th>المصدر</th>
+                      <th>وقت الطلب</th>
+                      <th>وقت النجاح</th>
+                      <th>الخطأ</th>
+                      {rechecks && <th>إجراء</th>}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {d.refunds.map((refund) => (
+                      <tr key={refund.id}>
+                        <td data-label="الحالة" className={styles.cellNowrap}>
+                          <Enum labels={REFUND_STATUS_LABELS} code={refund.status} />
+                        </td>
+                        <td data-label="المبلغ" className={styles.cellNowrap}>
+                          {formatMoney(refund.amount)}
+                        </td>
+                        <td data-label="السبب">
+                          <bdi>{refund.reason}</bdi>
+                        </td>
+                        <td data-label="المصدر" className={styles.cellNowrap}>
+                          <Enum labels={REFUND_SOURCE_LABELS} code={refund.source} />
+                        </td>
+                        <td data-label="وقت الطلب" className={styles.cellNowrap}>
+                          {formatRiyadh(refund.createdAt)}
+                        </td>
+                        <td data-label="وقت النجاح" className={styles.cellNowrap}>
+                          {refund.succeededAt !== null && formatRiyadh(refund.succeededAt)}
+                        </td>
+                        <td data-label="الخطأ">{refund.error !== null && ltr(refund.error)}</td>
+                        {rechecks && (
+                          <td data-label="إجراء">
+                            {refundInFlight(refund.status) && (
+                              <button
+                                type="button"
+                                className={styles.buttonSecondary}
+                                disabled={off}
+                                onClick={() => void money.run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
+                              >
+                                أعد الفحص
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {refundTarget !== null && <RefundView subject={{ kind: 'order', detail: d, attemptId: refundTarget.id }} money={money} />}
           </section>
         )}
       </>

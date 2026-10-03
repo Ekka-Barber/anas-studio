@@ -11,7 +11,7 @@
  * never travels in a query string.
  */
 import Link from 'next/link'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 
 import {
   alertCounts,
@@ -23,6 +23,7 @@ import {
   ORDER_STATUS_LABELS,
   parseOrdersAlerts,
   parseOrdersList,
+  RECONCILIATION_PATH,
   TEST_BADGE,
   type OrderFilter,
   type OrderRow,
@@ -44,6 +45,30 @@ export function Enum({ labels, code }: { labels: Readonly<Record<string, string>
 /** «تجريبي» on a sandbox order; a live one shows nothing. */
 export function TestBadge({ environment }: { environment: string }) {
   return environment === 'test' ? <span className={styles.badge}>{TEST_BADGE}</span> : null
+}
+
+export const NONE = 'لا يوجد'
+
+/** A code, a phone or a status of the provider: left to right and plain text, so it can be selected. */
+export const ltr = (value: string | null): ReactNode => (value === null || value === '' ? NONE : <span dir="ltr">{value}</span>)
+
+/** The same for what can be long and has no space to break at (an id, an email, a tracking number, a JSON summary): it breaks rather than push the page sideways. */
+export const ltrLong = (value: string | null): ReactNode =>
+  value === null || value === '' ? (
+    NONE
+  ) : (
+    <span dir="ltr" className={styles.break}>
+      {value}
+    </span>
+  )
+
+/** One «label: value» line of a card's list. */
+export function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <li>
+      {label}: {children}
+    </li>
+  )
 }
 
 /** One page of the list, or null when the call or the parser failed. */
@@ -200,9 +225,28 @@ export function OrdersView() {
       {alerts === 'failed' && <p className={styles.error}>{LOAD_FAILED}</p>}
       {typeof alerts === 'object' && (
         <p>
-          {alertCounts(alerts, role === 'owner')
-            .map((count) => `${count.label}: ${formatNumber(count.value)}`)
-            .join(' · ')}
+          {alertCounts(alerts, role === 'owner').map((count, index) => {
+            const text = `${count.label}: ${formatNumber(count.value)}`
+            return (
+              <Fragment key={count.label}>
+                {index > 0 && ' · '}
+                {count.href === undefined ? (
+                  text
+                ) : (
+                  <Link className={styles.target} href={count.href}>
+                    {text}
+                  </Link>
+                )}
+              </Fragment>
+            )
+          })}
+        </p>
+      )}
+      {role === 'owner' && (
+        <p>
+          <Link className={styles.target} href={RECONCILIATION_PATH}>
+            المطابقة
+          </Link>
         </p>
       )}
 

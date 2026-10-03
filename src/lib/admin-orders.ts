@@ -12,6 +12,10 @@ import { ORDER_NUMBER } from './cart'
  * and the screen then says it could not load, never a half-drawn order. Extra
  * keys are ignored (these are staff screens, not the buyer's). A value out of an
  * enum is not refused: it is shown as its code (`labelOf`).
+ *
+ * Round 11b adds what the owner's money screens read: the reconciliation and
+ * disputes lists, the replies of the `admin` function's money actions, and the
+ * words of the reconciliation reasons and of the disputes.
  */
 
 // ---------------------------------------------------------------------------
@@ -82,6 +86,26 @@ export const REFUND_STATUS_LABELS: Readonly<Record<string, string>> = {
   failed: 'لم يتم',
 }
 export const REFUND_SOURCE_LABELS: Readonly<Record<string, string>> = { admin: 'من اللوحة', provider_dashboard: 'من لوحة Moyasar' }
+/** Why an attempt is on the reconciliation screen (round 7b's `reasons`). */
+export const RECONCILIATION_REASON_LABELS: Readonly<Record<string, string>> = {
+  UNCERTAIN: 'إنشاء غير مؤكد',
+  UNVERIFIED: 'لم يُتحقق منها',
+  PROVIDER_STATUS: 'حالة مختلفة لدى Moyasar',
+  EXTERNAL_REFUND: 'استرداد لدى Moyasar غير مسجّل',
+}
+export const DISPUTE_KIND_LABELS: Readonly<Record<string, string>> = {
+  chargeback: 'اعتراض بطاقة',
+  payout_difference: 'فرق تحويل',
+  fee_difference: 'فرق رسوم',
+  other: 'أخرى',
+}
+export const DISPUTE_DIRECTION_LABELS: Readonly<Record<string, string>> = { against_seller: 'على البائع', for_seller: 'لصالح البائع' }
+export const DISPUTE_DECISION_LABELS: Readonly<Record<string, string>> = {
+  none: 'بلا إجراء',
+  entitlement_revoked: 'سحب الملفات',
+  entitlement_kept: 'إبقاء الملفات',
+  fulfillment_stopped: 'إيقاف الشحن',
+}
 
 /** The Arabic word of an enum value; a value the table does not know is its own code (the screens draw it `dir="ltr"`). */
 export function labelOf(labels: Readonly<Record<string, string>>, code: string): string {
@@ -201,17 +225,26 @@ export function parseOrdersAlerts(value: unknown) {
 }
 export type OrdersAlerts = ReturnType<typeof parseOrdersAlerts>
 
+/** The owner's screen of what needs matching with the provider (round 11b). */
+export const RECONCILIATION_PATH = '/admin/orders/reconciliation'
+
 /**
  * The counts of the list's line and the home: «تحتاج مطابقة» is the owner's alone, the sum of what
- * the reconciliation screen lists (round 11b links it there).
+ * the reconciliation screen lists, and it links there (`href`).
  */
-export function alertCounts(alerts: OrdersAlerts, owner: boolean): Array<{ label: string; value: number }> {
+export function alertCounts(alerts: OrdersAlerts, owner: boolean): Array<{ label: string; value: number; href?: string }> {
   return [
     { label: 'تحتاج حلًا', value: alerts.needsResolution },
     { label: 'للشحن', value: alerts.toShip },
     { label: 'دفعات قيد المراجعة', value: alerts.review },
     ...(owner
-      ? [{ label: 'تحتاج مطابقة', value: alerts.uncertainRefunds + alerts.unverifiedAttempts + alerts.exhaustedEvents + alerts.externalRefunds }]
+      ? [
+          {
+            label: 'تحتاج مطابقة',
+            value: alerts.uncertainRefunds + alerts.unverifiedAttempts + alerts.exhaustedEvents + alerts.externalRefunds,
+            href: RECONCILIATION_PATH,
+          },
+        ]
       : []),
   ]
 }
@@ -450,6 +483,71 @@ export function parseOrderDetail(value: unknown) {
 export type OrderDetail = Extract<ReturnType<typeof parseOrderDetail>, { found: true }>['detail']
 
 // ---------------------------------------------------------------------------
+// The reconciliation screen (round 11b)
+// ---------------------------------------------------------------------------
+
+/**
+ * `reconciliation_list` (owner): the attempts that need a look (each with its order's number, what was
+ * confirmed refunded and the reasons), the open review payments, the refunds in flight and the events that
+ * need a person. Each list is the newest 100, which the reply does not say (the screen does).
+ */
+export function parseReconciliation(value: unknown) {
+  const o = obj(value)
+  return {
+    attempts: list(o.attempts, (entry) => {
+      const a = obj(entry)
+      return { ...attemptOf(entry), orderNumber: number(a.orderNumber), refunded: int(a.refunded), reasons: list(a.reasons, str) }
+    }),
+    reviews: list(o.reviews, (entry) => ({ ...reviewOf(entry), orderNumber: nstr(obj(entry).orderNumber) })),
+    refunds: list(o.refunds, (entry) => ({ ...refundOf(entry), orderNumber: nstr(obj(entry).orderNumber) })),
+    events: list(o.events, eventOf),
+  }
+}
+export type Reconciliation = ReturnType<typeof parseReconciliation>
+
+/** `disputes_list` (owner): `{references: [{kind, providerRef, rows}]}`; a row is a dispute row with the number of its target's order (null for none). */
+export function parseDisputes(value: unknown) {
+  return list(obj(value).references, (entry) => {
+    const r = obj(entry)
+    const rows = list(r.rows, (row) => ({ ...disputeOf(row), orderNumber: nstr(obj(row).orderNumber) }))
+    // A reference is its rows: one with none cannot be followed up.
+    return rows.length === 0 ? malformed() : { kind: str(r.kind), providerRef: str(r.providerRef), rows }
+  })
+}
+export type DisputeReference = ReturnType<typeof parseDisputes>[number]
+
+// ---------------------------------------------------------------------------
+// The money replies of the `admin` function (round 11b)
+// ---------------------------------------------------------------------------
+
+const REFUND_REPLY_STATUSES = ['submitting', 'uncertain', 'succeeded', 'failed'] as const
+export type RefundReplyStatus = (typeof REFUND_REPLY_STATUSES)[number]
+
+/**
+ * What `refund-create`, `refund-recheck` and `refund-record-external` answer: `{refundId, status, amount}`.
+ * A status the screen has no sentence for, or an amount that is not a positive whole number of halalas, is
+ * not a reply it can word: it throws, and the screen says it could not read it.
+ */
+export function parseRefundReply(value: unknown) {
+  const o = obj(value)
+  const status = str(o.status)
+  const amount = int(o.amount)
+  if (!(REFUND_REPLY_STATUSES as readonly string[]).includes(status) || amount < 1) malformed()
+  return { refundId: id(o.refundId), status: status as RefundReplyStatus, amount }
+}
+
+/** `payment-recheck`: `{status}`, the attempt's status now. */
+export function parsePaymentRecheckReply(value: unknown) {
+  return { status: str(obj(value).status) }
+}
+
+/** `dispute-record`: `{duplicate, dispute}`; a repeat of a row already recorded is `duplicate: true`. */
+export function parseDisputeReply(value: unknown) {
+  const o = obj(value)
+  return { duplicate: bool(o.duplicate), dispute: disputeOf(o.dispute) }
+}
+
+// ---------------------------------------------------------------------------
 // The action replies
 // ---------------------------------------------------------------------------
 
@@ -503,7 +601,7 @@ export function parseActionReply(value: unknown): Done | Refusal {
   }
 }
 
-export type OrderAction = 'fulfil' | 'decide' | 'receive' | 'resolve' | 'close'
+export type OrderAction = 'fulfil' | 'decide' | 'receive' | 'resolve' | 'close' | 'dismiss'
 
 const REFUSALS: Record<OrderAction, Readonly<Record<string, string>>> = {
   fulfil: {
@@ -522,6 +620,24 @@ const REFUSALS: Record<OrderAction, Readonly<Record<string, string>>> = {
     REFUND_IN_FLIGHT: 'استرداد قيد المعالجة؛ أعد المحاولة بعد دقائق.',
   },
   close: { NOT_FOUND: 'لم نجد هذه الدفعة.', ALREADY_CLOSED: 'أُغلقت هذه المراجعة من قبل.' },
+  dismiss: { NOT_FOUND: 'لم نجد هذا الإشعار.', NOT_EXHAUSTED: 'لا يحتاج هذا الإشعار إلى مراجعة.' },
+}
+
+/** A typed line as the functions read it: control characters become spaces, the ends are trimmed. */
+export const clean = (text: string): string => text.replace(/\p{Cc}/gu, ' ').trim()
+
+export const NEEDS_REASON = 'أدخل سبب الإغلاق.'
+export const RESERVED_REASON = 'لا يُقبل هذا السبب؛ اكتب سببًا آخر.'
+
+/**
+ * What «إغلاق المراجعة» sends for the typed reason, or the sentence that refuses it before any call:
+ * `refunded` is the word the refund path writes, and a person using it would make the payment unrefundable.
+ */
+export function closeReason(text: string): { ok: true; reason: string } | { ok: false; message: string } {
+  const reason = clean(text)
+  if (reason === '') return { ok: false, message: NEEDS_REASON }
+  if (reason.toLowerCase() === 'refunded') return { ok: false, message: RESERVED_REASON }
+  return { ok: true, reason }
 }
 
 /** The sentence of a refusal; a code this screen does not know is the generic «تعذّر الحفظ». */
