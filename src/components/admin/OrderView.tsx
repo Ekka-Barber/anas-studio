@@ -3,7 +3,8 @@
 /**
  * One order for the staff (P08 round 11a): `order_detail` under the signed-in
  * session, drawn section by section, and the five things a person can do here:
- * fulfilment (`fulfillment_update`), a return's decision and receipt
+ * fulfilment (`fulfillment_update`, and `fulfillment_correct` for the carrier and
+ * tracking of lines that have shipped, FABLE-AUDIT F3-4), a return's decision and receipt
  * (`return_decide`, `return_receive`), the resolution of a paid order whose stock
  * was gone (`order_resolve`) and the closing of a review payment (`review_close`).
  * Every one is a function that rechecks the caller's role inside; the screen
@@ -31,6 +32,7 @@ import {
   DISPUTE_KIND_LABELS,
   FULFILLMENT_STATE_LABELS,
   FULFILLMENT_TYPE_LABELS,
+  isCorrection,
   isUuid,
   LOAD_FAILED,
   NO_PERMISSION,
@@ -44,6 +46,7 @@ import {
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
+  shipCall,
   STOPPED_BADGE,
   type Done,
   type OrderAction,
@@ -147,10 +150,14 @@ export function OrderView() {
     setFocusLine((current) => ({ line, n: (current?.n ?? 0) + 1 }))
   }
 
-  /** The sentence of a refusal; for a fulfilment, followed by the titles of the lines at fault. */
-  function refused(action: OrderAction, reply: Refusal, items: readonly Item[]): ReactNode {
-    const sentence = refusalText(action, reply)
-    const names = action === 'fulfil' ? reply.itemIds.flatMap((itemId) => items.filter((item) => item.id === itemId).map(nameOf)) : []
+  /**
+   * The sentence of a refusal; for a fulfilment, followed by the titles of the lines at fault. `before` is the
+   * shipping table as it was drawn when the button was pressed.
+   */
+  function refused(action: OrderAction, reply: Refusal, items: readonly Item[], before: OrderDetail['fulfillments']): ReactNode {
+    const sentence = refusalText(action, reply, before)
+    const lines = action === 'fulfil' || action === 'ship' || action === 'correct'
+    const names = lines ? reply.itemIds.flatMap((itemId) => items.filter((item) => item.id === itemId).map(nameOf)) : []
     return names.length === 0 ? (
       sentence
     ) : (
@@ -179,7 +186,7 @@ export function OrderView() {
   async function act(key: string, action: OrderAction, call: () => PromiseLike<Reply>, done: (reply: Done) => ReactNode): Promise<void> {
     if (inFlight.current || load.kind !== 'ready') return
     inFlight.current = true
-    const items = load.detail.items
+    const { items, fulfillments } = load.detail
     setBusy(key)
     setStatus('')
     setAlert('')
@@ -197,7 +204,7 @@ export function OrderView() {
           line = 'status'
           text = done(reply)
         } else {
-          text = refused(action, reply, items)
+          text = refused(action, reply, items, fulfillments)
         }
       }
     } catch {
@@ -249,26 +256,34 @@ export function OrderView() {
     if (load.kind !== 'ready') return
     // Only lines that can still move: one chosen before a refund or a dispute blocked it (seen on the re-read) is not sent.
     const { fulfillments, items } = load.detail
-    const sendable = selected.filter((itemId) => {
+    const lines = selected.flatMap((itemId) => {
       const entry = fulfillments.find((candidate) => candidate.itemId === itemId)
-      return entry !== undefined && !blocked(entry, items.find((item) => item.id === itemId))
+      return entry !== undefined && !blocked(entry, items.find((item) => item.id === itemId)) ? [entry] : []
     })
-    if (sendable.length === 0) return report('alert', NO_ITEMS)
+    if (lines.length === 0) return report('alert', NO_ITEMS)
     const company = clean(carrier)
     const number = clean(tracking)
     if (state === 'shipped' && (company === '' || number === '')) return report('alert', NEEDS_CARRIER)
+    // «تم الشحن» moves the lines; when every chosen line has shipped the same button is «تصحيح بيانات الشحن», its own call (F3-4).
+    const call =
+      state === 'shipped'
+        ? shipCall(load.detail.order.id, lines, company, number)
+        : {
+            action: 'fulfil' as const,
+            fn: 'fulfillment_update' as const,
+            args: {
+              p_order: load.detail.order.id,
+              p_item_ids: lines.map((entry) => entry.itemId),
+              p_state: state,
+              p_carrier: null,
+              p_tracking: null,
+              p_dedication_done: state === 'preparing' ? true : null,
+            },
+          }
     void act(
       `fulfil:${state}`,
-      'fulfil',
-      () =>
-        rpc('fulfillment_update', {
-          p_order: load.detail.order.id,
-          p_item_ids: sendable,
-          p_state: state,
-          p_carrier: state === 'shipped' ? company : null,
-          p_tracking: state === 'shipped' ? number : null,
-          p_dedication_done: state === 'preparing' ? true : null,
-        }),
+      call.action,
+      () => rpc(call.fn, call.args),
       (reply) => {
         if (reply.changed === 0) return 'لا تغيير.'
         // The dedication is the step before shipping the same lines: they stay chosen; shipped or delivered ones do not.
@@ -277,7 +292,7 @@ export function OrderView() {
           setCarrier('')
           setTracking('')
         }
-        // Every chosen line had shipped: the function fixed their carrier or tracking and moved nothing.
+        // `fulfillment_correct` fixed the carrier or tracking of lines that had shipped, and moved nothing.
         return reply.corrected ? 'صُحّحت بيانات الشحن.' : 'تم التحديث.'
       },
     )
@@ -421,8 +436,8 @@ export function OrderView() {
     const rechecks = owner && d.refunds.some((refund) => refundInFlight(refund.status))
     const picked = d.fulfillments.filter((entry) => selected.includes(entry.itemId) && !blocked(entry, itemOf(entry.itemId)))
     const dedicate = picked.some((entry) => itemOf(entry.itemId)?.fulfillment === 'signed' && !entry.dedicationDone)
-    // Every chosen line has shipped: «تم الشحن» becomes the correction of their carrier and tracking.
-    const correcting = picked.length > 0 && picked.every((entry) => entry.state === 'shipped')
+    // Every chosen line has shipped: «تم الشحن» becomes the correction of their carrier and tracking (`fulfillment_correct`).
+    const correcting = isCorrection(picked)
 
     return (
       <>

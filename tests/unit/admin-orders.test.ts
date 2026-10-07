@@ -7,6 +7,8 @@
 // FABLE-AUDIT F2b adds the new server codes (a dispute's stopped line, a shipping correction, a refund in
 // flight, a payment reversed at the provider, a mode change, a payment refunded before it settled) and the
 // owner's re-send of an order's link (its body and every answer, read by `src/lib/admin-money.ts`).
+// FABLE-AUDIT F3-4 adds the shipping button's two calls: «تم الشحن» (`fulfillment_update`) and «تصحيح بيانات
+// الشحن» (`fulfillment_correct`, round M2), and the sentence of a stale «تم الشحن».
 // The screens themselves are proven in tests/e2e/orders-admin.spec.ts and tests/e2e/orders-money.spec.ts.
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,11 +19,13 @@ import {
   ATTEMPT_STATUS_LABELS,
   clean,
   closeReason,
+  DELIVERED_BEFORE,
   DISPUTE_DECISION_LABELS,
   DISPUTE_DIRECTION_LABELS,
   DISPUTE_KIND_LABELS,
   FULFILLMENT_STATE_LABELS,
   FULFILLMENT_TYPE_LABELS,
+  isCorrection,
   isUuid,
   labelOf,
   NEEDS_REASON,
@@ -45,6 +49,8 @@ import {
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
+  shipCall,
+  SHIPPED_BEFORE,
   STOPPED_BADGE,
   type OrderAction,
   type Refusal,
@@ -696,12 +702,76 @@ describe('the sentence of a refusal', () => {
   })
 
   it('says «could not save» for a code it does not know, and never an exception', () => {
-    for (const action of ['fulfil', 'decide', 'receive', 'resolve', 'close', 'dismiss'] as const) {
+    for (const action of ['fulfil', 'ship', 'correct', 'decide', 'receive', 'resolve', 'close', 'dismiss'] as const) {
       expect(text(action, 'SOMETHING_NEW'), action).toBe(SAVE_FAILED)
       expect(text(action, 'constructor'), action).toBe(SAVE_FAILED)
     }
     // A code that is another action's: not this one's.
     expect(text('close', 'ORDER_NOT_PAID')).toBe(SAVE_FAILED)
+  })
+})
+
+describe('the shipping button: «تم الشحن» or «تصحيح بيانات الشحن» (FABLE-AUDIT F3-4)', () => {
+  const line = (itemId: string, state: string) => ({ itemId, state })
+  const refusal = (code: string, itemIds: string[] = []): Refusal => ({ ok: false, code, state: null, status: null, itemIds })
+  const GENERAL = 'لا تنتقل هذه العناصر إلى هذه الحالة.'
+
+  it('is the correction only when every chosen line has shipped', () => {
+    expect(isCorrection([])).toBe(false)
+    expect(isCorrection([line(B, 'shipped'), line(C, 'shipped')])).toBe(true)
+    expect(isCorrection([line(B, 'shipped'), line(C, 'preparing')])).toBe(false)
+    expect(isCorrection([line(B, 'delivered')])).toBe(false)
+  })
+
+  it('corrects shipped lines through fulfillment_correct with exactly its four arguments, never fulfillment_update', () => {
+    expect(shipCall(A, [line(B, 'shipped'), line(C, 'shipped')], 'SMSA', 'T-2')).toEqual({
+      action: 'correct',
+      fn: 'fulfillment_correct',
+      args: { p_order: A, p_item_ids: [B, C], p_carrier: 'SMSA', p_tracking: 'T-2' },
+    })
+  })
+
+  it('ships any other choice through fulfillment_update with shipped, in the order chosen', () => {
+    expect(shipCall(A, [line(C, 'preparing'), line(B, 'shipped')], 'SMSA', 'T-2')).toEqual({
+      action: 'ship',
+      fn: 'fulfillment_update',
+      args: { p_order: A, p_item_ids: [C, B], p_state: 'shipped', p_carrier: 'SMSA', p_tracking: 'T-2', p_dedication_done: null },
+    })
+    expect(shipCall(A, [line(B, 'delivered')], 'SMSA', 'X1')).toMatchObject({ action: 'ship', fn: 'fulfillment_update' })
+  })
+
+  it('says a stale «تم الشحن» as shipped before, for lines the screen showed still being prepared', () => {
+    expect(SHIPPED_BEFORE).toBe('شُحنت هذه العناصر من قبل؛ حدّث الصفحة.')
+    expect(refusalText('ship', refusal('BAD_TRANSITION', [B]), [line(B, 'preparing'), line(C, 'preparing')])).toBe(SHIPPED_BEFORE)
+    expect(refusalText('ship', refusal('BAD_TRANSITION', [B, C]), [line(B, 'preparing'), line(C, 'preparing')])).toBe(SHIPPED_BEFORE)
+    // A line the screen already showed delivered or shipped keeps the general sentence (orders-admin.spec ships a delivered line).
+    expect(refusalText('ship', refusal('BAD_TRANSITION', [B]), [line(B, 'delivered')])).toBe(GENERAL)
+    expect(refusalText('ship', refusal('BAD_TRANSITION', [B, C]), [line(B, 'preparing'), line(C, 'shipped')])).toBe(GENERAL)
+    // Nothing to compare with: the general sentence.
+    expect(refusalText('ship', refusal('BAD_TRANSITION', []), [line(B, 'preparing')])).toBe(GENERAL)
+    expect(refusalText('ship', refusal('BAD_TRANSITION', [B]))).toBe(GENERAL)
+    expect(refusalText('ship', refusal('BAD_TRANSITION', [D]), [line(B, 'preparing')])).toBe(GENERAL)
+    // The dedication and the delivery keep theirs, whatever the screen showed.
+    expect(refusalText('fulfil', refusal('BAD_TRANSITION', [B]), [line(B, 'preparing')])).toBe(GENERAL)
+    // «تم الشحن»'s other refusals are the fulfilment's.
+    expect(refusalText('ship', refusal('DEDICATION_NOT_DONE', [B]), [line(B, 'preparing')])).toBe('أكمل الإهداء قبل الشحن.')
+    expect(refusalText('ship', refusal('FULFILLMENT_STOPPED', [B]))).toBe('أُوقف شحن هذه الأصناف بقرار نزاع.')
+    expect(refusalText('ship', refusal('REFUND_IN_FLIGHT', [B]))).toBe('استرداد قيد التنفيذ على هذه الأصناف؛ انتظر نتيجته.')
+  })
+
+  it('says the four refusals of a correction, and nothing of the move', () => {
+    expect(DELIVERED_BEFORE).toBe('سُلِّمت هذه العناصر من قبل؛ حدّث الصفحة.')
+    expect(refusalText('correct', refusal('BAD_TRANSITION', [B]), [line(B, 'shipped')])).toBe(DELIVERED_BEFORE)
+    expect(refusalText('correct', refusal('ORDER_NOT_PAID'))).toBe('الطلب غير مدفوع، فلا يُشحن.')
+    expect(refusalText('correct', refusal('INVALID_ITEMS'))).toBe('اختر عناصر من هذا الطلب.')
+    expect(refusalText('correct', refusal('NOT_FOUND'))).toBe('لم نجد هذا الطلب.')
+    expect(refusalText('correct', refusal('DEDICATION_NOT_DONE'))).toBe(SAVE_FAILED)
+  })
+
+  it('reads what fulfillment_correct answers', () => {
+    expect(parseActionReply({ ok: true, changed: 2, itemIds: [B, C], corrected: true })).toEqual({ ok: true, changed: 2, corrected: true, restocked: [] })
+    expect(parseActionReply({ ok: true, changed: 0, itemIds: [] })).toEqual({ ok: true, changed: 0, corrected: false, restocked: [] })
+    expect(parseActionReply({ ok: false, code: 'BAD_TRANSITION', itemIds: [B] })).toMatchObject({ ok: false, code: 'BAD_TRANSITION', itemIds: [B] })
   })
 })
 

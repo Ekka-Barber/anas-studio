@@ -589,8 +589,9 @@ export interface Refusal {
 }
 
 /**
- * What `fulfillment_update`, `return_decide`, `return_receive`, `order_resolve` and `review_close`
- * answer. `changed` is a count in the SQL (a boolean is read as 0 or 1, as the brief names it).
+ * What `fulfillment_update`, `fulfillment_correct`, `return_decide`, `return_receive`, `order_resolve` and
+ * `review_close` answer. `changed` is a count in the SQL (a boolean is read as 0 or 1, as the brief names it);
+ * `corrected` is true only from `fulfillment_correct` when it changed something.
  */
 export function parseActionReply(value: unknown): Done | Refusal {
   const o = obj(value)
@@ -618,19 +619,65 @@ export function parseActionReply(value: unknown): Done | Refusal {
   }
 }
 
-export type OrderAction = 'fulfil' | 'decide' | 'receive' | 'resolve' | 'close' | 'dismiss'
+/**
+ * `fulfil` is the dedication and «تم التسليم» (`fulfillment_update`); `ship` is «تم الشحن» (the same function with
+ * `shipped`) and `correct` is «تصحيح بيانات الشحن» (`fulfillment_correct`), FABLE-AUDIT F3-4.
+ */
+export type OrderAction = 'fulfil' | 'ship' | 'correct' | 'decide' | 'receive' | 'resolve' | 'close' | 'dismiss'
+
+/** A line of the shipping table as the screen drew it. */
+type ShippingLine = Pick<OrderDetail['fulfillments'][number], 'itemId' | 'state'>
+
+/** «تم الشحن» refused for lines the screen showed still being prepared: they shipped after it was drawn (F3-4). */
+export const SHIPPED_BEFORE = 'شُحنت هذه العناصر من قبل؛ حدّث الصفحة.'
+/** «تصحيح بيانات الشحن» refused: a line the screen showed shipped was delivered after it was drawn (states only move forward). */
+export const DELIVERED_BEFORE = 'سُلِّمت هذه العناصر من قبل؛ حدّث الصفحة.'
+
+/** Every chosen line has shipped: the shipping button is «تصحيح بيانات الشحن», not «تم الشحن». */
+export const isCorrection = (lines: readonly ShippingLine[]): boolean => lines.length > 0 && lines.every((line) => line.state === 'shipped')
+
+/**
+ * The call behind the shipping button for the chosen lines (FABLE-AUDIT F3-4). When every one of them has shipped it
+ * is the correction, `fulfillment_correct`, which changes only their carrier and tracking and queues no mail; otherwise
+ * it is the move, `fulfillment_update` with `shipped`, which refuses a shipped line with another carrier or tracking
+ * (BAD_TRANSITION) since round M2. The arguments are exactly each function's: PostgREST finds a function by its
+ * argument names, so an extra one would miss it.
+ */
+export function shipCall(
+  orderId: string,
+  lines: readonly ShippingLine[],
+  carrier: string,
+  tracking: string,
+): { action: 'ship' | 'correct'; fn: 'fulfillment_update' | 'fulfillment_correct'; args: Record<string, unknown> } {
+  const itemIds = lines.map((line) => line.itemId)
+  return isCorrection(lines)
+    ? { action: 'correct', fn: 'fulfillment_correct', args: { p_order: orderId, p_item_ids: itemIds, p_carrier: carrier, p_tracking: tracking } }
+    : {
+        action: 'ship',
+        fn: 'fulfillment_update',
+        args: { p_order: orderId, p_item_ids: itemIds, p_state: 'shipped', p_carrier: carrier, p_tracking: tracking, p_dedication_done: null },
+      }
+}
+
+const NOT_PAID_SHIP = 'الطلب غير مدفوع، فلا يُشحن.'
+const CHOOSE_ITEMS = 'اختر عناصر من هذا الطلب.'
+
+const FULFIL_REFUSALS: Readonly<Record<string, string>> = {
+  NOT_FOUND: ORDER_NOT_FOUND,
+  ORDER_NOT_PAID: NOT_PAID_SHIP,
+  INVALID_ITEMS: CHOOSE_ITEMS,
+  BAD_TRANSITION: 'لا تنتقل هذه العناصر إلى هذه الحالة.',
+  ITEM_REFUNDED: 'عنصر مُعاد مبلغه بالكامل لا يُشحن.',
+  DEDICATION_NOT_DONE: 'أكمل الإهداء قبل الشحن.',
+  FULFILLMENT_STOPPED: 'أُوقف شحن هذه الأصناف بقرار نزاع.',
+  REFUND_IN_FLIGHT: 'استرداد قيد التنفيذ على هذه الأصناف؛ انتظر نتيجته.',
+}
 
 const REFUSALS: Record<OrderAction, Readonly<Record<string, string>>> = {
-  fulfil: {
-    NOT_FOUND: ORDER_NOT_FOUND,
-    ORDER_NOT_PAID: 'الطلب غير مدفوع، فلا يُشحن.',
-    INVALID_ITEMS: 'اختر عناصر من هذا الطلب.',
-    BAD_TRANSITION: 'لا تنتقل هذه العناصر إلى هذه الحالة.',
-    ITEM_REFUNDED: 'عنصر مُعاد مبلغه بالكامل لا يُشحن.',
-    DEDICATION_NOT_DONE: 'أكمل الإهداء قبل الشحن.',
-    FULFILLMENT_STOPPED: 'أُوقف شحن هذه الأصناف بقرار نزاع.',
-    REFUND_IN_FLIGHT: 'استرداد قيد التنفيذ على هذه الأصناف؛ انتظر نتيجته.',
-  },
+  fulfil: FULFIL_REFUSALS,
+  ship: FULFIL_REFUSALS,
+  // `fulfillment_correct` answers these four only (round M2).
+  correct: { NOT_FOUND: ORDER_NOT_FOUND, ORDER_NOT_PAID: NOT_PAID_SHIP, INVALID_ITEMS: CHOOSE_ITEMS, BAD_TRANSITION: DELIVERED_BEFORE },
   decide: { NOT_FOUND: 'لم نجد طلب الإرجاع.' },
   receive: { NOT_FOUND: 'لم نجد طلب الإرجاع.', INVALID_ITEMS: 'كمية العودة إلى المخزون غير صحيحة.' },
   resolve: {
@@ -660,8 +707,21 @@ export function closeReason(text: string): { ok: true; reason: string } | { ok: 
   return { ok: true, reason }
 }
 
-/** The sentence of a refusal; a code this screen does not know is the generic «تعذّر الحفظ». */
-export function refusalText(action: OrderAction, reply: Refusal): string {
+/**
+ * The sentence of a refusal; a code this screen does not know is the generic «تعذّر الحفظ». `before` is the shipping
+ * table as the screen drew it when the button was pressed: «تم الشحن» refused (BAD_TRANSITION) for lines it showed
+ * still being prepared means they shipped since (states only move forward), which F3-4 says as SHIPPED_BEFORE; a
+ * line already shipped or delivered on the screen keeps the general sentence.
+ */
+export function refusalText(action: OrderAction, reply: Refusal, before: readonly ShippingLine[] = []): string {
+  if (
+    action === 'ship' &&
+    reply.code === 'BAD_TRANSITION' &&
+    reply.itemIds.length > 0 &&
+    reply.itemIds.every((itemId) => before.some((line) => line.itemId === itemId && line.state === 'preparing'))
+  ) {
+    return SHIPPED_BEFORE
+  }
   if (reply.code === 'BAD_TRANSITION' && (action === 'decide' || action === 'receive')) {
     return `لا يمكن هذا الإجراء؛ حالة طلب الإرجاع الآن: ${labelOf(RETURN_STATE_LABELS, reply.state ?? '')}.`
   }
