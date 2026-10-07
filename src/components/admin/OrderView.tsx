@@ -665,6 +665,9 @@ export function OrderView() {
                           paymentId: review.paymentId,
                           orderId: review.orderId,
                           remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
+                          // The row's confirmed total (`refund_request` checks it: STALE) and whether one of its refunds is still settling.
+                          refunded: review.refunded,
+                          inFlight: d.refunds.some((refund) => refund.reviewPaymentId === review.paymentId && refundInFlight(refund.status)),
                         }}
                         money={money}
                       />

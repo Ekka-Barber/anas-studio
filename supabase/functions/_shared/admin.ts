@@ -24,8 +24,10 @@
  * - `status` (owner): configuration booleans, never a secret's value.
  * - `payment-recheck` (owner, no TOTP; P08): the owner's «أعد الفحص» on one
  *   payment attempt. An uncertain creation is adopted or abandoned, any other
- *   attempt with an invoice is settled from what the provider holds, and the
- *   reply is the attempt's status.
+ *   attempt with an invoice is settled from what the provider holds, a closed
+ *   attempt that never had an invoice (a creation the job could not verify) is
+ *   looked for at the provider and, once the provider has answered, no longer
+ *   marked unverified, and the reply is the attempt's status.
  * - `refund-create` (owner, fresh TOTP; P08 round 6): a refund of a paid attempt or of a
  *   review payment. The provider's refunded total is fetched first (a failed fetch is 503,
  *   nothing written), `refund_request` reserves the balance, only a new refund reaches the
@@ -79,7 +81,7 @@ import { callerRpc, type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { disputeRecord } from './disputes.ts'
 import { emailProvider } from './email.ts'
 import { LOCAL_HOSTS, optionalEnv } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, NO_STORE } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, NO_STORE } from './http.ts'
 import {
   HEAD_READ_BYTES,
   originalKey,
@@ -92,7 +94,7 @@ import {
   type TicketRequest,
 } from './media.ts'
 import { paidFileComplete, type PaidFileStore, paidFileStore, paidFileTicket } from './paid-files.ts'
-import { defaultPaymentDeps, type PaymentDeps, resolveUncertain, settleInvoice } from './payments.ts'
+import { checkAttempt, defaultPaymentDeps, type PaymentDeps, readOnly, resolveUncertain, settleInvoice } from './payments.ts'
 import { paymentsConfig, type PaymentsConfigReason } from './payments/moyasar.ts'
 import { refundCreate, refundRecheck, refundRecordExternal } from './refunds.ts'
 import { ownerStats, type OwnerStats } from './stats.ts'
@@ -184,6 +186,7 @@ const ok = (data: unknown, status = 200): Response =>
 function sqlFail(error: unknown): Response {
   const mapped = sqlErrorToHttp((error as { code?: string } | null)?.code)
   if (mapped) return fail(mapped.status, mapped.code, mapped.message)
+  logCause('admin', error)
   return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
 }
 
@@ -196,8 +199,9 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
   let staff: StaffIdentity | null
   try {
     staff = await deps.staff(request)
-  } catch {
+  } catch (error) {
     // A failed staff lookup is a server fault, not a bad token.
+    logCause('admin', error)
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }
   if (!staff) return fail(401, 'UNAUTHENTICATED', 'سجّل الدخول أولًا.')
@@ -529,6 +533,12 @@ type AttemptRef =
   | { ok: false; code: string }
   | { ok: true; attemptId: string; status: string; providerInvoiceId: string | null; createdAt: string; amount: number; currency: string }
 
+/**
+ * The statuses a closed attempt can have with no invoice id: a creation the provider refused (failed), one that never landed
+ * (abandoned), one the job gave up on (expired). Never paid or review, which an invoice always settled.
+ */
+const CLOSED_WITHOUT_INVOICE = new Set(['failed', 'abandoned', 'expired', 'cancelled'])
+
 /** P08: the owner's «أعد الفحص». The role check ran in `handleAdmin`; the SQL rechecks the owner again. */
 async function paymentRecheck(deps: AdminDeps, actor: string, attemptId: unknown): Promise<Response> {
   if (typeof attemptId !== 'string' || !UUID.test(attemptId)) return fail(422, 'INVALID', 'طلب غير صالح.')
@@ -541,6 +551,17 @@ async function paymentRecheck(deps: AdminDeps, actor: string, attemptId: unknown
     if (!before.ok) return fail(404, 'NOT_FOUND', 'لم نجد محاولة الدفع هذه.')
     if (before.status === 'uncertain') await resolveUncertain(payments, before)
     else if (before.providerInvoiceId) await settleInvoice(payments, before.attemptId, before.providerInvoiceId, 'prompt')
+    else if (CLOSED_WITHOUT_INVOICE.has(before.status)) {
+      // DB-OPS-01: the job marks an uncertain creation it could never verify UNVERIFIED when it expires it, with no invoice id, and
+      // only a prompt the provider answered clears the mark. So the provider is asked for the invoices that carry this attempt's id (a
+      // list, through a client that can only read), and once it has answered, the check is recorded as a prompt. The status never
+      // moves here: `payment_attempt_close` has no transition out of these statuses (it answers BAD_TRANSITION), so the prompt
+      // check, which clears UNVERIFIED and MODE_CHANGED and nothing else, is the only thing that can clear the mark. An invoice the
+      // list does find is stored on the attempt by `resolveUncertain` for the last check; a payment on it is the review path's.
+      if ((await resolveUncertain(readOnly(payments), before)).kind !== 'unavailable') {
+        await checkAttempt(payments, before.attemptId, 'prompt', true, null, null)
+      }
+    }
     const after = await ref()
     return ok({ status: after.ok ? after.status : before.status })
   } catch (error) {
@@ -601,6 +622,7 @@ async function orderLinkReissue(deps: AdminDeps, asCaller: Rpc, body: Record<str
   } catch (error) {
     // The SQL rechecks the owner: one revoked a moment ago is refused there.
     if ((error as { code?: string } | null)?.code === '42501') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+    logCause('admin', error)
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }
 }

@@ -17,14 +17,20 @@
  *   `uncertain` and a timeout is never `failed`.
  * - A replay (the same idempotency key and the same request) answers the stored
  *   refund and never reaches the provider's refund route again.
+ * - `refund-create` may carry `expectedRefunded`, the confirmed refunded total the owner's
+ *   screen was built from. It is part of the request hash and travels inside `p_allocation`;
+ *   `refund_request` answers STALE (409) when the ledger's confirmed total is another, before
+ *   anything is written, so a stale screen never refunds the same money twice. A page that
+ *   sends none is unchanged: without it every path is as before.
  * - The answers carry `{refundId, status, amount}` and, on a refusal, its code.
- *   Nothing here logs, and no provider payload or buyer detail is kept.
+ *   Nothing here logs but the cause of a failed database call (`logCause`: the function and
+ *   the SQLSTATE, never a value), and no provider payload or buyer detail is kept.
  */
 import { z } from 'zod'
 
 import { noControlCharacters } from './commerce-settings.ts'
 import type { Rpc } from './db.ts'
-import { corsHeaders, fail as failWith, ok as okWith } from './http.ts'
+import { corsHeaders, fail as failWith, logCause, ok as okWith } from './http.ts'
 import { defaultPaymentDeps, type PaymentDeps } from './payments.ts'
 import { isUuid, type MoyasarPayment, type MoyasarResult } from './payments/moyasar.ts'
 import { sha256Hex } from './tokens.ts'
@@ -45,6 +51,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const INT_MAX = 2_147_483_647
 const uuid = z.string().regex(UUID)
 const halalas = z.number().int().positive().max(INT_MAX)
+/** The confirmed total travels as halalas of at most nine digits: the SQL refuses anything else (`^[0-9]{1,9}$`). */
+const confirmedHalalas = z.number().int().min(0).max(999_999_999)
 const reason = z.string().trim().min(1).max(300).refine(noControlCharacters)
 /** The provider's own payment id, as a review payment is keyed. */
 const paymentId = z.string().refine(isUuid)
@@ -69,6 +77,7 @@ const refundCreateSchema = z
     allocation: allocationSchema,
     idempotencyKey: uuid,
     returnId: uuid.optional(),
+    expectedRefunded: confirmedHalalas.optional(),
   })
   .refine(exactlyOneTarget)
   .refine((value) => value.attemptId === undefined || value.orderId !== undefined)
@@ -102,6 +111,7 @@ const REFUSALS: Record<string, [status: number, message: string]> = {
   INVALID_ALLOCATION: [422, 'توزيع المبلغ على البنود والشحن غير صحيح.'],
   INVALID_RETURN: [422, 'طلب الإرجاع غير صالح لهذا الاسترداد.'],
   IDEMPOTENCY_CONFLICT: [409, 'هذا المفتاح استُخدم لطلب استرداد مختلف.'],
+  STALE: [409, 'تغيّر المسترد منذ فتحت هذه الصفحة؛ راجع جدول الاستردادات ثم أعد المحاولة.'],
   NO_DELTA: [409, 'لا يوجد فرق بين ما لدى بوابة الدفع وما في السجل.'],
 }
 
@@ -112,15 +122,25 @@ const refusal = (code: string): Response => {
 
 const unavailable = (): Response => fail(503, 'PROVIDER_UNAVAILABLE', 'تعذّر الوصول إلى بوابة الدفع الآن. لم يتغيّر شيء؛ حاول بعد قليل.')
 
-/** A payment fetch that failed: one the configured key cannot see is 404 (asking again changes nothing), anything else 503. */
-const fetchFailed = (result: { kind: string }): Response =>
-  result.kind === 'not_found' ? fail(404, 'NOT_FOUND', 'لم تُعثر على الدفعة لدى بوابة الدفع.') : unavailable()
+/**
+ * A payment fetch that failed: one the configured key cannot see is 404 (asking again changes nothing), a key the provider
+ * refuses (401, 403) is its own answer (a retry in a moment cannot help until the payment settings are fixed), anything
+ * else 503. Nothing was written, whichever it is.
+ */
+const fetchFailed = (result: { kind: string; status?: number }): Response => {
+  if (result.kind === 'not_found') return fail(404, 'NOT_FOUND', 'لم تُعثر على الدفعة لدى بوابة الدفع.')
+  if (result.kind === 'refused' && (result.status === 401 || result.status === 403)) {
+    return fail(502, 'PROVIDER_REFUSED', 'رفضت بوابة الدفع المفتاح؛ تحقق من إعدادات الدفع.')
+  }
+  return unavailable()
+}
 
 /** A database failure: a revoked owner is 403, a malformed call 422, anything else a detail-free 500. */
 function sqlFailure(error: unknown): Response {
   const code = (error as { code?: string } | null)?.code
   if (code === '42501') return fail(403, 'FORBIDDEN', FORBIDDEN)
   if (code === '22023' || code === '22P02' || code === '23514') return fail(422, 'INVALID', 'بيانات غير صالحة.')
+  logCause('refunds', error)
   return fail(500, 'FAILED', FAILED)
 }
 
@@ -202,6 +222,8 @@ function requestHash(request: CreateRequest): Promise<string> {
       reason: request.reason,
       allocation: { items: items.map(({ itemId, amount }) => ({ itemId, amount })), shipping: request.allocation.shipping ?? 0 },
       returnId: request.returnId ?? null,
+      // Last, and only when sent: a request without it hashes as it always did.
+      ...(request.expectedRefunded === undefined ? {} : { expectedRefunded: request.expectedRefunded }),
     }),
   )
 }
@@ -232,6 +254,8 @@ export async function refundCreate(deps: RefundDeps, actor: string, body: unknow
     if (!fetched.ok) return fetchFailed(fetched)
     const items = request.allocation.items ?? []
     const shipping = request.allocation.shipping ?? 0
+    // The SQL takes it out of the allocation before the allocation is checked or stored.
+    const expected = request.expectedRefunded === undefined ? {} : { expectedRefunded: request.expectedRefunded }
     requested = (await payments.rpc('refund_request', {
       p_actor: actor,
       p_order: request.orderId ?? null,
@@ -240,7 +264,7 @@ export async function refundCreate(deps: RefundDeps, actor: string, body: unknow
       p_amount: request.amount,
       p_reason: request.reason,
       // A review payment has no items or shipping: its allocation is `{}`.
-      p_allocation: request.reviewPaymentId !== undefined && items.length === 0 && shipping === 0 ? {} : { items, shipping },
+      p_allocation: request.reviewPaymentId !== undefined && items.length === 0 && shipping === 0 ? { ...expected } : { items, shipping, ...expected },
       p_idempotency_key: request.idempotencyKey,
       p_request_hash: await requestHash(request),
       p_return: request.returnId ?? null,
@@ -256,8 +280,9 @@ export async function refundCreate(deps: RefundDeps, actor: string, body: unknow
   const outcome = await refundAtProvider(payments, requested.providerPaymentId, request.amount)
   try {
     return settledAnswer(await payments.rpc('refund_result', { p_refund: requested.refundId, ...outcome }))
-  } catch {
+  } catch (error) {
     // The refund row stays in flight and is due in a minute: the reconciliation job settles it from the provider's total.
+    logCause('refunds', error)
     return fail(500, 'FAILED', 'تعذّر تسجيل نتيجة الاسترداد؛ ستُراجَع تلقائيًا خلال دقائق.')
   }
 }

@@ -29,7 +29,7 @@ import {
   type SendOutcome,
 } from './email.ts'
 import { optionalEnv } from './env.ts'
-import { siteOrigin } from './http.ts'
+import { siteOrigin, sqlstateOf } from './http.ts'
 import { notificationToken, orderAccessToken } from './tokens.ts'
 
 /**
@@ -246,6 +246,8 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
 
   const startedAt = new Date()
   const summary: OutboxSummary = { job: 'email_outbox', status: 'ok', claimed: 0, accepted: 0, retry: 0, permanent: 0, uncertain: 0 }
+  // Set once the run is over and only its own record is left to write.
+  let recording = false
   try {
     // One row per claim: every claim recounts the day and the month, so both
     // quotas are checked immediately before each send (one batch claim could
@@ -308,17 +310,34 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
     } else {
       summary.status = summary.accepted === summary.claimed ? 'ok' : summary.accepted > 0 ? 'partial' : 'failed'
     }
+    recording = true
     await rpc('job_run_record', {
       p_job: 'email_outbox',
       p_status: summary.status,
       p_detail: summary.reason ? { ...counts(summary), reason: summary.reason } : counts(summary),
       p_started_at: startedAt.toISOString(),
     })
-  } catch {
-    // The database refused or was unreachable mid-run: report the failure.
-    // A row claimed before the failure keeps its lease, and an expired lease
-    // turns it `uncertain`, never back to a blind resend.
+  } catch (error) {
+    // The database refused or was unreachable mid-run: report the failure, and record the run as failed with the SQLSTATE
+    // the database raised (none for a network failure), as the other two jobs record theirs; without a row the owner home
+    // would send the owner to the schedule, which works. A row claimed before the failure keeps its lease, and an expired
+    // lease turns it `uncertain`, never back to a blind resend.
     summary.status = 'failed'
+    // The run's own record failed: it may have been written all the same (a reply lost on the way back), so no second row
+    // is written over it, and its reason (PROVIDER_CONFIG, QUOTA_HELD) is kept.
+    if (recording) return summary
+    summary.reason = 'DB_FAILED'
+    const sqlstate = sqlstateOf(error)
+    try {
+      await rpc('job_run_record', {
+        p_job: 'email_outbox',
+        p_status: 'failed',
+        p_detail: { ...counts(summary), reason: 'DB_FAILED', ...(sqlstate === null ? {} : { sqlstate }) },
+        p_started_at: startedAt.toISOString(),
+      })
+    } catch {
+      // The database being down is already a failed run: this one only could not be written down.
+    }
     return summary
   }
   return summary

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, NO_STORE, siteOrigin } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, NO_STORE, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { isTurnstileUnavailable, verifyTurnstile } from './turnstile.ts'
 
@@ -26,8 +26,10 @@ import { isTurnstileUnavailable, verifyTurnstile } from './turnstile.ts'
  * The contact body limit (ARCHITECTURE: "contact to 8 KiB"). Arabic is two
  * bytes a character in UTF-8, so a message stops fitting near 4,000 Arabic
  * characters — before the schema's 5,000-character bound; the P01 form
- * checks the message's bytes before it spends a Turnstile token. Only the
- * message can push a body past the limit, so the 413 copy names it.
+ * measures the whole JSON body it will send (`fitsContactLimit`: the fields,
+ * the submission key and the longest Turnstile token) before it spends a
+ * Turnstile token. Only the message can push a body past the limit (the
+ * name and the address are bounded far below it), so the 413 copy names it.
  */
 const MAX_BODY_BYTES = 8_192
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -167,6 +169,7 @@ export async function handleContact(request: Request, rpc: Rpc = serviceRpc()): 
       // detail. The 409 stays so the form's own retry logic still steps aside.
       return fail(409, 'CONFLICT', 'وصلتنا رسالتك، فلا حاجة لإرسالها مرة ثانية.')
     }
+    logCause('contact', error)
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }
 }

@@ -269,6 +269,111 @@ describe('payment-recheck: what it does', () => {
     expect(called('payment_attempt_created')).toHaveLength(0)
   })
 
+  // FABLE-AUDIT F3-13 (DB-OPS-01): the job marks an uncertain creation it could never verify UNVERIFIED when it expires it, with no
+  // invoice id; until now «أعد الفحص» did nothing for it, and only a prompt the provider answered clears the mark.
+  describe('a closed attempt with no invoice id', () => {
+    const DAY = 86_400_000
+    const closed = (over: Record<string, unknown> = {}) => ref({ status: 'expired', providerInvoiceId: null, createdAt: ago(3 * DAY), ...over })
+    const checked = (attemptId = ATTEMPT) => ({ fn: 'payment_attempt_checked', args: { p_attempt: attemptId, p_source: 'prompt', p_ok: true, p_provider_status: null, p_error: null } })
+    /** What the provider was asked: the listing, and nothing that creates, cancels, refunds or reads an invoice or a payment. */
+    const providerWrites = (): number =>
+      [client.createInvoice, client.cancelInvoice, client.refundPayment, client.fetchInvoice, client.fetchPayment].reduce((sum, fn) => sum + fn.mock.calls.length, 0)
+
+    beforeEach(() => {
+      // The SQL has no way out of these statuses: it answers a reply, never an error.
+      reply('payment_attempt_close', { ok: false, code: 'BAD_TRANSITION' })
+    })
+
+    it('is listed at the provider by its attempt id, and an answer is recorded as a prompt that clears the mark; the status does not move and nothing is written at the provider', async () => {
+      reply('payment_attempt_ref', closed())
+      client.listInvoices.mockResolvedValue(good({ invoices: [], nextPage: null }))
+      const response = await recheck('owner')
+      expect(await response.json()).toEqual({ ok: true, data: { status: 'expired' } })
+      expect(client.listInvoices).toHaveBeenCalledExactlyOnceWith({ metadata: { attempt_id: ATTEMPT }, page: 1 })
+      expect(providerWrites()).toBe(0)
+      // `payment_attempt_close` has no 'expired' to 'abandoned': asked once, refused as a reply, and the prompt is what clears the mark.
+      expect(called('payment_attempt_close')).toEqual([{ fn: 'payment_attempt_close', args: { p_attempt: ATTEMPT, p_status: 'abandoned', p_error: 'CREATE_ABSENT' } }])
+      expect(called('payment_attempt_checked')).toEqual([checked()])
+      for (const never of ['payment_attempt_begin', 'payment_attempt_created', 'apply_verified_payment', 'refund_request']) expect(called(never), never).toHaveLength(0)
+    })
+
+    it('stays marked when the provider cannot be listed: a failed look is no answer, and nothing is recorded', async () => {
+      reply('payment_attempt_ref', closed())
+      // The default double answers every call unavailable.
+      expect(await (await recheck('owner')).json()).toEqual({ ok: true, data: { status: 'expired' } })
+      expect(client.listInvoices).toHaveBeenCalledTimes(1)
+      expect(called('payment_attempt_checked')).toHaveLength(0)
+      expect(providerWrites()).toBe(0)
+    })
+
+    it.each(['failed', 'abandoned', 'expired', 'cancelled'])('%s: asked, and recorded once the provider has answered', async (status) => {
+      reply('payment_attempt_ref', closed({ status }))
+      client.listInvoices.mockResolvedValue(good({ invoices: [], nextPage: null }))
+      expect(await (await recheck('owner')).json()).toEqual({ ok: true, data: { status } })
+      expect(client.listInvoices).toHaveBeenCalledTimes(1)
+      expect(called('payment_attempt_checked')).toEqual([checked()])
+    })
+
+    it.each(['creating', 'pending', 'paid', 'review'])('%s: nothing is asked of the provider and nothing is recorded, as before', async (status) => {
+      reply('payment_attempt_ref', closed({ status }))
+      expect(await (await recheck('owner')).json()).toEqual({ ok: true, data: { status } })
+      expect(providerCalls()).toBe(0)
+      expect(names()).toEqual(['payment_attempt_ref', 'payment_attempt_ref'])
+    })
+
+    it('a paid attempt is never closed, marked or recorded by this path, whatever it holds', async () => {
+      // A paid attempt always has an invoice: it is settled from it, as before, and no listing is made.
+      reply('payment_attempt_ref', ref({ status: 'paid', providerPaymentId: PAYMENT_ID }))
+      client.fetchInvoice.mockResolvedValue(good(invoiceOf({ status: 'paid' })))
+      await recheck('owner')
+      expect(client.listInvoices).not.toHaveBeenCalled()
+      expect(called('payment_attempt_close')).toHaveLength(0)
+      expect(called('payment_attempt_created')).toHaveLength(0)
+    })
+
+    it('an invoice the listing finds is stored on the attempt for its last check and is never cancelled from here; the attempt is not made payable and the mark clears', async () => {
+      const match = invoiceOf({ id: randomUUID(), metadata: { order_number: 'ABCD2345', attempt_id: ATTEMPT } })
+      reply('payment_attempt_ref', closed())
+      reply('payment_attempt_created', { ok: false, code: 'ATTEMPT_CLOSED' })
+      client.listInvoices.mockResolvedValue(good({ invoices: [match], nextPage: null }))
+      client.cancelInvoice.mockResolvedValue(good(invoiceOf({ status: 'canceled' })))
+      expect(await (await recheck('owner')).json()).toEqual({ ok: true, data: { status: 'expired' } })
+      expect(called('payment_attempt_created')[0]!.args).toMatchObject({ p_attempt: ATTEMPT, p_invoice_id: match.id })
+      // A look at the provider on the owner's behalf only reads it.
+      expect(client.cancelInvoice).not.toHaveBeenCalled()
+      expect(client.createInvoice).not.toHaveBeenCalled()
+      expect(client.refundPayment).not.toHaveBeenCalled()
+      expect(called('payment_attempt_checked')).toEqual([checked()])
+    })
+
+    it('several invoices that claim the attempt raise the owner alert and still count as an answer', async () => {
+      const claim = () => invoiceOf({ id: randomUUID(), metadata: { order_number: 'ABCD2345', attempt_id: ATTEMPT } })
+      reply('payment_attempt_ref', closed())
+      client.listInvoices.mockResolvedValue(good({ invoices: [claim(), claim()], nextPage: null }))
+      await recheck('owner')
+      expect(called('payment_attempt_duplicates')).toEqual([{ fn: 'payment_attempt_duplicates', args: { p_attempt: ATTEMPT } }])
+      expect(called('payment_attempt_created')).toHaveLength(0)
+      expect(called('payment_attempt_checked')).toEqual([checked()])
+    })
+
+    it('a young attempt is listed too, and an answer is an answer', async () => {
+      reply('payment_attempt_ref', closed({ status: 'failed', createdAt: ago(5_000) }))
+      client.listInvoices.mockResolvedValue(good({ invoices: [], nextPage: null }))
+      await recheck('owner')
+      expect(called('payment_attempt_close')).toHaveLength(0)
+      expect(called('payment_attempt_checked')).toEqual([checked()])
+    })
+
+    it('a database failure while recording is the same detail-free 500 as any other', async () => {
+      reply('payment_attempt_ref', closed())
+      client.listInvoices.mockResolvedValue(good({ invoices: [], nextPage: null }))
+      reply('payment_attempt_checked', Object.assign(new Error('connection to server at 10.0.0.5 lost'), { code: '08006' }))
+      const broken = await recheck('owner')
+      expect(broken.status).toBe(500)
+      expect(JSON.stringify(await broken.json())).not.toContain('10.0.0.5')
+    })
+  })
+
   it('uses the configured mode: a live site asks for live attempts', async () => {
     reply('payment_attempt_ref', { ok: false, code: 'NOT_FOUND' })
     await recheck('owner', undefined, { config: { ...config, mode: 'live' } })

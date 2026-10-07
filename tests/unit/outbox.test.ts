@@ -369,6 +369,86 @@ describe('an account the provider refuses (401, 403) stops the run', () => {
   })
 })
 
+// FABLE-AUDIT F3-16 (b), QUALITY-10: a database call that fails mid-run used to leave no row, so the owner home pointed at the schedule,
+// which works. The run is recorded failed with the SQLSTATE the database raised, like the other two jobs record theirs.
+describe('a database failure mid-run', () => {
+  const dbError = (code: string | undefined) => Object.assign(new Error('canceling statement due to statement timeout (10.0.0.5, buyer@example.com)'), { code })
+  const COUNTS = { claimed: 0, accepted: 0, retry: 0, permanent: 0, uncertain: 0 }
+
+  /** A run whose `failing` data function raises `error`; every other one answers as `runOne` does for a receipt. */
+  async function runFailing(failing: string, error: unknown, recordFails = false) {
+    const calls: Call[] = []
+    let claims = 0
+    const rpc: Rpc = async (fn, args) => {
+      calls.push([fn, args])
+      if (fn === failing) throw error
+      if (fn === 'job_run_record' && recordFails) throw dbError('57P01')
+      if (fn === 'outbox_claim') {
+        claims += 1
+        return claims === 1 ? [{ id: '7', lease_id: 'lease-1', kind: 'receipt', recipient: 'buyer@example.com', payload: { orderId: ORDER_ID }, idempotency_key: 'idem-1', attempts: 1 }] : []
+      }
+      return fn === 'order_email_data' ? orderData() : null
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ id: 'prov-1' }), { status: 200 })))
+    const summary = await runOutbox(rpc)
+    return { summary, records: calls.filter(([fn]) => fn === 'job_run_record').map(([, args]) => args) }
+  }
+
+  it('is recorded failed, with the reason and the SQLSTATE, and never the error\'s message', async () => {
+    const { summary, records } = await runFailing('outbox_claim', dbError('57014'))
+    expect(summary).toEqual({ job: 'email_outbox', status: 'failed', ...COUNTS, reason: 'DB_FAILED' })
+    expect(records).toEqual([
+      { p_job: 'email_outbox', p_status: 'failed', p_detail: { ...COUNTS, reason: 'DB_FAILED', sqlstate: '57014' }, p_started_at: expect.any(String) },
+    ])
+    expect(JSON.stringify(records)).not.toMatch(/10\.0\.0\.5|buyer@|statement/)
+  })
+
+  it('keeps what the run had done before it failed: a row sent and then not written down is claimed and accepted', async () => {
+    const { summary, records } = await runFailing('outbox_result', dbError('08006'))
+    expect(summary).toMatchObject({ status: 'failed', claimed: 1, accepted: 1, reason: 'DB_FAILED' })
+    expect(records).toHaveLength(1)
+    expect(records[0]).toMatchObject({ p_status: 'failed', p_detail: { claimed: 1, accepted: 1, reason: 'DB_FAILED', sqlstate: '08006' } })
+  })
+
+  it('a failure with no SQLSTATE (a lost connection, a timeout) is recorded the same way without one', async () => {
+    for (const error of [new TypeError('fetch failed'), new DOMException('timeout', 'TimeoutError'), dbError(undefined), dbError('timeout 10.0.0.5')]) {
+      const { records } = await runFailing('outbox_claim', error)
+      expect(records, String(error)).toEqual([{ p_job: 'email_outbox', p_status: 'failed', p_detail: { ...COUNTS, reason: 'DB_FAILED' }, p_started_at: expect.any(String) }])
+    }
+  })
+
+  it('never throws, even when the failure record cannot be written either: the database being down is already a failed run', async () => {
+    const { summary, records } = await runFailing('outbox_claim', dbError('57P01'), true)
+    expect(summary).toMatchObject({ status: 'failed', reason: 'DB_FAILED' })
+    expect(records).toHaveLength(1)
+  })
+
+  // The auditor's A8: the run's own record may have been written when its reply was lost, so its failure writes no second row
+  // (a 'failed' row over a run that went well, or DB_FAILED over PROVIDER_CONFIG), and the run keeps its own reason.
+  it('a run whose own record fails writes no second row over it, and keeps its reason', async () => {
+    const { summary, records } = await runFailing('nothing fails before the record', null, true)
+    expect(summary).toMatchObject({ status: 'failed', claimed: 1, accepted: 1 })
+    expect(summary.reason).toBeUndefined()
+    expect(records).toHaveLength(1)
+    expect(records[0]).toMatchObject({ p_status: 'ok', p_detail: { claimed: 1, accepted: 1 } })
+  })
+
+  it('a run that does not fail is recorded once, as before: no DB_FAILED and no SQLSTATE', async () => {
+    const calls: Call[] = []
+    const rpc: Rpc = async (fn, args) => {
+      calls.push([fn, args])
+      return fn === 'outbox_claim' ? [] : null
+    }
+    vi.stubGlobal('fetch', vi.fn())
+    // An empty claim is the quota hold, a partial run with its own reason.
+    expect(await runOutbox(rpc)).toMatchObject({ status: 'partial', reason: 'QUOTA_HELD' })
+    const records = calls.filter(([fn]) => fn === 'job_run_record')
+    expect(records).toHaveLength(1)
+    expect(records[0]![1]).toMatchObject({ p_status: 'partial', p_detail: { reason: 'QUOTA_HELD' } })
+    expect(JSON.stringify(records)).not.toMatch(/DB_FAILED|sqlstate/)
+  })
+})
+
 describe('a token never leaves the text', () => {
   const orderKinds: Array<[string, Record<string, unknown>, Record<string, unknown>]> = [
     ['receipt', { orderId: ORDER_ID }, {}],

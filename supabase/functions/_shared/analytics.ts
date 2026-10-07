@@ -29,12 +29,33 @@
  * docs point at schema introspection, not a static reference page); the live
  * schema check happens with the real account at gate E11 (P11). Until then
  * every failure mode below reports `unavailable`, never an invented number.
+ *
+ * The time range one query may ask for depends on the plan (FABLE-AUDIT F3-14,
+ * VENDOR-PLAT-01): "Each data node has its limits, such as ... the maximum time
+ * period (in seconds) that can be requested in one query"
+ * (https://developers.cloudflare.com/analytics/graphql-api/limits/, quoted from the
+ * finding, which fetched it 2026-10-07), and the zone's own value is the settings
+ * node's `maxDuration`, `notOlderThan` the oldest data it holds, both in seconds
+ * (https://developers.cloudflare.com/analytics/graphql-api/features/discovery/settings/;
+ * its sample shows firewallEventsAdaptive with maxDuration 259200 and notOlderThan
+ * 2678400). Only that page's general shape is established: that the node is named
+ * `httpRequestsAdaptiveGroups` under `settings` is NOT confirmed by a fetched page.
+ * So the settings are read once (cached per isolate, like the stats), and any
+ * failure to read them (a GraphQL error, a missing or non-integer field, a
+ * timeout) means "no settings": the 7 days go in one query, exactly as before.
+ * A `maxDuration` of at least a day and under the 7 days splits the window into
+ * `maxDuration`-sized slices, the visits are summed and the paths merged by path
+ * before the top 10 is taken.
  */
 import { optionalEnv } from './env.ts'
 
 const GRAPHQL_URL = 'https://api.cloudflare.com/client/v4/graphql'
 const TIMEOUT_MS = 10_000
 const WINDOW_DAYS = 7
+const DAY_SECONDS = 86_400
+const WINDOW_SECONDS = WINDOW_DAYS * DAY_SECONDS
+/** The settings of a zone are read at most this often per isolate: the lifetime of the stats cache they belong to (admin.ts). */
+const LIMITS_TTL_MS = 5 * 60 * 1000
 /**
  * The top-paths query asks for as many groups as the node allows, because the
  * asset filter runs in `parseTopPaths`: on a static export the fonts, chunks
@@ -104,12 +125,37 @@ export const TOP_PATHS_QUERY = /* GraphQL */ `query OwnerTopPaths($zoneTag: stri
   }
 }`
 
+/** What the plan allows one query to ask of the node (in seconds), per the docs' discovery query for a node's `settings`. */
+export const SETTINGS_QUERY = /* GraphQL */ `query OwnerSettings($zoneTag: string) {
+  viewer {
+    zones(filter: { zoneTag: $zoneTag }) {
+      settings {
+        httpRequestsAdaptiveGroups { maxDuration notOlderThan maxPageSize }
+      }
+    }
+  }
+}`
+
+const iso = (date: Date): string => date.toISOString().replace(/\.000Z$/, 'Z')
+
 /** The 7-day UTC window ending at `now` (seconds truncated for cacheability). */
 export function analyticsWindow(now: Date): { start: string; end: string } {
   const end = new Date(Math.floor(now.getTime() / 1000) * 1000)
   const start = new Date(end.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000)
-  const iso = (date: Date) => date.toISOString().replace(/\.000Z$/, 'Z')
   return { start: iso(start), end: iso(end) }
+}
+
+/**
+ * The 7-day window cut into slices of `seconds` (the last one shorter when it does not divide the window), oldest first:
+ * together they cover exactly `analyticsWindow(now)`, each is no longer than one query may ask for.
+ */
+export function analyticsSlices(now: Date, seconds: number): Array<{ start: string; end: string }> {
+  const end = Math.floor(now.getTime() / 1000) * 1000
+  const slices: Array<{ start: string; end: string }> = []
+  for (let from = end - WINDOW_SECONDS * 1000; from < end; from += seconds * 1000) {
+    slices.push({ start: iso(new Date(from)), end: iso(new Date(Math.min(from + seconds * 1000, end))) })
+  }
+  return slices
 }
 
 export function analyticsVariables(now: Date, zoneTag: string, host: string) {
@@ -183,21 +229,50 @@ export function parseVisits(body: unknown): { visits: number; sampled: boolean }
   return { visits, sampled: isSampled(groups) }
 }
 
+/** Every group of a top-paths answer that names a path, with its count. */
+function pathEntries(groups: GroupShape[]): TopPath[] {
+  return groups.flatMap((group) => {
+    const path = group.dimensions?.clientRequestPath
+    if (typeof path !== 'string' || path.length === 0) return []
+    return [{ path, count: typeof group.count === 'number' && Number.isFinite(group.count) ? group.count : 0 }]
+  })
+}
+
+/** The pages among them (not the assets, the admin or the APIs), the most requested first, at most ten. */
+function rankPages(entries: TopPath[]): TopPath[] {
+  return entries
+    .filter((entry) => isRealPage(entry.path))
+    .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))
+    .slice(0, TOP_PATHS_SHOWN)
+}
+
 export function parseTopPaths(body: unknown): { topPaths: TopPath[]; sampled: boolean } | null {
   const groups = groupsOf(body)
   if (groups === null) return null
-  const topPaths = groups
-    .filter((group) => {
-      const path = group.dimensions?.clientRequestPath
-      return typeof path === 'string' && path.length > 0 && isRealPage(path)
-    })
-    .map((group) => {
-      const count = typeof group.count === 'number' && Number.isFinite(group.count) ? group.count : 0
-      return { path: group.dimensions?.clientRequestPath as string, count }
-    })
-    .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))
-    .slice(0, TOP_PATHS_SHOWN)
-  return { topPaths, sampled: isSampled(groups) }
+  return { topPaths: rankPages(pathEntries(groups)), sampled: isSampled(groups) }
+}
+
+/**
+ * The answers of every slice as one: the visits summed, and the paths merged by path (a path in two slices is counted
+ * twice over) before the pages are picked and the top 10 taken. Null when any answer is not one zone's groups.
+ */
+function parseSlices(visitsBodies: unknown[], pathsBodies: unknown[]): { visits: number; topPaths: TopPath[]; sampled: boolean } | null {
+  let visits = 0
+  let sampled = false
+  for (const body of visitsBodies) {
+    const parsed = parseVisits(body)
+    if (parsed === null) return null
+    visits += parsed.visits
+    sampled ||= parsed.sampled
+  }
+  const totals = new Map<string, number>()
+  for (const body of pathsBodies) {
+    const groups = groupsOf(body)
+    if (groups === null) return null
+    sampled ||= isSampled(groups)
+    for (const { path, count } of pathEntries(groups)) totals.set(path, (totals.get(path) ?? 0) + count)
+  }
+  return { visits, topPaths: rankPages([...totals].map(([path, count]) => ({ path, count }))), sampled }
 }
 
 function hasGraphqlErrors(body: unknown): boolean {
@@ -222,6 +297,58 @@ class HttpError extends Error {
   }
 }
 
+/** What one query of the node may ask for, in seconds: the longest time range, and how far back the data goes. */
+interface RangeLimits {
+  maxDuration: number
+  notOlderThan: number
+}
+
+/** Per isolate, one zone's limits; a failed read is never kept. */
+let cachedLimits: { zoneTag: string; at: number; value: RangeLimits } | null = null
+
+/** The two limits as whole positive numbers of seconds; anything else (an error, a field missing, a text) is no settings. */
+function parseLimits(body: unknown): RangeLimits | null {
+  if (hasGraphqlErrors(body)) return null
+  const zones = (body as { data?: { viewer?: { zones?: unknown } } } | null)?.data?.viewer?.zones
+  if (!Array.isArray(zones) || zones.length !== 1) return null
+  const node = (zones[0] as { settings?: { httpRequestsAdaptiveGroups?: { maxDuration?: unknown; notOlderThan?: unknown } | null } | null } | null)?.settings
+    ?.httpRequestsAdaptiveGroups
+  const maxDuration = node?.maxDuration
+  const notOlderThan = node?.notOlderThan
+  if (typeof maxDuration !== 'number' || !Number.isInteger(maxDuration) || maxDuration <= 0) return null
+  if (typeof notOlderThan !== 'number' || !Number.isInteger(notOlderThan) || notOlderThan <= 0) return null
+  return { maxDuration, notOlderThan }
+}
+
+/**
+ * The zone's limits for one query, or null when they could not be read (nothing here throws): the node's name under `settings`
+ * is not confirmed by a fetched page, so every failure is "no settings" and the stats keep their single query. Read at most once
+ * in `LIMITS_TTL_MS`, per zone; a failed read is asked again at the next look.
+ */
+async function rangeLimits(zoneTag: string, token: string, now: Date): Promise<RangeLimits | null> {
+  if (cachedLimits !== null && cachedLimits.zoneTag === zoneTag) {
+    const age = now.getTime() - cachedLimits.at
+    if (age >= 0 && age < LIMITS_TTL_MS) return cachedLimits.value
+  }
+  let limits: RangeLimits | null
+  try {
+    limits = parseLimits(await post(SETTINGS_QUERY, { zoneTag }, token))
+  } catch {
+    // A timeout, an HTTP error, a body that is not JSON: no settings.
+    return null
+  }
+  if (limits !== null) cachedLimits = { zoneTag, at: now.getTime(), value: limits }
+  return limits
+}
+
+/**
+ * Whether the 7 days must be asked in slices, and are worth it: one query may ask for less than the window but at least a day (at
+ * most 7 slices, 14 queries per cache lifetime, no storm), and the data goes back the whole window (no numbers for another window
+ * than the one the screen names).
+ */
+const needsSlices = (limits: RangeLimits): boolean =>
+  limits.maxDuration >= DAY_SECONDS && limits.maxDuration < WINDOW_SECONDS && limits.notOlderThan >= WINDOW_SECONDS
+
 /**
  * Fetches both datasets. Anything missing or wrong returns `unavailable`
  * with a reason — `ok` means a complete, unsampled answer, where 0 visits is
@@ -241,10 +368,17 @@ export async function fetchAnalytics(now: Date = new Date()): Promise<AnalyticsR
   if (host.length === 0) return { status: 'unavailable', reason: 'NOT_CONFIGURED' }
 
   const variables = analyticsVariables(now, zoneTag, host)
-  let visitsBody: unknown
-  let pathsBody: unknown
+  // The plan may cap one query's time range below the 7 days: then one pair of queries per slice. Not knowing the cap keeps one pair.
+  const limits = await rangeLimits(zoneTag, token, now)
+  const ranges = limits !== null && needsSlices(limits) ? analyticsSlices(now, limits.maxDuration) : [{ start: variables.start, end: variables.end }]
+  let visitsBodies: unknown[]
+  let pathsBodies: unknown[]
   try {
-    ;[visitsBody, pathsBody] = await Promise.all([post(VISITS_QUERY, variables, token), post(TOP_PATHS_QUERY, variables, token)])
+    const answers = await Promise.all(
+      ranges.map((range) => Promise.all([post(VISITS_QUERY, { ...variables, ...range }, token), post(TOP_PATHS_QUERY, { ...variables, ...range }, token)])),
+    )
+    visitsBodies = answers.map(([visits]) => visits)
+    pathsBodies = answers.map(([, paths]) => paths)
   } catch (error) {
     if (error instanceof HttpError) return { status: 'unavailable', reason: 'HTTP_ERROR' }
     // AbortSignal.timeout aborts with a DOMException named "TimeoutError";
@@ -255,20 +389,19 @@ export async function fetchAnalytics(now: Date = new Date()): Promise<AnalyticsR
     // An aborted or dropped request: its outcome is unknowable, not zero.
     return { status: 'unavailable', reason: 'HTTP_ERROR' }
   }
-  if (hasGraphqlErrors(visitsBody) || hasGraphqlErrors(pathsBody)) {
+  if (visitsBodies.some(hasGraphqlErrors) || pathsBodies.some(hasGraphqlErrors)) {
     return { status: 'unavailable', reason: 'GRAPHQL_ERROR' }
   }
-  const visits = parseVisits(visitsBody)
-  const paths = parseTopPaths(pathsBody)
+  const merged = parseSlices(visitsBodies, pathsBodies)
   // An answer that is not exactly one zone with a groups array (wrong zone
   // id, bad token, `data: null`, a shape change) is not a zero.
-  if (!visits || !paths) return { status: 'unavailable', reason: 'UNEXPECTED_SHAPE' }
-  if (visits.sampled || paths.sampled) return { status: 'unavailable', reason: 'SAMPLED' }
+  if (!merged) return { status: 'unavailable', reason: 'UNEXPECTED_SHAPE' }
+  if (merged.sampled) return { status: 'unavailable', reason: 'SAMPLED' }
   return {
     status: 'ok',
     range: { start: variables.start, end: variables.end },
-    visits: visits.visits,
-    topPaths: paths.topPaths,
+    visits: merged.visits,
+    topPaths: merged.topPaths,
     fetchedAt: now.toISOString(),
   }
 }

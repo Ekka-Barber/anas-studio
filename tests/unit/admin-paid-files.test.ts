@@ -13,6 +13,8 @@ import { randomUUID } from 'node:crypto'
 import { StorageApiError } from '@supabase/supabase-js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CONSOLE_METHODS, expectOnlyFaultLines } from '../support/console'
+
 import { handleAdmin, type MediaStore } from '../../supabase/functions/_shared/admin.ts'
 import { DbError, type Rpc } from '../../supabase/functions/_shared/db.ts'
 import { PAID_BUCKET, PAID_FILE_MAX_BYTES, type PaidFileStore, paidFileHeadMatches, paidFileStore } from '../../supabase/functions/_shared/paid-files.ts'
@@ -109,13 +111,13 @@ const completeBody = (over: Record<string, unknown> = {}): Record<string, unknow
 type Reply = { ok: boolean; error?: { code: string; message: string; fields?: any }; data?: any }
 const replyOf = async (response: Response): Promise<Reply> => (await response.json()) as Reply
 
-const logs = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
+const logs = CONSOLE_METHODS.map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
 beforeEach(() => {
   for (const spy of logs) spy.mockClear()
 })
 afterEach(() => {
-  // Whatever a test did, nothing was logged: no key, no name, no token.
-  for (const spy of logs) expect(spy).not.toHaveBeenCalled()
+  // Whatever a test did, nothing was logged but the fault lines of F3-1 (tests/support/console.ts): no token, key, URL, name or body.
+  expectOnlyFaultLines(logs)
 })
 
 describe('who may do what', () => {

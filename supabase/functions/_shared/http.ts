@@ -1,7 +1,9 @@
 /**
  * The JSON reply contract shared by every Edge Function (ARCHITECTURE "Custom
  * API routes"): `{ok:true,data}` or `{ok:false,error:{code,message,fields?},
- * requestId}`, never cached, Arabic messages, ASCII codes.
+ * requestId}`, never cached, Arabic messages, ASCII codes. A reply of status 500
+ * or above also leaves one line in the function's log with the same requestId
+ * (`fail`), and the SQL-failure helpers add where it came from (`logCause`).
  */
 import { optionalEnv } from './env.ts'
 
@@ -24,10 +26,32 @@ export function fail(
   fields?: unknown,
   headers: Record<string, string> = {},
 ): Response {
+  const requestId = crypto.randomUUID()
+  // A handled server fault leaves one line, so the id the reply carries matches something in the log: the id, the
+  // status and the code, never the message, the body or any value.
+  if (status >= 500) console.error(JSON.stringify({ requestId, status, code }))
   return Response.json(
-    { ok: false, error: { code, message, ...(fields ? { fields } : {}) }, requestId: crypto.randomUUID() },
+    { ok: false, error: { code, message, ...(fields ? { fields } : {}) }, requestId },
     { status, headers: { ...NO_STORE, ...headers } },
   )
+}
+
+/** A SQLSTATE (five characters) or PostgREST's own code (`PGRST202`): the only part of a database error that is logged or recorded. */
+const DATABASE_CODE = /^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/
+
+/** The SQLSTATE a database error carries, or null for anything else (a network failure, a timeout, an error of another kind). */
+export function sqlstateOf(error: unknown): string | null {
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === 'string' && DATABASE_CODE.test(code) ? code : null
+}
+
+/**
+ * Where a handled failure came from, for the log: which function and which SQLSTATE the database raised, and nothing
+ * else. Never the error's message (it can carry a value), the arguments, the body, a token, an address or a name.
+ * Called just before the `fail(500, ...)` that answers it, so the line sits next to the one `fail` writes.
+ */
+export function logCause(fn: string, error: unknown): void {
+  console.error(JSON.stringify({ fn, sqlstate: sqlstateOf(error) }))
 }
 
 export function ok(data: unknown, status = 200, headers: Record<string, string> = {}): Response {

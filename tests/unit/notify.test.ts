@@ -12,6 +12,8 @@ import { createHmac, randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CONSOLE_METHODS, expectOnlyFaultLines } from '../support/console'
+
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { handleNotify, type NotifyDeps } from '../../supabase/functions/_shared/notify.ts'
 import { clientKeyHash } from '../../supabase/functions/_shared/rate-limit.ts'
@@ -80,7 +82,7 @@ const linkBody = (action: 'confirm' | 'unsubscribe', token = TOKEN): Record<stri
 type Reply = { ok: boolean; error?: { code: string; message: string; fields?: unknown }; data?: unknown }
 const replyOf = async (response: Response): Promise<Reply> => (await response.json()) as Reply
 
-const logs = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
+const logs = CONSOLE_METHODS.map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
 const sign = vi.spyOn(crypto.subtle, 'sign')
 
 beforeEach(() => {
@@ -96,8 +98,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Whatever a test did, the handler logged nothing: no token, address, body or detail.
-  for (const spy of logs) expect(spy).not.toHaveBeenCalled()
+  // Whatever a test did, nothing was logged but the fault lines of F3-1 (tests/support/console.ts): no token, key, URL, name or body.
+  expectOnlyFaultLines(logs)
   vi.unstubAllEnvs()
 })
 

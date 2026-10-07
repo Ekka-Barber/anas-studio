@@ -419,6 +419,65 @@ describe('refund-create against the emulator', () => {
     expect(refundCalls()).toHaveLength(1)
   })
 
+  // FABLE-AUDIT F3-2 (ADMIN-COMMERCE-05): the screen sends the confirmed total it was built from (`expectedRefunded`), and
+  // `refund_request` answers STALE when the ledger's confirmed total is another one, before anything is written.
+  it('a request built from a confirmed total that has since moved is 409 STALE: nothing is reserved, the provider is not asked, and it goes through once the screen has the right total', async () => {
+    const p = await paid('physical') // 4 000 and 2 500 of shipping
+    const client = await freshOwner()
+    // The screen read the order with nothing refunded (0), and a refund of 1 500 is confirmed meanwhile.
+    const stale = refundBody(p, 1000, itemOf(p, 1000), { expectedRefunded: 0 })
+    const first = await adminCall(client, refundBody(p, 1500, itemOf(p, 1500), { expectedRefunded: 0 }))
+    expect(first, JSON.stringify(first.body)).toMatchObject({ status: 200, body: { ok: true, data: { status: 'succeeded', amount: 1500 } } })
+    expect(await confirmed(p.attemptId)).toBe(1500)
+
+    const refused = await adminCall(client, stale)
+    expect(refused.status).toBe(409)
+    expect(refused.body).toMatchObject({
+      ok: false,
+      error: { code: 'STALE', message: 'تغيّر المسترد منذ فتحت هذه الصفحة؛ راجع جدول الاستردادات ثم أعد المحاولة.' },
+    })
+    // Nothing was written, and the provider was asked once only, for the first refund.
+    expect(await refundsOf(p.attemptId)).toHaveLength(1)
+    expect(refundCalls()).toHaveLength(1)
+    expect(paymentOnEmulator(p.paymentId)).toMatchObject({ refunded: 1500 })
+    expect(await confirmed(p.attemptId)).toBe(1500)
+
+    // With the total the ledger now holds, a new request (a new key: the stale one was answered) goes through.
+    const fresh = await adminCall(client, { ...stale, expectedRefunded: 1500, idempotencyKey: randomUUID() })
+    expect(fresh, JSON.stringify(fresh.body)).toMatchObject({ status: 200, body: { ok: true, data: { status: 'succeeded', amount: 1000 } } })
+    expect(await confirmed(p.attemptId)).toBe(2500)
+    expect(refundCalls()).toHaveLength(2)
+  })
+
+  it('a request without expectedRefunded is not checked against the total (a page loaded before this field existed), and one with the right total is', async () => {
+    const p = await paid('physical')
+    const client = await freshOwner()
+    expect(await adminCall(client, refundBody(p, 1500, itemOf(p, 1500)))).toMatchObject({ status: 200, body: { data: { status: 'succeeded', amount: 1500 } } })
+    // The ledger holds 1 500 now: a request that expects it is not stale, a request that expects nothing is as it always was.
+    expect(await adminCall(client, refundBody(p, 500, itemOf(p, 500), { expectedRefunded: 1500 }))).toMatchObject({ status: 200, body: { data: { amount: 500 } } })
+    expect(await adminCall(client, refundBody(p, 500, itemOf(p, 500)))).toMatchObject({ status: 200, body: { data: { amount: 500 } } })
+    expect(await confirmed(p.attemptId)).toBe(2500)
+    expect(refundCalls()).toHaveLength(3)
+  })
+
+  it('a replay carries the total it was made under: after the total moved it is still the stored refund (the provider is asked once), and the same key under another total is a conflict', async () => {
+    const p = await paid('digital')
+    const client = await freshOwner()
+    const body = refundBody(p, 1000, itemOf(p, 1000), { expectedRefunded: 0 })
+    const first = await adminCall(client, body)
+    expect(first.status, JSON.stringify(first.body)).toBe(200)
+    expect(await confirmed(p.attemptId)).toBe(1000)
+    // The screen read the order again meanwhile, but the kept key sends the request exactly as it was first made.
+    const replay = await adminCall(client, body)
+    expect(replay).toEqual(first)
+    expect(refundCalls()).toHaveLength(1)
+    expect(await refundsOf(p.attemptId)).toHaveLength(1)
+    // The total is part of the request: the same key with the current total is another request.
+    const conflict = await adminCall(client, { ...body, expectedRefunded: 1000 })
+    expect(conflict).toMatchObject({ status: 409, body: { ok: false, error: { code: 'IDEMPOTENCY_CONFLICT' } } })
+    expect(refundCalls()).toHaveLength(1)
+  })
+
   it('the provider\'s total is read first: when it cannot be read nothing is written and no refund is made (503)', async () => {
     const p = await paid('digital')
     const client = await freshOwner()
@@ -734,6 +793,45 @@ describe('a payment that no order maps to', () => {
     const items = await adminCall(client, { action: 'refund-create', reviewPaymentId: paymentId, amount: 1, reason: 'x', allocation: { shipping: 1 }, idempotencyKey: randomUUID() })
     expect(items.status).toBe(409)
     expect(items.body.error.code).toBe('NOT_REFUNDABLE')
+  })
+
+  it('a review payment refunded from a screen that expected 0 is 409 STALE once a refund is confirmed, and writes nothing', async () => {
+    const invoice = await provider.createInvoice({
+      amount: 4000,
+      currency: 'SAR',
+      description: 'دفعة بلا طلب',
+      callback_url: `${env.FUNCTIONS_PUBLIC_URL}/payments/callback`,
+      success_url: `${SITE}/checkout/return?order=ABCD2345`,
+      back_url: `${SITE}/checkout/return?order=ABCD2345`,
+      expired_at: new Date(Date.now() + 20 * 60_000).toISOString(),
+      metadata: {},
+    })
+    if (!invoice.ok) throw new Error('the emulator refused the invoice')
+    const paymentId = (await payOnEmulator(invoice.data.id)).payment.id as string
+    const client = await freshOwner()
+    const refund = (amount: number, expectedRefunded: number) => ({
+      action: 'refund-create',
+      reviewPaymentId: paymentId,
+      amount,
+      reason: 'دفعة بلا طلب',
+      allocation: {},
+      expectedRefunded,
+      idempotencyKey: randomUUID(),
+    })
+    const first = await adminCall(client, refund(1500, 0))
+    expect(first.status, JSON.stringify(first.body)).toBe(200)
+    expect(refundCalls()).toHaveLength(1)
+
+    const stale = await adminCall(client, refund(1000, 0))
+    expect(stale.status).toBe(409)
+    expect(stale.body).toMatchObject({ ok: false, error: { code: 'STALE' } })
+    expect(refundCalls()).toHaveLength(1)
+    expect(await reviewOf(paymentId)).toMatchObject({ provider_refunded_halalas: 1500, closed_at: null })
+    expect(await count('select count(*)::int as n from finance.refunds where review_payment_id = $1', [paymentId])).toBe(1)
+
+    const fresh = await adminCall(client, refund(1000, 1500))
+    expect(fresh.body.data).toMatchObject({ status: 'succeeded', amount: 1000 })
+    expect(paymentOnEmulator(paymentId)).toMatchObject({ refunded: 2500 })
   })
 })
 

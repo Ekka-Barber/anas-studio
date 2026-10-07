@@ -10,6 +10,8 @@ import { createHash, randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CONSOLE_METHODS, expectOnlyFaultLines } from '../support/console'
+
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { type DownloadDeps, handleDownload, publicFileUrl } from '../../supabase/functions/_shared/download.ts'
 import type { PaymentsConfigOk } from '../../supabase/functions/_shared/payments/moyasar.ts'
@@ -71,7 +73,7 @@ const replyOf = async (response: Response): Promise<Reply> => (await response.js
 
 const sha256 = (text: string): string => createHash('sha256').update(text).digest('hex')
 
-const logs = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
+const logs = CONSOLE_METHODS.map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
 
 beforeEach(() => {
   recorded.length = 0
@@ -86,8 +88,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Whatever a test did, the handler logged nothing: no token, key, URL or body.
-  for (const spy of logs) expect(spy).not.toHaveBeenCalled()
+  // Whatever a test did, nothing was logged but the fault lines of F3-1 (tests/support/console.ts): no token, key, URL, name or body.
+  expectOnlyFaultLines(logs)
   vi.unstubAllEnvs()
 })
 

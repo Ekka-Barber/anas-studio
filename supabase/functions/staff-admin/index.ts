@@ -8,7 +8,7 @@
 // it holds here too. CORS allows any origin because the caller authenticates
 // with a bearer token the browser never attaches on its own.
 import { serviceClient } from '../_shared/db.ts'
-import { corsHeaders, fail as failWith, ok as okWith } from '../_shared/http.ts'
+import { corsHeaders, fail as failWith, logCause, ok as okWith } from '../_shared/http.ts'
 import { type StaffIdentity, staffFromRequest } from '../_shared/staff.ts'
 
 const ROLES = ['owner', 'editor', 'operations'] as const
@@ -20,10 +20,11 @@ const fail = (status: number, code: string, message: string): Response => failWi
 const ok = (data: unknown): Response => okWith(data, 200, CORS)
 
 // 23514 is the last-owner trigger (check_violation); anything else is unexpected.
-const updateFailed = (error: { code?: string }) =>
-  error.code === '23514'
-    ? fail(409, 'LAST_OWNER', 'يجب أن يبقى مالك نشط واحد على الأقل.')
-    : fail(500, 'UPDATE_FAILED', 'تعذّر التحديث. حاول مرة أخرى.')
+const updateFailed = (error: { code?: string }) => {
+  if (error.code === '23514') return fail(409, 'LAST_OWNER', 'يجب أن يبقى مالك نشط واحد على الأقل.')
+  logCause('staff-admin', error)
+  return fail(500, 'UPDATE_FAILED', 'تعذّر التحديث. حاول مرة أخرى.')
+}
 
 // The change committed but its audit row did not: say so, never answer plain success.
 const auditFailed = () => fail(500, 'AUDIT_FAILED', 'تم الإجراء لكن تعذّر تسجيله في سجل التدقيق.')
@@ -43,8 +44,9 @@ Deno.serve(async (req) => {
   let staff: StaffIdentity | null
   try {
     staff = await staffFromRequest(req)
-  } catch {
+  } catch (error) {
     // A failed staff lookup is a server fault, not a bad token.
+    logCause('staff-admin', error)
     return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }
   if (!staff) return fail(401, 'UNAUTHENTICATED', 'سجّل الدخول أولًا.')
@@ -126,24 +128,54 @@ Deno.serve(async (req) => {
         const { error: unbanError } = await admin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
         if (unbanError) return fail(500, 'UNBAN_FAILED', 'تعذّر رفع إيقاف الدخول. حاول مرة أخرى.')
       }
-      const { data, error } = await admin.from('staff').update({ active }).eq('user_id', userId).select('user_id')
-      if (error) return updateFailed(error)
-      if (!data?.length) return fail(404, 'NOT_FOUND', 'العضو غير موجود.')
+      // A revoke flips `active` only where it is still true, so it knows whether this call made the change, and only
+      // its own change is ever rolled back: a member already revoked (the «حاول مرة أخرى» after SESSIONS_FAILED,
+      // ROLLBACK_FAILED or BAN_INCOMPLETE) stays revoked whatever the ban answers.
+      let changed = true
+      if (active) {
+        const { data, error } = await admin.from('staff').update({ active }).eq('user_id', userId).select('user_id')
+        if (error) return updateFailed(error)
+        if (!data?.length) return fail(404, 'NOT_FOUND', 'العضو غير موجود.')
+      } else {
+        const flipped = await admin.from('staff').update({ active: false }).eq('user_id', userId).eq('active', true).select('user_id')
+        if (flipped.error) return updateFailed(flipped.error)
+        changed = (flipped.data?.length ?? 0) > 0
+        if (!changed) {
+          const known = await admin.from('staff').select('user_id').eq('user_id', userId)
+          if (known.error) return updateFailed(known.error)
+          if (!known.data?.length) return fail(404, 'NOT_FOUND', 'العضو غير موجود.')
+        }
+      }
       // RLS already denies a revoked member on the next query; the ban also
       // stops sign-in and refresh-token use.
       const banError = active ? null : (await admin.auth.admin.updateUserById(userId, { ban_duration: BAN_FOREVER })).error
-      // A ban that failed puts the member back to active, so the revoke stays
-      // on the screen and «حاول مرة أخرى» can be followed.
-      if (banError) await admin.from('staff').update({ active: true }).eq('user_id', userId)
+      // A ban that failed puts the member this call revoked back to active, so the revoke stays on the screen and
+      // can be tried again. What the reply may say rests on the rollback's own result: only a rollback that held
+      // leaves the member as they were.
+      let rolledBack: boolean | null = null
+      if (banError && changed) {
+        const rollback = await admin.from('staff').update({ active: true }).eq('user_id', userId).select('user_id')
+        rolledBack = !rollback.error && (rollback.data?.length ?? 0) > 0
+        if (!rolledBack) logCause('staff-admin', rollback.error)
+      }
       // Once banned, the member's sessions are ended too: a later restore lifts
       // the ban, and must not bring back a session still open somewhere.
       const sessionsEnded = active || banError ? null : !(await admin.rpc('staff_sessions_end', { p_user: userId })).error
       const auditError = await audit(
         active ? 'staff.restore' : 'staff.revoke',
         userId,
-        sessionsEnded === null ? { banApplied: !banError } : { banApplied: true, sessionsEnded },
+        sessionsEnded === null
+          ? { banApplied: !banError, ...(rolledBack === null ? {} : { rolledBack }), ...(changed ? {} : { alreadyRevoked: true }) }
+          : { banApplied: true, sessionsEnded },
       )
-      if (banError) return fail(500, 'BAN_FAILED', 'حُدّثت الحالة لكن تعذّر إيقاف الدخول. حاول مرة أخرى.')
+      if (banError && !changed) {
+        return fail(500, 'BAN_INCOMPLETE', 'لم يكتمل إيقاف الدخول؛ العضو ما زال موقوفًا. حاول مرة أخرى.')
+      }
+      if (banError) {
+        return rolledBack
+          ? fail(500, 'BAN_FAILED', 'تعذّر إيقاف الدخول؛ لم تتغيّر حالة العضو. حاول مرة أخرى.')
+          : fail(500, 'ROLLBACK_FAILED', 'حُدّثت الحالة لكن تعذّر إيقاف الدخول. حاول مرة أخرى.')
+      }
       if (sessionsEnded === false) return fail(500, 'SESSIONS_FAILED', 'أُوقف الدخول لكن تعذّر إنهاء الجلسات المفتوحة. حاول مرة أخرى.')
       if (auditError) return auditFailed()
       return ok({ userId, active })

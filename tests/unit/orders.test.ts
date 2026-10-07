@@ -10,6 +10,8 @@ import { createHash, createHmac, randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { CONSOLE_METHODS, expectOnlyFaultLines } from '../support/console'
+
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { handleOrders, type OrdersDeps, recoveryItems } from '../../supabase/functions/_shared/orders.ts'
 import type { PaymentsConfigOk } from '../../supabase/functions/_shared/payments/moyasar.ts'
@@ -81,7 +83,7 @@ const hashOf = (token: string): string => sha256(`${PEPPER}:order:${token}`)
 const tokenOf = (idempotencyKey: string, version = 0): string =>
   createHmac('sha256', PEPPER).update(version === 0 ? `order-access:${idempotencyKey}` : `order-access:${idempotencyKey}:${version}`).digest('base64url')
 
-const logs = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
+const logs = CONSOLE_METHODS.map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
 
 beforeEach(() => {
   recorded.length = 0
@@ -96,8 +98,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  // Whatever a test did, the handler logged nothing: no token, address, body or detail.
-  for (const spy of logs) expect(spy).not.toHaveBeenCalled()
+  // Whatever a test did, nothing was logged but the fault lines of F3-1 (tests/support/console.ts): no token, key, URL, name or body.
+  expectOnlyFaultLines(logs)
   vi.unstubAllEnvs()
 })
 

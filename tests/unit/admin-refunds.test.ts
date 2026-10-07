@@ -6,7 +6,7 @@
 // proven here is every branch of the handlers: who may, the fetch-first rule, the
 // replay that reaches the provider once, each provider answer mapped to its
 // `refund_result` outcome, the refusals and what is (never) in an answer.
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -257,6 +257,11 @@ describe('refund-create: the request is validated before anything is called', ()
     ['no idempotency key', { idempotencyKey: undefined }],
     ['an idempotency key that is not a uuid', { idempotencyKey: 'abc' }],
     ['a return id that is not a uuid', { returnId: 'RET-1' }],
+    ['a confirmed total below zero', { expectedRefunded: -1 }],
+    ['a fractional confirmed total', { expectedRefunded: 1.5 }],
+    ['a confirmed total sent as text', { expectedRefunded: '0' }],
+    ['a confirmed total of ten digits (the SQL takes nine)', { expectedRefunded: 1_000_000_000 }],
+    ['a null confirmed total', { expectedRefunded: null }],
     ['an unknown field', { provider: 'moyasar' }],
     ['a smuggled provider payment id', { paymentId: PAYMENT }],
   ])('refuses %s with 422 INVALID', async (_label, over) => {
@@ -287,8 +292,11 @@ describe('refund-create: the request is validated before anything is called', ()
       create({ allocation: { items: [{ itemId: ITEM_A, amount: 5000 }] } }),
       create({ allocation: { shipping: 5000 } }),
       create({ returnId: RETURN }),
+      create({ expectedRefunded: 0 }),
+      create({ expectedRefunded: 999_999_999 }),
       createForReview(),
       createForReview({ orderId: ORDER }),
+      createForReview({ expectedRefunded: 4000 }),
     ]) {
       const accepted = await send(body)
       expect(accepted.status, JSON.stringify(body)).toBe(200)
@@ -377,7 +385,8 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
 
   it.each([
     ['unavailable', bad('unavailable')],
-    ['refused (a 4xx)', bad('refused', 401)],
+    ['refused (a 4xx other than 401 and 403)', bad('refused', 400)],
+    ['refused before it was sent (an id that is no uuid)', bad('refused')],
     ['rate limited', bad('rate_limited', 429)],
     ['uncertain', bad('uncertain')],
   ])('a fetch that is %s answers 503 and writes nothing: no reservation, no refund call', async (_label, fetched) => {
@@ -407,6 +416,29 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
     expect(client.refundPayment).not.toHaveBeenCalled()
   })
 
+  // FABLE-AUDIT F3-16 (f), QUALITY-02: a key the provider refuses is not a passing outage, and «حاول بعد قليل» would be a lie.
+  it.each([401, 403])('a fetch the provider refuses with %i answers 502 PROVIDER_REFUSED in its own words and writes nothing, whichever refund action asked', async (status) => {
+    client.fetchPayment.mockResolvedValue(bad('refused', status))
+    for (const body of [create(), createForReview(), recheck(), external()]) {
+      calls.length = 0
+      const refused = await answer(await send(body))
+      expect(refused.status, JSON.stringify(body)).toBe(502)
+      expect(refused.body).toMatchObject({ ok: false, error: { code: 'PROVIDER_REFUSED', message: 'رفضت بوابة الدفع المفتاح؛ تحقق من إعدادات الدفع.' } })
+      expect(refused.body.error.message).not.toContain('حاول بعد قليل')
+      for (const written of ['refund_request', 'refund_result', 'refund_settle', 'refund_record_external']) expect(called(written), written).toHaveLength(0)
+    }
+    expect(client.refundPayment).not.toHaveBeenCalled()
+  })
+
+  // The refund call itself refused with a 401 keeps the money state it always had: the refund is failed, nothing moved.
+  it('a refund call the provider refuses with 401 is still a failed refund, recorded with its status', async () => {
+    client.refundPayment.mockResolvedValue(bad('refused', 401))
+    reply('refund_result', { ok: true, refundId: REFUND, status: 'failed', amount: 5000 })
+    const done = await answer(await send(create()))
+    expect(done).toEqual({ status: 200, body: { ok: true, data: { refundId: REFUND, status: 'failed', amount: 5000 } } })
+    expect(called('refund_result')[0]!.args).toEqual({ p_refund: REFUND, p_outcome: 'failed', p_provider_refunded: null, p_error: 'REFUND_REFUSED_401' })
+  })
+
   it('every refusal of the SQL is a stable code and a short Arabic message, and the provider is never asked', async () => {
     const expected: Array<[string, number]> = [
       ['NOT_REFUNDABLE', 409],
@@ -417,6 +449,7 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
       ['INVALID_ALLOCATION', 422],
       ['INVALID_RETURN', 422],
       ['IDEMPOTENCY_CONFLICT', 409],
+      ['STALE', 409],
     ]
     const messages = new Set<string>()
     for (const [code, status] of expected) {
@@ -483,6 +516,96 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
     expect(seen.size).toBe(others.length + 1)
     // The key is not part of the hash: it is what the SQL compares the hash by.
     expect(await hash({ allocation: { items, shipping: 1000 }, idempotencyKey: randomUUID() })).toBe(base)
+  })
+})
+
+// ---- refund-create: the confirmed total the screen was built from ---------------------------------------------
+
+// FABLE-AUDIT F3-2 (ADMIN-COMMERCE-05): `refund_request` answers STALE when `p_allocation.expectedRefunded` is not the
+// confirmed total of the attempt (or review payment). The function only carries it; the SQL compares it.
+describe('refund-create: expectedRefunded', () => {
+  const requested = async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    calls.length = 0
+    await send(body)
+    return called('refund_request')[0]!.args
+  }
+
+  it('travels inside the allocation of an attempt, beside its items and shipping', async () => {
+    expect((await requested(create({ expectedRefunded: 2000 }))).p_allocation).toEqual({
+      items: [{ itemId: ITEM_A, amount: 4000 }],
+      shipping: 1000,
+      expectedRefunded: 2000,
+    })
+    // Zero is a total, not an absence.
+    expect((await requested(create({ expectedRefunded: 0 }))).p_allocation).toMatchObject({ expectedRefunded: 0 })
+  })
+
+  it('travels alone in the empty allocation of a review payment, and beside what it was given otherwise', async () => {
+    expect((await requested(createForReview({ expectedRefunded: 4000 }))).p_allocation).toEqual({ expectedRefunded: 4000 })
+    expect((await requested(createForReview({ allocation: { shipping: 100 }, expectedRefunded: 7 }))).p_allocation).toEqual({
+      items: [],
+      shipping: 100,
+      expectedRefunded: 7,
+    })
+  })
+
+  it('is absent when it was not sent: the allocation is exactly what it was, for an attempt and for a review payment', async () => {
+    expect((await requested(create())).p_allocation).toEqual({ items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000 })
+    expect((await requested(createForReview())).p_allocation).toEqual({})
+    expect('expectedRefunded' in ((await requested(create())).p_allocation as object)).toBe(false)
+  })
+
+  it('is part of the request hash when sent, and a request without it hashes as it always did', async () => {
+    const hash = async (over: Record<string, unknown>): Promise<unknown> => (await requested(create(over))).p_request_hash
+    // The hash of a request with no confirmed total is the digest of its canonical text before this field existed.
+    const before = JSON.stringify({
+      order: ORDER,
+      attempt: ATTEMPT,
+      review: null,
+      amount: 5000,
+      reason: 'عيب في الطباعة',
+      allocation: { items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000 },
+      returnId: null,
+    })
+    expect(await hash({})).toBe(createHash('sha256').update(before).digest('hex'))
+    const none = await hash({})
+    const zero = await hash({ expectedRefunded: 0 })
+    const some = await hash({ expectedRefunded: 2000 })
+    expect(new Set([none, zero, some]).size).toBe(3)
+    // The same total is the same request again, which is what lets a replay with the kept total be recognised.
+    expect(await hash({ expectedRefunded: 2000 })).toBe(some)
+    expect(await hash({ expectedRefunded: 2000, idempotencyKey: randomUUID() })).toBe(some)
+  })
+
+  it('a stale total is 409 STALE in its own words: nothing is reserved, the provider is not asked, nothing is recorded', async () => {
+    reply('refund_request', { ok: false, code: 'STALE', refunded: 3000 })
+    for (const body of [create({ expectedRefunded: 0 }), createForReview({ expectedRefunded: 0 })]) {
+      calls.length = 0
+      const refused = await answer(await send(body))
+      expect(refused.status).toBe(409)
+      expect(refused.body).toMatchObject({
+        ok: false,
+        error: { code: 'STALE', message: 'تغيّر المسترد منذ فتحت هذه الصفحة؛ راجع جدول الاستردادات ثم أعد المحاولة.' },
+      })
+      // The ledger's total is for the screen to read again, not for this answer to carry.
+      expect(JSON.stringify(refused.body)).not.toContain('3000')
+      expect(called('refund_result')).toHaveLength(0)
+    }
+    expect(client.refundPayment).not.toHaveBeenCalled()
+  })
+
+  it('a replay of a refund made under a total that has since moved is the stored refund, whatever the SQL was told to expect', async () => {
+    reply('refund_request', { ok: true, state: 'duplicate', refundId: REFUND, status: 'succeeded', amount: 5000 })
+    const replayed = await answer(await send(create({ expectedRefunded: 0 })))
+    expect(replayed).toEqual({ status: 200, body: { ok: true, data: { refundId: REFUND, status: 'succeeded', amount: 5000 } } })
+    expect(client.refundPayment).not.toHaveBeenCalled()
+    expect(called('refund_result')).toHaveLength(0)
+  })
+
+  it('a malformed total reaching the SQL (22023) is 422 INVALID, like any malformed call', async () => {
+    reply('refund_request', sqlError('22023'))
+    expect((await answer(await send(create({ expectedRefunded: 5 })))).status).toBe(422)
+    expect(client.refundPayment).not.toHaveBeenCalled()
   })
 })
 
@@ -599,7 +722,7 @@ describe('refund-recheck', () => {
 
   it.each([
     ['unavailable', bad('unavailable')],
-    ['refused', bad('refused', 401)],
+    ['refused (a 400)', bad('refused', 400)],
     ['rate limited', bad('rate_limited', 429)],
   ])('a failed fetch (%s) is 503 and settles nothing: a refund is never decided from a read that failed', async (_label, fetched) => {
     client.fetchPayment.mockResolvedValue(fetched)
@@ -733,5 +856,26 @@ describe('secrets', () => {
       expect(spy).not.toHaveBeenCalled()
       spy.mockRestore()
     }
+  })
+
+  // FABLE-AUDIT F3-1: a failed database call leaves its cause and the reply's id, and not one value of the request.
+  it('a failed database call logs its function and SQLSTATE, then the reply\'s requestId, and no value of the request or the error', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    reply('refund_request', sqlError('08006'))
+    const broken = await answer(await send(create()))
+    expect(broken.status).toBe(500)
+    const lines = error.mock.calls.map(([line]) => JSON.parse(line as string) as Record<string, unknown>)
+    expect(lines).toEqual([
+      { fn: 'refunds', sqlstate: '08006' },
+      { requestId: broken.body.requestId, status: 500, code: 'FAILED' },
+    ])
+    const text = error.mock.calls.map(([line]) => String(line)).join('\n')
+    for (const value of [KEY, ORDER, ATTEMPT, PAYMENT, '10.0.0.5', 'عيب في الطباعة']) expect(text, value).not.toContain(value)
+    // A refusal that is the owner's to read, not a fault of ours, logs nothing.
+    error.mockClear()
+    reply('refund_request', { ok: false, code: 'EXCEEDS_BALANCE' })
+    expect((await send(create())).status).toBe(409)
+    expect(error).not.toHaveBeenCalled()
+    error.mockRestore()
   })
 })

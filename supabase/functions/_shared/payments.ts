@@ -22,7 +22,7 @@ import { z } from 'zod'
 
 import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv, secretsMatch } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, NO_STORE, ok as okWith, siteOrigin } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, NO_STORE, ok as okWith, siteOrigin } from './http.ts'
 import {
   isUuid,
   moyasarClient,
@@ -71,6 +71,15 @@ export function defaultPaymentDeps(rpc: Rpc = serviceRpc()): PaymentDeps | null 
 }
 
 /**
+ * The same dependencies with a client that can only read: a call that would write at the provider (create or cancel an
+ * invoice, refund) answers `refused` without being sent. A look at the provider on the owner's behalf never changes it.
+ */
+export function readOnly(deps: PaymentDeps): PaymentDeps {
+  const refused = async (): Promise<MoyasarResult<never>> => ({ ok: false, kind: 'refused' })
+  return { ...deps, client: { ...deps.client, createInvoice: refused, cancelInvoice: refused, refundPayment: refused } }
+}
+
+/**
  * The mode the buyer's pages bind their SQL functions to (`orders`, `download`). They never call the provider, so a
  * broken Moyasar key, base or webhook secret must not take the order page, its files, returns and recovery down with
  * checkout: the working configuration's mode, else `PAYMENTS_MODE` alone when it names one; null while no mode is set.
@@ -86,7 +95,7 @@ const failureCode = (what: 'PAYMENT' | 'INVOICE', result: { kind: string }): str
 const closeEvent = (deps: PaymentDeps, eventId: string, outcome: string, error: string | null = null): Promise<unknown> =>
   deps.rpc('payment_event_result', { p_event_id: eventId, p_outcome: outcome, p_error: error })
 
-const checkAttempt = (
+export const checkAttempt = (
   deps: PaymentDeps,
   attemptId: string,
   source: 'job' | 'prompt',
@@ -472,8 +481,9 @@ async function webhook(request: Request, deps: PaymentDeps | null): Promise<Resp
       // The body holds the secret and card details: only its hash is kept.
       p_payload_hash: await sha256Hex(text),
     })
-  } catch {
+  } catch (error) {
     // Not durable: a 500 makes Moyasar send it again.
+    logCause('payments', error)
     return failWith(500, 'FAILED', FAILED)
   }
   const state = (recorded as { state?: unknown } | null)?.state
@@ -572,6 +582,7 @@ async function verify(request: Request, deps: PaymentDeps | null): Promise<Respo
     }
   } catch (error) {
     if ((error as { code?: string } | null)?.code === '54000') return fail(429, 'RATE_LIMITED', 'أرسلت طلبات كثيرة؛ حاول لاحقًا.')
+    logCause('payments', error)
     return fail(500, 'FAILED', FAILED)
   }
   return okWith(

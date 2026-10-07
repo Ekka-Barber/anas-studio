@@ -12,7 +12,7 @@
 import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { BAD_REPLY, CAPPED, DISMISS_SENTENCE, disputeLines, EMPTY_LIST, LIST_CAP, REREAD_FAILED, type DisputeLine } from '@/lib/admin-money'
+import { BAD_REPLY, CAPPED, DISMISS_SENTENCE, disputeLines, EMPTY_LIST, inFlight as refundInFlight, LIST_CAP, REREAD_FAILED, type DisputeLine } from '@/lib/admin-money'
 import {
   ATTEMPT_STATUS_LABELS,
   closeReason,
@@ -353,7 +353,15 @@ export function ReconciliationView() {
                       )}
                     </div>
                     <RefundView
-                      subject={{ kind: 'review', paymentId: review.paymentId, orderId: review.orderId, remainder: Math.max(0, (review.amount ?? 0) - review.refunded) }}
+                      subject={{
+                        kind: 'review',
+                        paymentId: review.paymentId,
+                        orderId: review.orderId,
+                        remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
+                        // The row's confirmed total (`refund_request` checks it: STALE) and whether one of its refunds is still settling.
+                        refunded: review.refunded,
+                        inFlight: data.rec.refunds.some((refund) => refund.reviewPaymentId === review.paymentId && refundInFlight(refund.status)),
+                      }}
                       money={money}
                     />
                     <div className={styles.row}>

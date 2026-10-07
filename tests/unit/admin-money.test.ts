@@ -6,21 +6,26 @@
 // The strict parsers of the three replies (their code is in admin-orders.ts, beside the other parsers) are proven
 // here too; the screens are proven in tests/e2e/orders-money.spec.ts. FABLE-AUDIT F2b adds the cap of what the
 // paying attempt can still give back (a refund recorded from Moyasar's dashboard included) and CHARGEBACK_RECORDED.
+// F3-2 and F3-5 add the confirmed total a refund is built from (`expectedRefunded`) and how the key keeps it, the
+// words of a refund-create reply whose key is kept, and the refund in flight that closes the form.
 import { describe, expect, it, vi } from 'vitest'
 
 import {
   AMOUNT_ABOVE,
   AMOUNT_INVALID,
   attemptBalance,
+  attemptRefundInFlight,
   BAD_REPLY,
   buildDispute,
   CANCELLED,
   CHARGEBACK_RECORDED,
+  confirmedRefunded,
   decisionsFor,
   DISPUTE_DUPLICATE,
   DISPUTE_PROBLEMS,
   DISPUTE_RECORDED,
   disputeLines,
+  IN_FLIGHT_SENTENCE,
   inFlight,
   keyFor,
   linesFor,
@@ -30,13 +35,17 @@ import {
   NOT_ENROLLED,
   orderRefundFields,
   readAmount,
+  readCreateReply,
   readDisputeReply,
   readPaymentRecheck,
   readRefundReply,
   receivedReturns,
   refundBody,
+  refundForm,
   refundProblem,
+  refundRequest,
   REFUND_FAILED,
+  REFUND_KEPT_REPLY,
   REFUND_UNCERTAIN,
   reviewRefundFields,
   riyadhToday,
@@ -143,6 +152,39 @@ describe('what a refund can still take', () => {
   it('knows which refunds are in flight', () => {
     expect(['submitting', 'uncertain'].every(inFlight)).toBe(true)
     expect(['succeeded', 'failed', 'x'].some(inFlight)).toBe(false)
+  })
+
+  // F3-2: the number `refund_request` compares `expectedRefunded` with, computed the way the SQL does it.
+  it('adds the succeeded refunds of the paying attempt, whatever their source, and nothing else: the confirmed total a refund is built from', () => {
+    const refunds = [
+      { attemptId: D, status: 'succeeded', amount: 1000, source: 'admin' },
+      { attemptId: D, status: 'succeeded', amount: 6000, source: 'provider_dashboard' },
+      { attemptId: D, status: 'failed', amount: 500, source: 'admin' },
+      { attemptId: D, status: 'uncertain', amount: 700, source: 'admin' },
+      { attemptId: D, status: 'submitting', amount: 300, source: 'admin' },
+      { attemptId: E, status: 'succeeded', amount: 900, source: 'admin' },
+      // A review payment's refund of this order belongs to the payment, not to the attempt.
+      { attemptId: null, status: 'succeeded', amount: 800, source: 'admin' },
+    ]
+    const detail = { attempts: [{ id: D, captured: 10600 }], refunds } as unknown as Parameters<typeof confirmedRefunded>[0] & Parameters<typeof attemptBalance>[0]
+    expect(confirmedRefunded(detail, D)).toBe(7000)
+    expect(confirmedRefunded(detail, E)).toBe(900)
+    expect(confirmedRefunded(detail, A)).toBe(0)
+    expect(confirmedRefunded({ refunds: [] } as unknown as Parameters<typeof confirmedRefunded>[0], D)).toBe(0)
+    // What the cap takes off is the same number.
+    expect(attemptBalance(detail, D)).toBe(10600 - confirmedRefunded(detail, D))
+  })
+
+  it('knows that a refund of the paying attempt is in flight (submitting or uncertain), and that no other refund counts', () => {
+    const detail = (...statuses: Array<[string | null, string]>) =>
+      ({ refunds: statuses.map(([attemptId, status]) => ({ attemptId, status })) }) as unknown as Parameters<typeof attemptRefundInFlight>[0]
+    expect(attemptRefundInFlight(detail([D, 'submitting']), D)).toBe(true)
+    expect(attemptRefundInFlight(detail([D, 'succeeded'], [D, 'uncertain']), D)).toBe(true)
+    expect(attemptRefundInFlight(detail([D, 'succeeded'], [D, 'failed']), D)).toBe(false)
+    // Another attempt's refund, a review payment's and no refund at all do not stop this attempt's form.
+    expect(attemptRefundInFlight(detail([E, 'submitting'], [null, 'uncertain']), D)).toBe(false)
+    expect(attemptRefundInFlight(detail(), D)).toBe(false)
+    expect(IN_FLIGHT_SENTENCE).toBe('استرداد قيد التنفيذ على هذه الدفعة؛ انتظر نتيجته.')
   })
 
   it('offers the received returns that no refund is linked to, by what they hold', () => {
@@ -265,6 +307,31 @@ describe('the body of refund-create', () => {
     expect('idempotencyKey' in refundBody(args([[lineA, 100]]))).toBe(false)
   })
 
+  it('says the confirmed total the form was built from, zero included, and says nothing when the screen has none', () => {
+    expect(refundBody(args([[lineA, 3500]], { expectedRefunded: 3500 }))).toEqual({
+      action: 'refund-create',
+      orderId: C,
+      attemptId: D,
+      amount: 3500,
+      reason: 'استرداد',
+      allocation: { items: [{ itemId: A, amount: 3500 }] },
+      expectedRefunded: 3500,
+    })
+    // Zero is a total: nothing refunded yet is what the function compares with.
+    expect(refundBody(args([[lineA, 100]], { expectedRefunded: 0 }))).toMatchObject({ expectedRefunded: 0 })
+    for (const none of [undefined, null]) expect('expectedRefunded' in refundBody(args([[lineA, 100]], { expectedRefunded: none })), String(none)).toBe(false)
+    const review: RefundField = { key: 'amount', itemId: null, label: 'المبلغ', remainder: 10600 }
+    expect(refundBody(args([[review, 5000]], { orderId: null, attemptId: null, reviewPaymentId: PAYMENT, expectedRefunded: 1000 }))).toEqual({
+      action: 'refund-create',
+      reviewPaymentId: PAYMENT,
+      amount: 5000,
+      reason: 'استرداد',
+      allocation: {},
+      expectedRefunded: 1000,
+    })
+    expect('expectedRefunded' in refundBody(args([[review, 5000]], { orderId: null, attemptId: null, reviewPaymentId: PAYMENT }))).toBe(false)
+  })
+
   it('sends a review payment with its own id, an empty allocation, and its order only when it has one', () => {
     const review: RefundField = { key: 'amount', itemId: null, label: 'المبلغ', remainder: 10600 }
     expect(refundBody(args([[review, 5000]], { orderId: C, attemptId: null, reviewPaymentId: PAYMENT }))).toEqual({
@@ -345,6 +412,130 @@ describe("the idempotency key's life", () => {
   })
 })
 
+// F3-2 (ADMIN-COMMERCE-05): the body also says which confirmed total the form was built from. The function hashes that total with
+// the rest of the request, so the key must keep protecting the owner from a second refund: it goes with the form, and a kept key
+// sends the total it was minted with.
+describe('the idempotency key and the confirmed total', () => {
+  const framed = (amount: number, expectedRefunded?: number): Record<string, unknown> => ({
+    ...refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'سبب', amounts: [{ field: { key: A, itemId: A, label: 'أ', remainder: 9000 }, halalas: amount }], returnId: null }),
+    ...(expectedRefunded === undefined ? {} : { expectedRefunded }),
+  })
+  const counter = () => {
+    let n = 0
+    return vi.fn(() => `key-${(n += 1)}`)
+  }
+
+  it('sends the body with a fresh key and the total it was built from', () => {
+    const sent = refundRequest(null, framed(100, 3500), counter())
+    expect(sent.body).toEqual({ ...framed(100, 3500), idempotencyKey: 'key-1' })
+    expect(sent.kept).toEqual({ key: 'key-1', fingerprint: JSON.stringify(framed(100)), expectedRefunded: 3500 })
+    // A screen that has no total sends none, and the key is the same kind of key.
+    const none = refundRequest(null, framed(100), counter())
+    expect(none.body).toEqual({ ...framed(100), idempotencyKey: 'key-1' })
+    expect('expectedRefunded' in none.body).toBe(false)
+    expect('expectedRefunded' in none.kept).toBe(false)
+  })
+
+  it('(a) a retry of the same form after the order changed keeps the key and the total it was first sent with', () => {
+    const mint = counter()
+    const first = refundRequest(null, framed(100, 0), mint)
+    // A refund was confirmed meanwhile and the screen read the order again: the same form, confirmed again, now says 3 500.
+    const retry = refundRequest(first.kept, framed(100, 3500), mint)
+    expect(retry.kept).toBe(first.kept)
+    expect(retry.body).toEqual(first.body)
+    expect(retry.body).toMatchObject({ idempotencyKey: 'key-1', expectedRefunded: 0 })
+    // And again, after the code dialog and after a network failure: the very same request each time.
+    const third = refundRequest(retry.kept, framed(100, 9999), mint)
+    expect(third.body).toEqual(first.body)
+    expect(mint).toHaveBeenCalledTimes(1)
+  })
+
+  it('(b) a changed form mints a fresh key and takes the current total', () => {
+    const mint = counter()
+    const first = refundRequest(null, framed(100, 0), mint)
+    const changed = refundRequest(first.kept, framed(200, 3500), mint)
+    expect(changed.body).toMatchObject({ idempotencyKey: 'key-2', expectedRefunded: 3500, amount: 200 })
+    expect(changed.kept.key).not.toBe(first.kept.key)
+    // Any field of the form is the form: the reason too.
+    const reason = refundRequest(first.kept, { ...framed(100, 3500), reason: 'غيره' }, mint)
+    expect(reason.body).toMatchObject({ idempotencyKey: 'key-3', expectedRefunded: 3500 })
+    // The change undone is the form it was: its own key and total come back with it.
+    expect(refundRequest(changed.kept, framed(200, 7000), mint).body).toEqual(changed.body)
+  })
+
+  it('(c) STALE is a final answer: the key goes, and the next request takes a fresh key and the total the order now says', () => {
+    const mint = counter()
+    let kept: Kept | null = null
+    const confirm = (amount: number, expectedRefunded: number): Record<string, unknown> => {
+      const sent = refundRequest(kept, framed(amount, expectedRefunded), mint)
+      kept = sent.kept
+      return sent.body
+    }
+    const first = confirm(100, 0)
+    const stale = readCreateReply(fail('STALE', 'تغيّر المسترد منذ فتحت هذه الصفحة؛ راجع جدول الاستردادات ثم أعد المحاولة.'))
+    expect(stale).toEqual({
+      line: 'alert',
+      text: 'تغيّر المسترد منذ فتحت هذه الصفحة؛ راجع جدول الاستردادات ثم أعد المحاولة.',
+      done: false,
+      keep: false,
+      ahead: false,
+    })
+    // What the screen does with a reading that does not keep the request.
+    if (stale !== null && !stale.keep) kept = null
+    const next = confirm(100, 3500)
+    expect(next.idempotencyKey).not.toBe(first.idempotencyKey)
+    expect(next.expectedRefunded).toBe(3500)
+  })
+
+  it('keeps the key through the answers that leave the same request to ask again, with the total it had, and drops it with every final one', () => {
+    const mint = counter()
+    let kept: Kept | null = null
+    const confirm = (expectedRefunded: number): Record<string, unknown> => {
+      const sent = refundRequest(kept, framed(100, expectedRefunded), mint)
+      kept = sent.kept
+      return sent.body
+    }
+    const first = confirm(0)
+    // The call never arrived, the function failed on its own, the provider could not be reached: the same request again.
+    for (const code of ['UNKNOWN', 'FAILED', 'PROVIDER_UNAVAILABLE']) {
+      const reading = readCreateReply(fail(code))
+      expect(reading!.keep, code).toBe(true)
+      expect(confirm(3500), code).toEqual(first)
+    }
+    // A reply that cannot be read: the same.
+    expect(readCreateReply(done({ status: 'paid' }))!.keep).toBe(true)
+    expect(confirm(3500)).toEqual(first)
+    // Final answers: a refusal of the request, a stale reading, a refused key, a refund made.
+    for (const final of [fail('EXCEEDS_BALANCE'), fail('STALE'), fail('PROVIDER_REFUSED'), done({ refundId: E, status: 'succeeded', amount: 100 })]) {
+      expect(readCreateReply(final)!.keep, JSON.stringify(final)).toBe(false)
+    }
+  })
+})
+
+describe('the same form while a key is kept (refundForm)', () => {
+  // The owner's inputs, not the request they make: a reading taken since may drop a linked return or a line refunded in full
+  // from the request, while the inputs stay what the owner typed. RefundView shows the kept request again for the same inputs.
+  it('is the same for the same inputs, whatever order the amounts were typed in, and an emptied field is one never typed in', () => {
+    const one = refundForm({ [A]: '30', shipping: '15' }, 'تالف', 'r1')
+    expect(refundForm({ shipping: '15', [A]: '30' }, 'تالف', 'r1')).toBe(one)
+    expect(refundForm({ [A]: '30', shipping: '15', [B]: '' }, 'تالف', 'r1')).toBe(one)
+  })
+
+  it('differs when the owner changed anything: an amount, a line, the reason or the return', () => {
+    const one = refundForm({ [A]: '30' }, 'تالف', 'r1')
+    for (const other of [
+      refundForm({ [A]: '31' }, 'تالف', 'r1'),
+      refundForm({ [A]: '30', [B]: '5' }, 'تالف', 'r1'),
+      refundForm({ [B]: '30' }, 'تالف', 'r1'),
+      refundForm({ [A]: '30' }, 'تالف جدًا', 'r1'),
+      refundForm({ [A]: '30' }, 'تالف', ''),
+      refundForm({ [A]: '30' }, 'تالف', 'r2'),
+    ]) {
+      expect(other).not.toBe(one)
+    }
+  })
+})
+
 describe('the step-up retry', () => {
   const stepUp = fail('STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
 
@@ -415,7 +606,7 @@ describe('what a refund answer says', () => {
     expect(readRefundReply(reply('succeeded', 2500), true)).toMatchObject({ line: 'status', text: `سُجّل استرداد خارجي بمبلغ ${formatMoney(2500)}.`, done: true })
   })
 
-  it('shows the function’s own refusal, flags a refund the provider holds, and keeps the key only when the request is unknown', () => {
+  it('shows the function’s own refusal, flags a refund the provider holds, and keeps the key only when the same request may still be asked', () => {
     expect(readRefundReply(fail('EXCEEDS_BALANCE', 'المبلغ أكبر من المتبقي للاسترداد.'))).toEqual({
       line: 'alert',
       text: 'المبلغ أكبر من المتبقي للاسترداد.',
@@ -424,8 +615,10 @@ describe('what a refund answer says', () => {
       ahead: false,
     })
     expect(readRefundReply(fail('PROVIDER_AHEAD', 'رسالة'))).toMatchObject({ ahead: true, keep: false })
-    for (const code of ['UNKNOWN', 'FAILED', NOT_ENROLLED]) expect(readRefundReply(fail(code, 'x'))!.keep, code).toBe(true)
-    for (const code of ['NOT_REFUNDABLE', 'REFUND_IN_FLIGHT', 'PROVIDER_BEHIND', 'INVALID_ALLOCATION', 'INVALID_RETURN', 'IDEMPOTENCY_CONFLICT', 'NO_DELTA', 'PROVIDER_UNAVAILABLE', 'FORBIDDEN', 'INVALID']) {
+    // F3-5 (a): a payment that could not be reached for its total (503 PROVIDER_UNAVAILABLE) is not an answer about the request: an earlier call under the
+    // same key may have stored it, and the same button sends it again in a moment, so the key stays.
+    for (const code of ['UNKNOWN', 'FAILED', 'PROVIDER_UNAVAILABLE', NOT_ENROLLED]) expect(readRefundReply(fail(code, 'x'))!.keep, code).toBe(true)
+    for (const code of ['NOT_REFUNDABLE', 'REFUND_IN_FLIGHT', 'PROVIDER_BEHIND', 'INVALID_ALLOCATION', 'INVALID_RETURN', 'IDEMPOTENCY_CONFLICT', 'NO_DELTA', 'STALE', 'PROVIDER_REFUSED', 'FORBIDDEN', 'INVALID']) {
       expect(readRefundReply(fail(code, 'x'))!.keep, code).toBe(false)
     }
     // A refusal that carries no words still says something.
@@ -452,6 +645,49 @@ describe('what a refund answer says', () => {
       expect(readRefundReply(done(data)), JSON.stringify(data)).toEqual({ line: 'alert', text: BAD_REPLY, done: false, keep: true, ahead: false })
     }
     expect(BAD_REPLY).toBe('تعذّر قراءة الرد؛ حدّث الصفحة.')
+  })
+
+  // F3-5 (a): only `refund-create` has a key to retry under, so only its words promise the retry; the recheck, the external record and
+  // every other reader keep «حدّث الصفحة», which is what they can truthfully say.
+  it('says a refund-create reply it cannot read with its key kept: the same button retries safely', () => {
+    const unreadable = [null, [], 'ok', {}, { status: 'succeeded' }, { refundId: E, status: 'paid', amount: 1 }, { refundId: E, status: 'succeeded', amount: 0 }]
+    for (const data of unreadable) {
+      expect(readCreateReply(done(data)), JSON.stringify(data)).toEqual({ line: 'alert', text: REFUND_KEPT_REPLY, done: false, keep: true, ahead: false })
+      expect(readRefundReply(done(data)), JSON.stringify(data)).toMatchObject({ text: BAD_REPLY, keep: true })
+    }
+    // A «no» with no refusal in it is the same.
+    const bare = { ok: false, error: null } as unknown as FunctionResult<unknown>
+    expect(readCreateReply(bare)).toEqual({ line: 'alert', text: REFUND_KEPT_REPLY, done: false, keep: true, ahead: false })
+    expect(readRefundReply(bare)).toMatchObject({ text: BAD_REPLY })
+    expect(readRefundReply(bare, true)).toMatchObject({ text: BAD_REPLY })
+    expect(REFUND_KEPT_REPLY).toBe('تعذّر قراءة الرد؛ أعد المحاولة من هذا الزر؛ المفتاح محفوظ.')
+    expect(REFUND_KEPT_REPLY).not.toContain('حدّث الصفحة')
+  })
+
+  it('reads every other reply of a refund-create as `readRefundReply` does', () => {
+    const replies: Array<FunctionResult<unknown>> = [
+      reply('succeeded'),
+      reply('uncertain'),
+      reply('submitting'),
+      reply('failed'),
+      fail('EXCEEDS_BALANCE', 'المبلغ أكبر من المتبقي للاسترداد.'),
+      fail('PROVIDER_AHEAD', 'رسالة'),
+      fail('PROVIDER_UNAVAILABLE', 'تعذّر الوصول إلى بوابة الدفع الآن. لم يتغيّر شيء؛ حاول بعد قليل.'),
+      fail('CHARGEBACK_RECORDED', 'x'),
+      fail(NOT_ENROLLED, 'x'),
+      fail(CANCELLED, ''),
+    ]
+    for (const result of replies) expect(readCreateReply(result), JSON.stringify(result)).toEqual(readRefundReply(result))
+    // The gateway not reached keeps the key and says what the function said: nothing changed, try in a moment.
+    expect(readCreateReply(fail('PROVIDER_UNAVAILABLE', 'حاول بعد قليل'))).toEqual({ line: 'alert', text: 'حاول بعد قليل', done: false, keep: true, ahead: false })
+    // A key the provider refuses is its own answer, final: the key goes.
+    expect(readCreateReply(fail('PROVIDER_REFUSED', 'رفضت بوابة الدفع المفتاح؛ تحقق من إعدادات الدفع.'))).toEqual({
+      line: 'alert',
+      text: 'رفضت بوابة الدفع المفتاح؛ تحقق من إعدادات الدفع.',
+      done: false,
+      keep: false,
+      ahead: false,
+    })
   })
 })
 

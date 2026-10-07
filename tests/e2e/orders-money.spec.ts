@@ -28,6 +28,8 @@ const STATES = {
 }
 const NO_ACCESS = 'لا تملك صلاحية الوصول'
 const BAD_REPLY = 'تعذّر قراءة الرد؛ حدّث الصفحة.'
+/** refund-create's own sentence for a reply it cannot read: the key is kept, so the same button retries (F3-5 (a)). */
+const REFUND_KEPT_REPLY = 'تعذّر قراءة الرد؛ أعد المحاولة من هذا الزر؛ المفتاح محفوظ.'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const ADMIN = '**/functions/v1/admin'
 const MONEY_BUTTONS = ['إعادة المبلغ', 'استرداد هذه الدفعة', 'أعد الفحص', 'تسجيل استرداد خارجي', 'تسجيل اعتراض', 'تسجيل فرق', 'إضافة متابعة']
@@ -540,7 +542,8 @@ for (const width of [360, 1440]) {
         await expect(statusLine(page)).toBeFocused()
         await expect(alertLine(page)).toHaveText('')
 
-        // The request: field by field, the key of the first call is the key of the second, and it is a UUID.
+        // The request: field by field, the key of the first call is the key of the second, and it is a UUID. It carries the
+        // confirmed total the screen was built from: the 35.00 refunded earlier (the seed's one succeeded refund of this attempt).
         const key = bodies[0]!.idempotencyKey
         expect(key).toEqual(expect.stringMatching(UUID))
         expect(bodies).toEqual([
@@ -552,6 +555,7 @@ for (const width of [360, 1440]) {
             reason: 'استرداد العنصر والشحن',
             allocation: { items: [{ itemId: order.items[0]!.id, amount: 3500 }], shipping: 1500 },
             returnId,
+            expectedRefunded: 3500,
             idempotencyKey: key,
           },
           {
@@ -562,6 +566,7 @@ for (const width of [360, 1440]) {
             reason: 'استرداد العنصر والشحن',
             allocation: { items: [{ itemId: order.items[0]!.id, amount: 3500 }], shipping: 1500 },
             returnId,
+            expectedRefunded: 3500,
             idempotencyKey: key,
           },
         ])
@@ -648,7 +653,7 @@ for (const width of [360, 1440]) {
         const reads = rpc.count('order_detail')
         await refund()
         await sent(7)
-        await expect(alertLine(page)).toHaveText(BAD_REPLY)
+        await expect(alertLine(page)).toHaveText(REFUND_KEPT_REPLY)
         await expect.poll(() => rpc.count('order_detail')).toBe(reads + 1)
         await expect(statusLine(page)).toHaveText('')
         await expect(button(refunds, 'تأكيد الاسترداد')).toBeVisible()
@@ -659,7 +664,7 @@ for (const width of [360, 1440]) {
         // A 200 that says «no» and names no refusal is as unreadable as any other reply: never the generic «تعذّر الحفظ», and the request stays.
         await refund()
         await sent(9)
-        await expect(alertLine(page)).toHaveText(BAD_REPLY)
+        await expect(alertLine(page)).toHaveText(REFUND_KEPT_REPLY)
         await expect(button(refunds, 'تأكيد الاسترداد')).toBeVisible()
 
         // Every request is the same refund of the same line; a key lives from its confirmation to its final answer.
@@ -856,10 +861,11 @@ for (const width of [360, 1440]) {
         await expect(statusLine(page)).toHaveText(`تمت إعادة ${formatMoney(2500)}.`)
         const key = bodies[0]!.idempotencyKey
         expect(key).toEqual(expect.stringMatching(UUID))
-        const expected = { action: 'refund-create', orderId: order.id, reviewPaymentId: paymentId, amount: 2500, reason: 'دفعة مكررة', allocation: {}, idempotencyKey: key }
+        // Nothing of this payment was refunded when the screen read it: it carries a confirmed total of 0.
+        const expected = { action: 'refund-create', orderId: order.id, reviewPaymentId: paymentId, amount: 2500, reason: 'دفعة مكررة', allocation: {}, expectedRefunded: 0, idempotencyKey: key }
         expect(bodies).toEqual([expected, expected])
         // Not the paying attempt's way: no line, no shipping, no return, no attempt.
-        expect(Object.keys(bodies[0]!).sort()).toEqual(['action', 'allocation', 'amount', 'idempotencyKey', 'orderId', 'reason', 'reviewPaymentId'])
+        expect(Object.keys(bodies[0]!).sort()).toEqual(['action', 'allocation', 'amount', 'expectedRefunded', 'idempotencyKey', 'orderId', 'reason', 'reviewPaymentId'])
         expect(problems).toEqual([])
       })
 
@@ -1209,7 +1215,8 @@ for (const width of [360, 1440]) {
         await enterCode(page)
         await expect(statusLine(page)).toHaveText(REFUND_UNCERTAIN)
         const key = bodies[2]!.idempotencyKey
-        const refund = { action: 'refund-create', reviewPaymentId: noOrder.paymentId, amount: 3000, reason: 'دفعة بلا طلب', allocation: {}, idempotencyKey: key }
+        // The listed payment had 10.00 refunded (`refunded: 1000`): that is the confirmed total the request carries.
+        const refund = { action: 'refund-create', reviewPaymentId: noOrder.paymentId, amount: 3000, reason: 'دفعة بلا طلب', allocation: {}, expectedRefunded: 1000, idempotencyKey: key }
         expect(bodies.slice(2)).toEqual([refund, refund])
         expect(bodies[2]).not.toHaveProperty('orderId')
         expect(problems).toEqual([])

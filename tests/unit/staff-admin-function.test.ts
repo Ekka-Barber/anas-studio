@@ -192,13 +192,17 @@ describe('staff-admin: invite', () => {
 })
 
 // FABLE-AUDIT F1-8 and F1-9: a revoke ends the member's sessions once the ban holds (a restore lifts the ban, and must
-// not bring back a session left open), and a ban that fails leaves the member revocable again.
+// not bring back a session left open), and a ban that fails leaves the member revocable again. F3-12: what the reply says of
+// that rollback rests on the rollback's own result, and the audit row records it.
 describe('staff-admin: set_active', () => {
   const MEMBER = '22222222-2222-4222-8222-222222222222'
 
   interface ActiveWorld {
     active: Map<string, boolean>
     banFails: boolean
+    /** The update that puts the member back to active (after a ban that failed) fails, or matches no member. */
+    rollbackFails: boolean
+    rollbackEmpty: boolean
     sessionsFail: boolean
     bans: string[]
     rpcs: Array<[string, Record<string, unknown>]>
@@ -207,7 +211,7 @@ describe('staff-admin: set_active', () => {
 
   /** A fake service client over one staff table, the auth bans, the audit table and `staff_sessions_end`. */
   function installActive(over: Partial<ActiveWorld> = {}): ActiveWorld {
-    const world: ActiveWorld = { active: new Map([[MEMBER, true]]), banFails: false, sessionsFail: false, bans: [], rpcs: [], audits: [], ...over }
+    const world: ActiveWorld = { active: new Map([[MEMBER, true]]), banFails: false, rollbackFails: false, rollbackEmpty: false, sessionsFail: false, bans: [], rpcs: [], audits: [], ...over }
     hoisted.client = {
       auth: {
         admin: {
@@ -226,20 +230,32 @@ describe('staff-admin: set_active', () => {
           if (table === 'audit_events') world.audits.push({ action: row.action, summary: row.summary })
           return { error: null }
         },
-        update: (values: { active: boolean }) => ({
-          eq: (_column: string, userId: string) => {
-            const apply = () => {
-              if (!world.active.has(userId)) return { data: [], error: null }
-              world.active.set(userId, values.active)
-              return { data: [{ user_id: userId }], error: null }
-            }
-            // Awaited with `.select()` (the change) or as it is (the rollback), like the query builder.
-            return {
-              select: async () => apply(),
-              then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve().then(apply).then(resolve, reject),
-            }
-          },
-        }),
+        update: (values: { active: boolean }) => {
+          // The filters of `.eq(...)`, in order: the member, and for a revoke the state it must still have (`active` true).
+          const filters: Array<[string, unknown]> = []
+          const apply = () => {
+            const userId = filters.find(([column]) => column === 'user_id')?.[1] as string
+            const onlyWhile = filters.find(([column]) => column === 'active')
+            if (world.rollbackFails && values.active) return { data: null, error: { code: 'XX000', message: 'database down' } }
+            if (world.rollbackEmpty && values.active) return { data: [], error: null }
+            if (!world.active.has(userId)) return { data: [], error: null }
+            if (onlyWhile !== undefined && world.active.get(userId) !== onlyWhile[1]) return { data: [], error: null }
+            world.active.set(userId, values.active)
+            return { data: [{ user_id: userId }], error: null }
+          }
+          // Awaited with `.select()` (the change) or as it is (the rollback), like the query builder.
+          const builder = {
+            eq: (column: string, value: unknown) => {
+              filters.push([column, value])
+              return builder
+            },
+            select: async () => apply(),
+            then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve().then(apply).then(resolve, reject),
+          }
+          return builder
+        },
+        // Whether a member exists, read after a revoke that changed nothing.
+        select: () => ({ eq: async (_column: string, userId: string) => ({ data: world.active.has(userId) ? [{ user_id: userId }] : [], error: null }) }),
       }),
     }
     return world
@@ -271,20 +287,83 @@ describe('staff-admin: set_active', () => {
     expect(world.bans).toEqual(['876000h'])
   })
 
-  it('a ban that fails puts the member back to active, so the revoke can be tried again; BAN_FAILED, banApplied false, no session is touched', async () => {
+  it('a ban that fails puts the member back to active, so the revoke can be tried again; BAN_FAILED says the state is unchanged, banApplied false, rolledBack true, no session is touched', async () => {
     const world = installActive({ banFails: true })
     const response = await setActive(false)
     expect(response.status).toBe(500)
-    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'BAN_FAILED' } })
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: { code: 'BAN_FAILED', message: 'تعذّر إيقاف الدخول؛ لم تتغيّر حالة العضو. حاول مرة أخرى.' },
+    })
     expect(world.active.get(MEMBER)).toBe(true)
     expect(world.rpcs).toEqual([])
-    expect(world.audits).toEqual([{ action: 'staff.revoke', summary: { banApplied: false } }])
+    expect(world.audits).toEqual([{ action: 'staff.revoke', summary: { banApplied: false, rolledBack: true } }])
 
     // «حاول مرة أخرى» can be followed: the member is still revocable, and the next revoke goes through.
     world.banFails = false
     expect((await setActive(false)).status).toBe(200)
     expect(world.active.get(MEMBER)).toBe(false)
     expect(world.rpcs).toEqual([['staff_sessions_end', { p_user: MEMBER }]])
+  })
+
+  it('a ban that fails and a rollback that fails too: the reply does not claim the state is unchanged, the audit row says so, and the revoke can be asked again', async () => {
+    const world = installActive({ banFails: true, rollbackFails: true })
+    const response = await setActive(false)
+    expect(response.status).toBe(500)
+    const reply = (await response.json()) as { ok: false; error: { code: string; message: string } }
+    expect(reply.error).toEqual({ code: 'ROLLBACK_FAILED', message: 'حُدّثت الحالة لكن تعذّر إيقاف الدخول. حاول مرة أخرى.' })
+    expect(reply.error.message).not.toContain('لم تتغيّر')
+    // What the message says is what is true: the member is revoked in the table and not banned, and no session was touched.
+    expect(world.active.get(MEMBER)).toBe(false)
+    expect(world.rpcs).toEqual([])
+    expect(world.audits).toEqual([{ action: 'staff.revoke', summary: { banApplied: false, rolledBack: false } }])
+
+    // «حاول مرة أخرى»: the same revoke, once the Auth API answers, ends the job (the update and the ban are idempotent).
+    world.banFails = false
+    world.rollbackFails = false
+    expect((await setActive(false)).status).toBe(200)
+    expect(world.active.get(MEMBER)).toBe(false)
+    expect(world.bans).toEqual(['876000h', '876000h'])
+    expect(world.rpcs).toEqual([['staff_sessions_end', { p_user: MEMBER }]])
+    expect(world.audits.at(-1)).toEqual({ action: 'staff.revoke', summary: { banApplied: true, sessionsEnded: true } })
+  })
+
+  it('«حاول مرة أخرى» on a member already revoked never brings them back: a ban that fails then answers BAN_INCOMPLETE, rolls nothing back and ends no session', async () => {
+    // SESSIONS_FAILED or ROLLBACK_FAILED left the member revoked (the handler reads no earlier ban); the retry's ban fails.
+    const world = installActive({ active: new Map([[MEMBER, false]]), banFails: true })
+    const response = await setActive(false)
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: { code: 'BAN_INCOMPLETE', message: 'لم يكتمل إيقاف الدخول؛ العضو ما زال موقوفًا. حاول مرة أخرى.' },
+    })
+    expect(world.active.get(MEMBER)).toBe(false)
+    expect(world.rpcs).toEqual([])
+    expect(world.audits).toEqual([{ action: 'staff.revoke', summary: { banApplied: false, alreadyRevoked: true } }])
+
+    // And once the Auth API answers, the same retry finishes the revoke.
+    world.banFails = false
+    expect((await setActive(false)).status).toBe(200)
+    expect(world.active.get(MEMBER)).toBe(false)
+    expect(world.rpcs).toEqual([['staff_sessions_end', { p_user: MEMBER }]])
+    expect(world.audits.at(-1)).toEqual({ action: 'staff.revoke', summary: { banApplied: true, sessionsEnded: true } })
+  })
+
+  it('a revoke of a member who does not exist is NOT_FOUND and bans nothing', async () => {
+    const world = installActive({ active: new Map() })
+    const response = await setActive(false)
+    expect(response.status).toBe(404)
+    expect(await response.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
+    expect(world.bans).toEqual([])
+    expect(world.audits).toEqual([])
+  })
+
+  it('a rollback that matched no member does not count as one that held', async () => {
+    // The member vanished between the update and the rollback: the update answers without an error and puts nothing back.
+    const world = installActive({ banFails: true, rollbackEmpty: true })
+    const response = await setActive(false)
+    expect(await response.json()).toMatchObject({ error: { code: 'ROLLBACK_FAILED' } })
+    expect(world.audits).toEqual([{ action: 'staff.revoke', summary: { banApplied: false, rolledBack: false } }])
   })
 
   it('a restore lifts the ban and ends nothing', async () => {

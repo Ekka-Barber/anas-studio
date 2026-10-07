@@ -19,6 +19,10 @@ import type { FunctionResult } from './supabase/functions'
  * dispute form's checks and body, and the sentence each answer of the `admin` function becomes. All
  * money is integer halalas: an amount typed in riyals is read by `parseRiyals` (never multiplied as a
  * float), and every sum here adds integers.
+ *
+ * A refund also says which confirmed refunded total its form was built from (`expectedRefunded`), so the
+ * function can refuse a request built from a stale reading (STALE) instead of refunding the same money
+ * twice. That total is not part of what the idempotency key is bound to: see `refundRequest`.
  */
 
 // ---------------------------------------------------------------------------
@@ -26,6 +30,10 @@ import type { FunctionResult } from './supabase/functions'
 // ---------------------------------------------------------------------------
 
 export const BAD_REPLY = 'تعذّر قراءة الرد؛ حدّث الصفحة.'
+/** What `refund-create` says of a reply it cannot read: its idempotency key is kept, so the same button sends the very same request again. */
+export const REFUND_KEPT_REPLY = 'تعذّر قراءة الرد؛ أعد المحاولة من هذا الزر؛ المفتاح محفوظ.'
+/** Said in place of the refund form while a refund of the same payment is in flight: another one would only be refused, after a code. */
+export const IN_FLIGHT_SENTENCE = 'استرداد قيد التنفيذ على هذه الدفعة؛ انتظر نتيجته.'
 /** Said after what an action said, when the screen could not read its data again (what is drawn is the last reading). */
 export const REREAD_FAILED = 'تعذّر تحديث الصفحة؛ قد لا تظهر آخر البيانات.'
 export const REFUND_UNCERTAIN = 'أُرسل الاسترداد ولم يتأكد بعد؛ تتحقق منه المطابقة خلال دقائق.'
@@ -109,12 +117,21 @@ export function shippingLeft(
  */
 export function attemptBalance(detail: Pick<OrderDetail, 'attempts' | 'refunds'>, attemptId: string): number {
   const captured = detail.attempts.find((attempt) => attempt.id === attemptId)?.captured ?? 0
-  const confirmed = detail.refunds.reduce(
-    (total, refund) => (refund.attemptId === attemptId && refund.status === 'succeeded' ? total + refund.amount : total),
-    0,
-  )
-  return Math.max(0, captured - confirmed)
+  return Math.max(0, captured - confirmedRefunded(detail, attemptId))
 }
+
+/**
+ * What the paying attempt's succeeded refunds add up to, whatever their source (a refund recorded from Moyasar's dashboard
+ * included): `refund_request`'s own confirmed total, which a refund asked from this reading of the order is checked against
+ * (`expectedRefunded`). A review payment's is the `refunded` of its row.
+ */
+export function confirmedRefunded(detail: Pick<OrderDetail, 'refunds'>, attemptId: string): number {
+  return detail.refunds.reduce((total, refund) => (refund.attemptId === attemptId && refund.status === 'succeeded' ? total + refund.amount : total), 0)
+}
+
+/** Whether a refund of the paying attempt is still in flight (submitting, or uncertain): `refund_request` refuses another one until it is settled. */
+export const attemptRefundInFlight = (detail: Pick<OrderDetail, 'refunds'>, attemptId: string): boolean =>
+  detail.refunds.some((refund) => refund.attemptId === attemptId && inFlight(refund.status))
 
 /**
  * An order's refund form: one field for each line with something left (its total less what was refunded of it), and
@@ -193,16 +210,20 @@ export interface RefundArgs {
   reason: string
   amounts: ReadonlyArray<{ field: RefundField; halalas: number }>
   returnId: string | null
+  /** The confirmed refunded total the form was built from; absent when the screen cannot say, and the request then carries none. */
+  expectedRefunded?: number | null
 }
 
 /**
  * The body of `refund-create` without its idempotency key. An order's refund names the lines that have an
  * amount and the shipping only when it is above zero, and the amount is their sum; a review payment's
- * allocation is `{}`, and its `orderId` is sent only when the payment has one.
+ * allocation is `{}`, and its `orderId` is sent only when the payment has one. `expectedRefunded` is the
+ * confirmed total the form was built from, sent only when the screen has one.
  */
 export function refundBody(args: RefundArgs): Record<string, unknown> {
   const amount = sum(args.amounts.map((entry) => entry.halalas))
   const reason = clean(args.reason)
+  const expected = typeof args.expectedRefunded === 'number' ? { expectedRefunded: args.expectedRefunded } : {}
   if (args.reviewPaymentId !== null) {
     return {
       action: 'refund-create',
@@ -211,6 +232,7 @@ export function refundBody(args: RefundArgs): Record<string, unknown> {
       amount,
       reason,
       allocation: {},
+      ...expected,
     }
   }
   const items = args.amounts.flatMap(({ field, halalas }) => (field.itemId !== null && halalas > 0 ? [{ itemId: field.itemId, amount: halalas }] : []))
@@ -223,6 +245,7 @@ export function refundBody(args: RefundArgs): Record<string, unknown> {
     reason,
     allocation: { items, ...(shipping > 0 ? { shipping } : {}) },
     ...(args.returnId === null ? {} : { returnId: args.returnId }),
+    ...expected,
   }
 }
 
@@ -230,23 +253,71 @@ export function refundBody(args: RefundArgs): Record<string, unknown> {
 // The idempotency key's life
 // ---------------------------------------------------------------------------
 
-/** The key of a refund request and the request (its body as text) it was minted for. */
+/** The key of a refund request, the request (its body as text, without `expectedRefunded`) it was minted for, and the total that request carried. */
 export interface Kept {
   key: string
   fingerprint: string
+  /** The `expectedRefunded` the request carried when the key was minted; absent when it carried none. */
+  expectedRefunded?: number
 }
 
 /**
  * The request to send for `fingerprint`: the one kept when it is the very same request (a step-up retry or a
  * retry after a network failure sends the same key, so a repeat answers the stored refund and never reaches
- * the provider twice), else a fresh key (the owner changed the form).
+ * the provider twice), else a fresh key (the owner changed the form) that takes `expectedRefunded`.
  */
-export function keyFor(kept: Kept | null, fingerprint: string, mint: () => string): Kept {
-  return kept !== null && kept.fingerprint === fingerprint ? kept : { key: mint(), fingerprint }
+export function keyFor(kept: Kept | null, fingerprint: string, mint: () => string, expectedRefunded?: number): Kept {
+  return kept !== null && kept.fingerprint === fingerprint
+    ? kept
+    : { key: mint(), fingerprint, ...(expectedRefunded === undefined ? {} : { expectedRefunded }) }
 }
 
-/** The answers that leave the request unknown (the call never arrived, or the function failed on its own): only these keep the key. */
-const UNKNOWN_CODES = new Set(['UNKNOWN', 'FAILED'])
+/**
+ * What to send for the frozen body of a refund: the body with its idempotency key and its `expectedRefunded`.
+ *
+ * The key goes with the FORM, not with the screen's reading of the ledger: the fingerprint that decides whether the kept
+ * key serves is the body without `expectedRefunded`. And a kept key sends the total it was minted with, never the current
+ * one: the function hashes the total with the rest of the request, so only the very same request is a replay of the first.
+ * A retry after a lost reply, after the code dialog or after «رجوع» and the same form again, made once a refund has been
+ * confirmed (the screen read the order again meanwhile), would otherwise be another request under a used key
+ * (IDEMPOTENCY_CONFLICT), or, under a fresh key, a second refund. A fresh key (the owner changed the form) takes the
+ * current total. `STALE` is a final answer: the key goes (`readCreateReply`) and the screen reads the order again.
+ */
+export function refundRequest(
+  kept: Kept | null,
+  body: Readonly<Record<string, unknown>>,
+  mint: () => string,
+): { kept: Kept; body: Record<string, unknown> } {
+  const { expectedRefunded, ...request } = body
+  const next = keyFor(kept, JSON.stringify(request), mint, typeof expectedRefunded === 'number' ? expectedRefunded : undefined)
+  return {
+    kept: next,
+    body: { ...request, ...(next.expectedRefunded === undefined ? {} : { expectedRefunded: next.expectedRefunded }), idempotencyKey: next.key },
+  }
+}
+
+/**
+ * The refund form's own inputs as one string (the amounts typed, the reason, the return chosen): whether the owner changed
+ * the form. While a key is kept, the same inputs are the same request, and RefundView shows the kept request again rather
+ * than rebuilding it from a reading taken since: that reading may have dropped a return the kept request linked, or a line
+ * it refunded in full, and a request rebuilt from it would be another refund under a fresh key. An emptied field is a
+ * field never typed in, and the order fields were typed in does not count.
+ */
+export function refundForm(texts: Readonly<Record<string, string>>, reason: string, returnChoice: string): string {
+  const typed = Object.entries(texts)
+    .filter(([, text]) => text !== '')
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  return JSON.stringify([typed, reason, returnChoice])
+}
+
+/**
+ * The answers after which the very same request may still be asked, so they keep its key: the call never arrived or the
+ * function failed on its own (`refund_request` may have stored the request), and the provider could not be reached for the
+ * payment's total (PROVIDER_UNAVAILABLE: that call wrote nothing, but an earlier call under this key may have, and the
+ * same button sends it again in a moment). Every other answer is final and drops the key: a refusal, a made refund, STALE
+ * (the order is read again) and PROVIDER_REFUSED (the payment settings need a fix before anything is asked again).
+ */
+const KEEP_CODES = new Set(['UNKNOWN', 'FAILED', 'PROVIDER_UNAVAILABLE'])
 
 /**
  * A refusal's code and words. `callFunction` passes through any 2xx body that has an `ok` key, so `{ok: false}` can arrive
@@ -313,24 +384,34 @@ const reading = (line: Reported['line'], text: string, over: Partial<Omit<Refund
  * What `refund-create`, `refund-recheck` and `refund-record-external` answered, as a sentence. A function's
  * own refusal keeps its words; a reply that is not `{refundId, status, amount}` (nor a refusal with a code) is never
  * read as a success or as a failure. `null` when the owner closed the step-up dialog: nothing was sent and there is
- * nothing to say.
+ * nothing to say. A reply it cannot read says «حدّث الصفحة»: only `refund-create` has a key to retry under
+ * (`readCreateReply`).
  */
 export function readRefundReply(result: FunctionResult<unknown>, external = false): RefundReading | null {
+  return readRefund(result, external, BAD_REPLY)
+}
+
+/** `refund-create`'s answer: `readRefundReply` for a call whose idempotency key is kept when the reply cannot be read, so the same button retries safely. */
+export function readCreateReply(result: FunctionResult<unknown>): RefundReading | null {
+  return readRefund(result, false, REFUND_KEPT_REPLY)
+}
+
+function readRefund(result: FunctionResult<unknown>, external: boolean, unreadable: string): RefundReading | null {
   if (!result.ok) {
     const refusal = refusalOf(result)
     // A «no» with no refusal in it: the refund may exist, so a repeat of the same request must carry the same key.
-    if (refusal === null) return reading('alert', BAD_REPLY, { keep: true })
+    if (refusal === null) return reading('alert', unreadable, { keep: true })
     const { code, message } = refusal
     if (code === CANCELLED) return null
     if (code === 'CHARGEBACK_RECORDED') return reading('alert', CHARGEBACK_RECORDED)
-    return reading('alert', message || GENERIC, { keep: UNKNOWN_CODES.has(code) || code === NOT_ENROLLED, ahead: code === 'PROVIDER_AHEAD' })
+    return reading('alert', message || GENERIC, { keep: KEEP_CODES.has(code) || code === NOT_ENROLLED, ahead: code === 'PROVIDER_AHEAD' })
   }
   let refund: ReturnType<typeof parseRefundReply>
   try {
     refund = parseRefundReply(result.data)
   } catch {
     // The refund may exist: a repeat of the same request answers it.
-    return reading('alert', BAD_REPLY, { keep: true })
+    return reading('alert', unreadable, { keep: true })
   }
   if (refund.status === 'succeeded') {
     return reading('status', external ? `سُجّل استرداد خارجي بمبلغ ${formatMoney(refund.amount)}.` : `تمت إعادة ${formatMoney(refund.amount)}.`, { done: true })

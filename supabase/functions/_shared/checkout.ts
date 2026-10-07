@@ -4,7 +4,7 @@ import { noControlCharacters } from './commerce-settings.ts'
 import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
 import { isHostedSite, optionalEnv, secretsMatch } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, ok, siteOrigin } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, ok, siteOrigin } from './http.ts'
 import { defaultPaymentDeps, type PaymentDeps, settleInvoice, startPayment, type StartResult } from './payments.ts'
 import { type MoyasarInvoice, type PaymentsConfig, type PaymentsConfigOk, paymentsConfig } from './payments/moyasar.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
@@ -280,6 +280,7 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
       if ((error as { code?: string } | null)?.code === '54000') {
         return fail(429, 'RATE_LIMITED', 'أرسلت طلبات كثيرة؛ حاول لاحقًا.')
       }
+      logCause('checkout', error)
       return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
     }
   }
@@ -332,7 +333,8 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
         accessTokenHash: await orderAccessTokenHash(pepper, input.accessToken),
         ipHash: await clientKeyHash(request, pepper),
       })
-    } catch {
+    } catch (error) {
+      logCause('checkout', error)
       return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
     }
     if (started.kind === 'not_found') return refusal({ code: 'NOT_FOUND' })

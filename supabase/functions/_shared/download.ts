@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, ok as okWith, siteOrigin } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith, siteOrigin } from './http.ts'
 import { PAID_BUCKET } from './paid-files.ts'
 import { buyerMode } from './payments.ts'
 import { type PaymentsConfig, paymentsConfig } from './payments/moyasar.ts'
@@ -174,6 +174,7 @@ export async function handleDownload(request: Request, deps: DownloadDeps = {}):
     }
   } catch (error) {
     if ((error as { code?: string } | null)?.code === '54000') return fail(429, 'RATE_LIMITED', 'أرسلت طلبات كثيرة؛ حاول لاحقًا.')
+    logCause('download', error)
     return fail(500, 'FAILED', FAILED)
   }
   if (result?.ok !== true) {

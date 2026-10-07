@@ -317,6 +317,47 @@ describe('renderContactNotice', () => {
     expect(text.split(OPEN).length).toBe(text.split(CLOSE).length)
   })
 
+  // FABLE-AUDIT F3-16 (a), QUALITY-03: the name and the address are cleaned as every order mail's value is (`one()`), not by the narrower
+  // rule of the message body: the C0 line and paragraph separators and the three invisible marks used to get through.
+  it('cleans the name and the address as every order mail\'s value is: every control character and separator, every bidi control', () => {
+    const OPEN = String.fromCharCode(0x2068)
+    const CLOSE = String.fromCharCode(0x2069)
+    // VT, FF, FS, GS, RS (mandatory breaks), US, NEL, LS and PS; LRM, RLM and ALM; and an override.
+    const breaks = String.fromCharCode(0x0b, 0x0c, 0x1c, 0x1d, 0x1e, 0x1f, 0x85, 0x2028, 0x2029)
+    const marks = String.fromCharCode(0x200e, 0x200f, 0x061c, 0x202e)
+    const { text } = renderContactNotice({
+      ...data,
+      name: `مها${breaks}البريد: publisher@realpress.com${marks}${breaks}الوقت: 2026-01-01`,
+      email: `guest${marks}@example${breaks}.com`,
+    })
+    const lines = text.split('\n')
+    expect(lines.filter((line) => line.startsWith('البريد:'))).toHaveLength(1)
+    expect(lines.filter((line) => line.startsWith('الوقت:'))).toHaveLength(1)
+    expect(lines.filter((line) => line.startsWith('الاسم:'))).toEqual([`الاسم: ${OPEN}مها البريد: publisher@realpress.com الوقت: 2026-01-01${CLOSE}`])
+    expect(lines.filter((line) => line.startsWith('البريد:'))).toEqual([`البريد: ${OPEN}guest@example .com${CLOSE}`])
+    // Only our own isolates are left of the control characters and the marks, and every one is paired.
+    const ours = text.replaceAll(OPEN, '').replaceAll(CLOSE, '')
+    expect(ours).not.toMatch(/[\u000b\u000c\u001c-\u001f\u0085\u2028\u2029\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/u)
+    expect(text.split(OPEN).length).toBe(text.split(CLOSE).length)
+  })
+
+  // FABLE-AUDIT F3 (the auditor's A6): the message keeps its lines, but every line and paragraph separator ends one, so none sits
+  // inside a line's isolate (a paragraph separator would end it early), and each line is cleaned as one() cleans a value.
+  it('ends a message line at every line and paragraph separator, and cleans each line of bidi and other control characters', () => {
+    const OPEN = String.fromCharCode(0x2068)
+    const CLOSE = String.fromCharCode(0x2069)
+    const marks = String.fromCharCode(0x200e, 0x200f, 0x061c, 0x202e)
+    // CRLF, CR, VT, FS, NEL, LS and PS between the lines; a tab and a unit separator (a segment separator) inside the last one.
+    const message = `أ${marks}1\r\nب2\rج3\u000bد4\u001cه5\u0085و6\u2028ز7\u2029ح8\tنهاية\u001f`
+    const { text } = renderContactNotice({ ...data, message })
+    const lines = text.split('\n')
+    const body = lines.slice(lines.indexOf('نص الرسالة:') + 1, lines.indexOf('نص الرسالة:') + 9)
+    expect(body).toEqual([`${OPEN}أ1${CLOSE}`, `${OPEN}ب2${CLOSE}`, `${OPEN}ج3${CLOSE}`, `${OPEN}د4${CLOSE}`, `${OPEN}ه5${CLOSE}`, `${OPEN}و6${CLOSE}`, `${OPEN}ز7${CLOSE}`, `${OPEN}ح8 نهاية ${CLOSE}`])
+    const ours = text.replaceAll(OPEN, '').replaceAll(CLOSE, '')
+    expect(ours).not.toMatch(/[\r\t\u000b\u000c\u001c-\u001f\u0085\u2028\u2029\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/u)
+    expect(text.split(OPEN).length).toBe(text.split(CLOSE).length)
+  })
+
   it('is the whole inbox: no admin link, a hint to answer by Reply (D31)', () => {
     const { text, subject } = renderContactNotice(data)
     expect(text).not.toContain('/admin')

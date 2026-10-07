@@ -4,7 +4,7 @@ import { noControlCharacters } from './commerce-settings.ts'
 import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, ok as okWith, siteOrigin } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith, siteOrigin } from './http.ts'
 import { buyerMode } from './payments.ts'
 import { type PaymentsConfig, paymentsConfig } from './payments/moyasar.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
@@ -174,6 +174,7 @@ export async function handleOrders(request: Request, deps: OrdersDeps = {}): Pro
       return await rpc(fn, args)
     } catch (error) {
       if ((error as { code?: string } | null)?.code === '54000') return fail(429, 'RATE_LIMITED', 'أرسلت طلبات كثيرة؛ حاول لاحقًا.')
+      logCause('orders', error)
       return fail(500, 'FAILED', FAILED)
     }
   }

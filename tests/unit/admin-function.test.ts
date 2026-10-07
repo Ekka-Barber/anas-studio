@@ -748,17 +748,19 @@ describe('outbox function (jobs bearer gate)', () => {
     store.objects.set(`paid-files/incoming/${randomUUID()}`, new Uint8Array([1]))
     const rpc = vi.fn(async (fn: string) => (fn === 'paid_files_sweep_candidates' ? [`incoming/${randomUUID()}`, asset] : null))
     const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
-    expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed', paidFiles: 0 }] })
+    expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed', paidFiles: 0, reason: 'paid:UNEXPECTED_KEY' }] })
     expect(store.removed).toEqual([])
     expect(store.objects.has(`paid-files/${asset}`)).toBe(true)
     expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_job: 'media_sweep', p_status: 'failed' }))
+    // The tripwire of the paid files' list says so in the record: it is not the same failure as a Storage refusal (F3-16 c).
+    expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_detail: { objects: 0, tickets: 0, paidFiles: 0, reason: 'paid:UNEXPECTED_KEY' } }))
     // The same guard holds for the media bucket: a key outside quarantine/ is never removed.
     const media = memoryStore()
     media.objects.set(`${PRIVATE_BUCKET}/originals/${randomUUID()}`, new Uint8Array([1]))
     const original = `originals/${randomUUID()}`
     const mediaRpc = vi.fn(async (fn: string) => (fn === 'media_sweep_candidates' ? [original] : null))
     const mediaResponse = await handleJobs(jobRequest('{"job":"media_sweep"}'), mediaRpc, () => media)
-    expect(await mediaResponse.json()).toMatchObject({ data: [{ status: 'failed', objects: 0 }] })
+    expect(await mediaResponse.json()).toMatchObject({ data: [{ status: 'failed', objects: 0, reason: 'media:UNEXPECTED_KEY' }] })
     expect(media.removed).toEqual([])
   })
 
@@ -782,7 +784,7 @@ describe('outbox function (jobs bearer gate)', () => {
       return null
     })
     const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => failing)
-    expect(await response.json()).toMatchObject({ data: [{ job: 'media_sweep', status: 'failed', objects: 0, paidFiles: 1 }] })
+    expect(await response.json()).toMatchObject({ data: [{ job: 'media_sweep', status: 'failed', objects: 0, paidFiles: 1, reason: 'media:REMOVE_FAILED' }] })
     expect(store.objects.has(`paid-files/${part}`)).toBe(false)
   })
 
@@ -791,9 +793,39 @@ describe('outbox function (jobs bearer gate)', () => {
     const store = { ...memoryStore(), async remove() {} }
     const rpc = vi.fn(async (fn: string) => (fn === 'media_sweep_candidates' ? ['quarantine/a/original'] : null))
     const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => store)
-    expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed' }] })
+    expect(await response.json()).toMatchObject({ ok: true, data: [{ job: 'media_sweep', status: 'failed', reason: 'media:REMOVE_FAILED' }] })
     expect(rpc).not.toHaveBeenCalledWith('media_tickets_purge', expect.anything())
     expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_job: 'media_sweep', p_status: 'failed' }))
+    expect(rpc).toHaveBeenCalledWith('job_run_record', expect.objectContaining({ p_detail: { objects: 0, tickets: 0, paidFiles: 0, reason: 'media:REMOVE_FAILED' } }))
+  })
+
+  // FABLE-AUDIT F3-16 (c), QUALITY-15: a failed run says which sweep stopped and on what, and only a code: never an error's message.
+  it('media_sweep records every sweep that stopped, with its code, and a database failure as its SQLSTATE and nothing else', async () => {
+    vi.stubEnv('JOBS_SECRET', 'local-jobs-secret')
+    const asset = `assets/${randomUUID()}/${randomUUID()}`
+    const refused = Object.assign(new Error('canceling statement due to statement timeout (10.0.0.5)'), { code: '57014' })
+    const cases: Array<[string, (fn: string) => unknown, string]> = [
+      // Both sweeps stop: the media one on Storage keeping a key, the paid one on its list naming an asset. Neither is lost.
+      ['media_sweep_candidates', (fn) => (fn === 'media_sweep_candidates' ? ['quarantine/a/original'] : fn === 'paid_files_sweep_candidates' ? [asset] : null), 'media:REMOVE_FAILED,paid:UNEXPECTED_KEY'],
+      // A database failure is its SQLSTATE, the message is dropped.
+      ['purge', (fn) => { if (fn === 'media_tickets_purge') throw refused; return null }, 'media:SQL_57014'],
+      ['paid list', (fn) => { if (fn === 'paid_files_sweep_candidates') throw refused; return null }, 'paid:SQL_57014'],
+      // An error with neither one of ours nor a SQLSTATE is a bare FAILED.
+      ['unknown', (fn) => { if (fn === 'media_sweep_candidates') throw new Error('socket hang up at 10.0.0.5'); return null }, 'media:FAILED'],
+    ]
+    for (const [label, answer, reason] of cases) {
+      const records: Array<Record<string, unknown>> = []
+      const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        if (fn === 'job_run_record') records.push(args)
+        return answer(fn)
+      })
+      const stuck = { ...memoryStore(), async remove() {} }
+      const response = await handleJobs(jobRequest('{"job":"media_sweep"}'), rpc, () => stuck)
+      expect(await response.json(), label).toMatchObject({ data: [{ status: 'failed', reason }] })
+      expect(records, label).toHaveLength(1)
+      expect(records[0], label).toMatchObject({ p_job: 'media_sweep', p_status: 'failed', p_detail: { reason } })
+      expect(JSON.stringify(records), label).not.toMatch(/10\.0\.0\.5|statement|socket/)
+    }
   })
 })
 

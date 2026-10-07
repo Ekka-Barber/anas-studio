@@ -2,14 +2,16 @@
 // digit folding, the owner home's job and publish-failure lines, and the
 // customer phone rule the form now states before the database does.
 // FABLE-AUDIT F2b: the payment reconciliation's job line, the team screen's
-// success sentences and the step-up dialog's failure sentences.
+// success sentences and the step-up dialog's failure sentences. F3-5 and F3-12: the
+// team screen's role edit that does not outlive a refusal, the revoke offered again
+// and the confirmation before an owner changes their own role.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { customersConfig } from '../../src/admin/tables/customers'
 import { emailWaiting, jobProblem, publishFailures } from '../../src/components/admin/AdminHome'
 import { clearDrafts, isWidePath } from '../../src/components/admin/AdminShell'
 import { stepUpError } from '../../src/components/admin/StepUp'
-import { doneText } from '../../src/components/admin/TeamView'
+import { doneText, OWN_ROLE_CONFIRM, RETRY_REVOKE, unfinishedRevoke, withoutEdit } from '../../src/components/admin/TeamView'
 import { otpDigits } from '../../src/lib/digits'
 
 // AdminHome, AdminShell, StepUp and TeamView import through the `@/` alias, which the unit config does not resolve.
@@ -121,6 +123,34 @@ describe('the team screen and the step-up dialog', () => {
     expect(doneText({ action: 'set_role', userId: 'x', role: 'operations' })).toBe('غُيّر الدور.')
     expect(doneText({ action: 'set_active', userId: 'x', active: false })).toBe('أُوقف العضو.')
     expect(doneText({ action: 'set_active', userId: 'x', active: true })).toBe('استُعيد العضو.')
+  })
+
+  it('forgets one member\'s unsaved role and no other\'s: after a refusal the row shows the role they really have (F3-5)', () => {
+    const edits = { a: 'owner', b: 'editor' } as const
+    expect(withoutEdit(edits, 'a')).toEqual({ b: 'editor' })
+    expect(withoutEdit(withoutEdit(edits, 'a'), 'b')).toEqual({})
+    // A member with no edit is no change, and the edits it was given are not touched.
+    expect(withoutEdit(edits, 'c')).toEqual(edits)
+    expect(edits).toEqual({ a: 'owner', b: 'editor' })
+  })
+
+  it('offers the revoke again only when the member stays revoked with their sign-in or sessions not shut (F3-12)', () => {
+    const revoke = { action: 'set_active', userId: 'm1', active: false }
+    // The ban held and the sessions would not end, or the ban failed and could not be rolled back: «حاول مرة أخرى» for that member.
+    expect(unfinishedRevoke(revoke, 'SESSIONS_FAILED')).toBe('m1')
+    expect(unfinishedRevoke(revoke, 'ROLLBACK_FAILED')).toBe('m1')
+    expect(unfinishedRevoke(revoke, 'BAN_INCOMPLETE')).toBe('m1')
+    // A ban that failed and was rolled back leaves the member active: the revoke button itself is the retry.
+    for (const code of ['BAN_FAILED', 'UPDATE_FAILED', 'AUDIT_FAILED', 'LAST_OWNER', 'NOT_FOUND', 'UNKNOWN', 'INVALID']) expect(unfinishedRevoke(revoke, code), code).toBeNull()
+    // Never for a restore, a role change or an invite, whatever they were refused with.
+    for (const body of [{ ...revoke, active: true }, { action: 'set_role', userId: 'm1', role: 'editor' }, { action: 'invite', email: 'a@b.sa' }, { action: 'set_active', active: false }]) {
+      expect(unfinishedRevoke(body, 'SESSIONS_FAILED'), JSON.stringify(body)).toBeNull()
+    }
+    expect(RETRY_REVOKE).toBe('حاول مرة أخرى')
+  })
+
+  it('asks before an owner changes their own role, in its own words (FIX-A1-02)', () => {
+    expect(OWN_ROLE_CONFIRM).toBe('ستغيّر دورك أنت؛ متابعة؟')
   })
 
   it('tells a lost connection and Auth\'s attempt limit from a wrong code', () => {

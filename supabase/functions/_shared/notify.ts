@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv, secretsMatch } from './env.ts'
-import { boundedText, corsHeaders, fail as failWith, ok as okWith, siteOrigin } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { notificationToken, parseNotificationToken } from './tokens.ts'
 import { isTurnstileUnavailable, type TurnstileResult, verifyTurnstile } from './turnstile.ts'
@@ -127,6 +127,7 @@ export async function handleNotify(request: Request, deps: NotifyDeps = {}): Pro
       return await rpc(fn, args)
     } catch (error) {
       if ((error as { code?: string } | null)?.code === '54000') return fail(429, 'RATE_LIMITED', 'أرسلت طلبات كثيرة؛ حاول لاحقًا.')
+      logCause('notify', error)
       return fail(500, 'FAILED', FAILED)
     }
   }

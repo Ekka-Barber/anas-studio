@@ -27,6 +27,30 @@ export function doneText(body: Record<string, unknown>): string {
   return body.active === true ? 'استُعيد العضو.' : 'أُوقف العضو.'
 }
 
+/** Asked before an owner changes their own role: it takes the owner screens away at once. */
+export const OWN_ROLE_CONFIRM = 'ستغيّر دورك أنت؛ متابعة؟'
+export const RETRY_REVOKE = 'حاول مرة أخرى'
+
+/**
+ * The refusals after which the member stays revoked while their sign-in or sessions are not shut yet (the ban held and
+ * the sessions would not end, the ban failed and could not be rolled back, or the ban failed again on such a retry): the
+ * row offers «حاول مرة أخرى», which asks for the revoke again. That is safe: the ban and the end of the sessions are
+ * idempotent, and a revoke rolls back only a change it made itself, so a member already revoked stays revoked
+ * (`staff-admin`, BAN_INCOMPLETE). A ban that failed and was rolled back (BAN_FAILED) leaves the member active, and the
+ * revoke button itself is the retry.
+ */
+const UNFINISHED_REVOKE = new Set(['SESSIONS_FAILED', 'ROLLBACK_FAILED', 'BAN_INCOMPLETE'])
+
+/** The member whose revoke is to be offered again after this refusal, or null. */
+export function unfinishedRevoke(body: Record<string, unknown>, code: string): string | null {
+  return body.action === 'set_active' && body.active === false && typeof body.userId === 'string' && UNFINISHED_REVOKE.has(code) ? body.userId : null
+}
+
+/** The role edits without one member's: their select shows the role they really have again. */
+export function withoutEdit<T>(edits: Record<string, T>, userId: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(edits).filter(([id]) => id !== userId))
+}
+
 /**
  * Owner-only team directory and actions (P03). Every mutation goes through
  * the `staff-admin` Edge Function; a `STEP_UP_REQUIRED` reply opens a fresh
@@ -43,6 +67,8 @@ export function TeamView() {
   const [busy, setBusy] = useState(false)
   const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown> } | null>(null)
   const [roleEdits, setRoleEdits] = useState<Record<string, StaffRole>>({})
+  const [ownId, setOwnId] = useState<string | null>(null)
+  const [retryRevoke, setRetryRevoke] = useState<string | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState<StaffRole>('editor')
@@ -70,6 +96,9 @@ export function TeamView() {
     void (async () => {
       await loadDirectory()
     })()
+    void getSupabaseBrowserClient()
+      .auth.getSession()
+      .then(({ data }) => setOwnId(data.session?.user.id ?? null))
   }, [staffRole])
 
   function clearInvite() {
@@ -77,15 +106,23 @@ export function TeamView() {
     setInviteName('')
   }
 
+  /** What follows an answer that is not a request for a code: a role edit is spent, and a revoke that is not finished is offered again. */
+  function settle(body: Record<string, unknown>, code?: string) {
+    if (body.action === 'set_role' && typeof body.userId === 'string') setRoleEdits((current) => withoutEdit(current, body.userId as string))
+    if (code !== undefined) setRetryRevoke(unfinishedRevoke(body, code))
+  }
+
   /** True only when the action succeeded; a step-up prompt or an error is false. */
   async function runAction(body: Record<string, unknown>): Promise<boolean> {
     setBusy(true)
     setActionError(null)
+    setRetryRevoke(null)
     setDone('')
     setNeedsEnrollment(false)
     const result = await callFunction<unknown>('staff-admin', body)
     setBusy(false)
     if (result.ok) {
+      settle(body)
       setDone(doneText(body))
       await loadDirectory()
       return true
@@ -101,8 +138,11 @@ export function TeamView() {
       setStepUp({ factorId: verified.id, body })
       return false
     }
+    // After a refusal the row shows the member as they really are: a role change the server refused is not kept in the select.
+    settle(body, result.error.code)
     setActionError(result.error.message)
-    // A refused action may still have changed the row (BAN_FAILED commits `active` first).
+    // A refused action may still have changed the row: SESSIONS_FAILED and ROLLBACK_FAILED leave the member revoked, and AUDIT_FAILED
+    // keeps the change; BAN_FAILED puts the member back to active. The directory says which.
     await loadDirectory()
     return false
   }
@@ -113,13 +153,16 @@ export function TeamView() {
     setStepUp(null)
     setBusy(true)
     setActionError(null)
+    setRetryRevoke(null)
     setDone('')
     const result = await callFunction<unknown>('staff-admin', body)
     setBusy(false)
     if (result.ok) {
+      settle(body)
       setDone(doneText(body))
       if (body.action === 'invite') clearInvite()
     } else {
+      settle(body, result.error.code)
       setActionError(result.error.message)
     }
     await loadDirectory()
@@ -181,6 +224,21 @@ export function TeamView() {
           <tbody>
             {members.map((member) => {
               const role = roleEdits[member.user_id] ?? member.role
+              const toggle = (
+                <button
+                  type="button"
+                  className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
+                  aria-label={`${member.active ? 'إيقاف' : 'استعادة'}: ${member.display_name}`}
+                  disabled={busy}
+                  onClick={() => {
+                    // A revoke bans the account at once, the caller's own row included.
+                    if (member.active && !window.confirm(`إيقاف ${member.display_name}؟`)) return
+                    void runAction({ action: 'set_active', userId: member.user_id, active: !member.active })
+                  }}
+                >
+                  {member.active ? 'إيقاف' : 'استعادة'}
+                </button>
+              )
               return (
                 <tr key={member.user_id}>
                   <td dir="auto" data-label="الاسم">
@@ -210,8 +268,13 @@ export function TeamView() {
                         type="button"
                         className={styles.buttonSecondary}
                         aria-label={`حفظ: ${member.display_name}`}
-                        disabled={busy || role === member.role}
-                        onClick={() => runAction({ action: 'set_role', userId: member.user_id, role })}
+                        // Until the caller's own id is read, no row can tell whether it is theirs, so none saves unasked.
+                        disabled={busy || role === member.role || ownId === null}
+                        onClick={() => {
+                          // An owner's own demotion takes the owner screens away at once.
+                          if (ownId === null || (member.user_id === ownId && !window.confirm(OWN_ROLE_CONFIRM))) return
+                          void runAction({ action: 'set_role', userId: member.user_id, role })
+                        }}
                       >
                         حفظ
                       </button>
@@ -224,19 +287,23 @@ export function TeamView() {
                     {member.has_totp ? 'مفعّل' : 'غير مفعّل'}
                   </td>
                   <td data-label="إجراء">
-                    <button
-                      type="button"
-                      className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
-                      aria-label={`${member.active ? 'إيقاف' : 'استعادة'}: ${member.display_name}`}
-                      disabled={busy}
-                      onClick={() => {
-                        // A revoke bans the account at once, the caller's own row included.
-                        if (member.active && !window.confirm(`إيقاف ${member.display_name}؟`)) return
-                        void runAction({ action: 'set_active', userId: member.user_id, active: !member.active })
-                      }}
-                    >
-                      {member.active ? 'إيقاف' : 'استعادة'}
-                    </button>
+                    {/* The member stays revoked but their sign-in or sessions are not shut yet: the same revoke, asked again, beside «استعادة». */}
+                    {retryRevoke === member.user_id && !member.active ? (
+                      <div className={styles.row}>
+                        {toggle}
+                        <button
+                          type="button"
+                          className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
+                          aria-label={`${RETRY_REVOKE}: ${member.display_name}`}
+                          disabled={busy}
+                          onClick={() => void runAction({ action: 'set_active', userId: member.user_id, active: false })}
+                        >
+                          {RETRY_REVOKE}
+                        </button>
+                      </div>
+                    ) : (
+                      toggle
+                    )}
                   </td>
                 </tr>
               )

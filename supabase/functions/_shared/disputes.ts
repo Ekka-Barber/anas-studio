@@ -18,7 +18,7 @@ import { z } from 'zod'
 
 import { noControlCharacters } from './commerce-settings.ts'
 import type { Rpc } from './db.ts'
-import { corsHeaders, fail as failWith, ok as okWith } from './http.ts'
+import { corsHeaders, fail as failWith, logCause, ok as okWith } from './http.ts'
 import type { PaymentDeps } from './payments.ts'
 import { isUuid, paymentsConfig } from './payments/moyasar.ts'
 
@@ -92,6 +92,7 @@ function sqlFailure(error: unknown): Response {
   const code = (error as { code?: string } | null)?.code
   if (code === '42501') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
   if (code === '22023' || code === '22P02' || code === '23514') return fail(422, 'INVALID', 'بيانات غير صالحة.')
+  logCause('disputes', error)
   return fail(500, 'FAILED', FAILED)
 }
 

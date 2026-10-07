@@ -10,6 +10,10 @@
  * checks (what the confirmation shows is what is sent), and the key is minted when the owner confirms. Both are
  * kept for a step-up retry and for a retry after a network failure (a repeat answers the stored refund and never
  * reaches the provider twice) and dropped when the form changes or a final answer arrives (`admin-money.ts`).
+ * The body also says which confirmed refunded total the form was built from (`expectedRefunded`): a refund
+ * confirmed since makes the function answer STALE, a final answer, and the screen reads the order again. A kept key
+ * keeps the total it was minted with (`refundRequest`). While a refund of the same payment is in flight the form
+ * gives way to a sentence, and a confirmation that has sent nothing is not sent on: the function would refuse it.
  * Nothing is optimistic: the screen that owns the controls reads its data again after every call and shows what
  * it says.
  *
@@ -22,16 +26,21 @@ import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } fr
 import {
   AMOUNT_PROBLEMS,
   attemptBalance,
+  attemptRefundInFlight,
+  confirmedRefunded,
   EXTERNAL_SENTENCE,
-  keyFor,
+  IN_FLIGHT_SENTENCE,
   NEEDS_EXTERNAL_REASON,
   orderRefundFields,
   readAmount,
+  readCreateReply,
   readPaymentRecheck,
   readRefundReply,
   receivedReturns,
   refundBody,
+  refundForm,
   refundProblem,
+  refundRequest,
   REFUND_WARNING,
   reviewRefundFields,
   sum,
@@ -220,10 +229,15 @@ export function ExternalRefund({
   )
 }
 
-/** What a refund form is for: an order's paying attempt (with its lines), or a review payment (with what is left of it). */
+/**
+ * What a refund form is for: an order's paying attempt (with its lines), or a review payment (with what is left of it).
+ * An order's form reads the confirmed total and the refunds in flight from its detail. A review payment's screen says
+ * both: `refunded`, the confirmed total of the row the form was built from, and whether one of its refunds is `inFlight`.
+ * Without `refunded` the request carries no `expectedRefunded` (the function then does not check it).
+ */
 export type RefundSubject =
   | { kind: 'order'; detail: OrderDetail; attemptId: string }
-  | { kind: 'review'; paymentId: string; orderId: string | null; remainder: number }
+  | { kind: 'review'; paymentId: string; orderId: string | null; remainder: number; refunded?: number; inFlight?: boolean }
 
 /** The request under confirmation: its body, and what the confirmation repeats of it (the total and the lines with an amount). */
 interface Frozen {
@@ -244,6 +258,9 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
   const cap = review ? Number.POSITIVE_INFINITY : attemptBalance(subject.detail, subject.attemptId)
   const fields = review ? reviewRefundFields(subject.remainder) : orderRefundFields(subject.detail, cap)
   const returns = review ? [] : receivedReturns(subject.detail)
+  // The confirmed total this form was built from, and whether a refund of the same payment is still being settled.
+  const expectedRefunded = review ? subject.refunded : confirmedRefunded(subject.detail, subject.attemptId)
+  const waiting = review ? subject.inFlight === true : attemptRefundInFlight(subject.detail, subject.attemptId)
   const chargebacks = review
     ? []
     : (subject.detail.disputes ?? []).filter((dispute) => dispute.attemptId === subject.attemptId && dispute.kind === 'chargeback')
@@ -253,6 +270,8 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
   const [frozen, setFrozen] = useState<Frozen | null>(null)
   const [recording, setRecording] = useState(false)
   const kept = useRef<Kept | null>(null)
+  // The form the kept key's request was frozen from, and that request: the same form again shows it again (`refundForm`).
+  const keptForm = useRef<{ form: string; frozen: Frozen } | null>(null)
   const groupRef = useRef<HTMLDivElement>(null)
   const startRef = useRef<HTMLButtonElement>(null)
   const backToStart = useRef(false)
@@ -277,6 +296,12 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
 
   function start(event: FormEvent) {
     event.preventDefault()
+    // While a key is kept (an answer left its request unknown), the same form is that very request, sent again under its key
+    // with its total, whatever the screen has read since.
+    if (kept.current !== null && keptForm.current !== null && keptForm.current.form === refundForm(texts, reason, returnChoice)) {
+      money.clear()
+      return setFrozen(keptForm.current.frozen)
+    }
     const problem = refundProblem(reads, reason, review, cap)
     if (problem !== null) return money.say('alert', problem)
     money.clear()
@@ -289,6 +314,7 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
         reason,
         amounts: reads.map(({ field, halalas }) => ({ field, halalas })),
         returnId: returnId === '' ? null : returnId,
+        expectedRefunded,
       }),
       total,
       lines: reads.filter((read) => read.halalas > 0).map((read) => ({ key: read.field.key, label: read.field.label, halalas: read.halalas })),
@@ -297,16 +323,24 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
 
   function confirm() {
     if (frozen === null) return
-    const request = frozen.body
-    // Minted here, once: a retry of the very same request (after the code, after a network failure) sends this key again.
-    const sent = keyFor(kept.current, JSON.stringify(request), () => crypto.randomUUID())
-    kept.current = sent
+    // A refund of this payment is in flight and nothing was sent under this confirmation: the function would refuse it, after a code.
+    // A kept key is sent as it is: it may be the very refund in flight, and its replay answers it.
+    if (waiting && kept.current === null) {
+      setFrozen(null)
+      return money.say('alert', IN_FLIGHT_SENTENCE)
+    }
+    // Minted here, once: a retry of the very same request (after the code, after a network failure) sends this key, and the
+    // total it was minted with, again; a changed form takes a fresh key and the total of the reading it was built from.
+    const sent = refundRequest(kept.current, frozen.body, () => crypto.randomUUID())
+    kept.current = sent.kept
+    keptForm.current = { form: refundForm(texts, reason, returnChoice), frozen }
     void money.run(`refund:${review ? subject.paymentId : subject.attemptId}`, async () => {
-      const reading = readRefundReply(await sendMoney({ ...request, idempotencyKey: sent.key }, money.ask))
+      const reading = readCreateReply(await sendMoney(sent.body, money.ask))
       if (reading === null) return null
       if (!reading.keep) {
         // A final answer: the key goes, and the confirmation with it.
         kept.current = null
+        keptForm.current = null
         setFrozen(null)
       }
       if (reading.done) {
@@ -371,6 +405,8 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
             </button>
           </div>
         </div>
+      ) : waiting ? (
+        <p className={styles.message}>{IN_FLIGHT_SENTENCE}</p>
       ) : fields.length === 0 ? (
         <p className={styles.message}>لا يوجد مبلغ متبقٍ للاسترداد.</p>
       ) : (

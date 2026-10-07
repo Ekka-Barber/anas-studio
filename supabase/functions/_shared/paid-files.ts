@@ -25,7 +25,7 @@ import { z } from 'zod'
 
 import { noControlCharacters } from './commerce-settings.ts'
 import { type Rpc, serviceClient } from './db.ts'
-import { corsHeaders, fail as failWith, ok as okWith } from './http.ts'
+import { corsHeaders, fail as failWith, logCause, ok as okWith } from './http.ts'
 
 export const PAID_BUCKET = 'paid-files'
 /** The bucket's own limit (`file_size_limit` of the migration that created it): 100 MiB. */
@@ -200,6 +200,7 @@ function sqlFailure(error: unknown): Response {
     case '23514':
       return fail(422, 'INVALID', 'بيانات غير صالحة.')
     default:
+      logCause('paid-files', error)
       return fail(500, 'FAILED', FAILED)
   }
 }

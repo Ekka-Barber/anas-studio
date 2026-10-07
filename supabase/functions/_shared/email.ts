@@ -228,8 +228,13 @@ function isolated(value: string): string {
   return `${FSI}${value}${PDI}`
 }
 
-/** A visitor's own embeddings, overrides and isolates (U+202A to U+202E, U+2066 to U+2069), which could reverse the rest of a line or close ours. */
-const VISITOR_BIDI = /[\u202A-\u202E\u2066-\u2069]/gu
+/**
+ * Where a line of the visitor's message ends: at every line and paragraph separator (UAX #14 and #9), so none survives inside a
+ * line's isolate, where a paragraph separator would end it early. The message is the one multi-line value (`one()` would flatten
+ * it); each of its lines is cleaned as `one()` cleans a value (every bidi control dropped, every other control character a space),
+ * without trimming what the visitor wrote.
+ */
+const MESSAGE_BREAK = /\r\n|[\n\r\u000B\u000C\u001C-\u001E\u0085\u2028\u2029]/u
 
 export interface ContactNoticeData {
   name: string
@@ -245,18 +250,18 @@ export interface ContactNoticeData {
  * so the owner answers from their own mailbox.
  */
 export function renderContactNotice(data: ContactNoticeData): { subject: string; text: string } {
-  const message = data.message.replace(VISITOR_BIDI, '').slice(0, NOTICE_MESSAGE_LIMIT)
-  // The name is one line: a line break in it would forge the lines below.
-  const name = data.name.replace(VISITOR_BIDI, '').replace(/[\r\n\u0085\u2028\u2029]+/gu, ' ')
+  const message = data.message.replace(/\p{Bidi_Control}/gu, '').slice(0, NOTICE_MESSAGE_LIMIT)
+  // The name and the address are one line each, cleaned as every order mail's value is (`one()`: every control character,
+  // line and paragraph separator and bidi control): a line break of any kind in them would forge the lines below.
   const lines = [
     'رسالة جديدة من نموذج التواصل',
     '',
-    `الاسم: ${isolated(name)}`,
-    `البريد: ${isolated(data.email.replace(VISITOR_BIDI, ''))}`,
+    `الاسم: ${one(data.name)}`,
+    `البريد: ${one(data.email)}`,
     `الوقت: ${data.createdAt}`,
     '',
     'نص الرسالة:',
-    ...message.split('\n').map((line) => isolated(line)),
+    ...message.split(MESSAGE_BREAK).map((line) => isolated(line.replace(/\p{Cc}/gu, ' '))),
     '',
     'للرد: اضغط «رد»، ويوصل ردّك للمرسل مباشرة.',
   ]
