@@ -67,7 +67,6 @@ export function TeamView() {
   const [busy, setBusy] = useState(false)
   const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown> } | null>(null)
   const [roleEdits, setRoleEdits] = useState<Record<string, StaffRole>>({})
-  const [ownId, setOwnId] = useState<string | null>(null)
   const [retryRevoke, setRetryRevoke] = useState<string | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteName, setInviteName] = useState('')
@@ -96,9 +95,6 @@ export function TeamView() {
     void (async () => {
       await loadDirectory()
     })()
-    void getSupabaseBrowserClient()
-      .auth.getSession()
-      .then(({ data }) => setOwnId(data.session?.user.id ?? null))
   }, [staffRole])
 
   function clearInvite() {
@@ -110,6 +106,17 @@ export function TeamView() {
   function settle(body: Record<string, unknown>, code?: string) {
     if (body.action === 'set_role' && typeof body.userId === 'string') setRoleEdits((current) => withoutEdit(current, body.userId as string))
     if (code !== undefined) setRetryRevoke(unfinishedRevoke(body, code))
+  }
+
+  /**
+   * «حفظ» of a member's role. Who is signed in is read at the press, from the session the request itself will carry: an
+   * owner's own demotion takes the owner screens away at once, so it is asked first. With no session there is no own row;
+   * the function then answers that sign-in is needed.
+   */
+  async function saveRole(userId: string, role: StaffRole) {
+    const { data } = await getSupabaseBrowserClient().auth.getSession()
+    if (userId === data.session?.user.id && !window.confirm(OWN_ROLE_CONFIRM)) return
+    void runAction({ action: 'set_role', userId, role })
   }
 
   /** True only when the action succeeded; a step-up prompt or an error is false. */
@@ -268,13 +275,8 @@ export function TeamView() {
                         type="button"
                         className={styles.buttonSecondary}
                         aria-label={`حفظ: ${member.display_name}`}
-                        // Until the caller's own id is read, no row can tell whether it is theirs, so none saves unasked.
-                        disabled={busy || role === member.role || ownId === null}
-                        onClick={() => {
-                          // An owner's own demotion takes the owner screens away at once.
-                          if (ownId === null || (member.user_id === ownId && !window.confirm(OWN_ROLE_CONFIRM))) return
-                          void runAction({ action: 'set_role', userId: member.user_id, role })
-                        }}
+                        disabled={busy || role === member.role}
+                        onClick={() => void saveRole(member.user_id, role)}
                       >
                         حفظ
                       </button>

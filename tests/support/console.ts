@@ -41,7 +41,7 @@ function isLine(line: unknown, shape: Shape): boolean {
 /**
  * Whatever a test did, the handler logged nothing but the fault lines: every spy of `CONSOLE_METHODS` but `error` was
  * never called, each `console.error` call is one string that is exactly one of the two lines, and a cause line is
- * followed by a reply line (a cause logged before an answer below 500 fails here).
+ * followed at once by a reply line (a cause logged before an answer below 500 fails here).
  */
 export function expectOnlyFaultLines(spies: readonly MockInstance[]): void {
   CONSOLE_METHODS.forEach((method, at) => {
@@ -56,10 +56,8 @@ export function expectOnlyFaultLines(spies: readonly MockInstance[]): void {
       const reply = isLine(args[0], REPLY_LINE)
       const cause = isLine(args[0], CAUSE_LINE)
       expect(reply || cause, `a console.error line that is not a fault line: ${String(args[0]).slice(0, 80)}`).toBe(true)
-      if (cause) {
-        const answered = calls.slice(index + 1).some((later) => isLine(later[0], REPLY_LINE))
-        expect(answered, `a cause line with no reply of status 500 or above after it: ${String(args[0])}`).toBe(true)
-      }
+      // Every `logCause` is followed at once by the `fail(500, ...)` it explains, so the very next line is that reply's.
+      if (cause) expect(isLine(calls[index + 1]?.[0], REPLY_LINE), `a cause line not followed by its 5xx reply line: ${String(args[0])}`).toBe(true)
     })
   })
 }

@@ -30,6 +30,7 @@ import {
   confirmedRefunded,
   EXTERNAL_SENTENCE,
   IN_FLIGHT_SENTENCE,
+  keptRequest,
   NEEDS_EXTERNAL_REASON,
   orderRefundFields,
   readAmount,
@@ -46,6 +47,7 @@ import {
   sum,
   withStepUp,
   type Kept,
+  type KeptForm,
   type Verdict,
 } from '@/lib/admin-money'
 import { clean, DISPUTE_DIRECTION_LABELS, DISPUTE_KIND_LABELS, labelOf, type OrderDetail } from '@/lib/admin-orders'
@@ -270,8 +272,8 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
   const [frozen, setFrozen] = useState<Frozen | null>(null)
   const [recording, setRecording] = useState(false)
   const kept = useRef<Kept | null>(null)
-  // The form the kept key's request was frozen from, and that request: the same form again shows it again (`refundForm`).
-  const keptForm = useRef<{ form: string; frozen: Frozen } | null>(null)
+  // The form the kept key's request was frozen from, and that request: the same form again shows it again (`keptRequest`).
+  const keptForm = useRef<KeptForm<Frozen> | null>(null)
   const groupRef = useRef<HTMLDivElement>(null)
   const startRef = useRef<HTMLButtonElement>(null)
   const backToStart = useRef(false)
@@ -298,9 +300,10 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
     event.preventDefault()
     // While a key is kept (an answer left its request unknown), the same form is that very request, sent again under its key
     // with its total, whatever the screen has read since.
-    if (kept.current !== null && keptForm.current !== null && keptForm.current.form === refundForm(texts, reason, returnChoice)) {
+    const again = keptRequest(kept.current, keptForm.current, refundForm(texts, reason, returnChoice))
+    if (again !== null) {
       money.clear()
-      return setFrozen(keptForm.current.frozen)
+      return setFrozen(again)
     }
     const problem = refundProblem(reads, reason, review, cap)
     if (problem !== null) return money.say('alert', problem)

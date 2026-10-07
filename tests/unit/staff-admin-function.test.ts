@@ -203,6 +203,8 @@ describe('staff-admin: set_active', () => {
     /** The update that puts the member back to active (after a ban that failed) fails, or matches no member. */
     rollbackFails: boolean
     rollbackEmpty: boolean
+    /** The last-owner trigger refuses the revoke (23514). */
+    lastOwner: boolean
     sessionsFail: boolean
     bans: string[]
     rpcs: Array<[string, Record<string, unknown>]>
@@ -211,7 +213,7 @@ describe('staff-admin: set_active', () => {
 
   /** A fake service client over one staff table, the auth bans, the audit table and `staff_sessions_end`. */
   function installActive(over: Partial<ActiveWorld> = {}): ActiveWorld {
-    const world: ActiveWorld = { active: new Map([[MEMBER, true]]), banFails: false, rollbackFails: false, rollbackEmpty: false, sessionsFail: false, bans: [], rpcs: [], audits: [], ...over }
+    const world: ActiveWorld = { active: new Map([[MEMBER, true]]), banFails: false, rollbackFails: false, rollbackEmpty: false, lastOwner: false, sessionsFail: false, bans: [], rpcs: [], audits: [], ...over }
     hoisted.client = {
       auth: {
         admin: {
@@ -237,6 +239,7 @@ describe('staff-admin: set_active', () => {
             const userId = filters.find(([column]) => column === 'user_id')?.[1] as string
             const onlyWhile = filters.find(([column]) => column === 'active')
             if (world.rollbackFails && values.active) return { data: null, error: { code: 'XX000', message: 'database down' } }
+            if (world.lastOwner && !values.active) return { data: null, error: { code: '23514', message: 'At least one active owner is required.' } }
             if (world.rollbackEmpty && values.active) return { data: [], error: null }
             if (!world.active.has(userId)) return { data: [], error: null }
             if (onlyWhile !== undefined && world.active.get(userId) !== onlyWhile[1]) return { data: [], error: null }
@@ -347,6 +350,17 @@ describe('staff-admin: set_active', () => {
     expect(world.active.get(MEMBER)).toBe(false)
     expect(world.rpcs).toEqual([['staff_sessions_end', { p_user: MEMBER }]])
     expect(world.audits.at(-1)).toEqual({ action: 'staff.revoke', summary: { banApplied: true, sessionsEnded: true } })
+  })
+
+  it('a revoke of the last active owner is refused by the trigger: 409 LAST_OWNER, nothing banned, ended or audited', async () => {
+    const world = installActive({ lastOwner: true })
+    const response = await setActive(false)
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({ error: { code: 'LAST_OWNER' } })
+    expect(world.active.get(MEMBER)).toBe(true)
+    expect(world.bans).toEqual([])
+    expect(world.rpcs).toEqual([])
+    expect(world.audits).toEqual([])
   })
 
   it('a revoke of a member who does not exist is NOT_FOUND and bans nothing', async () => {

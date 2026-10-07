@@ -27,6 +27,7 @@ import {
   disputeLines,
   IN_FLIGHT_SENTENCE,
   inFlight,
+  keptRequest,
   keyFor,
   linesFor,
   NEEDS_AMOUNT,
@@ -56,6 +57,7 @@ import {
   type DisputeInput,
   type DisputeLine,
   type Kept,
+  type KeptForm,
   type RefundField,
   type Verdict,
 } from '../../src/lib/admin-money'
@@ -512,13 +514,28 @@ describe('the idempotency key and the confirmed total', () => {
   })
 })
 
-describe('the same form while a key is kept (refundForm)', () => {
+describe('the same form while a key is kept (refundForm, keptRequest)', () => {
   // The owner's inputs, not the request they make: a reading taken since may drop a linked return or a line refunded in full
   // from the request, while the inputs stay what the owner typed. RefundView shows the kept request again for the same inputs.
   it('is the same for the same inputs, whatever order the amounts were typed in, and an emptied field is one never typed in', () => {
     const one = refundForm({ [A]: '30', shipping: '15' }, 'تالف', 'r1')
     expect(refundForm({ shipping: '15', [A]: '30' }, 'تالف', 'r1')).toBe(one)
     expect(refundForm({ [A]: '30', shipping: '15', [B]: '' }, 'تالف', 'r1')).toBe(one)
+  })
+
+  it('reads what the inputs say, not how they were typed: one amount however written, the reason as it is sent', () => {
+    const one = refundForm({ [A]: '10' }, 'تالف', 'r1')
+    for (const same of [
+      refundForm({ [A]: '10.00' }, 'تالف', 'r1'),
+      refundForm({ [A]: '١٠' }, 'تالف', 'r1'),
+      refundForm({ [A]: ' 10 ' }, 'تالف', 'r1'),
+      refundForm({ [A]: '10' }, '  تالف ', 'r1'),
+    ]) {
+      expect(same).toBe(one)
+    }
+    // A text that is not an amount is kept as typed, so it is never mistaken for one.
+    expect(refundForm({ [A]: '1O' }, 'تالف', 'r1')).not.toBe(one)
+    expect(refundForm({ [A]: '1O' }, 'تالف', 'r1')).toBe(refundForm({ [A]: '1O' }, 'تالف', 'r1'))
   })
 
   it('differs when the owner changed anything: an amount, a line, the reason or the return', () => {
@@ -533,6 +550,38 @@ describe('the same form while a key is kept (refundForm)', () => {
     ]) {
       expect(other).not.toBe(one)
     }
+  })
+
+  // The auditor's A3 path, end to end through the two pure steps RefundView takes: `keptRequest` when «إعادة المبلغ» is
+  // pressed, `refundRequest` when the confirmation is sent.
+  it('after a lost reply, «رجوع» and the same form send the kept request again (its key, its total), never a second refund', () => {
+    let n = 0
+    const mint = vi.fn(() => `key-${(n += 1)}`)
+    const field = (key: string, remainder: number) => ({ key, itemId: key, label: key, remainder })
+    // The form as first frozen: 30 riyals of line A and 15 of line B, with the return r1, on a reading with nothing refunded.
+    const typed = { [A]: '30', [B]: '15' }
+    const body0 = refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'تالف', amounts: [{ field: field(A, 3000), halalas: 3000 }, { field: field(B, 5000), halalas: 1500 }], returnId: 'r1', expectedRefunded: 0 })
+    const frozen0 = { body: body0, total: 4500 }
+    const first = refundRequest(null, frozen0.body, mint)
+    const keptForm: KeptForm<typeof frozen0> = { form: refundForm(typed, 'تالف', 'r1'), frozen: frozen0 }
+
+    // The reply is lost (the key is kept); the refund went through. The order read again: line A refunded in full (its
+    // field is gone), the return r1 linked (no longer offered), 4 500 confirmed. Rebuilt from that reading, the same inputs
+    // would make another request, B's 15 riyals alone, under a fresh key: a second refund the server would accept.
+    const rebuilt = refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'تالف', amounts: [{ field: field(B, 3500), halalas: 1500 }], returnId: null, expectedRefunded: 4500 })
+    expect(refundRequest(first.kept, rebuilt, mint).body.idempotencyKey).not.toBe(first.body.idempotencyKey)
+
+    // So «إعادة المبلغ» with the same inputs (however typed) shows the kept request, and its confirmation is the first one.
+    const again = keptRequest(first.kept, keptForm, refundForm({ [B]: '15.00', [A]: '٣٠' }, ' تالف', 'r1'))
+    expect(again).toBe(frozen0)
+    expect(refundRequest(first.kept, again!.body, mint).body).toEqual(first.body)
+    expect(first.body).toMatchObject({ idempotencyKey: 'key-1', expectedRefunded: 0, returnId: 'r1', amount: 4500 })
+
+    // A changed input is a new request: nothing kept is shown, and its key is fresh, with the total the order now says.
+    expect(keptRequest(first.kept, keptForm, refundForm({ [B]: '10' }, 'تالف', ''))).toBeNull()
+    // No kept key (a final answer dropped it, and the form with it): the form builds its request anew.
+    expect(keptRequest(null, keptForm, keptForm.form)).toBeNull()
+    expect(keptRequest(first.kept, null, keptForm.form)).toBeNull()
   })
 })
 

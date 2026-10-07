@@ -300,14 +300,35 @@ export function refundRequest(
  * The refund form's own inputs as one string (the amounts typed, the reason, the return chosen): whether the owner changed
  * the form. While a key is kept, the same inputs are the same request, and RefundView shows the kept request again rather
  * than rebuilding it from a reading taken since: that reading may have dropped a return the kept request linked, or a line
- * it refunded in full, and a request rebuilt from it would be another refund under a fresh key. An emptied field is a
- * field never typed in, and the order fields were typed in does not count.
+ * it refunded in full, and a request rebuilt from it would be another refund under a fresh key. What counts is what the
+ * inputs say, not how they were typed: an amount is its halalas (`parseRiyals`: «10», «10.00» and the same in Arabic-Indic digits are one amount; a
+ * text that is not an amount stays as typed), the reason is what is sent (`clean`), an emptied field is one never typed
+ * in, and the order the fields were typed in does not count.
  */
 export function refundForm(texts: Readonly<Record<string, string>>, reason: string, returnChoice: string): string {
   const typed = Object.entries(texts)
-    .filter(([, text]) => text !== '')
+    .flatMap(([key, text]): Array<[string, number | string]> => {
+      const amount = parseRiyals(text)
+      return amount === null ? [] : [[key, amount === 'invalid' ? text : amount]]
+    })
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-  return JSON.stringify([typed, reason, returnChoice])
+  return JSON.stringify([typed, clean(reason), returnChoice])
+}
+
+/** The inputs a kept key's request was frozen from (`refundForm`), and that request as the confirmation shows it. */
+export interface KeptForm<F> {
+  form: string
+  frozen: F
+}
+
+/**
+ * What «إعادة المبلغ» shows while a key may be kept: the kept request again when its key is kept and the owner's inputs
+ * are the ones it was frozen from, whatever the screen has read since, so the confirmation sends it under its key with its
+ * total (`refundRequest`) and the server answers it, never a second refund; null when the form is to build a new request
+ * (no key is kept, or the owner changed the form). A final answer drops the key and the form together.
+ */
+export function keptRequest<F>(kept: Kept | null, keptForm: KeptForm<F> | null, form: string): F | null {
+  return kept !== null && keptForm !== null && keptForm.form === form ? keptForm.frozen : null
 }
 
 /**
