@@ -96,6 +96,14 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
+      - name: Seed the demo catalog
+        # The database suite runs on the demo-seeded store, exactly as the local
+        # acceptance battery does (battery-db.sh): the policy approval tests read
+        # the seeded store, delivery and refund policies.
+        run: pnpm db:demo-catalog
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
       - name: Write .env.local from the local stack
         run: pnpm db:env
 
