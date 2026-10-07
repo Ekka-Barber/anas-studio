@@ -1,0 +1,270 @@
+{
+ "findings": [
+  {
+   "id": "DB-POST-01",
+   "title": "Priority-0 mail can spend the whole Resend day quota, leaving no room for the owner's sign-in codes and delaying receipts (the buyer's only link) for hours",
+   "severity": "medium",
+   "category": "capacity",
+   "file": "supabase/migrations/20261002120000_order_emails.sql",
+   "line": 323,
+   "evidence": "outbox_claim: `v_sent_today < p_daily_quota - case o.priority when 0 then 0 when 1 then p_reserve else p_reserve + p_low_reserve end` — priority 0 (receipt, order_shipped, order_refunded, order_ready, owner_alert × each active owner) stops only at 100. Sign-in codes go through Supabase Auth's Resend SMTP (PLANS/ISSUES.md I28) and are not counted; docs/operations.md:270-276 says the 20-send reserve 'must absorb auth traffic too', but the reserve is held back from everything but priority 0. Resend: 'daily email quota of 100 emails/day' with no SMTP/API distinction (fetched 2026-10-06).",
+   "impact": "On a day with >=100 priority-0 sends (about 50 paid orders: one receipt + one shipped notice each, plus alerts to every owner) Resend answers daily_quota_exceeded for the rest of the UTC day: an owner whose session expired cannot get a sign-in code (locked out of /admin while orders flow), and every later receipt waits until 00:00 UTC, so buyers of digital books who closed the return tab cannot reach their order page or file for hours; recovery links (priority 1, stops at 80) are held too. Precondition: the free-plan sizing the contract (section 8) assumes.",
+   "proposed_fix": "Keep a small floor for auth below which priority 0 also stops (new parameter p_auth_reserve, e.g. 5, so priority 0 stops at p_daily_quota - p_auth_reserve), and have the owner decide on a paid Resend plan before launch and raise DAILY_QUOTA accordingly; put the per-day order capacity into the launch checklist.",
+   "fix_size": "small",
+   "needs_owner": true,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S04.1 ('the last 20 are kept for codes and receipts') and docs/operations.md 'Sign-in codes share the account' residual; worse than recorded because P08 moved five mail kinds into the tier that ignores the reserve"
+  },
+  {
+   "id": "DB-POST-03",
+   "title": "A buyer whose address is wrong or suppressed has no way to reach a paid order, and staff have no action to correct the address, lift the suppression or reissue the link",
+   "severity": "medium",
+   "category": "support-gap",
+   "file": "docs/operations.md",
+   "line": 797,
+   "evidence": "The only link path is mail to orders.customer_email (receipt in order_try_commit; `order_link` in order_recover_apply, delivery.sql:252-254). A hard bounce or a complaint inserts the address hash into finance.email_suppressions (audit2_fixes.sql:653) and outbox_claim marks every later row to it `suppressed` (order_emails.sql:277-282); no function deletes a suppression, no staff function changes an order's customer_email/email_hash, and order_detail deliberately exposes no token or idempotency key. docs/operations.md 'A lost link' (797-803) and 'Suppression' (290-301: 'a deliberate manual database action') give no recipe for either case.",
+   "impact": "A buyer who mistyped the address at checkout, or whose first receipt hard-bounced, has paid (often for a digital book) and can never open the order page or download the file; when he writes through the contact form Anas sees the order but has no button, function or documented SQL to fix the address or send the link, so the case ends in a refund or an ad-hoc database edit.",
+   "proposed_fix": "One owner action (fresh TOTP) `order_contact_set(p_order, p_email)` that rewrites customer_email and email_hash under the order lock, audits the change without the address, and queues one `order_link` row for the new address; plus a documented, tested SQL recipe for lifting a suppression (`delete from finance.email_suppressions where recipient_hash = finance.recipient_hash($1)`). Until built, write the manual recipe into docs/operations.md.",
+   "fix_size": "medium",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-POST-02",
+   "title": "A full refund of a preorder line that has already shipped releases its reservation and frees capacity for a copy that left the shelf",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/migrations/20261002170000_stats_disputes.sql",
+   "line": 200,
+   "evidence": "refund_succeed (the replaced version that runs): `update finance.inventory_reservations x set state = 'released' ... where x.order_id = v_order.id and x.preorder and x.state <> 'released' and x.variant_id in (select i.variant_id ... where coalesce(finance.item_fully_refunded(i.id), false))` — no condition on finance.fulfillments.state. finance.preorder_committed (payment_core.sql:445-447) counts only `state = 'committed'`, so the released unit is sellable again.",
+   "impact": "While a variant is still a preorder, a goodwill refund (no return) of a shipped preorder copy lowers preorder_committed by its quantity, so one more copy than exists can be preordered; the stock rule for ordinary lines is the opposite ('shipped stock is not restored'). Bounded: preorder is off at opening (Q05) and variants are normally switched to stock when copies arrive.",
+   "proposed_fix": "Release the preorder reservation only for lines with no fulfilment row in ('shipped','delivered') (digital lines and unshipped physical lines): add `and not exists (select 1 from finance.fulfillments f join finance.order_items i2 on i2.id = f.order_item_id where i2.order_id = x.order_id and i2.variant_id = x.variant_id and f.state in ('shipped','delivered'))`; a shipped copy comes back only through return_receive.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-POST-04",
+   "title": "A carrier or tracking value mistyped at «تم الشحن» cannot be corrected: shipped→shipped with other values is BAD_TRANSITION and the wrong number is what the buyer was mailed",
+   "severity": "low",
+   "category": "operations",
+   "file": "supabase/migrations/20261002145000_order_operations.sql",
+   "line": 679,
+   "evidence": "`when 'shipped' then f.state = 'preparing' or (f.state = 'shipped' and f.carrier is not distinct from v_carrier and f.tracking is not distinct from v_tracking)` — only an identical repeat passes; any other carrier/tracking on a shipped line answers BAD_TRANSITION (683). The `order_shipped` mail (721-724) and order_access carry the fulfilment row's values.",
+   "impact": "One typo in a tracking number (a long Latin/digit string typed in an RTL form) leaves the buyer's order page and the shipping mail pointing at a wrong parcel for the life of the order; the owner's only remedy is a database edit.",
+   "proposed_fix": "Allow `shipped` → `shipped` with new carrier/tracking as a correction (same version bump and audit row) and queue a second `order_shipped` mail keyed on the new values (e.g. `order_shipped:<orderId>:<md5(items)>:<md5(carrier|tracking)>`) so the buyer receives the corrected number.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-POST-05",
+   "title": "A refund parked MODE_CHANGED stays in flight for ever: no function can settle or close it, and it blocks refunds of that payment",
+   "severity": "low",
+   "category": "state-machine",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 1429,
+   "evidence": "payment_reconcile_claim: `update finance.refunds r set next_check_at = null, error = 'MODE_CHANGED' ... where r.status in ('submitting','uncertain')` keeps the status in flight. The only exits are refund_result/refund_settle (both need a successful fetch with the configured key, which answers 404 for the other mode: refunds.ts:269-270 → 503 PROVIDER_UNAVAILABLE) and refund_checked (never closes). refund_request/refund_record_external on that payment answer REFUND_IN_FLIGHT (refunds.sql:421-423, 748-750).",
+   "impact": "After the test→live switch any test refund in flight at that moment is a permanent «قيد التحقق» row under «تحتاج مطابقة»; the contract says 'a person settles it from the dashboard' but gives the person no function to record the outcome in the ledger (round 6 open risk 5 was never closed).",
+   "proposed_fix": "Give the owner a way to close a MODE_CHANGED refund by hand: either refund_settle accepts a manual outcome for rows whose error is MODE_CHANGED (owner, fresh TOTP, audit `refund.closed_manually`), or the claim fails such refunds outright (status failed, balance free) and alerts the owners once.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "artifacts/acceptance/P08/rounds/round-06.md open risk 5"
+  },
+  {
+   "id": "DB-POST-06",
+   "title": "A receipt that leaves after the order was refunded tells the buyer the payment is 'being reviewed'",
+   "severity": "low",
+   "category": "wording",
+   "file": "supabase/functions/_shared/email.ts",
+   "line": 403,
+   "evidence": "renderReceipt: `if (order.status !== 'paid') { ... 'وصلتنا دفعتك للطلب رقم X بمبلغ Y، ونراجع الطلب الآن.' }` — the same sentence for paid_needs_resolution and for `refunded`; order_email_data reads the live status at send time, and a receipt held by the quota (priority 0 stops only at 100) or a provider outage can leave after the refund.",
+   "impact": "The buyer receives «استرداد من طلبك» and then a receipt saying the order is under review; a confusing pair that invites a support message. Precondition: a refund before the receipt leaves.",
+   "proposed_fix": "Branch on `refunded` in renderReceipt: either close the row (`closed('REFUNDED')`, left out of outbox_attention like NO_FILE) or render one line stating the payment arrived and was refunded, with the refunded total.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "R5-04 fixed the file note for this case; the status sentence was left"
+  },
+  {
+   "id": "DB-POST-07",
+   "title": "Where the refund step-up lives: enforced only in the admin Edge Function; the SQL rechecks the owner role but not aal2, and the Data API cannot reach the refund functions at all",
+   "severity": "info",
+   "category": "authorization",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 225,
+   "evidence": "handleAdmin: `if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', ...)` for refund-create and refund-record-external; recentTotp = hasRecentTotp(claims) (aal2 and a totp amr entry within 300 s, recent-totp.ts:8-19) from claims verified by auth.getClaims (staff.ts:36). refund_request/refund_record_external check only an active owner for p_actor (refunds.sql:344-348, 701-705) and are revoked from public/anon/authenticated, granted to service_role (827-839); refunds.test.ts:433 and refunds-http.test.ts:742 prove the 42501 and the 403 STEP_UP_REQUIRED.",
+   "impact": "No defect: the gate holds as designed. Recorded because a future grant of a refund function to `authenticated` would silently drop the step-up (the SQL has no aal2 check of its own).",
+   "proposed_fix": "None required; optionally assert `(select auth.jwt() ->> 'aal') = 'aal2'` inside the owner recheck when auth.uid() is not null.",
+   "fix_size": "none",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-POST-08",
+   "title": "Refund amount boundaries: 1 halala is accepted by the ledger while Moyasar documents no minimum; a refused minimum ends cleanly as `failed`",
+   "severity": "info",
+   "category": "vendor",
+   "file": "supabase/migrations/20261002130000_refunds.sql",
+   "line": 349,
+   "evidence": "`p_amount < 1` raises; 1 is accepted and reserved; refunds.ts halalas = z.number().int().positive(). docs.moyasar.com/api/payments/05-refund-payment (fetched 2026-10-06) says only 'less than our equal to the payment amount (or captured)'. A 4xx from the provider becomes refund_fail REFUND_REFUSED (refunds.ts:180-182, refunds.sql:534-535) and frees the balance. 0 → 422; exactly the remainder → order `refunded`; above → EXCEEDS_BALANCE (442-444).",
+   "impact": "No wrong state either way; if the sandbox refuses small amounts the owner sees «تعذّر تنفيذ الإجراء» without the reason.",
+   "proposed_fix": "Record the sandbox answer in the runbook (E02 item 8); if a minimum exists, refuse below it in refund_request with its own code and Arabic sentence.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "With the real sandbox key and a paid test payment: POST /v1/payments/<id>/refund {\"amount\": 1}; expect 200 with refunded = 1, or a 400 naming the minimum.",
+   "confidence": "medium",
+   "prior_overlap": "P08-CONTRACT section 2 sandbox item 8"
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "R6-A1",
+   "claim": "A NOT_APPLIED refund that lands late is reopened only while its allocation still fits; otherwise it is recorded as an unallocated dashboard refund",
+   "holds": true,
+   "evidence": "20261002130000_refunds.sql:766-772 `if found and (v_late.amount_halalas <> v_delta or (p_attempt is not null and not finance.refund_allocation_ok(v_order_id, p_attempt, v_delta, v_late.allocation))) then v_late := null`; test refunds.test.ts:1386."
+  },
+  {
+   "prior_id": "R6-A2",
+   "claim": "The same idempotency key sent at once for two targets answers IDEMPOTENCY_CONFLICT, never 23505",
+   "holds": true,
+   "evidence": "refunds.sql:474-480 `on conflict (idempotency_key) do nothing returning id into v_id; if v_id is null then ... IDEMPOTENCY_CONFLICT`; two-connection test refunds.test.ts:795."
+  },
+  {
+   "prior_id": "R6-A3",
+   "claim": "A total below `before` but not below `provider_refunded_origin` is a stale read that decides nothing",
+   "holds": true,
+   "evidence": "refunds.sql:33 adds the column, 472 writes it, 600-611 branch on v_origin; test refunds.test.ts:1131."
+  },
+  {
+   "prior_id": "R5-01",
+   "claim": "The claim has no cap for contact notices; only order_link 20 and notify_confirm 30",
+   "holds": true,
+   "evidence": "order_emails.sql:324-325 are the only per-kind terms in the due CTE; test order-emails.test.ts:783."
+  },
+  {
+   "prior_id": "R5-02",
+   "claim": "An order_ready row whose itemIds name no line of the order is closed GONE; NO_FILE only for listed lines without a file",
+   "holds": true,
+   "evidence": "outbox.ts:185-188."
+  },
+  {
+   "prior_id": "R5-04",
+   "claim": "hasFile has three values and the file note prints only for true/false",
+   "holds": true,
+   "evidence": "order_emails.sql:83 `case when e.order_item_id is not null and e.revoked_at is null then e.asset_id is not null end`; email.ts:389-391."
+  },
+  {
+   "prior_id": "R5-06",
+   "claim": "A missing SITE_URL or pepper skips the run before any claim (SITE_NOT_CONFIGURED)",
+   "holds": true,
+   "evidence": "outbox.ts:226-240."
+  },
+  {
+   "prior_id": "R7-01 / R7-12",
+   "claim": "The moved object is removed only on a five-character SQLSTATE outside class 08 or on an explicit {ok:false}",
+   "holds": true,
+   "evidence": "paid-files.ts:212 `/^(?!08)[0-9A-Z]{5}$/`, 295, 300."
+  },
+  {
+   "prior_id": "R7-02 / R7-03",
+   "claim": "55P03 puts the object back under its ticket; remove() throws and a refused removal puts the object back under incoming/",
+   "holds": true,
+   "evidence": "paid-files.ts:111-115, 239-252, 295."
+  },
+  {
+   "prior_id": "R7-04",
+   "claim": "download_issue, download_redeem, return_request_create and order_recover_list take p_mode and treat the other mode as not found",
+   "holds": true,
+   "evidence": "delivery.sql:91 and 298 (order lookup with environment), 363 (redeem's order read), 539, 193; tests download.test.ts:204, orders-access.test.ts:295, 536."
+  },
+  {
+   "prior_id": "S04.1 (AUDIT-1)",
+   "claim": "The last 20 sends of the day are kept for sign-in codes and receipts",
+   "holds": false,
+   "evidence": "Still true against priority 1 and 2, but P08 put five kinds (receipt, order_shipped, order_refunded, order_ready, owner_alert per owner) into priority 0, which stops only at 100 (order_emails.sql:323): the band kept 'for codes' is spent by order mail on a busy day (DB-POST-01)."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Mail capacity for the launch: the free Resend plan (100/day) is sized for a quiet store, not a book launch, and no gate asks the owner to choose a plan or a per-day order ceiling",
+   "why_needed": "Every paid order queues at least one priority-0 mail (the receipt, the buyer's only order link) and usually a second (order_shipped); owner alerts multiply by the number of owners; sign-in codes share the account. At about 50 orders a day the outbox stops, later buyers wait until 00:00 UTC for their link and file, and an owner whose session expired cannot sign in. Contract section 8 and docs/operations.md record the limit; nothing in P11 asks for the decision.",
+   "touches": "PLANS/WORK-PACKAGES.md P11 and the launch checklist; supabase/functions/_shared/outbox.ts DAILY_QUOTA/RESERVE; 20261002120000_order_emails.sql outbox_claim",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "A staff path for a buyer whose address is wrong or suppressed: correct the order's address, lift a suppression, reissue the link",
+   "why_needed": "The order link travels only by mail to orders.customer_email; a typo at checkout or a hard bounce leaves a paid buyer of a digital book with no way in and staff with no function or documented SQL (DB-POST-03). Support will meet this in the first week.",
+   "touches": "a new owner function with audit in supabase/migrations; supabase/functions/_shared/admin.ts; the admin order view; docs/operations.md; docs/privacy-data-map.md (the address change is a personal-data write)",
+   "package": "P08 close or P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "A way to close a refund parked MODE_CHANGED",
+   "why_needed": "The claim parks in-flight refunds of the other mode with next_check_at null and the status still in flight; every exit needs a fetch with the configured key, which answers 404; the row stays on the reconciliation screen for ever and blocks refunds of that payment (DB-POST-05).",
+   "touches": "20261002130000_refunds.sql (refund_settle or a new owner close), refunds.ts, ReconciliationView",
+   "package": "P08 close",
+   "urgency": "before_P10",
+   "owner_decision": false
+  },
+  {
+   "title": "Correcting a shipment's carrier or tracking after «تم الشحن»",
+   "why_needed": "fulfillment_update refuses shipped→shipped with other values; a mistyped tracking number is what the buyer was mailed and what the order page shows for the life of the order (DB-POST-04).",
+   "touches": "20261002145000_order_operations.sql fulfillment_update; the order view's shipping controls; docs/operations.md",
+   "package": "P08 close",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Life cycle of superseded paid files: what earlier buyers get when a new file replaces a variant's file, and when the old object leaves Storage",
+   "why_needed": "paid_asset_set keeps every earlier paid_assets row and object (each up to 100 MiB, in every backup) and earlier buyers keep the old file by design («الطلبات التي استلمت ملفًا تبقى عليه»). A corrected edition cannot be pushed to buyers who already hold an entitlement, and no admin action removes a superseded object. Anas should decide whether a replacement reaches existing buyers.",
+   "touches": "20261002140000_delivery.sql paid_asset_set; paid-files.ts; the variant form; docs/operations.md",
+   "package": "P10 or later",
+   "urgency": "later",
+   "owner_decision": true
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Resend free plan: 100 emails/day and 3,000/month (DAILY_QUOTA, MONTHLY_QUOTA in outbox.ts; the tiers in order_emails.sql)",
+   "where": "https://resend.com/docs/knowledge-base/account-quotas-and-limits (fetched 2026-10-06)",
+   "verdict": "true",
+   "evidence": "\"Transactional emails: daily email quota of 100 emails/day and 3,000 emails/month.\" The page does not separate SMTP from API sends, so Auth's SMTP codes share the quota, as the outbox comments assume."
+  },
+  {
+   "claim": "Resend keeps idempotency keys 24 hours and refuses the same key with a different payload as 409 invalid_idempotent_request (email.ts classifyResendFailure; the outbox's 23-hour window)",
+   "where": "https://resend.com/docs/dashboard/emails/idempotency-keys (fetched 2026-10-06)",
+   "verdict": "true",
+   "evidence": "\"Idempotency keys are kept in the system for 24 hours.\" Same key, different payload: \"this idempotency key has already been used on a request that had a different payload. Retrying this request is useless without changing the idempotency key or payload.\""
+  },
+  {
+   "claim": "Moyasar refund: POST /payments/:id/refund with an optional amount <= the payment amount (or captured); the reply is the payment object with the running `refunded` total; no refund id (refunds.sql header; refund_result's exact-total rule)",
+   "where": "https://docs.moyasar.com/api/payments/05-refund-payment (fetched 2026-10-06)",
+   "verdict": "true",
+   "evidence": "amount: \"An optional amount for the refund process, less than our equal to the payment amount (or captured).\" Reply field refunded: \"Refunded amount. Less than or equal to the payment amount.\" No minimum and no second-refund rule is documented (still sandbox item 8)."
+  },
+  {
+   "claim": "Resend bounce.type is Permanent or Temporary (email_event_record treats anything but temporary/soft/transient as a hard bounce)",
+   "where": "https://resend.com/docs/webhooks/emails/bounced (fetched 2026-10-06)",
+   "verdict": "true",
+   "evidence": "Schema: \"Bounce type (e.g., Permanent, Temporary)\", subType e.g. Suppressed, MessageRejected; example payload type Permanent. Given as examples, not an exhaustive list, so docs/operations.md's 'a missing or undocumented type suppresses conservatively' is the right reading."
+  }
+ ],
+ "coverage": "Read in full: supabase/migrations/20261002120000_order_emails.sql, 20261002130000_refunds.sql, 20261002140000_delivery.sql; 20261002170000_stats_disputes.sql lines 1-245 (entitlements_revoke and the replaced finance.refund_succeed that actually runs); 20261002100000_payment_core.sql tables 138-330, helpers 415-600 (owner_alert, item_fully_refunded, attempt_provider_alerts, payment_view), payment_reviews inserts 1010-1120 (sampled), payment_reconcile_claim 1406-1525; 20261002145000_order_operations.sql 50-156 and 620-990 (fulfillment_update, return_decide, return_receive, order_resolve); 20261003100000_payment_view_expiry.sql; 20260926120000_contacts_and_email.sql 1-160 (finance schema, outbox table, suppressions, rate_limit_take); 20260930140000_audit2_fixes.sql 500-686 (outbox_result, email_event_record); supabase/functions/_shared/refunds.ts, email.ts, outbox.ts, tokens.ts, download.ts, paid-files.ts, orders.ts, recent-totp.ts, staff.ts whole; admin.ts 120-255; payments.ts 640-770 (the job's refund leg); payments/moyasar.ts 215-380; PLANS/P08-CONTRACT.md whole, PLANS/VERIFICATION.md, PLANS/ISSUES.md; artifacts/acceptance/P08/rounds/round-05.md, round-06.md, round-07.md whole; AUDIT-1 appendix S04 rows and AUDIT-2 findings.json scanned for outbox/refund/download items; docs/operations.md 160-340, 780-910, 1010-1070; vendor pages fetched 2026-10-06 (Resend quotas, idempotency keys, bounced event; Moyasar refund endpoint). Verified by reading: the reserve arithmetic under the order lock (one in-flight refund per target, REFUND_IN_FLIGHT before the provider total, EXCEEDS_BALANCE, allocation caps per line and shipping), the lock order of every writer that touches a refund (refund_lock, refund_lock_rows, dispute_record, return_receive, paid_asset_set vs order_try_commit: consistent, nowait where it must be), the 15-minute and 24-hour exits of an in-flight refund, replay by idempotency key with one provider call, the late-landing path, the step-up (Edge Function only; SQL unreachable from the Data API), token derivation and hashing, the download limits under row locks, mode binding, the dedupe keys of every order mail and that no token is stored. Sampled only: test case names of refunds.test.ts, download.test.ts, orders-access.test.ts, order-emails.test.ts; refunds.test.ts 800-895; refunds-http.test.ts 735-782; src/components/admin/RefundView.tsx key handling; src/lib/admin-money.ts refundBody/keyFor. Not read: full bodies of the integration tests, the e2e specs, rounds 07b-12b, apply_verified_payment's body (other slices). Could not run anything: the local stack is not running and is forbidden; DB-POST-08 needs the sandbox. Scratch files: findings.jsonl, prior-fix-checks.jsonl, plan-gaps.jsonl, doc-claims.jsonl, coverage.md under SCRATCH\\\\DB-POST. With more time: a two-connection probe of download_redeem racing a revocation (the 60-second signed-URL window after a refund); outbox tier counts under two concurrent dispatcher runs; a receipt that leaves more than 7 days late (dead link: should the dispatcher renew the expiry at send); the privacy export's omission of refund allocations."
+}

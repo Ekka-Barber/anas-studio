@@ -1,0 +1,407 @@
+{
+ "findings": [
+  {
+   "id": "DB-CORE-01",
+   "title": "Editors can publish policy documents, which resets the owner's approval and closes checkout",
+   "severity": "low",
+   "category": "authorization",
+   "file": "supabase/migrations/20260925120000_content_versions_and_publishing.sql",
+   "line": 126,
+   "evidence": "content_assert_publisher (never redefined) admits `s.role in ('owner', 'editor')` for every collection; content_versions_insert (line 38) is the same; `policies` was added to the enum later (20260927160000:32) with no owner restriction, and policies_reset_approval (20260930120000_audit_fixes.sql:141-145) clears finance.commerce_settings.policy_revisions on any new seq of an approved policy.",
+   "impact": "An editor account (or a stolen editor session at aal1, no TOTP) publishes a new seq of the store, delivery or refund policy from the admin or by calling rpc/publish_version directly; the trigger wipes policy_revisions and checkout answers POLICIES_NOT_CONFIGURED to every buyer until the owner re-approves at aal2. The same role can replace the privacy text buyers read with no approval at all (a privacy document outside the approved set does not reset). PLANS/DATA-AND-SECURITY.md:51 says the owner configures policies; src/admin/collections/policies.ts:5-8 says editors draft and publish them.",
+   "proposed_fix": "Decide the rule, then enforce it in SQL: make content_assert_publisher take the collection and require an active owner when it is 'policies' (publish_version, schedule_version, and the content_versions_insert policy), and align DATA-AND-SECURITY.md:51 or policies.ts.",
+   "fix_size": "small",
+   "needs_owner": true,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 X1.1 added the reset; the editor-can-trigger-it consequence was not recorded"
+  },
+  {
+   "id": "DB-CORE-02",
+   "title": "Hidden list items inside live documents, and their images, are readable with the anon key",
+   "severity": "low",
+   "category": "data-exposure",
+   "file": "supabase/migrations/20260930120000_audit_fixes.sql",
+   "line": 49,
+   "evidence": "published_documents_public_read: `using (collection <> 'posts' or data -> 'visible' = 'true'::jsonb)` filters rows only; the rooms' hideable lists (movements, reels, brandWall, gallery: src/admin/collections/rooms.ts:62,71,98,156-158; src/admin/fields.ts:278 adds `hidden: true` to an item) stay inside `data`. media_published_ids() (lines 73-79) collects every uuid-shaped string of the row, hidden items included, so media_public_read exposes their id, derivatives and alt_ar too.",
+   "impact": "The admin's «مخفي» on a gallery photo, a brand logo or a reel hides it from the built page only; anyone with the publishable key (shipped in the static export) reads the item through the Data API and fetches the derivative from the public bucket. Same class as AUDIT-1 S01.1 (hidden post), one level down. Bounded: only content an editor once meant to publish.",
+   "proposed_fix": "Serve anon from a security_definer view or function that strips `hidden = true` items from `data` before returning it, and derive media_published_ids() from the stripped data; or state in DESIGN/DATA docs that item hiding is presentational only.",
+   "fix_size": "medium",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S01.1 / S02.4 covered hidden posts only"
+  },
+  {
+   "id": "DB-CORE-03",
+   "title": "service_role's default table and function privileges are assumed, not set: the model differs between the local stack and a legacy hosted project",
+   "severity": "low",
+   "category": "grants",
+   "file": "supabase/migrations/20260924130000_staff_and_app_server.sql",
+   "line": 7,
+   "evidence": "`alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;` (and sequences, functions) never names service_role. 20260925090000_audit_and_staff_directory.sql:77-80 says new tables are granted to no API role by default and 'No delete on either table'; artifacts/acceptance/P03/commands.txt:45-46 recorded that the local pg_default_acl still grants service_role Delete/Truncate/References/Trigger on every new relation, and the Supabase changelog 45329 says a project created before 2026-05-30 with the legacy toggle grants select, insert, update, delete to service_role as well.",
+   "impact": "On the hosted project the real grants of service_role on contacts, media, content_versions, published_documents, staff and audit_events are whatever the project's default ACL was at creation: DATA-AND-SECURITY.md:23 ('no API role, the owner included, has any grant' on contacts) and the migration comments describe the local stack, not the hosted one. Bounded: service_role lives only inside the Edge Functions (which touch only staff and audit_events directly) and bypasses RLS anyway; DELETE on audit_events is still refused by the trigger and TRUNCATE is unreachable through PostgREST.",
+   "proposed_fix": "Make the model explicit in one forward migration: `alter default privileges for role postgres in schema public revoke all on tables from service_role;` (and on sequences and functions), keep the explicit grants staff-admin uses (staff select/insert/update, audit_events insert), and run the integration suites to prove nothing relied on the implicit grants.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "On the hosted project (SQL editor as postgres): `select defaclobjtype, defaclacl from pg_default_acl where defaclrole = 'postgres'::regrole and defaclnamespace = 'public'::regnamespace;` then `select has_table_privilege('service_role','public.contacts','select'), has_table_privilege('service_role','public.audit_events','delete'), has_function_privilege('service_role','public.publish_due()','execute');`. Wrong result: any true, or a defaclacl entry naming service_role.",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S01.5 fixed the PUBLIC function default only"
+  },
+  {
+   "id": "DB-CORE-04",
+   "title": "Publishing has no server-side content or media check: the Zod schema and the dangling-media gate run only in the browser",
+   "severity": "low",
+   "category": "validation",
+   "file": "supabase/migrations/20260930120000_audit_fixes.sql",
+   "line": 176,
+   "evidence": "publish_version checks the actor and the stale seq, then `perform public.content_go_live(...)`, which copies `v.data` as stored. The header of 20260925120000 (lines 5-7) still says the Worker 'validated the data with the collection's Zod schema' and 20260926090000:117-119 says 'restoring one that points at deleted media fails the publish check in src/lib/publish.ts'; both checks moved to the browser (src/lib/admin-publish.ts) with D32 and nothing in SQL repeats them.",
+   "impact": "An editor calling rpc/publish_version or rpc/schedule_version directly (or an admin build with a bug) takes a version live that the site build cannot render: a room missing required fields, a post whose `visible` is a string (RLS then hides it), or a document naming a media id that media_delete removed meanwhile (the race the migration comment accepts because of the publish check). src/lib/journal.ts:78 then fails the Pages build until a staff member republishes. Editor-trust boundary, so low.",
+   "proposed_fix": "Correct the two comments at least; better, make content_go_live refuse a version whose data references a uuid-shaped media id that is not in public.media, using the same jsonb_path_query as media_published_ids().",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none"
+  },
+  {
+   "id": "DB-CORE-05",
+   "title": "media_is_published(uuid) is still executable by anon although nothing public calls it",
+   "severity": "low",
+   "category": "attack-surface",
+   "file": "supabase/migrations/20260926090000_media_library.sql",
+   "line": 88,
+   "evidence": "`grant execute on function public.media_is_published(uuid) to anon;` survives every later `create or replace` (20260927180000:10, 20260930120000:96). The policy now uses media_published_ids() (audit_fixes.sql:92); a grep over src/ and supabase/functions/ finds no caller of media_is_published outside migrations and tests/integration/audit-fixes.test.ts:125, which pins it as expected anon surface.",
+   "impact": "A public, unthrottled RPC that scans every published document with jsonb_path_exists plus the products table per call: an oracle for 'is this uuid referenced anywhere public' and the per-call amplification AUDIT-1 S02.4 removed from the policy, kept alive as an endpoint. Small today, grows with the journal.",
+   "proposed_fix": "`revoke execute on function public.media_is_published(uuid) from anon;` and drop it from the expected list in tests/integration/audit-fixes.test.ts:123-127.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S02.4 (fix left the grant)"
+  },
+  {
+   "id": "DB-CORE-06",
+   "title": "outbox_replay: a null p_accept_duplicate_risk bypasses the duplicate-risk confirmation",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/migrations/20261002120000_order_emails.sql",
+   "line": 382,
+   "evidence": "`v_ambiguous := o.first_attempt_at <= now() - interval '23 hours'; if v_ambiguous and not p_accept_duplicate_risk then raise ...`. With p_accept_duplicate_risk = null, `true and not null` is null and the IF does not fire; the UPDATE then runs with `idempotency_key = gen_random_uuid()` because v_ambiguous is true, and the audit row records acceptedDuplicateRisk: null. The function is granted to authenticated (owner/operations) and takes a plain boolean with no NOT NULL guard.",
+   "impact": "An owner or operations member calling rpc/outbox_replay with {\"p_id\": N, \"p_accept_duplicate_risk\": null} (a hand-written call, or a client that sends null for an unchecked box) replays an ambiguous exhausted or uncertain row past the 23-hour idempotency window with a fresh key and no confirmation: a buyer can receive a receipt or order link twice, which the DATA-AND-SECURITY rule ('an ambiguous send outside that lifetime needs reconciliation before retry') exists to prevent. Staff-only and self-inflicted, so low.",
+   "proposed_fix": "`if v_ambiguous and not coalesce(p_accept_duplicate_risk, false) then raise ...` (and coalesce in the audit summary).",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 X1.3 added v_ambiguous; the null case was not covered"
+  },
+  {
+   "id": "DB-CORE-07",
+   "title": "The journal build reads published posts and taxonomies without paging, so PostgREST max_rows (1000) silently truncates the site once the journal grows",
+   "severity": "low",
+   "category": "correctness",
+   "file": "src/lib/journal.ts",
+   "line": 36,
+   "evidence": "`fetch(`${SUPABASE_URL}/rest/v1/published_documents?collection=eq.posts&select=...`)` with only the apikey header: no Range header, no next page, and the body is accepted whenever `response.ok`. supabase/config.toml:18 sets `max_rows = 1000` (the hosted default is the same); PostgREST answers 200 with the first 1000 rows and a Content-Range the loader never reads.",
+   "impact": "When the journal (or the taxonomy list) passes 1000 published visible documents, the static export drops the rest with no error and no failed build: posts vanish from المجلس and their pages 404 after the next deploy. Far off today; the failure is silent, which is what is worth fixing before it is forgotten.",
+   "proposed_fix": "Page the request (Range: 0-999, then the next page until the Content-Range total is reached), or fail the build when the returned row count equals the page size.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none"
+  },
+  {
+   "id": "DB-CORE-08",
+   "title": "Contact messages whose notice never reaches any staff mailbox are kept forever (no retention path)",
+   "severity": "low",
+   "category": "privacy-retention",
+   "file": "supabase/migrations/20260927140000_privacy_requests.sql",
+   "line": 201,
+   "evidence": "finance.contacts_purge selects only contacts with an outbox row `status = 'sent' ... and sent_at < now() - interval '90 days'`. A notice exhausted after 8 attempts, swept as RECIPIENT_INACTIVE (recipient demoted or revoked; 20261002120000_order_emails.sql:284-301) or marked suppressed because the staff address hard-bounced (20260930140000_audit2_fixes.sql:646-659) is never sent, so its contact never qualifies, and RECIPIENT_INACTIVE rows cannot be replayed (outbox_replay refuses them), so nothing can ever make such a contact eligible.",
+   "impact": "The visitor's name, email and message stay in public.contacts indefinitely, against D36 (90 days) and docs/privacy-data-map.md:9, and the visitor is never answered. Precondition: a period in which the only owner/operations address was suppressed, the team had no active owner or operations member with an email, or the notices exhausted (a Resend outage spanning 8 attempts).",
+   "proposed_fix": "Add a second purge rule for the owner to approve: a contact whose every outbox row is exhausted, suppressed or RECIPIENT_INACTIVE for more than 90 days is deleted too, and surface such contacts on the owner home or البريد so the message is read before it goes.",
+   "fix_size": "small",
+   "needs_owner": true,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "D36 documents the 'stays until one does' rule; the never-delivered branch was not recorded"
+  },
+  {
+   "id": "DB-CORE-09",
+   "title": "Revoking a member bans and deactivates but does not end their sessions; the plan says it signs them out",
+   "severity": "info",
+   "category": "docs",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 134,
+   "evidence": "set_active false: `admin.from('staff').update({ active })` then `updateUserById(userId, { ban_duration: '876000h' })`; no `auth.admin.signOut(userId)` and no session delete. PLANS/DATA-AND-SECURITY.md:99 says 'Removing a staff member sets active=false and signs out their sessions'.",
+   "impact": "Functionally safe: every policy and Edge Function re-reads staff.active, so the revoked member gets nothing on the next query, and the ban stops refresh and sign-in; the access token merely expires within jwt_expiry (3600 s). Only the plan sentence is inaccurate, and auth.sessions keeps the rows until privacy_erase_staff.",
+   "proposed_fix": "Either call `admin.auth.admin.signOut(userId, 'global')` after the ban (one line), or change the DATA-AND-SECURITY.md sentence to 'bans the Auth user and deactivates the row'.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none"
+  },
+  {
+   "id": "DB-CORE-10",
+   "title": "The last-owner guard's concurrency claim is proven by reasoning only; no test runs two demotions at once",
+   "severity": "info",
+   "category": "test-coverage",
+   "file": "supabase/migrations/20260924130000_staff_and_app_server.sql",
+   "line": 52,
+   "evidence": "The comment states that two concurrent demotions of the last two owners cannot both pass (deferred constraint trigger + pg_advisory_xact_lock under READ COMMITTED). tests/integration/staff-admin.test.ts:106-127 demotes sequentially on one client; no integration test opens two connections. Reading the code the claim holds: the trigger function is VOLATILE, so its EXISTS query takes a fresh snapshot after the lock, which the first committer releases only at commit.",
+   "impact": "None found; recorded so the orchestrator can prove the non-negotiable invariant at runtime instead of trusting the comment.",
+   "proposed_fix": "Add one integration test: create owners A and B, open two pg connections, run `update public.staff set role = 'editor' where user_id = $A` and the same for B in two transactions committed concurrently; expect exactly one 23514.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "Two psql sessions on the local stack: S1 `begin; update public.staff set active=false where user_id='<ownerA>';` S2 `begin; update public.staff set active=false where user_id='<ownerB>';` S1 `commit;` S2 `commit;`. Expected: one commit succeeds, the other fails with 'At least one active owner is required.' (23514). Wrong result: both commit and `select count(*) from public.staff where role='owner' and active` is 0.",
+   "confidence": "medium",
+   "prior_overlap": "AUDIT-2 DB-media-3 noted the same sequential-only pattern for media_claim"
+  },
+  {
+   "id": "DB-CORE-11",
+   "title": "A 'suppressed' outbox row can never be replayed, even after the owner removes the suppression by hand",
+   "severity": "low",
+   "category": "state-machine",
+   "file": "supabase/migrations/20261002120000_order_emails.sql",
+   "line": 378,
+   "evidence": "outbox_replay: `if o.status not in ('exhausted', 'uncertain') then raise exception 'Only exhausted or uncertain messages can be replayed.'`; outbox_claim's due set is `status = 'pending' or (status = 'uncertain' ...)` (lines 319-322), so a row that outbox_claim set to 'suppressed' (lines 277-282) has no transition out. docs/operations.md:300-301 says re-allowing a recipient is 'a deliberate manual database action' and names only finance.email_suppressions; src/components/admin/EmailView.tsx:46-48 shows suppressed rows under «انتهت» with no replay button.",
+   "impact": "After a false hard bounce on the owner's own address (Resend reports the type as Permanent, or omits it) every contact notice and owner alert queued meanwhile becomes 'suppressed'; when the owner deletes the suppression row the mails still never go: البريد lists them as ended, and the only way out is a second hand-written UPDATE of finance.email_outbox that no runbook describes. The contact messages behind them then also fall under DB-CORE-08.",
+   "proposed_fix": "In outbox_replay accept `o.status = 'suppressed'` once the suppression check above it has passed (it already refuses a still-suppressed recipient), let EmailView offer the button for such rows, and add the step to the Suppression section of docs/operations.md.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none"
+  },
+  {
+   "id": "DB-CORE-12",
+   "title": "Edits to a media row's descriptive columns, including the rights text, leave no audit row",
+   "severity": "info",
+   "category": "audit-trail",
+   "file": "supabase/migrations/20260926090000_media_library.sql",
+   "line": 50,
+   "evidence": "`grant update (name, folder, alt_ar, caption, rights) on public.media to authenticated;` with media_staff_update (owner/editor) and only the media_touch trigger; media_rename_folder (line 164) is security invoker with no audit insert either. The only media audit rows are media.create (purpose, bytes) and media.delete (name).",
+   "impact": "An editor can rewrite the provenance text of any image (DATA-AND-SECURITY.md:95 makes rights a required record) and nobody can later see who changed it or what it said; media has no version history like content_versions. No money or access impact.",
+   "proposed_fix": "A small AFTER UPDATE trigger on public.media that inserts an audit_events row naming the changed columns (and from/to for rights), in the style of catalog_audit.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none"
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "AUDIT-1 S01.5",
+   "claim": "Functions are deny-by-default in public and finance (global PUBLIC revoke)",
+   "holds": true,
+   "evidence": "20260930120000_audit_fixes.sql:12 `alter default privileges for role postgres revoke execute on functions from public;` is global; a static model of every create/grant/revoke across all 27 migrations (159 functions) finds no PUBLIC-executable function; tests/integration/audit-fixes.test.ts:107-141 checks pg_proc at runtime, including a probe function created later. Caveat: only anon and PUBLIC are enumerated, service_role is not (DB-CORE-03)."
+  },
+  {
+   "prior_id": "AUDIT-1 S01.4",
+   "claim": "Password grants are refused by public.deny_password_tokens, wired as the custom access token hook",
+   "holds": true,
+   "evidence": "audit_fixes.sql:21-38 and supabase/config.toml:299-301; tests/integration/audit-fixes.test.ts:86-100 posts grant_type=password for a staff member who has a password and expects 403. Hosted enablement is a dashboard setting (I28), not verifiable here."
+  },
+  {
+   "prior_id": "AUDIT-1 S01.1 / S02.4",
+   "claim": "Hidden posts are not readable by anon on published_documents or through media; the media policy evaluates the published set once per statement",
+   "holds": true,
+   "evidence": "audit_fixes.sql:49-58 policies and :66-92 media_published_ids()/media_public_read; audit-fixes.test.ts:144-170 proves anon and a signed-in non-staff user read only visible posts. The anon grant on media_is_published(uuid) was left in place (DB-CORE-05); hidden items inside live documents are not covered (DB-CORE-02)."
+  },
+  {
+   "prior_id": "AUDIT-1 X1.1 / AUDIT-2 DB-auditfix-1",
+   "claim": "A new seq of an approved policy resets policy_revisions and closes checkout",
+   "holds": true,
+   "evidence": "policies_reset_approval trigger (audit_fixes.sql:119-158) on insert/update/delete of published_documents; republishing the approved seq does not reset (`is distinct from v_seq::text`). Consequence not recorded earlier: editors can trigger it (DB-CORE-01)."
+  },
+  {
+   "prior_id": "AUDIT-1 X2.3",
+   "claim": "publish_version and schedule_version refuse a stale seq under the per-document advisory lock",
+   "holds": true,
+   "evidence": "audit_fixes.sql:167-220 and audit2_fixes.sql:242-286: `pg_advisory_xact_lock(hashtext('content:'...))` then `if p_seq < max(seq) raise unique_violation`; same key as content_versions_next_seq."
+  },
+  {
+   "prior_id": "AUDIT-1 S01.2",
+   "claim": "publish_due isolates each scheduled document in a subtransaction and audits a failure as content.publish_due_failed",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:295-337 (final): per-document try-lock, row re-check, begin/exception block that clears publish_at and inserts the audit row."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-core-3",
+   "claim": "Archive then republish keeps first_published_at",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:160-231: finance.content_first_published written by archive_document, read by content_go_live's insert; on conflict the column is not touched."
+  },
+  {
+   "prior_id": "AUDIT-1 S03.5 / AUDIT-2 DB-auditfix-2",
+   "claim": "Notices to a revoked or demoted recipient are exhausted as RECIPIENT_INACTIVE, cannot be replayed, and are left out of the attention list",
+   "holds": true,
+   "evidence": "Final definitions in 20261002120000_order_emails.sql:284-301 (claim sweep, now also owner_alert), :367-377 (replay refusal), :423 (attention filter)."
+  },
+  {
+   "prior_id": "AUDIT-1 S04.1 / AUDIT-2 DB-contacts-2 / EF-comms-1",
+   "claim": "Contact intake is capped at 40 a day and only priority 0 passes the daily reserve; an empty claim while mail is due is recorded partial QUOTA_HELD",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:446-448 (40/day), order_emails.sql:323 (tiered reserve), supabase/functions/_shared/outbox.ts:283-292."
+  },
+  {
+   "prior_id": "AUDIT-1 S04.2 / AUDIT-2 DB-auditfix-3",
+   "claim": "A QUOTA 429 gives the attempt back, waits for 00:00 UTC, and clears first_attempt_at when it was the only attempt",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:569-576 (final outbox_result): attempts - 1, next_at = v_next, first_attempt_at null when o.attempts = 1."
+  },
+  {
+   "prior_id": "AUDIT-1 S04.4",
+   "claim": "A webhook that beats the send reply is applied to the row; both sides serialize on a per-message advisory lock",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:533-535 and :635-637 take pg_advisory_xact_lock(hashtext('email:' || provider id)) before any row lock; the accept branch reads finance.email_delivery_events with the documented precedence."
+  },
+  {
+   "prior_id": "AUDIT-1 X1.3",
+   "claim": "An exhausted row that ended on an uncertain send needs the duplicate-risk confirmation past 23 hours",
+   "holds": true,
+   "evidence": "order_emails.sql:381-384 v_ambiguous covers both statuses. A null p_accept_duplicate_risk slips through (DB-CORE-06)."
+  },
+  {
+   "prior_id": "AUDIT-1 S17.1",
+   "claim": "The 30-day job_runs purge keeps each job's newest run",
+   "holds": true,
+   "evidence": "audit_fixes.sql:288-293 `and exists (select 1 from finance.job_runs n where n.job = j.job and n.finished_at > j.finished_at)`."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-site-5",
+   "claim": "A missing pages_deploy_hook records one skipped NO_HOOK site_build run per episode",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:772-783."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-site-2",
+   "claim": "cron.job_run_details is purged (7 days)",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:820-823 job cron-run-details-purge."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-media-1",
+   "claim": "media_usage lists a document whose latest version is live once, as live",
+   "holds": true,
+   "evidence": "audit2_fixes.sql:383-411 `and not (v.publish_at is null and exists (... p.seq = v.seq))`."
+  },
+  {
+   "prior_id": "AUDIT-2 EF-admin-3",
+   "claim": "A transient Storage read error is no longer blamed on the upload as MISSING_PART",
+   "holds": true,
+   "evidence": "supabase/functions/_shared/admin.ts:134-145 returns null only on 404 and throws READ_FAILED otherwise (500 FAILED). The uploaded parts are still removed by cleanupAll, which is correct because the ticket was claimed once and a retry needs a new ticket."
+  },
+  {
+   "prior_id": "AUDIT-2 EF-admin-1 / GAP-G2-2 / GAP-G2-3",
+   "claim": "staff-admin answers BAD_JSON to a null body and adopts an orphaned auth user on re-invite",
+   "holds": true,
+   "evidence": "supabase/functions/staff-admin/index.ts:57-67 and :77-95."
+  },
+  {
+   "prior_id": "AUDIT-2 FIX-db-2",
+   "claim": "An Auth outage in getClaims is a server error, not 401",
+   "holds": true,
+   "evidence": "supabase/functions/_shared/staff.ts:39-43 throws AUTH_UNAVAILABLE on a retryable fetch error or a 5xx."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Verify the hosted project's default privileges for service_role and the auto-expose toggle before launch",
+   "why_needed": "The migrations revoke anon/authenticated defaults only; what service_role holds on every table and function in public depends on the hosted project's creation date and the dashboard toggle (Supabase changelog 45329; local evidence in artifacts/acceptance/P03/commands.txt:45-46). The plan's grant statements (DATA-AND-SECURITY.md lines 10, 23, 49) are written as facts but only the local stack has been checked.",
+   "touches": "supabase/migrations (one forward migration revoking service_role defaults and keeping the grants staff-admin uses), PLANS/DATA-AND-SECURITY.md, PLANS/VERIFICATION.md (a hosted pg_default_acl check)",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Decide who may publish the policies collection and enforce it in SQL",
+   "why_needed": "DATA-AND-SECURITY.md:51 says the owner configures policies; src/admin/collections/policies.ts says editors draft and publish them; content_assert_publisher admits editors to every collection and publishing a policy resets the owner's approval and closes checkout (DB-CORE-01). The two documents cannot both be right and the DB enforces neither.",
+   "touches": "PLANS/DATA-AND-SECURITY.md, supabase/migrations (content_assert_publisher / content_versions_insert), src/admin/collections/policies.ts, tests/integration",
+   "package": "P08 or P11",
+   "urgency": "before_checkout_opens",
+   "owner_decision": true
+  },
+  {
+   "title": "A retention rule for contact messages whose notice never reached anyone",
+   "why_needed": "D36 keeps a message until a notice reaches a staff mailbox; a notice exhausted, suppressed or swept as RECIPIENT_INACTIVE never does, so such messages are kept for ever with no screen that lists them (DB-CORE-08, DB-CORE-11). E08 (privacy text and retention) is the natural place.",
+   "touches": "supabase/migrations (finance.contacts_purge, outbox_replay), docs/privacy-data-map.md, PLANS/DECISIONS.md (D36 amendment), the owner home or البريد",
+   "package": "P11 (E08)",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "An access (export) procedure for a departed staff member",
+   "why_needed": "DATA-AND-SECURITY.md:87 requires an auditable access/export procedure for every data subject; docs/privacy-data-map.md has export steps for contacts and buyers but only revoke and erase for staff, whose data spans auth.users, auth.audit_log_entries, public.staff, public.audit_events and the outbox.",
+   "touches": "docs/privacy-data-map.md (a SQL read-out per table, as for contacts)",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Page the build-time loaders or fail the build at max_rows",
+   "why_needed": "src/lib/journal.ts (and the other publishable-key loaders) read published_documents with no Range header; PostgREST truncates at max_rows = 1000 silently (DB-CORE-07). Not urgent, but a silent failure mode the plan does not mention.",
+   "touches": "src/lib/journal.ts, src/lib/content.ts, src/lib/store.ts, PLANS/ARCHITECTURE.md (build inputs)",
+   "package": "later",
+   "urgency": "later",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Custom Access Token hook: authentication_method takes the values oauth, password, otp, totp, recovery, invite, sso/saml, magiclink, email/signup, email_change, token_refresh, oauth_provider/authorization_code, anonymous, and the hook runs before every token issuance including token_refresh",
+   "where": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook",
+   "verdict": "true",
+   "evidence": "The doc lists the values verbatim; public.deny_password_tokens refuses only 'password' and passes the rest, which matches the intent (passwordless staff) since sign-up and anonymous sign-ins are off in supabase/config.toml:180-182."
+  },
+  {
+   "claim": "Supabase stops granting new public tables and sequences to anon, authenticated and service_role by default: new projects from 2026-05-30, existing projects on 2026-10-30; the toggle is `alter default privileges for role postgres in schema public revoke select, insert, update, delete on tables ... revoke usage, select on sequences from anon, authenticated, service_role`; only the public schema is affected",
+   "where": "https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically",
+   "verdict": "true",
+   "evidence": "Quoted from the changelog; it does not mention functions. The project's own revoke (20260924130000:7-12) names anon and authenticated only, so service_role's defaults depend on the project's creation date and toggle (DB-CORE-03)."
+  },
+  {
+   "claim": "A per-schema ALTER DEFAULT PRIVILEGES ... REVOKE cannot remove a privilege granted by the global default (EXECUTE on functions to PUBLIC); AUDIT-1 S01.5's global revoke is the correct fix",
+   "where": "https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html (Notes)",
+   "verdict": "true",
+   "evidence": "Docs: per-schema default privileges are added to the global ones and a per-schema REVOKE only reverses a per-schema GRANT. 20260930120000_audit_fixes.sql:12 is global; the static model over all 159 functions shows no PUBLIC-executable function, and tests/integration/audit-fixes.test.ts:107-141 proves it at runtime for public and finance."
+  },
+  {
+   "claim": "pg_net keeps rows of net._http_response for pg_net.ttl, default 6 hours; the table has status_code, timed_out and error_msg; net.http_post accepts timeout_milliseconds",
+   "where": "https://raw.githubusercontent.com/supabase/pg_net/master/README.md",
+   "verdict": "true",
+   "evidence": "The README quotes the ttl default of 6 hours and the columns; site_build_trigger reads exactly those columns and treats a missing row after 10 minutes as lost, consistent with a one-minute cron reading within the TTL."
+  },
+  {
+   "claim": "PLANS/DATA-AND-SECURITY.md:99 'Removing a staff member sets active=false and signs out their sessions'",
+   "where": "supabase/functions/staff-admin/index.ts:129-136",
+   "verdict": "false",
+   "evidence": "The function updates staff.active and bans the Auth user (ban_duration 876000h); it never calls auth.admin.signOut or deletes auth.sessions. Access is still cut on the next query by RLS and the staff lookup (DB-CORE-09)."
+  },
+  {
+   "claim": "20260925090000_audit_and_staff_directory.sql:77-80 'new tables are not granted to any API role by default (auto_expose_new_tables is off) ... No delete on either table' for service_role",
+   "where": "artifacts/acceptance/P03/commands.txt:45-46 and the Supabase changelog above",
+   "verdict": "false",
+   "evidence": "The local default ACL recorded in P03 still grants service_role Delete/Truncate/References/Trigger on new relations, and a legacy hosted project grants select/insert/update/delete too; DELETE on audit_events is stopped only by the trigger (DB-CORE-03)."
+  },
+  {
+   "claim": "PLANS/DATA-AND-SECURITY.md:49 'Revoke PUBLIC function execution and public schema creation'",
+   "where": "supabase/migrations (grep for 'on schema public')",
+   "verdict": "unverifiable",
+   "evidence": "PUBLIC function execution is revoked (audit_fixes.sql:12). No migration revokes CREATE on schema public from PUBLIC/anon/authenticated; whether Supabase's image grants it cannot be read from the repo. Not exploitable through PostgREST (no DDL path); runtime check: select has_schema_privilege('authenticated','public','create')."
+  },
+  {
+   "claim": "docs/privacy-data-map.md:53: privacy_erase_staff deletes identities, sessions, refresh tokens, TOTP factors, one-time tokens and the Auth log of the member's own actions, redacts entries about them and sent notices, drops unsent ones, renames the staff row",
+   "where": "supabase/migrations/20260927140000_privacy_requests.sql:19-153 and tests/integration/privacy-requests.test.ts:49-178",
+   "verdict": "true",
+   "evidence": "Each statement is present in the function and the test counts the auth tables before and after on a real local Auth user."
+  }
+ ],
+ "coverage": "Read in full: all eleven slice migrations (20260924130000 through 20260929120000), every later file that redefines their objects (20260927170000_policy_approval, 20260927180000_store_media, 20260930120000_audit_fixes, 20260930140000_audit2_fixes in whole; 20261002120000_order_emails lines 1-120 and 180-449 for the final outbox_claim/replay/attention; 20260927160000_catalog_and_checkout lines 1-60), plus a grep of every later migration for statements touching staff, audit_events, content_versions, published_documents, media, media_upload_tickets, contacts, content_documents, storage, cron, net, vault, current_staff_role and aal/amr (no P08 alteration of the slice's tables found). supabase/config.toml and seed.sql in whole. Edge Functions on the staff model and the slice's consumers: staff-admin/index.ts, _shared/staff.ts, _shared/recent-totp.ts, _shared/admin.ts lines 1-430 (media actions), _shared/outbox.ts, _shared/media-sweep.ts, _shared/contact.ts lines 60-172. PLANS/DATA-AND-SECURITY.md role and grant rules, docs/privacy-data-map.md lines 1-60, docs/operations.md lines 285-325, src/admin/collections/policies.ts, rooms.ts, fields.ts, src/lib/journal.ts, src/components/admin/EmailView.tsx lines 40-59. Prior audits: AUDIT-1 appendix DB/FN/privacy rows, AUDIT-2 report DB/EF rows, the P03 acceptance evidence on default ACLs. A static model of every function's definer/search_path/ACL across all 27 migrations (159 functions: none PUBLIC-executable; deny_password_tokens the only one without search_path, harmless as it touches no table). Built the object-by-object picture: every slice table has RLS on; anon reads published_documents (hidden posts filtered), media (id, derivatives, alt_ar of public ids) and nothing else; authenticated reads staff (own row / owner all), audit_events (owner), content_versions and content_documents (owner/editor), media (owner/editor) and inserts content_versions (owner/editor, four columns); no API role has UPDATE/DELETE on staff, audit_events, content_versions, published_documents, contacts or tickets; service_role has explicit staff select/insert/update and audit_events insert plus whatever the project's default ACL adds (DB-CORE-03). All definer functions set search_path='' and are owned by postgres; p_actor is caller-supplied only in service_role functions and the Edge Functions take it from the verified JWT; aal2/TOTP is enforced solely in the Edge Functions (no SQL reads aal). The last-owner trigger, the append-only trigger, the one-ticket claim, the lease/retry state machine and the per-document advisory locks were traced through every writer; the only transition defects found are the null confirmation (DB-CORE-06) and the suppressed dead end (DB-CORE-11). Sampled only: tests/integration/audit-fixes.test.ts (S01.5, S01.1, S01.4), staff-admin.test.ts (last-owner block), privacy-requests.test.ts (staff erase), outbox.test.ts (grep). Not reached: the hosted project's real pg_default_acl, Auth hook enablement and max_rows (runtime, hosted; recipes given); the P08 rounds' 'uncovered' lists (they concern P08 objects); scripts/bootstrap-owner.mjs and tests/integration/support.ts fixtures. Next with more time: run the two proof recipes, read _shared/email.ts against Resend's current idempotency docs, and enumerate authenticated-executable functions at runtime against the plan's role matrix. Vendor docs checked: Supabase custom access token hook, Supabase changelog 45329, PostgreSQL ALTER DEFAULT PRIVILEGES notes, pg_net README. Scratch folder holds findings.jsonl, findings-06-10.jsonl, findings-11.jsonl, prior-fix-checks.jsonl, plan-gaps.jsonl, doc-claims.jsonl, coverage.md and the fn-acl.cjs model. No file inside the repository was created or changed; no local port and no third party with credentials was contacted."
+}

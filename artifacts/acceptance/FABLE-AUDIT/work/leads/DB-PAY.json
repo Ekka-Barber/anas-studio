@@ -1,0 +1,197 @@
+{
+ "findings": [
+  {
+   "id": "DB-PAY-01",
+   "title": "Switching a variant's preorder off strands in-flight preorder holds: their payment ends paid_needs_resolution and order_resolve can never commit them",
+   "severity": "medium",
+   "category": "state-machine",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 649,
+   "evidence": "finance.order_try_commit decides a line by the reservation's own flag: `if r.res_preorder then v_free := coalesce(r.preorder_capacity, 0) - finance.preorder_committed(r.variant_id) - ...`. The admin form nulls the capacity when preorder is switched off (src/admin/tables/variants.ts:97 `preorder_capacity: preorder ? (values.preorder_capacity ?? null) : null`), so for every reservation created while the variant was a preorder v_free becomes `0 - committed` (negative) and the line fails. order_resolve (20261002145000_order_operations.sql:963) calls the same function and answers STOCK_UNAVAILABLE for ever. tests/integration/payment.test.ts:1664 pins exactly this ('The variant has no capacity (null): the reservation's own flag is what counts, so it fails' with 5 units in stock). docs/operations.md 'Preorders' (1064-1089) says nothing about holds live at the moment of the switch.",
+   "impact": "Precondition: the owner turns a preorder off (the copies arrived) while buyers hold unpaid preorder reservations (the 20-minute window) or while a late payment on such an order is still possible. Every such buyer who pays is charged, the order becomes paid_needs_resolution, the receipt says the order is under review, and the owner cannot deliver it through «حلّ الطلب»: the only exits are a refund, or re-enabling preorder with a capacity and a future date, which the runbook does not describe. Digital preorders hit the same wall when the file arrives and preorder is turned off.",
+   "proposed_fix": "Smallest: keep the capacity on switch-off (variants.ts toRow: `preorder_capacity: values.preorder_capacity ?? null`; the table check permits a capacity while preorder is false) so the reservation-flag rule still has a number. Alternatively, in order_try_commit, when `r.res_preorder` and the variant's current `preorder` is false, decide that line by the stock rule and include it in the stock decrement loop. Add one SQL test: preorder hold, switch off, pay → paid.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "",
+   "proof_recipe": ""
+  },
+  {
+   "id": "DB-PAY-02",
+   "title": "A PAYMENTS_MODE change while an attempt is pending leaves a charged payment with no visible ledger row, no due time and no alert (MODE_CHANGED rows are on no screen and are purged after 90 days)",
+   "severity": "medium",
+   "category": "operations-gap",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 1424,
+   "evidence": "payment_reconcile_claim parks other-mode due attempts: `set next_check_at = null, last_error = 'MODE_CHANGED', status = case when a.status in ('creating','pending','uncertain') then 'expired' ...`. The webhook closes the other mode's event as final (payments.ts:461 `closeEvent(deps, event.id, 'mode_mismatch')`, the job at 637; Moyasar's retries then answer `duplicate`); payment_callback_begin and finance.payment_view filter on `environment = p_mode`, so the callback and the return page see nothing. Nothing lists MODE_CHANGED afterwards: orders_alerts and reconciliation_list key on `last_error = 'UNVERIFIED'` (20261002145000_order_operations.sql:496, 555) and event_needs_person counts only `exhausted` events (173-184); finance.order_erasable (20261002170000_stats_disputes.sql:59-66) makes such an expired attempt with a null due time erasable, so the retention purge deletes it after 90 days. docs/payments-runbook.md 'Before live' (310-317) and 'Mode checks' (209) describe the parking but give no step to close checkout and wait out active attempts before changing the mode, and nothing for a live→test rollback.",
+   "impact": "Precondition: PAYMENTS_MODE is changed (go-live, or a rollback during an incident) while a buyer's invoice is pending. The buyer pays at Moyasar; the webhook event is closed mode_mismatch for good, the attempt is already expired/MODE_CHANGED with next_check_at null, the return page answers «لم نجد هذا الطلب.», and after switching back nothing re-checks it unless the buyer opens the return page within 24 hours (attempt_worth_asking still admits a closed attempt then). The owner is never alerted, the reconciliation screen does not show it, and after 90 days the row is purged. Live→test is real money; test→live is sandbox money plus a confused tester.",
+   "proposed_fix": "(1) reconciliation_list and orders_alerts also list attempts with `last_error = 'MODE_CHANGED'` not settled since (reason MODE_CHANGED) so the owner can «أعد الفحص» them once the right key is back, and finance.order_erasable keeps an order whose attempt carries MODE_CHANGED like it keeps UNVERIFIED. (2) docs/payments-runbook.md 'Before live' and 'The three steps': before changing PAYMENTS_MODE, close checkout and wait until `select count(*) from finance.payment_attempts where status in ('creating','pending','uncertain')` is 0 (at most 30 minutes), and never switch live→test while live attempts are active.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "R2-06 (the orchestrator's fix introduced the parking; the loss of visibility and the purge were not covered)",
+   "proof_recipe": ""
+  },
+  {
+   "id": "DB-PAY-03",
+   "title": "A payment first fetched as `refunded` settles the order as paid: entitlements granted, receipt sent, stock taken, until the owner records the external refund",
+   "severity": "low",
+   "category": "state-machine",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 1002,
+   "evidence": "`v_charged := v_status in ('paid', 'refunded');` then step 8 runs finance.order_try_commit (entitlements, fulfilments, stock, receipt) and marks the order paid; only afterwards `perform finance.attempt_provider_alerts(v_attempt.id, v_status)` raises external_refund. payment.test.ts:1358 pins it ('a payment already refunded at the provider counts as charged'). Reachable when a refunded status is fetched before the first settlement: the payment_refunded event processed before payment_paid, or the webhook endpoint down for a while with a dashboard refund in between.",
+   "impact": "The buyer receives «تم الدفع» and a working download link for money Moyasar has already returned; stock is decremented; the order stays paid until the owner acts on the external_refund alert with the external-refund action, which then revokes the entitlements and sends order_refunded. Bounded: the money is right in the end and the owner is alerted; the window is the owner's reaction time.",
+   "proposed_fix": "In step 8, when `v_refunded >= v_amount` (fully refunded before first settlement) take the paid_needs_resolution branch (attempt recorded paid, nothing granted or shipped, the existing needs_resolution alert) instead of the paid branch, so the owner resolves or records the refund before anything is handed out.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "",
+   "proof_recipe": ""
+  },
+  {
+   "id": "DB-PAY-04",
+   "title": "order_resolve commits a coupon past its usage limit without the couponOverLimit audit mark that apply_verified_payment writes",
+   "severity": "low",
+   "category": "audit-trail",
+   "file": "supabase/migrations/20261002145000_order_operations.sql",
+   "line": 969,
+   "evidence": "order_resolve calls finance.order_try_commit (963), which commits the order's coupon 'whatever its limit' (payment_core.sql 691-697), then audits `jsonb_build_object('orderNumber', v_order.order_number, 'amount', v_order.total_halalas)` only. apply_verified_payment computes `v_over` and adds `couponOverLimit: true` (payment_core.sql 1168-1178), but only on its own `paid` outcome; a paid_needs_resolution order's coupon is committed later by order_resolve with no mark anywhere.",
+   "impact": "A coupon limited to N uses can end with N+1 committed redemptions (a late payment resolved after another order took the last use) and no audit row says so; the owner reading the audit trail for the coupon's over-use (the contract's stated control) misses the case that goes through «حلّ الطلب».",
+   "proposed_fix": "In order_resolve, after the commit, reuse apply's rule: `v_over := v_order.coupon_id is not null and exists (select 1 from public.coupons c where c.id = v_order.coupon_id and c.usage_limit is not null and finance.coupon_uses(c.id) > c.usage_limit)` and append `couponOverLimit` to the order.resolved summary.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "",
+   "proof_recipe": ""
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "R2-02",
+   "claim": "every payment_attempt_begin reply after the token check carries `order`",
+   "holds": true,
+   "evidence": "payment_core.sql 760-777, 811: each refusal builds `'order', finance.order_summary(v_order.id)`; NOT_FOUND (756) alone has none, as intended."
+  },
+  {
+   "prior_id": "R2-03",
+   "claim": "payment_attempt_duplicates(p_attempt) exists for service_role; finance.owner_alert stays internal",
+   "holds": true,
+   "evidence": "payment_core.sql 1621-1638 defines it; 1766/1781 revoke/grant; 1785 revokes finance.owner_alert from service_role; payments.ts:169 calls it."
+  },
+  {
+   "prior_id": "R2-04",
+   "claim": "buyer_retention_purge locks the candidate orders first with `for update of o skip locked`",
+   "holds": true,
+   "evidence": "The current definition is round 9's (20261002170000_stats_disputes.sql:256-263): the candidates are selected `for update of o skip locked` with finance.order_erasable(o) evaluated on the locked row version; the deletes follow in finance.orders_delete."
+  },
+  {
+   "prior_id": "R2-05",
+   "claim": "after the unmapped review insert the attempt is read again, and the mapped review insert is `on conflict do nothing`",
+   "holds": true,
+   "evidence": "payment_core.sql 1030-1036 re-reads `finance.payment_attempts where provider_invoice_id = p_invoice_id` and continues when found; 1111-1118 insert `on conflict (provider_payment_id) do nothing`."
+  },
+  {
+   "prior_id": "R2-06",
+   "claim": "payment_reconcile_claim parks due rows of the other mode (next_check_at null, MODE_CHANGED, active attempts expired)",
+   "holds": true,
+   "evidence": "payment_core.sql 1424-1435. Holds, but the parked rows are listed on no screen and become erasable after 90 days: see DB-PAY-02."
+  },
+  {
+   "prior_id": "orchestrator round 2 (a paid order with an open sibling attempt)",
+   "claim": "a settled order answers paid/needs_resolution/refunded first and offers no invoice",
+   "holds": true,
+   "evidence": "finance.payment_view (20261003100000:40-43, 55-58): the settled states precede `v_active.id is not null`, and invoiceUrl requires v_state = 'pending'."
+  },
+  {
+   "prior_id": "R3-L1",
+   "claim": "charged payments are fetched first and applied oldest first by the fetched payment's own time",
+   "holds": true,
+   "evidence": "payments.ts 357-369: collects `charged`, sorts by `time()` with missing times last (stable sort), then applies in that order."
+  },
+  {
+   "prior_id": "R3-L3",
+   "claim": "a paid or refunded invoice that nothing settled is a failed check INVOICE_PAID_UNSETTLED",
+   "holds": true,
+   "evidence": "payments.ts 379-382: `if (error === null && (invoice.data.status === 'paid' || invoice.data.status === 'refunded')) error = 'INVOICE_PAID_UNSETTLED'` then checkAttempt(..., false, ...)."
+  },
+  {
+   "prior_id": "R3-L4",
+   "claim": "the reconciliation run stops taking rows after 60 seconds and always records itself",
+   "holds": true,
+   "evidence": "payments.ts 48 RUN_BUDGET_MS = 60_000; 680 stop(); 699-702, 716-719, 727-730 count skipped; 748-766 job_run_record in its own try."
+  },
+  {
+   "prior_id": "R3-L5",
+   "claim": "a row that throws in the job still gets a failed check ROW_FAILED",
+   "holds": true,
+   "evidence": "payments.ts 705-713 (attempts) and 733-741 (refunds)."
+  },
+  {
+   "prior_id": "orchestrator round 3 (callback id case)",
+   "claim": "the callback passes the invoice id unchanged to payment_callback_begin",
+   "holds": true,
+   "evidence": "payments.ts 482-484: `p_invoice_id: id` ('As the provider wrote it')."
+  },
+  {
+   "prior_id": "R4-03 / R4-04",
+   "claim": "cancel answers 200 only with a settled state, in the order's own words plus review; anything else is 409 PAYMENT_ACTIVE",
+   "holds": true,
+   "evidence": "checkout.ts 51 SETTLED_STATUS map; 391-392 `const status = SETTLED_STATUS[state]; return status ? okReply({ status }) : refusal(first)`."
+  },
+  {
+   "prior_id": "R4-06",
+   "claim": "checkout_cancel answers PAYMENT_ACTIVE 30 times per hour per order, then 54000; a wrong token spends nothing",
+   "holds": true,
+   "evidence": "checkout_payment.sql 669-688: the take `checkout-cancel:order` keyed by sha256(order id) happens only inside `if found` (an active attempt), after the token and status checks."
+  },
+  {
+   "prior_id": "R4-08 / orchestrator round 4 (the job's cancel)",
+   "claim": "a `canceled` cancel reply that lists a charged payment is settled, not closed, in both the buyer's cancel and the job's cancel",
+   "holds": true,
+   "evidence": "checkout.ts 370 `!listsCharge(cancelled.data)`; payments.ts 623 `!cancelled.data.payments.some((payment) => CHARGED.has(payment.status))`."
+  },
+  {
+   "prior_id": "round 10b migration",
+   "claim": "finance.payment_view hands out invoiceUrl only while invoice_expires_at > now()",
+   "holds": true,
+   "evidence": "20261003100000_payment_view_expiry.sql:56 `and v_active.invoice_expires_at > now()`; order_access (delivery.sql:112), payment_check_begin and payment_state call this definition."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Decide what the webhook does if Moyasar's delivery timeout is shorter than the inline settle",
+   "why_needed": "Moyasar's reference says the endpoint must return 2xx 'before any complex logic that could cause a timeout' and documents no timeout value; the handler fetches the payment and the invoice (up to 2 x 10 s) and applies before answering (payments.ts 458-466). If the sandbox shows deliveries timing out, every event is marked failed at Moyasar and retried five times; money is safe (the event is durable and the job finishes it) but the dashboard fills with failures and the fast path is lost. Sandbox item 9 only says to record the timeout; nothing says what changes if it is short (answer 200 first, settle in the background or leave it to the job).",
+   "touches": "supabase/functions/_shared/payments.ts webhook(); PLANS/P08-CONTRACT.md section 7; docs/payments-runbook.md item 9",
+   "package": "P08 close or P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "A mode-change procedure: drain active attempts before PAYMENTS_MODE changes, and surface MODE_CHANGED rows",
+   "why_needed": "See DB-PAY-02: the claim parks other-mode attempts (expired, MODE_CHANGED, no due time), they appear on no admin screen and become erasable after 90 days; the runbook's 'Before live' has no step to close checkout and wait until no attempt is active, and nothing covers a live→test rollback.",
+   "touches": "docs/payments-runbook.md 'Before live'; reconciliation_list / orders_alerts and finance.order_erasable",
+   "package": "P08 close",
+   "urgency": "before_launch",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Moyasar retries a webhook 5 more times (1 min, 10 min, 30 min, 1 h, 2 h) then drops it; the endpoint must return 2xx quickly; `live` is true for live mode; no event ordering and no retry event-id reuse is documented (P08-CONTRACT.md section 2, webhook row)",
+   "where": "https://docs.moyasar.com/docs/api/other/webhooks/webhook-reference.md",
+   "verdict": "true",
+   "evidence": "Fetched 2026-10-06: 'If the webhook recipient does not return a 2xx HTTP code we will retry to send the webhook 5 more times and then drop the message'; 'Your endpoint must quickly return a successful status code (2xx) before any complex logic that could cause a timeout'; no timeout value, no ordering, no statement on event-id reuse. The code settles inline before answering (payments.ts 458-466), which the page advises against; duplicates are harmless (payment_event_record), so the cost is retries and dashboard failures, not money."
+  },
+  {
+   "claim": "An invoice past `expired_at` cannot be paid; `callback_url` is notified about paid invoices and carries no secret; `success_url` is the redirect after a successful payment (P08-CONTRACT.md section 2, create-invoice row)",
+   "where": "https://docs.moyasar.com/docs/guides/invoices/creating-invoices.md",
+   "verdict": "true",
+   "evidence": "Fetched 2026-10-06: 'An expired invoice cannot have payment attempts as its status will be expired'; callback_url 'An endpoint on your server, for receiving notifications about paid invoices' (no authentication stated, so treating it as an unauthenticated prompt is right); success_url 'An endpoint on your site, that we will redirect to after the customer pays successfully'. Whether a 3-D Secure payment begun before expiry completes is still not stated (sandbox item 4 stays open)."
+  }
+ ],
+ "coverage": "Read in full: supabase/migrations/20261002100000_payment_core.sql (1792 lines), 20261002110000_checkout_payment.sql (778), 20261003100000_payment_view_expiry.sql (62); supabase/functions/_shared/payments.ts (768), checkout.ts (484), payments/moyasar.ts (379), db.ts, rate-limit.ts; PLANS/P08-CONTRACT.md sections 1-13 and PLANS/VERIFICATION.md whole; artifacts/acceptance/P08/rounds/round-02.md, round-03.md, round-10b.md whole, round-04.md audit 1, the final uncovered list and the rulings. Read for the callers and the rows these functions touch: catalog_and_checkout.sql tables (orders, order_items, inventory_reservations, coupon_redemptions, product_variants) with active_holds, coupon_uses, random_order_number, catalog_touch; audit_fixes.sql checkout_expire; order_operations.sql order_resolve, review_close, event_dismiss, the current payment_attempt_checked, event_needs_person; stats_disputes.sql order_erasable, orders_delete, the current buyer_retention_purge; delivery.sql order_access; contacts_and_email.sql finance schema, rate_limit_take; src/admin/tables/variants.ts and TableForm.tsx save(); tests/integration/payment.test.ts (every test name, the settle-once block, the preorder commit tests) and checkout.test.ts (test names); docs/payments-runbook.md 'Mode checks', 'The three steps', 'Before live'; docs/operations.md 'Preorders'. Every function of the slice was traced as a state machine and a transaction; the lock map is in SCRATCH/DB-PAY/coverage.md: order -> attempt -> variants asc -> coupon -> reservations holds in apply_verified_payment, order_try_commit, order_resolve, payment_attempt_created/close/checked; the claims and the two 'check' functions use skip locked and no other lock; checkout_create takes advisory key, advisory session, variants, coupon and never an order row; checkout_expire and the purge lock orders skip locked first. Verified unique constraints: provider_invoice_id, provider_payment_id, payment_attempts_active (partial), payment_events pk, payment_reviews pk, (order_id, variant_id) on reservations, order_id on redemptions, order_item_id on entitlements and fulfillments, dedupe_key on the outbox. Only apply_verified_payment (service_role; its one caller is payments.ts applyPayment, fed by objects fetched with the secret key) and order_resolve write a paid status; anon and authenticated hold no grant on any function or table of the slice. Attacked by reading: same event twice (on conflict do nothing serializes; duplicate), out-of-order events (every event fetches the current state; refunded-first is DB-PAY-03), four settlers at once (order lock serializes; already_paid), crash between durable event and settle (job), wrong amount/currency/mode/account (review, rejected, 404), foreign metadata (ignored by apply), late payment after expiry or cancel (reacquire or paid_needs_resolution under the variant locks; stock never negative, coupon over-use audited only in apply: DB-PAY-04), two invoices for one order (the buyer never holds two URLs; a late 201 is cancelled or recorded on the closed attempt), an owner stock edit racing a commit (catalog_touch bumps version, the stale save conflicts), timestamps (now() consistently; the 30-second creating rule uses the same clock in begin and claim). Sampled only: tests/unit/payments.test.ts and tests/integration/payment-http.test.ts were not read (round 3's audit describes them); the refunds migration only where it touches orders and attempts; the notifications migration not at all. Not reached: the local stack is not running and was not to be started, so every race claim rests on the SQL as written, not on two connections; the payment_view expiry test was read, not run. Next with more time: a two-connection run of payment_attempt_created racing payment_reconcile_claim's abandon on one uncertain attempt; the Supabase Edge Function wall clock against pg_net's 15-second post for a 60-second reconcile run; the real sandbox's answers to items 4-6 (3-D Secure past expired_at, the cancel of a paid invoice, a second payment on a paid invoice), which decide how often the late-payment and SECOND_PAYMENT paths fire."
+}

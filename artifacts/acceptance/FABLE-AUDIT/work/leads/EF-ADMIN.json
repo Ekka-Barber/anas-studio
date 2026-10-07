@@ -1,0 +1,403 @@
+{
+ "findings": [
+  {
+   "id": "EF-ADMIN-01",
+   "title": "admin reads the whole request body into memory before the 16 KiB check, and a revoked member's live JWT reaches that read",
+   "severity": "low",
+   "category": "hardening",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 193,
+   "evidence": "`const text = await request.text()` then `if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return fail(413, ...)`. `boundedText` (http.ts:54, used by resend-webhook.ts:111) refuses a declared content-length and cancels the stream at the limit, but admin does not use it. The read happens after `if (!staff) return 401` (line 191), and `staffFromRequest` returns `{role: null}` for a valid token whose staff row is inactive (staff.ts:47), so a revoked member with an unexpired access token (jwt_expiry 3600 s) passes the 401 gate and only meets 403 at the action switch, after the body was buffered.",
+   "impact": "Any holder of a genuine staff JWT (an editor, operations, or a revoked member for up to an hour) can make the admin isolate buffer arbitrarily large bodies (256 MB of memory per function on the platform); the cost is availability of the admin function for Anas and the team, not data.",
+   "proposed_fix": "Replace lines 193-194 with `const text = await boundedText(request, MAX_BODY_BYTES); if (text === null) return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')` and import `boundedText` from './http.ts'.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-02",
+   "title": "staff-admin buffers the whole body before its 4096-character check (same defect as EF-ADMIN-01, second place)",
+   "severity": "low",
+   "category": "hardening",
+   "file": "supabase/functions/staff-admin/index.ts",
+   "line": 59,
+   "evidence": "`const text = await req.text(); if (text.length > 4096) return fail(413, ...)`: the limit is checked after the full read and counts UTF-16 code units, not bytes. The owner and step-up checks (lines 51-52) run first, so only an active owner at aal2 reaches it.",
+   "impact": "An owner-session token can make the most privileged function buffer a large body before it is refused; low because the caller must already be a stepped-up owner.",
+   "proposed_fix": "Use `boundedText(req, 4096)` from '../_shared/http.ts' (import it next to `corsHeaders`) and answer 413 when it returns null.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-03",
+   "title": "paid-file-complete replaces what every future buyer downloads with no TOTP step-up",
+   "severity": "low",
+   "category": "authorization",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 253,
+   "evidence": "`case 'paid-file-complete': if (staff.role !== 'owner') return fail(403, ...); return paidFileComplete(...)` has no `if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', ...)` line, unlike refund-create, dispute-record and the commerce settings. paid-files.ts:3-4 states the choice ('no fresh TOTP: nothing here moves money'). `paid_asset_set` (20261002140000_delivery.sql:392) hands the new object to every entitlement waiting for it and to every later order of the variant. The server checks only the first bytes (`%PDF-` or an EPUB's first ZIP entry, paid-files.ts:128-143).",
+   "impact": "Precondition: an owner session at aal1 (a stolen access token, an unlocked device, a script run in the admin tab). The attacker can swap the paid book file for any file that starts with `%PDF-`; every buyer who downloads afterwards receives it under Anas's name, and the ledger shows a normal owner action. TOTP guards the money actions but not the deliverable. PLANS/P08-CONTRACT.md:441-442 documents the action as 'owner' without step-up, so this is a policy choice for the owner.",
+   "proposed_fix": "Add `if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')` before `paidFileComplete` (optionally before `paid-file-ticket` too), wrap `complete()` in src/components/admin/VariantCommerce.tsx:153 with `withStepUp` from src/lib/admin-money.ts, and update the contract table rows.",
+   "fix_size": "small",
+   "needs_owner": true,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-04",
+   "title": "The media upload ticket expires 5 minutes after it is created, before a slow connection can finish uploading every part",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/migrations/20260926090000_media_library.sql",
+   "line": 107,
+   "evidence": "`expires_at timestamptz not null default now() + interval '5 minutes'`; `media_claim` (line 253) raises 55000 when `t.expires_at <= now()`, which admin.ts maps to 410 GONE «انتهت صلاحية التذكرة أو استُخدمت من قبل.» (media.ts:126). The browser uploads the original (up to 15 MiB, media.ts:19) plus up to four WebP derivatives (up to 4 MiB each) one after another (MediaUpload.tsx:262-268) and only then calls media-complete. At 0.5 Mbit/s upstream a 15 MiB original alone takes about 4 minutes; with derivatives the claim lands after the ticket expired.",
+   "impact": "An editor on a slow mobile uplink uploads every byte, then is told the ticket expired or was used and must start over; the parts stay in quarantine until the daily sweep. Nothing is lost, but large uploads are impossible from such a connection.",
+   "proposed_fix": "Raise the default to `now() + interval '20 minutes'` in a new migration (the cap of 10 open tickets per actor and the daily sweep still bound the quarantine), and update the comments in admin.ts:8 and media_library.sql:10.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-05",
+   "title": "An AVIF whose major brand is not literally 'avif' is refused as UNKNOWN_TYPE",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/functions/_shared/media.ts",
+   "line": 179,
+   "evidence": "`const mime = measured.type ? DETECTED_MIME[measured.type] : undefined` with `DETECTED_MIME = { jpg, png, webp, avif }`. image-size 2.0.4's HEIF detector returns `type: toUTF8String(input, 8, 12)`, the raw major brand (node_modules/image-size/dist/esm/types/heif.js:29 and :63), and its validate() accepts avif, mif1, msf1, heic, heix, hevc, hevx (lines 2-10). An AVIF image sequence (major brand `avis`, which browsers decode and createImageBitmap accepts) or an AVIF with `mif1` as major brand and `avif` only among the compatible brands comes back as type 'avis' or 'mif1', which DETECTED_MIME does not map.",
+   "impact": "The browser decodes the file (MediaUpload.tsx:208), declares image/avif, uploads every part, and media-complete answers 422 UNKNOWN_TYPE «لم يُعرف نوع الملف من محتواه أو أنه نوع غير مسموح.»; the editor cannot tell why. Bounded: one input type; a re-export as WebP or JPEG works.",
+   "proposed_fix": "In verifyObjectHead, when `measured.type` is a HEIF brand other than 'avif' (`avis`, `mif1`, `msf1`), read the ftyp box's compatible brands (4-byte entries from offset 16 to the box size) and accept the file as image/avif when one of them is 'avif' or 'avis'; add a unit test with a `mif1`-branded head.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "medium",
+   "prior_overlap": "ADMIN-media-7 covers rotation (irot), not the brand"
+  },
+  {
+   "id": "EF-ADMIN-06",
+   "title": "ARCHITECTURE.md says Supabase Auth mail follows the same suppression and quota policy as the outbox; it does neither",
+   "severity": "low",
+   "category": "docs",
+   "file": "PLANS/ARCHITECTURE.md",
+   "line": 99,
+   "evidence": "'All outbound mail, including Supabase Auth mail through SMTP, follows the same suppression and quota policy.' Sign-in codes are sent by GoTrue over SMTP (supabase/config.toml, I28) and never pass `outbox_claim`, the only place that reads `finance.email_suppressions` (20261002120000_order_emails.sql:277-282) or counts the day's sends (lines 306-312); docs/operations.md:270-279 itself records that the codes are 'not counted'.",
+   "impact": "An operator reading the architecture expects a suppressed address to stop receiving sign-in codes and the daily count to include them; neither is true, so reserve sizing and incident reasoning built on the sentence are wrong.",
+   "proposed_fix": "Rewrite the sentence: 'Outbox mail follows the suppression and quota policy; Supabase Auth mail (sign-in codes) goes over SMTP outside the outbox, is not counted and is not checked against finance.email_suppressions; the daily RESERVE keeps room for it (operations.md).'",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-07",
+   "title": "Re-allowing a suppressed recipient is 'a deliberate manual database action' with no statement anywhere, and the owner's own address can be the one suppressed",
+   "severity": "low",
+   "category": "docs",
+   "file": "docs/operations.md",
+   "line": 300,
+   "evidence": "'Re-allowing a recipient is a deliberate manual database action, not an automatic one.' No migration, RPC or doc deletes from `finance.email_suppressions` (grep over supabase/migrations and docs finds inserts and selects only), the `reason` value 'manual' (20260926120000_contacts_and_email.sql:128) is never written, and the operator is not told that the key is `finance.recipient_hash(lower(btrim(email)))`. One `email.bounced` with type Permanent for the owner's address suppresses it (20260930140000_audit2_fixes.sql:646-658), after which `outbox_claim` turns every owner_alert (payment_review, needs_resolution, external_refund) and contact_notice for that address into status `suppressed` (order_emails.sql:277-282).",
+   "impact": "When the owner's address bounces once, every later money alert and contact notice is held with no mail, and the only cure is SQL in the dashboard that the runbook does not give; the attention list shows the rows but offers nothing.",
+   "proposed_fix": "Add the statement to the Suppression section: `delete from finance.email_suppressions where recipient_hash = finance.recipient_hash('owner@example.com');` followed by replaying the held rows from البريد, and note how to find which address is suppressed (join the hash against `finance.email_outbox.recipient`). Optionally add an owner-only `email_unsuppress(p_email)` RPC that writes an audit event with reason 'manual'.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-08",
+   "title": "The settings status reports the Resend webhook as configured for any non-empty secret, so a mis-pasted secret fails every delivery event silently",
+   "severity": "low",
+   "category": "observability",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 622,
+   "evidence": "`webhook: optionalEnv('RESEND_WEBHOOK_SECRET') !== undefined`. verifySvixSignature (email.ts:643-649) strips an optional `whsec_` prefix and base64-decodes the rest; a secret that does not decode returns false, so every signed delivery answers 401 (resend-webhook.ts:134-136). Nothing records a webhook failure: job_runs cover only the outbox, media_sweep and payments_reconcile, and `delivery` on sent rows simply stays null, which the runbook describes as the normal 'accepted, not yet delivered' state (operations.md:325-326).",
+   "impact": "At P11 a secret pasted with a missing character or a stray space passes the status check, the Settings screen says مضبوط, Svix retries and eventually disables the endpoint, and no bounce or complaint is ever recorded: suppression stops working while everything looks healthy.",
+   "proposed_fix": "In settingsStatus, report `webhook` as 'configured' only when the secret starts with `whsec_` and `atob(secret.slice(6))` succeeds (else 'malformed'), show the malformed state in SettingsView, and record a `resend_webhook` job run (or a last-event timestamp) after each stored event so the owner home can show when the last delivery event arrived.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-09",
+   "title": "After a successful invite the team screen says nothing, and the owner is not told that the invitee must sign in with an emailed code",
+   "severity": "low",
+   "category": "a11y",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 78,
+   "evidence": "`if (result.ok) { await loadDirectory(); return true }` and `submitInvite` only clears the two fields. No `role=\"status\"` element exists in the component (only `role=\"alert\"` for errors at lines 135, 151, 289, 294). staff-admin's invite creates a confirmed auth user and a staff row and sends nothing (staff-admin/index.ts:92-107); WORK-PACKAGES.md:45 records the design 'no invite link: the invitee signs in with a code'.",
+   "impact": "A screen-reader owner hears nothing after pressing دعوة, and any owner has no cue that the new member receives no email until they open /admin/sign-in themselves and ask for a code; the predictable support call is 'I invited her but she got nothing'.",
+   "proposed_fix": "Add an always-mounted `<p role=\"status\">` and set it after a successful invite to «أُضيف العضو. اطلب منه الدخول من /admin/sign-in ببريده؛ يصله رمز الدخول هناك.», cleared on the next action.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S10.6 fixed error announcements only"
+  },
+  {
+   "id": "EF-ADMIN-10",
+   "title": "An owner revoked between the staff lookup and the commerce SQL is answered with the media wording that names an editor",
+   "severity": "info",
+   "category": "wording",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 452,
+   "evidence": "commerceSettingsSave, commercePoliciesApprove and commerceCheckoutSet handle 23505 and P0001 and fall back to `sqlFail(error)`, which maps 42501 through media.ts:121-122 to 403 FORBIDDEN «هذا الإجراء متاح فقط لمالك أو محرر نشِط.», while the SQL (20260930140000_audit2_fixes.sql:33-38) raises insufficient_privilege for 'Owner only.' paymentRecheck (line 524) maps the same code to «هذا الإجراء للمالك فقط.».",
+   "impact": "Wording only, and only in the race between the function's role check and the SQL's; no authorization effect.",
+   "proposed_fix": "Map 42501 to `fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')` in the three commerce handlers, as paymentRecheck does.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-ADMIN-11",
+   "title": "Storage and Auth calls made through supabase-js carry no timeout; only the 150 s wall clock bounds a hung media-complete",
+   "severity": "info",
+   "category": "hardening",
+   "file": "supabase/functions/_shared/admin.ts",
+   "line": 135,
+   "evidence": "`storage().from(bucket).download(key)`, `.upload(...)`, `.move(...)`, `.remove(...)`, `createSignedUploadUrl` and `client.auth.getClaims` / `from('staff')` (staff.ts:36-45) are awaited without an AbortSignal, unlike the Resend, Mailpit, Cloudflare and ranged-head fetches (10 s). The platform's wall clock is 150 s (free) / 400 s (paid) per https://supabase.com/docs/guides/functions/limits.",
+   "impact": "A stalled Storage call inside media-complete after the derivatives were written (lines 378-383) is ended by the platform, not by the code: the ticket stays claimed, cleanupAll never runs, and the public derivatives stay (the sweep covers quarantine/ only, I34 residual). Observation only; no data or money effect.",
+   "proposed_fix": "Pass a `global: { fetch }` wrapper with `AbortSignal.timeout(30_000)` when creating the service client in db.ts, or wrap the media store calls in a timeout helper, so cleanup runs on a stall.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "I34 residual (leftover public objects)"
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "AUDIT-1 S04.2 / AUDIT-2 DB-auditfix-3",
+   "claim": "A Resend daily or monthly quota 429 is a QUOTA retry that spends no attempt, waits for midnight UTC, stops the run, and clears first_attempt_at when it was the only attempt",
+   "holds": true,
+   "evidence": "email.ts:65-68 classifies 429 daily/monthly_quota_exceeded as retry QUOTA; outbox.ts:281 breaks the loop on it; 20260930140000_audit2_fixes.sql:569-576 sets attempts = attempts - 1, next_at = next UTC midnight, first_attempt_at = null when attempts = 1, status uncertain only when an earlier attempt may have reached the provider."
+  },
+  {
+   "prior_id": "AUDIT-1 S04.1 / P08 round 5 tiers",
+   "claim": "Contact notices cannot use the whole Resend daily quota: a reserve keeps the last sends for sign-in codes and receipts go before visitor-triggered mail",
+   "holds": true,
+   "evidence": "20261002120000_order_emails.sql:314-329: priority 0 while v_sent_today < 100, priority 1 while < 80, priority 2 while < 50, per-kind caps (order_link 20, notify_confirm 30) and the monthly cap; outbox.ts:41-62 passes DAILY_QUOTA 100, RESERVE 20, LOW_RESERVE 30, MONTHLY_QUOTA 3000; the dispatcher claims one row per claim (outbox.ts:249-259)."
+  },
+  {
+   "prior_id": "AUDIT-1 S07.4",
+   "claim": "staff-admin reports a failed audit write instead of plain success",
+   "holds": true,
+   "evidence": "staff-admin/index.ts:28-29 auditFailed() 500 AUDIT_FAILED; used at lines 106, 116, 137 after each action."
+  },
+  {
+   "prior_id": "AUDIT-1 S07.5 / AUDIT-2 GAP-G2-3",
+   "claim": "The invite answers USER_EXISTS only for email_exists, and an auth user orphaned by a failed rollback is adopted by the next invite",
+   "holds": true,
+   "evidence": "staff-admin/index.ts:92-96 `adopted = error?.code === 'email_exists'`; `orphanedUserId` (lines 77-83) adopts only when no staff row exists; other createUser errors are INVITE_FAILED 500. tests/unit/staff-admin-function.test.ts:97-126 cover the branches."
+  },
+  {
+   "prior_id": "AUDIT-2 EF-admin-1 / GAP-G2-2",
+   "claim": "A JSON null, array or scalar body answers 400 BAD_JSON in staff-admin and admin",
+   "holds": true,
+   "evidence": "staff-admin/index.ts:61-66 and admin.ts:196-202 both throw on a non-object parse result inside the try and answer BAD_JSON."
+  },
+  {
+   "prior_id": "AUDIT-2 EF-admin-2",
+   "claim": "settingsStatus().analytics is true only when fetchAnalytics would run (token, zone id and a SITE_URL host)",
+   "holds": true,
+   "evidence": "admin.ts:626-627 and analytics.ts:231-241 use the same three gates; unit test admin-function.test.ts:160."
+  },
+  {
+   "prior_id": "AUDIT-2 EF-admin-3",
+   "claim": "Only a Storage 404 means a part was never uploaded; any other read failure is a 500, not MISSING_PART with cleanup",
+   "holds": true,
+   "evidence": "admin.ts:134-145 returns null only on status/statusCode 404 and throws READ_FAILED otherwise; mediaComplete's catch (385-388) answers 500 FAILED after cleanupAll."
+  },
+  {
+   "prior_id": "AUDIT-2 FIX-db-2 / AUDIT-1 S07.6",
+   "claim": "An Auth outage while verifying a valid token answers 500, not 401",
+   "holds": true,
+   "evidence": "staff.ts:42 throws AUTH_UNAVAILABLE on isAuthRetryableFetchError or status >= 500; admin.ts:185-190 and staff-admin/index.ts:44-49 answer 500 FAILED."
+  },
+  {
+   "prior_id": "AUDIT-1 S07.1 / AUDIT-2 FIX-db-3",
+   "claim": "Top paths count only 200 and 304 answers",
+   "holds": true,
+   "evidence": "analytics.ts:97 `edgeResponseStatus_in: [200, 304]`."
+  },
+  {
+   "prior_id": "AUDIT-1 S02.2",
+   "claim": "folderIsInvalid refuses C1 controls like the SQL [[:cntrl:]] check",
+   "holds": true,
+   "evidence": "media-rules.ts:29 `/[\\u0000-\\u001F\\u007F-\\u009F]/`; SQL check at 20260926090000_media_library.sql:24."
+  },
+  {
+   "prior_id": "AUDIT-1 X1.5 / X6.16",
+   "claim": "staff-admin pins supabase-js and reuses the shared identity, client and reply helpers",
+   "holds": true,
+   "evidence": "staff-admin/deno.json pins npm:@supabase/supabase-js@2.117.1 (same in admin, outbox, resend-webhook); staff-admin/index.ts:10-12 imports serviceClient, corsHeaders/fail/ok and staffFromRequest from _shared."
+  },
+  {
+   "prior_id": "AUDIT-1 S07.7",
+   "claim": "A restore lifts the ban before setting active, so a failed lift leaves the member revoked with a working restore button",
+   "holds": true,
+   "evidence": "staff-admin/index.ts:125-128 unban first, UNBAN_FAILED on error, then the staff update."
+  },
+  {
+   "prior_id": "AUDIT-1 S03.5 / AUDIT-2 DB-auditfix-2",
+   "claim": "RECIPIENT_INACTIVE and the dispatcher's state codes are left out of outbox_attention",
+   "holds": true,
+   "evidence": "20261002120000_order_emails.sql:423 `coalesce(o.last_error, '') not in ('RECIPIENT_INACTIVE', 'NOT_PENDING', 'NOT_CONFIRMED', 'NO_FILE')`."
+  },
+  {
+   "prior_id": "AUDIT-2 EF-comms-1",
+   "claim": "An empty claim while rows are due is recorded as partial / QUOTA_HELD, not ok",
+   "holds": true,
+   "evidence": "outbox.ts:283-292 sets status 'partial' and reason 'QUOTA_HELD' when claimed === 0; unit test admin-function.test.ts:453."
+  },
+  {
+   "prior_id": "AUDIT-1 S04.4 / AUDIT-2 GAP-G5-4",
+   "claim": "The accept and the webhook serialize on a per-message advisory lock so an event cannot be applied to no row",
+   "holds": true,
+   "evidence": "20260930140000_audit2_fixes.sql:533-535 (outbox_result) and :635-637 (email_event_record) both take `pg_advisory_xact_lock(hashtext('email:' || id))` before any row lock."
+  },
+  {
+   "prior_id": "AUDIT-2 X-A11Y-RTL-5 / ADMIN-auth-9 / S10.6 / ADMIN-auth-7",
+   "claim": "StepUp stays mounted while open, the code inputs fold Arabic-Indic digits, errors are announced, and a non-owner on /admin/team is told the page is owner-only",
+   "holds": true,
+   "evidence": "TeamView.tsx:299-305 (always mounted), :121-127 (owner-only text), role=\"alert\" at 135/151/289/294; StepUp.tsx:84 and MfaEnroll.tsx:128 `otpDigits(...)`."
+  },
+  {
+   "prior_id": "AUDIT-2 ADMIN-media-7 (I49.2)",
+   "claim": "Non-JPEG rotation is not read server-side; the admin explains DIMENSION_MISMATCH",
+   "holds": true,
+   "evidence": "media.ts:189-192 swaps only for image/jpeg; MediaUpload.tsx:271 maps DIMENSION_MISMATCH to DIMENSION_ERROR; still open as ISSUES.md I49 (2) records."
+  },
+  {
+   "prior_id": "AUDIT-2 X-SEC-6 (I49.1)",
+   "claim": "media-ticket is only concurrency-capped (10 open tickets, 5 minutes) and the sweep removes at most 1,000 objects a day",
+   "holds": true,
+   "evidence": "20260926090000_media_library.sql:199-204; media-sweep.ts:16-18 BATCH 100 x MAX_BATCHES 10; unchanged, as ISSUES.md I49 (1) records."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "A sent mail whose delivery came back bounced or failed cannot be re-sent from the admin",
+   "why_needed": "outbox_replay accepts only exhausted or uncertain rows (20261002120000_order_emails.sql:378-380) and EmailView shows the replay button only for those statuses (EmailView.tsx:48, 238); a receipt that Resend accepted and then reported as `email.bounced` (Temporary) or `email.failed` sits under «انتهت» with no action. The buyer's fallback is the recovery form on /orders (an order_link, capped at 20 a day); the owner has no way to re-send a receipt, a shipping notice or a refund notice to a corrected or recovered mailbox. Whether a bounced address may be mailed again is a policy question (a Permanent bounce is suppressed anyway).",
+   "touches": "supabase/migrations (a new outbox_replay accepting status 'sent' with delivery in ('bounced','failed') when the recipient is not suppressed, rotating the idempotency key), src/components/admin/EmailView.tsx, docs/operations.md 'Replay'",
+   "package": "P09",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "The owner's TOTP enrolment on the hosted project, and a lost-authenticator procedure, are not launch steps",
+   "why_needed": "Every money action (refund-create, refund-record-external, dispute-record, commerce-checkout-set, the settings and policy approval) and every team action needs a TOTP entry from the last five minutes; an owner without a verified factor cannot open checkout or refund. P11 (PLANS/WORK-PACKAGES.md:133-145) and ISSUES I28 list 'TOTP enroll/verify ON' as a project setting but never 'the owner has enrolled and verified a factor' (staff_directory.has_totp true for every owner), and no document gives the steps for a lost authenticator (Supabase dashboard: Authentication → Users → the user → delete the MFA factor, or auth.admin.mfa.deleteFactor with the service role, then «الأمان» again); AUDIT-2 ADMIN-auth-12 raised the second half and it was refuted without a document.",
+   "touches": "docs/launch-checklist.md (P11), docs/operations.md (a 'Lost authenticator' section), PLANS/ISSUES.md I28",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "No signal that Resend delivery webhooks are arriving",
+   "why_needed": "The outbox records job runs for sends, the sweep and the reconciliation, but nothing records that the resend-webhook function received and stored an event; a disabled endpoint (Svix gives up after repeated 401/5xx), a wrong secret or a wrong URL leaves every sent row with delivery null, which the runbook calls normal. Suppression, the one control that protects the Resend reputation and the buyer's inbox, then stops silently. Finding EF-ADMIN-08 covers the malformed-secret half; this is the operating half.",
+   "touches": "supabase/functions/_shared/resend-webhook.ts (a job_run_record or a last-seen row after each recorded event), src/components/admin/AdminHome.tsx (a 'last delivery event' line next to the job health), docs/operations.md 'Delivery events'",
+   "package": "P10",
+   "urgency": "before_launch",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Resend's Idempotency-Key header is 1-256 characters, kept 24 hours; the same key and payload return the same response without sending again; a different payload answers 409 invalid_idempotent_request; a concurrent request 409 concurrent_idempotent_requests",
+   "where": "supabase/functions/_shared/email.ts:12-16, :49-63; 20260926120000_contacts_and_email.sql:108-111; docs/operations.md:215-219",
+   "verdict": "true",
+   "evidence": "https://resend.com/docs/dashboard/emails/idempotency-keys: 'Idempotency keys can be up to 256 characters', 'kept in the system for 24 hours', same key+payload 'will give the same response, without actually sending the email again', different payload -> 409 invalid_idempotent_request, in progress -> 409 concurrent_idempotent_requests. https://resend.com/docs/api-reference/errors: invalid_idempotency_key 400 'must have between 1 and 256 characters'."
+  },
+  {
+   "claim": "Resend error names and statuses: 429 daily_quota_exceeded / monthly_quota_exceeded (reset at midnight UTC) / rate_limit_exceeded; 409 concurrent_idempotent_requests, resource_locked, invalid_idempotent_request; 500 application_error; 503 service_unavailable; 403 validation_error for an unverified domain",
+   "where": "supabase/functions/_shared/email.ts:49-76 (classifyResendFailure)",
+   "verdict": "true",
+   "evidence": "https://resend.com/docs/api-reference/errors lists exactly these names with these statuses; daily_quota_exceeded: 'wait for the quota to reset at midnight UTC'; validation_error 403 'The domain.com domain is not verified'."
+  },
+  {
+   "claim": "Resend free plan: 100 emails/day and 3,000/month, a UTC calendar day resetting at midnight UTC",
+   "where": "supabase/functions/_shared/outbox.ts:35-44; docs/operations.md:241-245; PLANS/P08-CONTRACT.md:448",
+   "verdict": "true",
+   "evidence": "https://resend.com/docs/knowledge-base/account-quotas-and-limits: 'daily email quota of 100 emails/day and 3,000 emails/month', 'a UTC calendar day (00:00-24:00 UTC) and resets at midnight UTC'."
+  },
+  {
+   "claim": "Resend's API rate limit is low enough that the outbox must treat rate_limit_exceeded as a backoff retry",
+   "where": "supabase/functions/_shared/email.ts:58-59",
+   "verdict": "true",
+   "evidence": "https://resend.com/docs/api-reference/rate-limit: 'The default maximum rate limit is 10 requests per second per team', 429 when exceeded, with ratelimit-* and retry-after headers. The dispatcher sends one row at a time after two rpc round trips, so it stays well under 10/s; the RATE_LIMIT branch is a safe fallback."
+  },
+  {
+   "claim": "Resend webhook event types include email.sent, email.delivered, email.delivery_delayed, email.bounced, email.complained, email.failed and email.suppressed; the bounced payload carries data.email_id, data.to (array) and bounce.type 'Permanent' | 'Temporary' with subType",
+   "where": "supabase/functions/_shared/resend-webhook.ts:22-47, :169-177; docs/operations.md:315-323; 20260930140000_audit2_fixes.sql:646-651",
+   "verdict": "true",
+   "evidence": "https://resend.com/docs/dashboard/webhooks/event-types lists all eleven types including email.suppressed. https://resend.com/docs/webhooks/emails/bounced example: {type:'email.bounced', created_at, data:{email_id, to:['...'], bounce:{type:'Permanent', subType:'Suppressed', message}}}; bounce.type values 'Permanent' and 'Temporary'."
+  },
+  {
+   "claim": "Svix signatures: signed content is `${svix_id}.${svix_timestamp}.${rawBody}`, the key is the base64 after `whsec_`, HMAC-SHA256 base64, `svix-signature` is a space-separated list of `v1,<sig>` entries (several during rotation) and any one match accepts; compare in constant time; check the timestamp against a tolerance",
+   "where": "supabase/functions/_shared/email.ts:601-667 (verifySvixSignature)",
+   "verdict": "true",
+   "evidence": "https://docs.svix.com/receiving/verifying-payloads/how-manual: signed content '${svix_id}.${svix_timestamp}.${body}', secret 'whsec_[base64]' decoded, header 'space-separated signature entries, each prefixed with v1,', 'multiple signatures may be present ... verify against any of them', 'constant-time comparison', timestamp 'within your acceptable tolerance window'. The 5-minute value is the implementation's own choice (Svix's libraries use the same)."
+  },
+  {
+   "claim": "supabase-js getClaims verifies the JWT locally against the project's JWKS for asymmetric keys and falls back to getUser() for HS256; it returns AuthErrors instead of throwing; an expired token is refused",
+   "where": "supabase/functions/_shared/staff.ts:36-44",
+   "verdict": "true",
+   "evidence": "node_modules/.pnpm/@supabase+auth-js@2.117.1/.../dist/module/GoTrueClient.js:5512-5581: validateExp(payload.exp) -> AuthInvalidJwtError; `header.alg.startsWith('HS') ... ? null : await this.fetchJwk(...)`; `if (!signingKey) { const { error } = await this.getUser(token) ... }`; crypto.subtle.verify; `catch (error) { if (isAuthError(error)) return this._returnResult({ data: null, error }) }`. Consequence: on the hosted project a banned or revoked member's access token stays valid for the Edge Functions until exp; the staff.active check is what denies it."
+  },
+  {
+   "claim": "A refreshed session cannot keep an old TOTP timestamp alive beyond 5 minutes, and a second TOTP verification in the same session refreshes it: GoTrue builds each amr entry's timestamp from the claim row's updated_at, set on insert and bumped only by another verification of the same method",
+   "where": "supabase/functions/_shared/recent-totp.ts:8-19; PLANS/DECISIONS.md D13; PLANS/ARCHITECTURE.md:21",
+   "verdict": "true",
+   "evidence": "https://raw.githubusercontent.com/supabase/auth/master/internal/models/sessions.go CalculateAALAndAMR: `entry := AMREntry{Method: claim.GetAuthenticationMethod(), Timestamp: claim.UpdatedAt.Unix()}`; https://raw.githubusercontent.com/supabase/auth/master/internal/models/amr.go: `ON CONFLICT ON CONSTRAINT mfa_amr_claims_session_id_authentication_method_pkey DO UPDATE SET updated_at = ?`. A token refresh does not touch the row, so the timestamp ages; a step-up done for one action satisfies every step-up action of the same session for 300 s (D13 design)."
+  },
+  {
+   "claim": "Supabase Auth requires an aal2 session to enroll a new factor when the user already has a verified factor, and to unenroll a verified factor",
+   "where": "artifacts/acceptance/AUDIT-2 X-SEC-2 (refuted); src/components/admin/MfaEnroll.tsx:47-51 relies on it implicitly",
+   "verdict": "true",
+   "evidence": "https://raw.githubusercontent.com/supabase/auth/master/internal/api/mfa.go: validateFactors raises 'AAL2 required to enroll a new factor' when numVerifiedFactors > 0 and the session is not AAL2; UnenrollFactor raises 'AAL2 required to unenroll verified factor'. Vendor residual (https://github.com/supabase/auth/issues/1615, open): a session that reached aal2 once can enroll another factor later without re-verifying."
+  },
+  {
+   "claim": "Banning a Supabase Auth user (ban_duration) stops sign-in and refresh but does not invalidate an already issued access token",
+   "where": "supabase/functions/staff-admin/index.ts:132-134; PLANS/WORK-PACKAGES.md:45",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/reference/javascript/auth-admin-updateuserbyid shows `ban_duration: '876000h'` (the repo's BAN_FOREVER); supabase docs on sessions/JWTs and github.com/supabase/auth pull 2806 state access tokens are stateless and stay valid until exp. The repo relies on staff.active per request (staff.ts:45-47, current_staff_role()); tests/integration/staff-admin.test.ts:94-99 proves current_staff_role() is null for the revoked member's live client."
+  },
+  {
+   "claim": "A signed upload URL from createSignedUploadUrl is valid for 2 hours; `upsert: false` at signing is encoded as x-upsert and uploadToSignedUrl cannot change it",
+   "where": "supabase/functions/_shared/admin.ts:127-130; paid-files.ts:84-85",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl: 'They are valid for 2 hours.' node_modules/.pnpm/@supabase+storage-js@2.117.1/.../dist/index.mjs:728-729: 'The upsert option has no effect here. To enable upsert behavior, pass { upsert: true } when calling createSignedUploadUrl() instead', line 766 sets 'x-upsert' at signing. Consequence: quarantine parts of an expired ticket can still be uploaded for up to 2 hours; harmless, swept after a day."
+  },
+  {
+   "claim": "Supabase Edge Functions: wall clock 150 s (free) / 400 s (paid), 256 MB memory, 2 s CPU time per request",
+   "where": "supabase/functions/_shared/outbox.ts:65-66 (CLAIM_LIMIT 10, LEASE_SECONDS 120) with email.ts:27 (10 s Resend timeout); media-complete buffers up to 15 MiB + 4 x 4 MiB",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/guides/functions/limits: 'Max Duration (Wall clock limit) 150s / 400s', 'Max Memory 256MB', 'Max CPU Time 2s'. A worst-case outbox run (10 rows x 10 s timeouts) fits in 150 s; an interrupted run leaves rows in `sending`, which the next claim turns `uncertain` and re-claims within 23 hours under the same key."
+  },
+  {
+   "claim": "Cloudflare GraphQL: httpRequestsAdaptiveGroups retains at least 31 days on every plan; the API quota is 300 queries per 5 minutes; the maximum records per query (maxPageSize) is a per-node, per-plan setting",
+   "where": "supabase/functions/_shared/analytics.ts:8-31, :38-45 (TOP_PATHS_QUERY_LIMIT 10000, 'gate E11 confirms the node's maxPageSize')",
+   "verdict": "true",
+   "evidence": "https://developers.cloudflare.com/analytics/graphql-api/limits/: 'Adaptive datasets, such as httpRequestsAdaptiveGroups ..., retain at least 31 days of data on every plan', 'The default quota is 300 GraphQL queries over 5-minute window', node limits include 'the maximum number of records that can be returned in one query' with exact values only from the settings discovery query. The 7-day window is within retention; the 10000 limit stays unverified until E11 as the code says, and a refusal is reported as GRAPHQL_ERROR, never a number."
+  },
+  {
+   "claim": "image-size 2.0.4 reports an AVIF as type 'avif', so DETECTED_MIME maps every AVIF",
+   "where": "supabase/functions/_shared/media.ts:149-154",
+   "verdict": "false",
+   "evidence": "node_modules/image-size/dist/esm/types/heif.js:29 `const type = toUTF8String(input, 8, 12)` and :63 return the raw major brand; validate() (lines 2-21) also accepts mif1, msf1, heic, heix, hevc, hevx. Only a file whose major brand is literally 'avif' maps; an 'avis' (image sequence) or 'mif1'-major-brand AVIF is UNKNOWN_TYPE (finding EF-ADMIN-05)."
+  }
+ ],
+ "coverage": "Read in full: supabase/functions/_shared/{admin,staff,recent-totp,db,env,http,stats,analytics,email,outbox,resend-webhook,jobs,media,media-rules,media-sweep,commerce-settings,paid-files}.ts; supabase/functions/{admin,staff-admin,outbox,resend-webhook}/index.ts and deno.json; supabase/config.toml; migrations 20260924130000 (staff, last-owner trigger), 20260926090000 (media tables and functions), 20260926120000 (outbox/suppressions/events tables, recipient_hash), 20260927090000 (outbox_kick, storage buckets, grants), 20260927120000 (media sweep SQL), 20260927150000 (outbox_due_since), 20260927180000 (media_delete), 20260930140000 (outbox_result, email_event_record, commerce_settings_save, commerce_policies_approve), 20261002120000 (outbox_claim, outbox_replay, outbox_attention), 20261002100000 (paid-files bucket); src/components/admin/{TeamView,StepUp,MfaEnroll,AdminShell}.tsx whole, MediaUpload.tsx 150-340, VariantCommerce.tsx 140-220, EmailView.tsx by grep; src/lib/supabase/{functions,browser}.ts; src/lib/admin-money.ts step-up part; installed supabase-js 2.117.1 (getClaims, fetchWithAuth/_getSessionToken), storage-js (signed-upload upsert), image-size 2.0.4 heif detector; tests/unit/{recent-totp,resend-webhook,admin-function,staff-admin-function,outbox}.test.ts case lists (resend-webhook read in part), tests/integration/staff-admin.test.ts; prior audits: AUDIT-1 appendix slice rows, AUDIT-2 findings.json slice rows in detail, P08 rounds 5 and 7 uncovered lists; PLANS ISSUES I28/I32/I49/I50/I51, P08-CONTRACT sections 7-8, DATA-AND-SECURITY authorization, WORK-PACKAGES P03/P11; docs/operations.md outbox, quota, suppression and delivery sections. Action inventory of `admin` (role / fresh TOTP / schema / SQL as service_role, which rechecks the actor unless noted): media-ticket, media-complete, media-delete (owner|editor, no TOTP, ticketRequestSchema / UUID, media_create_ticket+media_ticket/claim/complete/delete via content_assert_publisher); stats (owner, no TOTP, statsSchema, owner_commerce_stats has no actor and relies on the function's check); status (owner, no TOTP, no SQL); payment-recheck (owner, no TOTP, UUID, payment_attempt_ref); refund-create (owner, TOTP); refund-recheck (owner, no TOTP); refund-record-external (owner, TOTP); dispute-record (owner, TOTP); commerce-settings-save, commerce-policies-approve, commerce-checkout-set (owner, TOTP, zod strict schemas, SQL rechecks owner); paid-file-ticket (owner, no TOTP, no SQL, no actor binding of the ticket); paid-file-complete (owner, no TOTP, paid_asset_set rechecks owner). staff-admin: invite/set_role/set_active all owner + fresh TOTP; invite creates a confirmed user and a staff row and sends nothing (no invite link; the invitee signs in with a code, otp_expiry 600 s locally); revoke sets active=false then bans ('876000h'); live sessions keep a valid JWT until exp but every function and RLS check reads staff.active per request; the last-owner guard is a deferred constraint trigger serialized by an advisory lock and holds under concurrency by construction. Freshness: aal2 plus a totp amr entry whose GoTrue timestamp is the claim row's updated_at, so a refresh cannot extend it and any step-up serves every step-up action of the session for 300 s (D13). No finding reachable by a lower role, a revoked member or at aal1 beyond the documented no-TOTP owner actions (EF-ADMIN-03 is the one policy question). Sampled only: src/lib/admin-{orders,commerce,publish}.ts (export lists and paid-file helpers), the other admin components (call sites only), refunds.ts/disputes.ts/payments.ts (wiring only; payments slice), contact.ts (email grammar). Not reached: a running stack (none), the hosted project (no E11 maxPageSize check, no live webhook), Resend's SMTP behaviour for Supabase Auth mail, GoTrue's ban check on /user for a live token. Next with more time: a two-connection race test design for outbox_claim at a tier boundary and the paid-file signed-token replay during a 55P03 put-back (both listed as uncovered in P08 rounds 5 and 7), and the e2e auth.spec assertions against revocation. Insurance files: scratchpad/audit/EF-ADMIN/{findings,doc-claims,prior-fix-checks,plan-gaps}.jsonl and coverage.md."
+}

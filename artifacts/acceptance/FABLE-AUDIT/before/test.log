@@ -1,0 +1,81 @@
+
+ RUN  v5.0.1 C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME
+
+ ❯ tests/unit/reader-mapping.test.ts (16 tests | 1 failed) 27589ms
+   ❯ the real preview, read by pdf.js (1)
+     × comes out in reading order once the ligatures are put back 27442ms
+[vitest-pool]: Timeout terminating forks worker for test files C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME/tests/unit/rate-limit.test.ts.
+ ❯ tests/unit/restore-check.test.ts (12 tests | 5 failed) 69195ms
+   ❯ restore-check --extract (1)
+     × refuses a directory inside the repository before it reads anything 5742ms
+   ❯ restore-check arguments (6)
+     × --help prints the usage and exits 0 before any passphrase prompt or CLI call 7239ms
+     × an unknown flag is refused with the usage and exit 2, never the full rehearsal 8206ms
+     × --extract with an empty value (an unset variable) is refused with the usage and exit 2, never the full rehearsal 9293ms
+     × a second file is refused with the usage and exit 2, never the full rehearsal 5891ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/reader-mapping.test.ts > the real preview, read by pdf.js > comes out in reading order once the ligatures are put back
+Error: Test timed out in 15000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/unit/reader-mapping.test.ts:169:3
+    167| describe('the real preview, read by pdf.js', () => {
+    168|   // Parsing the real PDF takes close to 5 s when the whole suite runs…
+    169|   it('comes out in reading order once the ligatures are put back', asy…
+       |   ^
+    170|     const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    171|     const data = new Uint8Array(readFileSync('public/book/khous-previe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/unit/restore-check.test.ts > restore-check --extract > refuses a directory inside the repository before it reads anything
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/unit/restore-check.test.ts:51:3
+     49|
+     50| describe('restore-check --extract', () => {
+     51|   it('refuses a directory inside the repository before it reads anythi…
+       |   ^
+     52|     const result = restoreCheck(['missing.enc', '--extract', 'restore-…
+     53|     expect(result.status).toBe(1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/unit/restore-check.test.ts > restore-check arguments > --help prints the usage and exits 0 before any passphrase prompt or CLI call
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/unit/restore-check.test.ts:60:3
+     58|
+     59| describe('restore-check arguments', () => {
+     60|   it('--help prints the usage and exits 0 before any passphrase prompt…
+       |   ^
+     61|     const result = restoreCheck(['--help'])
+     62|     expect(result.status).toBe(0)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/unit/restore-check.test.ts > restore-check arguments > an unknown flag is refused with the usage and exit 2, never the full rehearsal
+ FAIL  tests/unit/restore-check.test.ts > restore-check arguments > --extract with an empty value (an unset variable) is refused with the usage and exit 2, never the full rehearsal
+ FAIL  tests/unit/restore-check.test.ts > restore-check arguments > a second file is refused with the usage and exit 2, never the full rehearsal
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/unit/restore-check.test.ts:73:5
+     71|     ['--extract followed by another flag', ['x.enc', '--extract', '--h…
+     72|     ['a second file', ['a.enc', 'b.enc']],
+     73|   ])('%s is refused with the usage and exit 2, never the full rehearsa…
+       |     ^
+     74|     const result = restoreCheck(args, 'a-real-backup-passphrase-123')
+     75|     expect(result.status).toBe(2)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+
+ Test Files  2 failed | 66 passed (68)
+      Tests  6 failed | 2207 passed (2213)
+   Start at  22:26:27
+   Duration  120.11s (tests 53%, import 27%, transform 20%, worker 1%)
+
+    Isolate  68 workers spawned · ~6.84s startup each (spawn + environment, per file)
+             at least ~35.47s faster with isolate: false — reuses workers across files instead of one per file
+

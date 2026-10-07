@@ -1,0 +1,12 @@
+# other project's stack paused for the FABLE-AUDIT battery, 2026-10-06T22:15:15Z; restored with docker start at the end
+supabase_db_saloony-repair
+supabase_studio_saloony-repair
+supabase_pg_meta_saloony-repair
+supabase_edge_runtime_saloony-repair
+supabase_storage_saloony-repair
+supabase_rest_saloony-repair
+supabase_realtime_saloony-repair
+supabase_inbucket_saloony-repair
+supabase_auth_saloony-repair
+supabase_kong_saloony-repair
+# paused again for the resumed battery, 2026-10-07T11:09:59Z

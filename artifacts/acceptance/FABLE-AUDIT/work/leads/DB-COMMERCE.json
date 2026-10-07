@@ -1,0 +1,210 @@
+{
+ "findings": [
+  {
+   "id": "DB-COMMERCE-01",
+   "title": "Switching a variant's preorder off strands every unpaid or unresolved preorder order: the commit reads capacity that the form has just nulled",
+   "severity": "medium",
+   "category": "correctness",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 649,
+   "evidence": "finance.order_try_commit decides by the reservation's own flag: `if r.res_preorder then v_free := coalesce(r.preorder_capacity, 0) - finance.preorder_committed(r.variant_id) - ...` (lines 648-650), and the stock loop skips such lines (`not coalesce(x.preorder, false)`, line 676). The variant form nulls the capacity when the switch goes off (`preorder_capacity: preorder ? (values.preorder_capacity ?? null) : null`, src/admin/tables/variants.ts:97), so v_free becomes 0 - committed < quantity. order_resolve (20261002145000_order_operations.sql:963) calls the same function and answers STOCK_UNAVAILABLE; nothing ever rewrites a reservation's preorder flag. docs/operations.md:1083-1089 tells the owner to switch preorder off when the copies arrive and says nothing about open holds. The rule is deliberate (P08-CONTRACT.md:173, 613-614) and pinned by tests/integration/payment.test.ts:1664-1673 (a reservation flagged preorder on a variant with null capacity -> paid_needs_resolution), but neither the contract, the test nor the runbook follows it to the switch-off moment, where every open preorder hold meets a null capacity.",
+   "impact": "Precondition: a buyer holds a preorder reservation (unpaid, inside the 20-minute hold, or an attempt paying) or an order sits in paid_needs_resolution at the moment the owner switches the preorder off, which is the planned lifecycle event. The buyer's payment then lands as paid_needs_resolution although the real stock is on the shelf, and the owner's «حلّ الطلب» answers STOCK_UNAVAILABLE for ever; the only way out is a refund. Money is kept, so no loss, but a paid order the owner cannot deliver through the admin.",
+   "proposed_fix": "In finance.order_try_commit treat a preorder reservation on a variant that is no longer a preorder by the stock rule: compute `v_as_preorder := r.res_preorder and v.preorder` (join v.preorder into the loop) and use it both in the free check and in the stock-decrement loop's `not coalesce(x.preorder, false)` condition; alternatively refuse the switch-off (trigger on product_variants) while a held unexpired or uncommitted preorder reservation exists and say so in the form. payment.test.ts:1664 then asserts the new rule (commit by stock when the variant is no longer a preorder), not the old outcome.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "Local stack: make variant V a preorder (capacity 5, date tomorrow); checkout_create one line of V qty 1 (reservation preorder=true, held); as owner update product_variants set preorder=false, preorder_capacity=null, preorder_ships_on=null, preorder_note=null, stock=10 where id=V; then apply a verified paid payment for the attempt (emulator). Expect orders.status = 'paid_needs_resolution' and select public.order_resolve(order_id) -> {ok:false, code:'STOCK_UNAVAILABLE'} although stock = 10 and no other hold exists.",
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-COMMERCE-02",
+   "title": "A digital order line whose variant was later made physical is stock-checked and decrements stock at payment",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 651,
+   "evidence": "The commit loop joins the variant's CURRENT columns: `elsif r.stock is not null then v_free := r.stock - ...` (line 651-652) and the decrement loop `where ... v.stock is not null and not coalesce(x.preorder, false)` (line 676) never look at the item's snapshot `i.fulfillment` or at whether a reservation exists. A digital, non-preorder line has no reservation (checkout_create inserts one only `where l ->> 'fulfillment' <> 'digital' or ...preorder`, 20261002110000_checkout_payment.sql:611). The owner may change `fulfillment` and `stock` through the Data API (`grant update (... fulfillment, ... stock ...)`, 20260927160000_catalog_and_checkout.sql:284).",
+   "impact": "Precondition: the owner turns a digital variant into a physical one (setting a stock) while an unpaid order with a digital line of it exists. That line is then refused for stock (paid_needs_resolution if stock < quantity) or, when stock suffices, one physical unit is decremented and audited for a copy that is delivered as a file (the entitlement is still created from the snapshot). Rare, bounded to one owner action, but it is a wrong stock state.",
+   "proposed_fix": "Restrict both loops to lines that hold a reservation (`join finance.inventory_reservations x` instead of `left join`, or `where x.id is not null`): a physical or signed line always has one, a digital preorder has one, a digital non-preorder line has none and needs no stock.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-COMMERCE-03",
+   "title": "commerce_policies_approve still reads the live policy seqs without any lock, so an approval that overlaps a publish records a seq that is already replaced and the reset trigger never fires",
+   "severity": "low",
+   "category": "concurrency",
+   "file": "supabase/migrations/20260930140000_audit2_fixes.sql",
+   "line": 112,
+   "evidence": "The final body (audit2_fixes, the create or replace of 20260927170000_policy_approval.sql) does `select seq into v_store from public.published_documents where collection = 'policies' and doc_id = 'store';` four times with plain SELECTs (lines 112-115) after locking only finance.commerce_settings. The reset trigger `policies_reset_approval` (20260930120000_audit_fixes.sql:141-145) updates the settings row only `where policy_revisions ? v_doc`, so while the approval is '{}' (the normal state during an approval) a concurrent publish of seq N+1 matches nothing, takes no lock and does not serialize with the approval, which then commits {store: N}. AUDIT-2 GAP-G5-3 recorded this; P08's I48(1) work added the client-side embedded revisions (P08-CONTRACT.md:294) but left this function unchanged.",
+   "impact": "Precondition: the owner publishes a policy and clicks «اعتماد السياسات» within the same second (or publish_due commits a scheduled policy during the approval). Outcome: the approved set names a seq that is no longer live; after the next build every checkout sends the live seq and is refused POLICY_CHANGED, the quote still says checkoutEnabled: true, and no `commerce.policies_reset` audit row or admin signal explains why until the owner re-approves. Fail-closed (no order binds an unseen text), so low.",
+   "proposed_fix": "In commerce_policies_approve take the per-document advisory lock every policy writer already uses, before reading the seqs: `perform pg_advisory_xact_lock(hashtext('content:policies:' || d)) from unnest(array['store','delivery','refund','privacy']) d;` (or read each row `for share`), so a publish in flight either finishes first or waits for the approval and then resets it.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-2 GAP-G5-3; ISSUES I48 (1)"
+  },
+  {
+   "id": "DB-COMMERCE-04",
+   "title": "Bidi override and isolate characters pass the buyer's name, address and dedication into the order snapshot, the admin and the mails",
+   "severity": "low",
+   "category": "hardening",
+   "file": "supabase/migrations/20261002110000_checkout_payment.sql",
+   "line": 471,
+   "evidence": "checkout_create's contact check is `or v_name ~ '[[:cntrl:]]'` (line 471) and the address check `or v_address ~ '[[:cntrl:]]'` (line 520); finance.checkout_price refuses a dedication with the same class (line 119). Under a libc collation (Supabase default) PostgreSQL maps [[:cntrl:]] to iswcntrl, the Cc category (glibc adds U+2028/U+2029); only an ICU default collation would also take Cf. U+202A-U+202E (LRE/RLE/PDF/LRO/RLO), U+2066-U+2069 (isolates) and U+200B-U+200F/U+FEFF are Cf and pass. The function's rule is the same ASCII range: `noControlCharacters = (value) => !/[\\u0000-\\u001F\\u007F-\\u009F]/.test(value)` (supabase/functions/_shared/commerce-settings.ts:18). The snapshot columns customers.name / orders.customer_name, orders.address and order_items.dedication are shown in the admin order view (20261002145000_order_operations.sql:322), on the signed-edition checklist and in the receipt (order_email_data, 20261002120000_order_emails.sql:59).",
+   "impact": "A buyer (or a prankster using a known address) can type a name or delivery address containing U+202E so that the operations screen, the dedication checklist Anas writes from and the courier label the owner copies render it reversed or with digits reordered: a wrong dedication written into a signed copy, or a mis-copied address. Bounded to one order at a time, needs a hostile buyer, so low; the plan's own rule for untrusted text is 'Bidi isolation' (DATA-AND-SECURITY, last section), which isolates the surroundings but not the inside of the field.",
+   "proposed_fix": "Extend the refusal to the formatting controls in both places: in SQL `~ '[[:cntrl:]‪-‮⁦-⁩]'` (PostgreSQL ARE character-entry escapes work inside a bracket) for v_name, v_address and v_dedication, and the same ranges in `noControlCharacters` so the field is named (the I48 (5) pattern). Leave ZWNJ/ZWJ/RLM (U+200C/U+200D/U+200F) alone: Arabic text uses them legitimately.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "On the local stack: `select E'‮abc' ~ '[[:cntrl:]]';` expected false (the character passes); then call public.checkout_create with p_name = E'‮' || 'عبدالله' and a valid cart: expected ok:true and orders.customer_name containing U+202E. Also `show lc_ctype;` to record the collation provider.",
+   "confidence": "medium",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-COMMERCE-05",
+   "title": "Coupon uses and committed preorder units are counted across environments, so the hosted sandbox runs permanently spend live coupon limits and preorder capacity",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/migrations/20260927160000_catalog_and_checkout.sql",
+   "line": 451,
+   "evidence": "finance.coupon_uses counts `finance.coupon_redemptions c where c.coupon_id = p_coupon_id and (c.state = 'committed' or ...)` with no join to the order's environment (lines 451-454); finance.preorder_committed likewise sums committed preorder reservations of any order (20261002100000_payment_core.sql:445-447), and variant_admin_info.preorderUnits (20261003110000:45-55) too. orders.environment and payment_attempts.environment exist, and the contract keeps test and live apart everywhere else (statistics, payment_view, order_access all take p_mode). A paid test order is never purged (order_erasable needs expired/cancelled) and a refund releases preorder reservations but never a coupon redemption (stats_disputes.sql:200-206), so once the hosted site runs the supervised sandbox (payments-runbook 'When the Moyasar keys arrive') with a coupon or a preorder, those uses stay counted after PAYMENTS_MODE flips to live. The 'Before live' list (payments-runbook.md:314) says to read the stock and says nothing of coupon uses or capacity.",
+   "impact": "Precondition: the sandbox pass on the hosted project (planned before launch) pays test orders that use the launch coupon or a preorder variant. On the live site the coupon reports COUPON_EXHAUSTED N uses early and the preorder offers N fewer units, and the variant form tells Anas to net N phantom confirmed preorders out of his real stock. Bounded to the number of test orders and correctable by hand (a higher usage_limit, SQL), so low; still a launch-day surprise with no admin control to undo it.",
+   "proposed_fix": "Make the counts mode-aware: give finance.coupon_uses and finance.preorder_committed (and finance.active_holds) a p_environment parameter and join finance.orders o on o.id = r.order_id and o.environment = p_environment; pass checkout_create's p_environment (and the order's own environment in order_try_commit) through finance.checkout_price / finance.availability, and let checkout_quote take p_environment from the function's config. Until then add to 'Before live': cancel or refund every test order, then release its redemptions and reservations by SQL as the migration role.",
+   "fix_size": "medium",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": ""
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "AUDIT-2 GAP-G5-3 / I48(1)",
+   "claim": "Policy approval cannot bind an order to a revision the buyer was not shown",
+   "holds": true,
+   "evidence": "Client side holds: checkout_create refuses any set but the approved one (POLICY_CHANGED, 20261002110000_checkout_payment.sql:462) and the form sends the built seqs. The DB race itself is unchanged (plain SELECTs in commerce_policies_approve, audit2_fixes.sql:112-115): its outcome is now a silent fail-closed checkout, reported as DB-COMMERCE-03."
+  },
+  {
+   "prior_id": "AUDIT-1 S05.3",
+   "claim": "One order.expired audit row per order with its order number",
+   "holds": true,
+   "evidence": "finance.checkout_expire final body (20260930120000_audit_fixes.sql:605-608) inserts one row per id with jsonb_build_object('orderNumber', o.order_number); no later migration redefines checkout_expire (extractor: 2 definitions, base and audit_fixes)."
+  },
+  {
+   "prior_id": "AUDIT-1 S05.4",
+   "claim": "A coupon's product_ids, kind and code are audited with from/to values",
+   "holds": true,
+   "evidence": "public.catalog_audit final body (20261002100000_payment_core.sql:110-114) keeps 'product_ids', 'kind', 'code' in the from/to list and adds 'preorder', 'preorder_capacity'; diff v2->v3 shows only that addition."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-commerce-set-2 / GAP-G3-12",
+   "claim": "Stale-version conflicts in commerce_settings_save and commerce_policies_approve raise 23505, never 40001",
+   "holds": true,
+   "evidence": "Both final bodies are the audit2_fixes ones (lines 43-46 and 107-110: errcode = 'unique_violation'); commerce_checkout_set (20261002110000_checkout_payment.sql:731-734) follows the same rule. No later redefinition (extractor counts 2 and 2)."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-catalog-1",
+   "claim": "A stock-only variant save does not request a site rebuild",
+   "holds": true,
+   "evidence": "The row trigger product_variants_request_build_update was recreated in 20261002100000_payment_core.sql:76-86 with the preorder public columns added and stock, low_stock_threshold, digital_asset and preorder_capacity still outside the comparison."
+  },
+  {
+   "prior_id": "AUDIT-2 GAP-G1-1",
+   "claim": "The retention purge's coupon_redemptions delete is proven by a test",
+   "holds": true,
+   "evidence": "tests/integration/buyer-retention.test.ts:121-141 inserts a released redemption for the old order and asserts it is gone and the recent order's survives."
+  },
+  {
+   "prior_id": "AUDIT-1 X1.1 / AUDIT-2 I48(2) X-MONEY-1",
+   "claim": "A change to an approved policy closes checkout, and the quote's checkoutEnabled reflects seller and policy readiness",
+   "holds": true,
+   "evidence": "policies_reset_approval trigger exists once (20260930120000_audit_fixes.sql:119-158, on insert/update/delete of published_documents); checkout_quote final body ANDs checkout_enabled, seller_legal_name, seller_registration and policy_revisions <> '{}' (20261002110000_checkout_payment.sql:352-356)."
+  },
+  {
+   "prior_id": "I44(2) / AUDIT-1 S06.4",
+   "claim": "The store-wide 500-per-day checkout counter is spent only by created orders",
+   "holds": true,
+   "evidence": "checkout_create final body takes 'checkout:all' at step 7 (20261002110000_checkout_payment.sql:532), after every business refusal has already returned; a raise there rolls the hit back."
+  },
+  {
+   "prior_id": "AUDIT-2 X-SEC-4 / I48(3)",
+   "claim": "No per-email hold or per-email throttle remains; ACTIVE_HOLD leaks the order only to the same email",
+   "holds": true,
+   "evidence": "checkout_create final body has no 'checkout:email' bucket and no email advisory lock; the session query is `o.checkout_session = p_checkout_session` only (line 487) and the order summary, idempotencyKey and tokenVersion are added only when `v_held.email_hash = v_email_hash` (lines 490-496)."
+  },
+  {
+   "prior_id": "AUDIT-1 X2.6",
+   "claim": "A product cannot be saved with a library cover that is gone (products_check_cover, FOR KEY SHARE)",
+   "holds": true,
+   "evidence": "Trigger and function defined once (20260930120000_audit_fixes.sql:663-686); media_delete's FOR UPDATE on public.media (20260927180000_store_media.sql:61) conflicts with the KEY SHARE as described."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-catalog-2 / I48(4)",
+   "claim": "A coupon that brings the total under 100 halalas cannot create an order",
+   "holds": true,
+   "evidence": "finance.checkout_price final body adds TOTAL_BELOW_MINIMUM when no other error and v_total < 100 (20261002110000_checkout_payment.sql:247-249); payment_attempt_begin refuses total_halalas < 100 as a second guard (payment_core.sql:775); tests/integration/checkout.test.ts:685 and :712 exercise 99, zero-by-coupon, exactly 100 and the delivery-inclusive total. Moyasar's documented minimum is 100 (doc claim checked)."
+  },
+  {
+   "prior_id": "P08 round 2 R2-04",
+   "claim": "buyer_retention_purge locks the candidate orders first (for update skip locked) so it cannot delete under a late payment",
+   "holds": true,
+   "evidence": "Final body (20261002170000_stats_disputes.sql:256-263) selects `from finance.orders o where finance.order_erasable(o) and o.updated_at < now() - interval '90 days' for update of o skip locked` before finance.orders_delete; apply_verified_payment locks the order row first (payment_core.sql:1051), so the two serialize."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "The policy approval does not require a privacy policy, so an order can bind only store, delivery and refund revisions while a privacy policy is live or arrives later",
+   "why_needed": "commerce_policies_approve raises only when store, delivery or refund is unpublished (audit2_fixes.sql:116-118); privacy is folded in only if published at that moment, and DATA-AND-SECURITY.md:16 says a privacy policy published after the approval does not reset it. Every order snapshots policy_revisions, so orders made in that state carry no privacy revision; the buyer consented to a set that omits the privacy notice. Whether the store may sell without a privacy revision in the consent is Anas's and the legal gate's call (E08, PDPL notice at collection), not the code's.",
+   "touches": "public.commerce_policies_approve (require 'privacy' too, or record the decision), PLANS/DATA-AND-SECURITY.md:16, docs/operations.md policy approval steps, I43",
+   "package": "P08 close / P11",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "The runbook's 'switch the preorder off when the copies arrive' step needs a precondition: no unpaid preorder hold and no paid_needs_resolution preorder order for that variant",
+   "why_needed": "docs/operations.md:1083-1089 tells the owner to switch preorder off and net the stock, but finance.order_try_commit decides by the reservation's own preorder flag against a capacity the form has just nulled (DB-COMMERCE-01), so a hold or an unresolved order caught by the switch can never be delivered through the admin. Until the code fix lands, the runbook must say: wait for the variant's held preorder reservations to reach zero (the form shows only confirmed, unshipped units today) and resolve every paid_needs_resolution order of the variant first; after the fix the step can stay as written.",
+   "touches": "docs/operations.md Preorders section, src/admin/tables/variants.ts (show held and unresolved preorder units beside the confirmed count), PLANS/P08-CONTRACT.md section 4 availability rule",
+   "package": "P08 close",
+   "urgency": "before_P09",
+   "owner_decision": false
+  },
+  {
+   "title": "No per-customer coupon limit exists anywhere in the plan or the schema",
+   "why_needed": "coupons carry usage_limit (store-wide), dates, minimum and product scope only (catalog_and_checkout.sql:153-174); finance.coupon_uses counts redemptions per coupon. A 'one per customer' launch code (the usual welcome discount) cannot be configured: the same address can redeem it once per order until the store-wide limit. Whether Anas wants such coupons decides if a per-email count (orders.email_hash join coupon_redemptions) is added to checkout_price.",
+   "touches": "public.coupons (a per_customer_limit column), finance.checkout_price coupon branch, src/admin/tables/coupons.ts, DATA-AND-SECURITY.md coupons row",
+   "package": "P09 or later",
+   "urgency": "later",
+   "owner_decision": true
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "The gateway refuses an invoice under 100 halalas (TOTAL_BELOW_MINIMUM, minimum 100 in finance.checkout_price and payment_attempt_begin)",
+   "where": "https://docs.moyasar.com/api/invoices/01-create-invoice",
+   "verdict": "true",
+   "evidence": "Create Invoice: amount is 'A positive integer representing the payment amount in the smallest currency unit', 'Possible values: >= 100'."
+  },
+  {
+   "claim": "An invoice whose expired_at has passed cannot be paid, so the hold expiry (copied into the invoice's expired_at by startPayment) bounds late payments to those initiated before expiry",
+   "where": "https://docs.moyasar.com/api/invoices/01-create-invoice",
+   "verdict": "true",
+   "evidence": "expired_at: ISO 8601 date or datetime, default null; 'User will be prevented from paying the invoice once expired'; a date-only value sets the time to 00:00:00."
+  },
+  {
+   "claim": "`perform 1 from public.product_variants v where v.id = any(v_ids) order by v.id for update` acquires the row locks in ascending id, so checkout_create, order_try_commit, refund_lock_rows and return_receive share one lock order on variants",
+   "where": "https://www.postgresql.org/docs/current/sql-select.html (The Locking Clause)",
+   "verdict": "true",
+   "evidence": "'ORDER BY is applied first. The command sorts the result, but might then block trying to obtain a lock on one or more of the rows.' Locks are taken in the sorted order; rows that satisfied the conditions as of the snapshot are locked even when no longer returned."
+  }
+ ],
+ "coverage": "Read in full (every line): supabase/migrations/20260927160000_catalog_and_checkout.sql, 20260927170000_policy_approval.sql, 20260927180000_store_media.sql, 20260930120000_audit_fixes.sql, 20260930130000_buyer_retention.sql, 20260930140000_audit2_fixes.sql, 20261002100000_payment_core.sql, 20261002110000_checkout_payment.sql, 20261003110000_variant_admin_info.sql.\nRead in part: 20261002170000_stats_disputes.sql (lines 1-310 and 600-892: helpers, refund_succeed, buyer_retention_purge final, privacy export/erase, events purge, grants), 20261002140000_delivery.sql (1-280: index, item_returnable, order_access, recovery), 20261002145000_order_operations.sql (203-295 orders_list; 815-1024 return_receive, order_resolve, review_close), 20261002130000_refunds.sql (36-205 locks and allocation), 20260926120000_contacts_and_email.sql (rate_limits, rate_limit_take, recipient_hash, outbox columns), 20260927130000_commerce_settings.sql (table, seed). All later migrations grepped for every statement touching orders, order_items, inventory_reservations, coupon_redemptions, customers, coupons, product_variants, shipping_rates, products (226 hits) and for every DDL/grant statement (only one index and one column added after payment_core). Every FK into the commerce tables listed and checked against finance.orders_delete.\nFunctions: supabase/functions/_shared/checkout.ts and tokens.ts whole; commerce-settings.ts noControlCharacters; payments.ts expiry lines. Admin: src/admin/tables/variants.ts preorder save. Public reads of the catalog grepped (build-time and catalog_availability only).\nPlans/docs: DATA-AND-SECURITY.md whole, VERIFICATION.md whole, ISSUES.md whole, P08-CONTRACT.md s1 (environment, fence, switch), s3-s6 (states, schema, tokens, payment core, checkout), s11-s13; docs/operations.md checkout holds (594-663) and preorders (1064-1089); docs/payments-runbook.md 'Before live' and the sandbox fence.\nPrior audits: AUDIT-1 appendix rows naming the slice; AUDIT-2 findings.json rows for DB-*, X-SEC-4/5, GAP-G1-1, GAP-G5-3, DB-catalog-2/3 with run2 verdicts; AUDIT-2 REPORT section 5; P08 rounds 2, 4, 9 'Uncovered' lists and rulings. Tests read: checkout.test.ts case list and the concurrency block (separate connections exist), the preorder snapshot test (1283-1333); payment.test.ts 1664-1703; buyer-retention.test.ts fixture lines.\nMethod: extract.cjs split all 207 function definitions into SCRATCH/fn and every multiply-defined function was located; each audit-fix function's final definer was confirmed (audit_fixes/audit2_fixes are final for all of them except outbox_claim/replay/attention, whose order_emails bodies keep the S03.5/S04.x guards and drop the old overload first); catalog_audit v2->v3 and checkout_create v1->v2 diffed line by line. Lock orders traced across checkout_create, order_try_commit (apply_verified_payment, order_resolve), checkout_cancel, checkout_expire, refund_lock_rows, return_receive, buyer_retention_purge, privacy_buyer_erase, order_recover_apply: no cycle found (variants in id order then coupon everywhere; rate_limits rows taken only after them or alone). Availability, holds, coupon counting, discount allocation, integer bounds, idempotency, customer matching, cities, policy consent, Data API grants and the retention deletes were each walked by hand; outcomes are in the findings and prior-fix checks. Vendor facts: Moyasar create-invoice page (minimum 100, expired_at), PostgreSQL SELECT locking clause.\nNot done: nothing was run against a database (stack down by mandate), so the two runtime recipes (DB-COMMERCE-01, -04) are left to the orchestrator; deno/vitest not run. Not read: owner_commerce_stats, dispute_record, disputes_list, notifications.sql sweep (other slices), payment_view v2 body, order_email_data body, download_* bodies.\nWithdrawn during the audit: a 'dead index orders_pending_email' note, because orders_list(filter pending, email query) can use it (order_operations.sql:240,249). Noted, not reported: DATA-AND-SECURITY.md 'Unpaid reservation abuse' still names the per-email hold rule P08 removed (P08-CONTRACT s13 records the difference and its Close round updates the plan docs); the 500/day budget being spent by real abusive holds is a recorded residual.\nWith more time: run the three concurrency recipes the P08 rounds left uncovered (checkout_create vs apply_verified_payment on the last preorder unit; two creates at 499 of the daily total; purge vs late payment) on the real stack; check the hosted project's collation provider for the [[:cntrl:]] class; read owner_commerce_stats for the cross-environment concern of DB-COMMERCE-05."
+}

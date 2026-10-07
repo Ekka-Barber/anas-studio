@@ -1,0 +1,216 @@
+{
+ "findings": [
+  {
+   "id": "DB-OPS-01",
+   "title": "fulfillment_stopped dispute decision has no effect: stopped items stay shippable and invisible to operations",
+   "severity": "high",
+   "category": "correctness",
+   "file": "supabase/migrations/20261002145000_order_operations.sql",
+   "line": 698,
+   "evidence": "fulfillment_update checks ORDER_NOT_PAID, INVALID_ITEMS, BAD_TRANSITION, ITEM_REFUNDED and DEDICATION_NOT_DONE and never reads finance.disputes; dispute_record (stats_disputes.sql:522-531) only validates that the named items are 'preparing' and inserts the row; order_detail returns the 'disputes' key only when v_role = 'owner' (order_operations.sql:415); OrderView.tsx:689 makes a line choosable unless fullyRefunded; orders_alerts.toShip (486-492) and the to_ship filter (243-247) still count the stopped lines.",
+   "impact": "After a chargeback the owner records «إيقاف الشحن» (fulfillment_stopped) and believes shipping is stopped; the line still appears under «للشحن» for the operations member, who sees no dispute section at all and ships the goods. The bank has already taken the money back; the goods are gone too.",
+   "proposed_fix": "In fulfillment_update, when p_state = 'shipped', refuse with a new code (ITEM_DISPUTED, itemIds) any item named in item_ids of the latest row (max seq per kind, provider_ref) of a finance.disputes row with decision = 'fulfillment_stopped' whose target attempt belongs to this order; leave the same items out of order_lines_to_ship, the to_ship filter and orders_alerts.toShip; add a per-fulfilment 'stopped' boolean to order_detail for every role and grey the line in OrderView.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none; VERIFICATION.md 'P08 dispute proof' asks for an explicit fulfilment decision, and contract section 6 says the decision is only recorded"
+  },
+  {
+   "id": "DB-OPS-02",
+   "title": "notify_confirm_backlog can deadlock with a concurrent notify_subscribe through the shared rate_limits rows",
+   "severity": "low",
+   "category": "concurrency",
+   "file": "supabase/migrations/20261002150000_notifications.sql",
+   "line": 147,
+   "evidence": "The hourly backlog loops over up to 200 pending rows in one transaction; for each it calls finance.notify_confirm_queue, which does `select ... for update` on the notification row (line 100) and then finance.rate_limit_take on the per-address row and on the shared 'notify-confirm:all' row (lines 111-114). rate_limit_take is `insert ... on conflict do update` (contacts_and_email.sql:62-70), so the updated finance.rate_limits row stays locked until commit. After the backlog has queued one mail it holds the 'all' row and then waits on the next notification row; a sign-up that already holds its own notification row (the upsert at line 212) and reaches rate_limit_take('notify-confirm:all') waits on the backlog. The file's lock-order comment (lines 30-34) names only the availability and notification rows.",
+   "impact": "Once an hour (minute 17), while at least two capped pending rows exist and a visitor signs up at that moment, PostgreSQL aborts one side with 40P01: the visitor's request answers 500 (notify.ts maps every non-54000 error to FAILED) or the backlog run fails and its mails wait another hour.",
+   "proposed_fix": "In finance.notify_confirm_backlog pick the rows with `for update skip locked` in the cursor query, so every candidate row is locked before any bucket is taken and the backlog never waits on a row a sign-up holds; or take the two buckets before the notification row lock in notify_confirm_queue.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "Three psql sessions on a disposable stack. Prepare two pending rows N1, N2 (addresses a@x.test, b@x.test, confirm_sent_at null) whose 'notify-confirm:email' day bucket is spent, then clear a@x.test's bucket so N1 can be queued. S2: begin; select * from public.notifications where id = N2 for update; S1: select finance.notify_confirm_backlog(); (queues N1, locks the 'notify-confirm:all' rate_limits row, blocks on N2). S2: select finance.rate_limit_take('notify-confirm:all', repeat('0',64), 30, interval '1 day'); (blocks on S1). After deadlock_timeout one session reports ERROR 40P01 deadlock detected. Expected after the fix: S1 skips N2 and returns 1.",
+   "confidence": "medium",
+   "prior_overlap": "R8-04 (purge deadlock, fixed); the orchestrator recorded 'the backlog against a sign-up for the same row' as uncovered"
+  },
+  {
+   "id": "DB-OPS-03",
+   "title": "An erased buyer's address keeps receiving mail: kept orders keep customer_email and email_hash, so recovery, shipping, refund and file-ready mails still go to it",
+   "severity": "medium",
+   "category": "privacy",
+   "file": "supabase/migrations/20261002170000_stats_disputes.sql",
+   "line": 784,
+   "evidence": "privacy_buyer_erase redacts only the outbox rows that exist (lines 781-786) and deletes only erasable orders; a paid, under-review or refunded order keeps customer_email and email_hash (lines 799-812 report it as ACCOUNTING_RETENTION). Later producers address new mail from that snapshot: order_recover_apply (delivery.sql:235-252, `returning o.customer_email`, orders matched by email_hash), fulfillment_update (order_operations.sql:721-723), refund_succeed (stats_disputes.sql:212-215), paid_asset_set (delivery.sql:461-464). The erase writes no finance.email_suppressions row, and docs/privacy-data-map.md:86-88 does not say the address will still be mailed.",
+   "impact": "After Anas confirms an erasure, anyone who types that address into the order-recovery form makes the system mail an order link to it (3 per hour per address, 20 per day in all), and any later shipment, refund or file upload on a kept order mails it too. The person was told their data was erased; the operator has no step that stops it.",
+   "proposed_fix": "Have privacy_buyer_erase insert finance.email_suppressions (recipient_hash, 'manual') for the address (outbox_claim then closes any later row as 'suppressed') and say in the data map that a later legitimate purchase from the same address needs the suppression removed; or, if E08 decides transactional mail on kept orders must continue, state that in the data map and in the answer sent to the person.",
+   "fix_size": "small",
+   "needs_owner": true,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "I51 (1) covers the export's gaps only"
+  },
+  {
+   "id": "DB-OPS-04",
+   "title": "A confirmed subscriber whose address bounced stays confirmed: every restock queues a notice that is closed 'suppressed' and lands in the mail attention list, and a sign-up for such an address spends a daily confirmation slot",
+   "severity": "low",
+   "category": "operations",
+   "file": "supabase/migrations/20261002150000_notifications.sql",
+   "line": 374,
+   "evidence": "availability_sweep's `due` CTE selects every status = 'confirmed' row below the revision and inserts one outbox row per subscriber (lines 374-384) without consulting finance.email_suppressions; outbox_claim then marks the row 'suppressed' (order_emails.sql:277-282) and outbox_attention lists status 'suppressed' rows that carry none of the excluded codes (order_emails.sql:421-423). notify_confirm_queue (lines 104-120) takes the address bucket and the day's 30 before the insert, also for a suppressed address. No migration moves a public.notifications row on a bounce or complaint.",
+   "impact": "After one hard bounce or complaint, each later restock of each variant that address confirmed adds a permanent «محظور» row to /admin/email's attention list that nobody can act on, and a stranger's sign-up of a bounced address burns one of the day's 30 confirmation mails on a row that can never be sent.",
+   "proposed_fix": "In the sweep's `due` CTE and in notify_confirm_queue skip rows whose finance.recipient_hash(n.email) is in finance.email_suppressions; or, in email_event_record, set that address's notifications to 'unsubscribed' when a suppression is inserted.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-OPS-05",
+   "title": "The buyer privacy procedure does not send the operator to the contact-form steps for the same address",
+   "severity": "low",
+   "category": "documentation",
+   "file": "docs/privacy-data-map.md",
+   "line": 58,
+   "evidence": "Line 58: «a buyer request touches customers, orders and their records only, never `auth.users`»; the export and erase steps (lines 60-88) never mention public.contacts or privacy_erase_contacts; privacy_buyer_export (stats_disputes.sql:606-725) reads no contacts row and privacy_buyer_erase (751-827) deletes none. The contact-form section (lines 44-48) is a separate procedure with its own query and function.",
+   "impact": "A buyer who also wrote through the contact form with the same address gets an access or erasure answer that misses their messages unless the operator remembers the other section; the ledger line for the buyer then records a deletion that left personal data behind.",
+   "proposed_fix": "Add one line to the buyer section: also run the contact-form visitor steps for the same address (the export query and privacy_erase_contacts) and record both calls in the ledger.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "DB-OPS-06",
+   "title": "The availability notice says the item is available («توفّر») when the sweep fired on a preorder state (pre-order only, ships later)",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/functions/_shared/email.ts",
+   "line": 519,
+   "evidence": "availability_sweep treats the public state 'preorder' as sellable (notifications.sql:365: `variant_public_state(...) in ('available', 'preorder')`; notify.test.ts:870 'counts a preorder as sellable'), and notify_email_data (order_emails.sql:137-156) carries no state, date or note, so renderAvailability always writes «توفّر … الذي طلبت أن نخبرك عنه» with the product page link.",
+   "impact": "A subscriber of an out-of-stock variant that the owner turns into a preorder (capacity and a future date) is mailed that the item is available; the page then offers «اطلب مسبقًا» with a delivery date. Dormant while preorder is off (Anas, Q05); live the day the owner switches a variant to preorder.",
+   "proposed_fix": "Add the public state and preorder_ships_on to notify_email_data and let renderAvailability say «أصبح متاحًا للطلب المسبق، يُشحن في <date>» for 'preorder'.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "R7B-1",
+   "claim": "A prompt the provider answered clears last_error = 'UNVERIFIED'; event_dismiss files an exhausted event; both alert counts leave out settled rows",
+   "holds": true,
+   "evidence": "order_operations.sql:1095-1101 (prompt branch sets last_error null when p_ok and UNVERIFIED), 1031-1058 (event_dismiss, owner, audit payment.event_dismissed), 173-184 (event_needs_person excludes a paid attempt or a review row), 494-498 (the alerts use both)."
+  },
+  {
+   "prior_id": "R7B-4",
+   "claim": "toShip counts from the preparing fulfilments and the to_ship filter is an inline exists",
+   "holds": true,
+   "evidence": "order_operations.sql:486-492 and 243-247."
+  },
+  {
+   "prior_id": "orchestrator round 7b (REFUND_IN_FLIGHT)",
+   "claim": "order_resolve refuses while a refund of the order is in flight",
+   "holds": true,
+   "evidence": "order_operations.sql:954-961: the paying attempt is locked and a refund in submitting/uncertain answers REFUND_IN_FLIGHT before order_try_commit."
+  },
+  {
+   "prior_id": "R8-01",
+   "claim": "While the variant is sellable every run tells each confirmed subscriber below the row's revision; the revision moves only on false to true",
+   "holds": true,
+   "evidence": "notifications.sql:366-386: v_revision = r.revision, bumped only when not r.sellable; the due CTE updates notified_revision < v_revision for every confirmed row."
+  },
+  {
+   "prior_id": "R8-04",
+   "claim": "The purge passes by an availability row another writer holds",
+   "holds": true,
+   "evidence": "notifications.sql:434-441: for update skip locked, then a delete that re-checks in a new statement."
+  },
+  {
+   "prior_id": "R8-09",
+   "claim": "notify_subscribe decides on the state read again under the availability row's lock",
+   "holds": true,
+   "evidence": "notifications.sql:204-209: insert on conflict do nothing, select for update, variant_public_state read again, then the stale-true reset."
+  },
+  {
+   "prior_id": "R8-06",
+   "claim": "A capped sign-up is queued later by an hourly backlog; an address gets at most five confirmation mails in 30 days",
+   "holds": true,
+   "evidence": "notifications.sql:104-108 (five notify_confirm outbox rows in 30 days refuse), 136-161 (notify_confirm_backlog), 457 (hourly). The 5-in-30 count is weakened only by privacy_buyer_erase's recipient redaction (stats_disputes.sql:784-785), which resets it for an erased address: acceptable."
+  },
+  {
+   "prior_id": "orchestrator round 8 (switch off)",
+   "claim": "The sweep does nothing while checkout is switched off",
+   "holds": true,
+   "evidence": "notifications.sql:352-354 reads finance.commerce_settings.checkout_enabled first and returns 0."
+  },
+  {
+   "prior_id": "R9-1",
+   "claim": "Processed webhook events older than 180 days are purged daily; those that still need a person stay",
+   "holds": true,
+   "evidence": "stats_disputes.sql:842-863."
+  },
+  {
+   "prior_id": "R9-3",
+   "claim": "The erase drops and redacts only the seven buyer kinds of mail",
+   "holds": true,
+   "evidence": "stats_disputes.sql:764 (v_kinds), 781-786."
+  },
+  {
+   "prior_id": "R9-4",
+   "claim": "The erase locks every order of the address before any other row",
+   "holds": true,
+   "evidence": "stats_disputes.sql:775."
+  },
+  {
+   "prior_id": "R9-6",
+   "claim": "A follow-up that names another target than its predecessor is TARGET_MISMATCH",
+   "holds": true,
+   "evidence": "stats_disputes.sql:505-511; the check is not filtered by environment, but a predecessor of the other environment already answers NO_PREDECESSOR at 499-504."
+  },
+  {
+   "prior_id": "I50 (1)",
+   "claim": "The variant form reads product_variants with select('*') and any active staff member may select digital_asset; the key alone grants nothing",
+   "holds": true,
+   "evidence": "src/components/admin/TableForm.tsx:182 select('*'); catalog_and_checkout.sql:281 grants select on every column of public.product_variants to authenticated and :290-291 lets any active role read; payment_core.sql:406-413 keeps paid-files private with no policies, and the only signer is download_redeem through the download function. The record is accurate and not worse."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Enforce the dispute decision fulfillment_stopped in fulfilment and show it to operations",
+   "why_needed": "Contract section 6 says the decision 'is only recorded' and order_detail hides disputes from operations, so the people who ship never learn of it and nothing refuses the shipment (DB-OPS-01); VERIFICATION.md's dispute proof asks for an explicit fulfilment decision.",
+   "touches": "a new migration replacing fulfillment_update, order_lines_to_ship, orders_alerts.toShip and order_detail; src/components/admin/OrderView.tsx; PLANS/P08-CONTRACT.md section 6; tests/integration/order-operations.test.ts and stats.test.ts",
+   "package": "P08 close (or the P10 security pass)",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Decide and build what an erasure does to future mail to the erased address",
+   "why_needed": "privacy_buyer_erase redacts existing outbox rows, but kept orders keep customer_email and email_hash, so recovery links, shipping, refund and file-ready mails still reach the person (DB-OPS-03); the data map does not say so and no suppression is written.",
+   "touches": "privacy_buyer_erase (a suppression row, or a documented decision), docs/privacy-data-map.md, the answer template to the person",
+   "package": "P12 privacy (E08), checked in P11",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "Close the loop between email suppressions and availability subscriptions",
+   "why_needed": "A bounced or complained address stays a confirmed subscriber; each restock creates a permanent «محظور» row in the mail attention list and a stranger's sign-up of it spends a daily confirmation slot (DB-OPS-04).",
+   "touches": "availability_sweep's due CTE, notify_confirm_queue, or email_event_record; docs/operations.md",
+   "package": "P10",
+   "urgency": "later",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "pg_cron runs one instance of a job at a time (a second instance queues) and schedules in GMT unless cron.timezone is set, so the every-minute availability_sweep never overlaps itself in production and the 03:37 and 03:47 purges run at 06:37 and 06:47 Riyadh",
+   "where": "https://github.com/citusdata/pg_cron (README: 'only one instance of each specific job at a time. If a second instance is triggered before the first finishes, it's queued'; 'Previously pg_cron could only use GMT time, but now you can adapt your time by setting cron.timezone')",
+   "verdict": "true",
+   "evidence": "Fetched 2026-10-06. The SQL's 'two sweeps at once' defence (notifications.sql:30-34; notify.test.ts:810) is therefore only reachable by a manual call, which is harmless."
+  }
+ ],
+ "coverage": "Read in full: supabase/migrations/20261002145000_order_operations.sql, 20261002150000_notifications.sql, 20261002170000_stats_disputes.sql, 20261003110000_variant_admin_info.sql; supabase/functions/_shared/admin.ts, disputes.ts, notify.ts, orders.ts, stats.ts; src/lib/admin-orders.ts; src/admin/tables/notifications.ts; PLANS/P08-CONTRACT.md (all 13 sections), PLANS/ISSUES.md, PLANS/VERIFICATION.md; docs/privacy-data-map.md; supabase/migrations/20260927140000_privacy_requests.sql; artifacts/acceptance/P08/rounds/round-07b.md and round-08.md whole, the rulings and uncovered lists of round-09, 10a, 10b, 11b, 11c. Read in part, the functions my slice calls: 20261002100000_payment_core.sql (every P08 table and grant, owner_alert, preorder_committed, availability, item_fully_refunded, order_try_commit, apply_verified_payment step 4, the round-2 payment_attempt_checked), 20261002130000_refunds.sql (helpers, refund_succeed, refund_dashboard, refund_request, refund_record_external), 20261002140000_delivery.sql (item_returnable, return_request_create, order_recover_apply's mail, paid_asset_set's mail), 20261002120000_order_emails.sql (data functions, outbox_claim, outbox_replay, outbox_attention), 20260927160000_catalog_and_checkout.sql (customers, product_variants grants and policies), 20261002110000_checkout_payment.sql (customer upsert and email_hash), 20260924130000 (current_staff_role), 20260926120000 (rate_limit_take, recipient_hash, outbox statuses), src/lib/admin-commerce.ts (stats range and parsers), src/lib/admin-money.ts (dispute form and replies), src/components/admin/StatsView.tsx, OrderView.tsx (fulfilment and dispute parts), AdminHome.tsx (stats call), outbox.ts (renderMail), email.ts (notify and availability text), payments.ts (settleInvoice), tokens.ts and env.ts (token derivation, secretsMatch). Tests: the owner_commerce_stats block of tests/integration/stats.test.ts; the test names of notify.test.ts, privacy-requests.test.ts, order-operations.test.ts (role denials), variant-admin-info.test.ts; the dispute path of tests/e2e/orders-money.spec.ts. No test, build or server was run (read-only mandate; the stack is not running). Vendor: the pg_cron README. Verified by reading: every writer's lock order against apply_verified_payment, the refund functions, the sweep, the purges and the erase (no cycle found except DB-OPS-02); the state machines of fulfilment, return, notification, dispute, review and event; the statistics sums against the ledger columns including partial, external and late-applied refunds, review money, disputes by latest row, the Riyadh day boundaries the screen sends; the privacy functions' matching (customers.email unique, customer_id not null, email_hash = recipient_hash of the normalized address) and what the erase leaves. Not reached: the bodies of order-operations.test.ts and notify.test.ts; OrdersView and ReconciliationView in full; DECISIONS.md on E08; the payments function and the reconciliation job (another slice); any runtime proof. Next with more time: run the three-session recipe of DB-OPS-02 on a disposable stack; race return_receive's restock against refund_succeed and a concurrent sale of the same variant; measure reconciliation_list and orders_alerts with several thousand attempts (they compute three subqueries per attempt before filtering); read the orders e2e for the restock path. Scratch records: SCRATCH/DB-OPS/findings.jsonl (6), prior-fix-checks.jsonl (13), plan-gaps.jsonl (3), doc-claims.jsonl (1), coverage.md."
+}

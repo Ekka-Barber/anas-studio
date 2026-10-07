@@ -1,0 +1,19 @@
+# e2e battery (before), commit 3a30a91, 2026-10-06T22:31:05Z, free GB: 12
+e2e-db-reset -> exit 0 (40s)
+e2e-db-import -> exit 0 (3s)
+e2e-db-demo-catalog -> exit 0 (3s)
+e2e-db-env -> exit 0 (5s)
+e2e-batch1 -> exit 0 (1278s)
+  ok 124 [chromium] › tests\e2e\visual.spec.ts:38:5 › passed @ 1440px, JS on, no horizontal overflow (6.0s)
+  ok 125 [chromium] › tests\e2e\visual.spec.ts:63:3 › passed, JS off, readable (3.8s)
+  170 passed (21.2m)
+e2e-batch2 -> exit 1 (4520s)
+    test-results\playwright\store-admin-screenshots-at-f9d2d-with-no-horizontal-overflow-chromium\test-failed-1.png
+  7 failed
+  302 passed (1.3h)
+e2e-orders -> exit 1 (920s)
+  ok  3 [chromium] › tests\e2e\orders.spec.ts:714:5 › at 360px › 3. a failed payment leaves the invoice payable; the return page says pending; the second try settles it once (25.5s)
+  12 passed (15.0m)
+next-env.d.ts restored
+typecheck-after -> exit 0 (151s)
+done 2026-10-07T00:26:55Z

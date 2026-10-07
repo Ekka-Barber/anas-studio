@@ -1,0 +1,11 @@
+# Corrections to apply when assembling the final output
+- 01 evidence: fulfillment_update REFUND_IN_FLIGHT at fable_audit_operations.sql:580, FULFILLMENT_STOPPED at :613 (not 581-583/609-611).
+- 02 evidence: `'stopped', i.id = any (v_stopped)` at fable_audit_operations.sql:252 (not 247-248).
+- 03 evidence: CHARGEBACK_RECORDED at fable_audit_operations.sql:930.
+- 04 evidence: owner_commerce_stats review block at stats_disputes.sql:341-351 (not 352-362).
+- prior-fix X-A11Y-RTL-11 names the finding id: fix it to the real id at the end.
+- 08 evidence: refund_succeed's entitlements_revoke call at fable_audit_operations.sql:735-743 (not 740-748).
+- 09: file/line TableForm.tsx:350 (the FieldInput render), not 349.
+- 12 evidence: apply_verified_payment step 4 update at fable_audit_payments.sql:369 (not 356-362).
+- 16 impact: add the precondition 'when Moyasar accepts a second refund on a partly refunded payment (open E02 item 8; the emulator does by default, refuseSecondRefund: false)'. Same precondition for 06's double-refund example.
+- 18 prior_overlap: cite EF-MONEY-09 (recheck cannot see a void; F1-3) and EF-MONEY-15.

@@ -1,0 +1,416 @@
+{
+ "findings": [
+  {
+   "id": "EF-MONEY-01",
+   "title": "Webhook settles inline before answering; Moyasar requires a quick 2xx before complex logic",
+   "severity": "low",
+   "category": "vendor-contract",
+   "file": "supabase/functions/_shared/payments.ts",
+   "line": 462,
+   "evidence": "webhook(): after payment_event_record the handler runs `await settlePayment(deps, paymentId.toLowerCase(), event.live, event.id)` (fetchPayment + fetchInvoice, each with a 10 s timeout, then apply_verified_payment) and only then `return accepted()`. Moyasar's webhook reference: 'Your endpoint must quickly return a successful status code (2xx) before any complex logic that could cause a timeout.' (https://docs.moyasar.com/docs/api/other/webhooks/webhook-reference.md). The delivery timeout is undocumented (contract item 9).",
+   "impact": "Under a slow provider the reply can take 20+ s; if Moyasar's delivery timeout is shorter it marks the delivery failed, retries 5 times (each answered duplicate -> 200) and its dashboard shows failed webhooks. Money is safe (the event is durable before the settle; the job finishes it), but the vendor's stated requirement is not met and the owner sees spurious webhook failures.",
+   "proposed_fix": "Answer 200 right after payment_event_record (state recorded) and run settlePayment detached (EdgeRuntime.waitUntil when available, else let the job pick the event up at its next_check_at = now()+30 s), or measure the delivery timeout in E02 run 1 before deciding.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-02",
+   "title": "Invoice-callback throttle is keyed on the caller's IP, i.e. on Moyasar's egress address: it caps the provider, not an abuser",
+   "severity": "low",
+   "category": "rate-limit",
+   "file": "supabase/functions/_shared/payments.ts",
+   "line": 485,
+   "evidence": "callback() passes `p_ip_hash: await clientKeyHash(request, pepper)`; payment_callback_begin (supabase/migrations/20261002100000_payment_core.sql:1343) does `rate_limit_take('payment-callback:ip', p_ip_hash, 60, interval '1 hour')` and answers `{}` silently when over. Every genuine callback comes from Moyasar's few egress IPs (cf-connecting-ip on hosted), so all paid invoices of an hour share one bucket of 60.",
+   "impact": "After 60 paid invoices in an hour the callback does nothing for the rest of the hour; settlement then depends on the webhook, the return page and the job (no money lost), and the throttle gives no protection against a forger, who comes from other addresses anyway.",
+   "proposed_fix": "Key the callback throttle on the invoice id hash (one fetch per attempt per 5 s is already enforced by fetched_at) or raise the per-IP cap well above the expected sales rate; keep the 5-second fetched_at rule as the real guard.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-03",
+   "title": "Runbook still says the emulator accepts a past expired_at; the emulator refuses it with 400 since the sandbox alignment",
+   "severity": "low",
+   "category": "doc-staleness",
+   "file": "docs/payments-runbook.md",
+   "line": 155,
+   "evidence": "Runbook: 'An invoice that has `expired_at` in the past at creation is accepted and is `expired` at once.' Emulator createInvoice() lines 664-667: `else if (typeof expiredAt === 'string' && Date.parse(expiredAt) < Date.now()) { errors.expired_at = [...] }` -> 400 validation_error; tests/unit/moyasar-emulator.test.ts:467 says the API refuses a past expiry 'as the sandbox does'. Runbook line 87 in the same file already states the 400.",
+   "impact": "A developer writing a test or a probe from the 'harness choices' list expects an immediately expired invoice and gets a 400; the file contradicts itself.",
+   "proposed_fix": "Delete the bullet at line 155 (or reword: a past expired_at is refused 400, as the sandbox answered).",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-04",
+   "title": "Contract section 9 describes the emulator's cancel reply and error bodies as they were before the sandbox alignment",
+   "severity": "low",
+   "category": "doc-staleness",
+   "file": "PLANS/P08-CONTRACT.md",
+   "line": 464,
+   "evidence": "Contract: 'PUT /v1/invoices/:id/cancel (... a `canceled` one answers 200 again ...)' and line 467: '400 {type:'invalid_request_error', message:'Validation Failed', ...}'. Emulator cancelInvoice() lines 711-720 answers 400 `refusedOperation('Cancel failed. The Invoice is already canceled.')` for a canceled invoice, and invalid() line 245 answers `{type:'validation_error', message:'Data validation failed'}`; moyasar-sandbox-2026-10-02.md 'What this changes' records the alignment, but section 9 was not updated.",
+   "impact": "The plan of record misdescribes the harness later rounds and E02 scripts are written from; a brief written from section 9 would assert a 200 that the emulator (and the sandbox) answer 400.",
+   "proposed_fix": "Update section 9: a canceled or expired invoice answers 400 invalid_request_error 'Cancel failed. The Invoice is already …'; a refused field answers 400 validation_error 'Data validation failed' with an errors map; a past expired_at is 400.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-05",
+   "title": "Contract and runbook state a documentation conflict about invoice metadata that the vendor has since closed",
+   "severity": "info",
+   "category": "doc-staleness",
+   "file": "PLANS/P08-CONTRACT.md",
+   "line": 81,
+   "evidence": "Contract: 'The API reference's create-invoice request schema omits `metadata`; the guide and the metadata page include it. A documentation conflict, to confirm in the sandbox.' (repeated at docs/payments-runbook.md:41). Today https://docs.moyasar.com/api/invoices/01-create-invoice lists `metadata` (object) in the request body: 'A set of key-value pairs where both key and value are strings.' The sandbox also confirmed it on 2026-10-02.",
+   "impact": "None on the code; the record says a conflict is open that no longer exists. The vendor now says values are strings while the sandbox kept a numeric value: the client's string-only filter (moyasar.ts:276) remains right.",
+   "proposed_fix": "Mark the row resolved (the reference documents metadata as of 2026-10-06) in both files.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-06",
+   "title": "Emulator is stricter than the sandbox on metadata: refuses non-string values and answers {} instead of null when none was sent",
+   "severity": "info",
+   "category": "emulator-fidelity",
+   "file": "tests/support/moyasar-emulator.ts",
+   "line": 296,
+   "evidence": "metadataProblem(): `if (typeof item !== 'string' || item.length > 500) return 'values must be strings...'` -> 400; createInvoice() line 688 stores `{}` when no metadata was sent. The sandbox record (moyasar-sandbox-2026-10-02.md item 1): 'An invoice made without metadata answers `metadata: null`. A numeric metadata value is kept as a number.' The client reads `metadata: z.record(...).nullish()` and keeps string values only (moyasar.ts:243, 276), so both shapes are handled.",
+   "impact": "Nothing hidden today (the code sends two string values and handles null). A future test that relies on the emulator refusing a numeric value, or on `{}`, would pass locally and differ live.",
+   "proposed_fix": "Store null when no metadata was sent and accept numeric values (kept as numbers) to match the sandbox; or list the two differences under the runbook's 'harness choices'.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-07",
+   "title": "Emulator caps a refund of a captured payment at `amount`; Moyasar caps it at `captured`",
+   "severity": "info",
+   "category": "emulator-fidelity",
+   "file": "tests/support/moyasar-emulator.ts",
+   "line": 748,
+   "evidence": "refundPayment(): `if (payment.refunded + amount > payment.amount) return invalid(...)` for paid, captured and refunded alike. Vendor: 'For `captured` payments, the maximum refundable amount is the `captured` amount.' (https://docs.moyasar.com/docs/guides/payment-operations/index.md). A `captured` payment only ever reaches the ledger as a review payment (apply_verified_payment UNEXPECTED_STATUS) whose amount_halalas is the payment's `amount`, and refund_request bounds EXCEEDS_BALANCE by that amount.",
+   "impact": "A refund of a partially captured review payment for more than `captured` passes the ledger and the emulator but would be refused 400 live (refund -> failed REFUND_REFUSED, nothing moved): safe, but the emulator cannot show it. Hosted invoices are not expected to produce captured payments.",
+   "proposed_fix": "In the emulator bound a captured payment's refunds by `captured`; optionally store `captured` on review payments and bound EXCEEDS_BALANCE by it.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-08",
+   "title": "payments_kick gives pg_net 15 s while a reconciliation run may legitimately last 60 s plus one row; whether the function survives the disconnect is unproven",
+   "severity": "low",
+   "category": "reliability",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 1671,
+   "evidence": "`perform net.http_post(..., timeout_milliseconds := 15000)` with the comment '15 s: a cold function start can exceed pg_net's 5 s default.' runPaymentsReconcile (payments.ts:48, 680) takes rows for up to RUN_BUDGET_MS = 60_000 and the row in progress may add a cancel, an invoice fetch and one fetch per charged payment at 10 s each. pg_net gives up at 15 s on every run longer than that.",
+   "impact": "If the Edge runtime stops the handler when its client disconnects, every run longer than 15 s under a slow provider ends without job_run_record (the last recorded run reads ok) and the rows keep only their 2-minute lease; if it does not, pg_net merely logs timeouts. Either way the comment's reasoning covers the cold start only, not the run's own length.",
+   "proposed_fix": "Prove it once (recipe); then either raise timeout_milliseconds above the run budget (e.g. 90000) or shorten RUN_BUDGET_MS to fit under it.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "Local stack with the emulator: set Vault functions_url/jobs_secret; `POST /__emulator/fault {route:'GET /v1/invoices/:id', mode:'timeout', times:3}`; make one pending attempt due (`update finance.payment_attempts set next_check_at = now() where id = $1`); `select public.payments_kick()`; after 90 s: `select status, detail, started_at from finance.job_runs where job = 'payments_reconcile' order by started_at desc limit 1` and `select timed_out, status_code from net._http_response order by created desc limit 1`. Wrong result: no job_runs row for the run (handler killed at the 15 s disconnect) while _http_response shows timed_out = true.",
+   "confidence": "medium",
+   "prior_overlap": "R3-L4 (the 60 s budget) added the budget without revisiting the kick timeout"
+  },
+  {
+   "id": "EF-MONEY-09",
+   "title": "A webhook refused for a wrong secret leaves no trace anywhere the owner can see",
+   "severity": "low",
+   "category": "observability",
+   "file": "supabase/functions/_shared/payments.ts",
+   "line": 435,
+   "evidence": "`if (!secretsMatch(event.secret_token, deps.config.webhookSecret)) return failWith(401, ...)` before any write, and the module 'Nothing here logs'. A secret mistyped in the dashboard (or pasted with a trailing newline, since secretsMatch is exact) makes every delivery 401; Moyasar retries 5 times and drops it (webhook-reference.md). Orders still settle through the callback, the return page and the job, so the admin shows nothing wrong.",
+   "impact": "A misconfigured webhook secret is invisible except in Moyasar's dashboard; the system silently runs on the slower prompts (callback capped per EF-MONEY-02, job backoff up to 30 min), and the first symptom is a late receipt. Not a money risk.",
+   "proposed_fix": "One `console.warn('payments: webhook refused UNAUTHORIZED')` (no body, no token) so the hosted function logs show it, and a runbook line under step 2 telling the operator to check the Moyasar webhook log after the first payment.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "EF-MONEY-10",
+   "title": "Turnstile siteverify is called without idempotency_key, so a 5 s timeout spends the buyer's single-use token",
+   "severity": "low",
+   "category": "resilience",
+   "file": "supabase/functions/_shared/turnstile.ts",
+   "line": 84,
+   "evidence": "verifyTurnstile posts `{secret, response, remoteip}` with `signal: AbortSignal.timeout(5_000)` and no retry; a timeout answers UNREACHABLE (503 TURNSTILE_UNAVAILABLE at checkout.ts:437). Cloudflare: 'each token can only be validated once' and `idempotency_key` (UUID) exists 'for safely retrying validation requests' (https://developers.cloudflare.com/turnstile/get-started/server-side-validation/). When siteverify consumed the token but the reply was lost, the buyer's retry with the same token answers timeout-or-duplicate -> INVALID_TOKEN -> 400 'تعذّر التحقق من أنك إنسان.'",
+   "impact": "After a transient siteverify stall the buyer is told they failed the human check and must redo the widget; the order is not created either way (fail closed), so the cost is a confusing message and a lost checkout under Cloudflare slowness.",
+   "proposed_fix": "Send `idempotency_key: crypto.randomUUID()` with the request and retry the same body once on UNREACHABLE; or map a timeout-or-duplicate that follows a timeout to TURNSTILE_UNAVAILABLE so the form re-renders the widget instead of blaming the visitor.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "EF-comms-3 (AUDIT-2) covered operator-side codes, not the spent-token case"
+  },
+  {
+   "id": "EF-MONEY-11",
+   "title": "The return page's verify answers an order's payment state to anyone who knows its 8-character number (no token)",
+   "severity": "info",
+   "category": "information-exposure",
+   "file": "supabase/functions/_shared/payments.ts",
+   "line": 526,
+   "evidence": "verify(): `const tokenHash = accessToken ? await orderAccessTokenHash(pepper, accessToken) : ZERO_HASH` then payment_check_begin; finance.payment_view (payment_core.sql:581-595) computes `state` from the order alone and gates only `invoiceUrl` on the token. Throttle 120/h per IP hash. The contract (section 6, payment_check_begin) specifies this so the return page works when the tab lost its stored order.",
+   "impact": "Anyone holding an order number (it is in the success_url query, on the receipt, in support mail) learns whether that order is paid, pending, expired, cancelled, refunded or under review. No money or personal data; a deliberate design trade-off, recorded so it is not rediscovered.",
+   "proposed_fix": "None required; if tightened later, answer `unknown` without a token except for the states the return page must show (pending, paid), keeping the token-less path for the tab that lost its token.",
+   "fix_size": "none",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "R3-L1",
+   "claim": "settleInvoice applies charged payments oldest first by the fetched payment's own time, missing times last",
+   "holds": true,
+   "evidence": "payments.ts:364-369: time() returns +Infinity for a missing/unparseable createdAt and `charged.sort((a,b) => time(a)===time(b) ? 0 : time(a)-time(b))` after every charged payment was fetched (357-363)"
+  },
+  {
+   "prior_id": "R3-L3",
+   "claim": "A paid or refunded invoice that nothing settled is a failed check INVOICE_PAID_UNSETTLED",
+   "holds": true,
+   "evidence": "payments.ts:379-382: when no outcome is in SETTLED and error is null and invoice status is paid/refunded, error = 'INVOICE_PAID_UNSETTLED' and checkAttempt(..., false, null, error)"
+  },
+  {
+   "prior_id": "R3-L4",
+   "claim": "The reconciliation run stops taking rows after 60 s and is always recorded",
+   "holds": true,
+   "evidence": "payments.ts:48 RUN_BUDGET_MS = 60_000; :680 stop() checks the budget and the 429 flag; :699-702, 716-719, 727-730 count skipped; :748-766 job_run_record in its own try"
+  },
+  {
+   "prior_id": "R3-L5",
+   "claim": "A row that throws in the job gets a failed check ROW_FAILED so backoff and the terminal rule apply",
+   "holds": true,
+   "evidence": "payments.ts:705-713 (attempts) and 733-741 (refunds, refund_checked ROW_FAILED)"
+  },
+  {
+   "prior_id": "R3-L7",
+   "claim": "payment-recheck answers the owner-only 403 message for SQLSTATE 42501",
+   "holds": true,
+   "evidence": "admin.ts:524 `if (code === '42501') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')`"
+  },
+  {
+   "prior_id": "R3 orchestrator",
+   "claim": "The callback passes the invoice id to payment_callback_begin unchanged (no lower-casing)",
+   "holds": true,
+   "evidence": "payments.ts:483-484 `// As the provider wrote it ... p_invoice_id: id`"
+  },
+  {
+   "prior_id": "R1-F1",
+   "claim": "/__emulator/pay refuses a non-initiated invoice without force: true (409, nothing created, nothing sent)",
+   "holds": true,
+   "evidence": "tests/support/moyasar-emulator.ts:931-934"
+  },
+  {
+   "prior_id": "R1-F2",
+   "claim": "The emulator's invoice follows its payments only for initiated -> paid; a refund leaves the invoice as it was",
+   "holds": true,
+   "evidence": "emulator.ts:580-586 mirrorInvoice; refundPayment (736-755) never calls it"
+  },
+  {
+   "prior_id": "R1-F3 / R2-F3",
+   "claim": "Harness routes and the stand-in page refuse a non-local Host or Origin (403) and every control POST must be application/json",
+   "holds": true,
+   "evidence": "emulator.ts:284-288 isLocalRequest, :1084 the guard on every non-/v1 path, :1045-1047 the 415 on a non-JSON control POST; contract section 9 line 471 now states both rules"
+  },
+  {
+   "prior_id": "R1-F5",
+   "claim": "The secret key must be sk_<mode>_ followed by printable ASCII only, else KEY_MODE_MISMATCH",
+   "holds": true,
+   "evidence": "moyasar.ts:29 SECRET_KEY regexes /^sk_test_[\\x21-\\x7e]*$/ and the live twin, applied at :88"
+  },
+  {
+   "prior_id": "R2-F1",
+   "claim": "close() and reset() abort in-flight webhook/callback deliveries and an aborted delivery is not logged",
+   "holds": true,
+   "evidence": "emulator.ts:467 deliveryAbort, :607 AbortSignal.any([cut, timeout]), :616 `if (!cut.aborted) deliveries.push(record)`, :1031-1032 and :1122"
+  },
+  {
+   "prior_id": "R2-F2",
+   "claim": "A non-local publicBase is refused at start",
+   "holds": true,
+   "evidence": "emulator.ts:454-456"
+  },
+  {
+   "prior_id": "R1 orchestrator",
+   "claim": "The client reads only id and status of the payments an invoice lists, and a missing fee reads as 0",
+   "holds": true,
+   "evidence": "moyasar.ts:244 `payments: z.array(z.object({ id: z.string(), status: z.string() })).nullish()`, :229 fee nullish, :258 Math.round(fee ?? 0)"
+  },
+  {
+   "prior_id": "R4-03",
+   "claim": "cancel answers 409 PAYMENT_ACTIVE, never 200, when the settle left the order unsettled",
+   "holds": true,
+   "evidence": "checkout.ts:389-392: only a state in SETTLED_STATUS answers 200; else refusal(first)"
+  },
+  {
+   "prior_id": "R4-04",
+   "claim": "cancel's 200 status uses the order vocabulary (paid_needs_resolution, not needs_resolution)",
+   "holds": true,
+   "evidence": "checkout.ts:51 SETTLED_STATUS maps needs_resolution -> paid_needs_resolution"
+  },
+  {
+   "prior_id": "R4-06",
+   "claim": "cancel on PAYMENT_ACTIVE is throttled 30 per hour per order",
+   "holds": true,
+   "evidence": "PLANS/P08-CONTRACT.md:291 states the bucket checkout-cancel:order; checkout.ts:280-281 maps 54000 to 429 (the SQL body of checkout_cancel is outside this slice and was not re-read)"
+  },
+  {
+   "prior_id": "R6-A4",
+   "claim": "Review-payment refunds and rechecks rely on the key's scope; sandbox item 15 records the 404 check",
+   "holds": true,
+   "evidence": "PLANS/P08-CONTRACT.md:119 item 15 and :324; refunds.ts:156 returns the review id without a mode check, :224/:269/:287 fetch first"
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Operator signal and rotation procedure for the webhook secret",
+   "why_needed": "A wrong or rotated MOYASAR_WEBHOOK_SECRET makes every delivery 401 with no trace in the admin (EF-MONEY-09); the runbook has no rotation step (dashboard first or env first, and the 3.7-hour retry window).",
+   "touches": "docs/payments-runbook.md (step 2 and a new 'Rotating the webhook secret' paragraph), supabase/functions/_shared/payments.ts (one code-only warn)",
+   "package": "P08 round 12c or P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Hosted check: a reconciliation run longer than pg_net's 15 s timeout",
+   "why_needed": "payments_kick (and outbox_kick) give pg_net 15 s; the payments run may last 60 s plus a row. Whether the Edge runtime keeps the handler alive after the client disconnects decides whether job_run_record is ever written for a slow run (EF-MONEY-08).",
+   "touches": "PLANS/ISSUES.md I32 (one more hosted fact), supabase/migrations/20261002100000_payment_core.sql:1671",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Decide the webhook's answer-then-settle order before E02 run 1 and record Moyasar's delivery timeout",
+   "why_needed": "Moyasar requires a quick 2xx before complex logic (EF-MONEY-01); the inline settle can take 20 s under a slow provider. E02 item 9 asks for the delivery timeout but the plan does not say what to change if it turns out short.",
+   "touches": "PLANS/P08-CONTRACT.md section 7 (webhook), supabase/functions/_shared/payments.ts:458-466, docs/payments-runbook.md 'The four prompts'",
+   "package": "P08 acceptance / E02",
+   "urgency": "before_launch",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Moyasar webhook: endpoint must quickly return 2xx before complex logic; non-2xx retried 5 more times (1m,10m,30m,1h,2h) then dropped",
+   "where": "PLANS/P08-CONTRACT.md:70; supabase/functions/_shared/payments.ts:462 (inline settle before the 200)",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/api/other/webhooks/webhook-reference.md: 'Your endpoint must quickly return a successful status code (2xx) before any complex logic that could cause a timeout.' and 'If the webhook recipient does not return a 2xx HTTP code we will retry to send the webhook 5 more times and then drop the message.'"
+  },
+  {
+   "claim": "Webhook envelope: id (UUID), type, created_at, secret_token, account_name, live, data; no signature or header",
+   "where": "payments.ts:389-395 webhookSchema; emulator webhookBody():620",
+   "verdict": "true",
+   "evidence": "webhook-reference.md field table; the example id is a UUID; data is a payment for payment_* and a card authentication for card_auth_* events; the page has no signature/header statement"
+  },
+  {
+   "claim": "Failed-payment event spelled payment_faild on the webhook reference and payment_failed on the available-events page; payment_abandoned exists",
+   "where": "PLANS/P08-CONTRACT.md:77; emulator EVENT_TYPES:36",
+   "verdict": "true",
+   "evidence": "webhook-reference.md lists payment_faild; https://docs.moyasar.com/docs/api/other/webhooks/available-webhooks.md lists payment_failed, payment_abandoned, card_auth_authenticated, card_auth_failed; no payment_expired or balance_transferred on that page"
+  },
+  {
+   "claim": "Create invoice: amount integer required, currency, description required; callback_url/success_url/back_url/expired_at/metadata optional; replies 201/400/401/403; no idempotency key",
+   "where": "PLANS/P08-CONTRACT.md:63; moyasar.ts:353-363",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/api/invoices/01-create-invoice: metadata 'A set of key-value pairs where both key and value are strings' is in the request schema today; no idempotency key documented"
+  },
+  {
+   "claim": "The API reference's create-invoice request schema omits metadata (a documentation conflict)",
+   "where": "PLANS/P08-CONTRACT.md:81; docs/payments-runbook.md:41",
+   "verdict": "false",
+   "evidence": "https://docs.moyasar.com/api/invoices/01-create-invoice today lists metadata (object) in the request body: the conflict no longer exists"
+  },
+  {
+   "claim": "Payment object fields and statuses (initiated, paid, authorized, failed, refunded, captured, voided, verified, expired); amount, fee, refunded integers; refunded <= amount; no live/test field",
+   "where": "moyasar.ts:224-234 paymentSchema; PLANS/P08-CONTRACT.md:66",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/api/payments/02-fetch-payment: fee 'Estimated payment fee (including VAT)' integer; refunded 'Refunded amount. Less than or equal to the payment amount' integer; no mode field"
+  },
+  {
+   "claim": "Refund: POST /payments/:id/refund, amount optional (missing = full refund), reply the payment object, no refund id, no idempotency; status becomes refunded; paid max = amount, captured max = captured; multiple refunds not addressed",
+   "where": "moyasar.ts:374-377; refunds.ts header; PLANS/P08-CONTRACT.md:69,83",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/api/payments/05-refund-payment ('If this field is missing, then the full amount will be refunded'; body required; 200/400/401/403/404; no refund object); https://docs.moyasar.com/docs/guides/payment-operations/index.md ('The payment status changes to refunded'; 'For captured payments, the maximum refundable amount is the captured amount')"
+  },
+  {
+   "claim": "Idempotency exists only for payment creation (given_id); nothing for invoices or refunds",
+   "where": "PLANS/P08-CONTRACT.md:62; moyasar.ts header",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/api/idempotency.md: given_id on payment creation only; reuse for a different payment answers 400 'Payment is already created.'"
+  },
+  {
+   "claim": "Lists: 40 per page, newest first, page parameter, meta {current_page,next_page,prev_page,total_pages,total_count}",
+   "where": "moyasar.ts:247-250 listSchema, 365-371; emulator PAGE_SIZE:28, paginate():328",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/api/pagination.md"
+  },
+  {
+   "claim": "Metadata: up to 30 keys, key <= 40 chars, value <= 500 chars; list invoices filters by metadata[key]=value",
+   "where": "emulator metadataProblem():290; moyasar.ts:368",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/api/metadata.md; https://docs.moyasar.com/api/invoices/03-list-invoice (metadata[key] 'Filter invoices by a given metadata key')"
+  },
+  {
+   "claim": "Errors: {type,message,errors}; statuses 400,401,403,404,405 (entity not activated for live),429,500,503; no rate-limit numbers",
+   "where": "PLANS/P08-CONTRACT.md:59; moyasar.ts:344-349",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/api/errors.md"
+  },
+  {
+   "claim": "Cancel invoice PUT /invoices/:id/cancel replies the invoice; which states can be cancelled is not documented",
+   "where": "moyasar.ts:372; emulator cancelInvoice():708",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/api/invoices/06-cancel-invoice: 200 invoice with status canceled, 401/403/404; no statement on cancelling a paid invoice"
+  },
+  {
+   "claim": "Webhook registered in the dashboard: Endpoint must be HTTPS; Secret Token 'a password you need to validate on your server'",
+   "where": "docs/payments-runbook.md:29,297",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/guides/dashboard/setting-up-webhooks.md"
+  },
+  {
+   "claim": "Invoice callback_url is called when the status changes from initiated to paid; no secret, no retry policy documented",
+   "where": "payments.ts:469-473; PLANS/P08-CONTRACT.md:80",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/guides/invoices/creating-invoices.md: 'asynchronous notification callback when the status changes from initiated to paid'; nothing on body auth or retries"
+  },
+  {
+   "claim": "Base URL https://api.moyasar.com/v1; the mode is determined by the API key",
+   "where": "moyasar.ts:24; PLANS/P08-CONTRACT.md:57",
+   "verdict": "true",
+   "evidence": "https://docs.moyasar.com/docs/api/api-introduction.md"
+  },
+  {
+   "claim": "Turnstile tokens are single use (timeout-or-duplicate on reuse), valid 5 minutes; siteverify accepts idempotency_key for safe retries; validate action and hostname",
+   "where": "supabase/functions/_shared/turnstile.ts:59-119; checkout.ts:429-439",
+   "verdict": "true",
+   "evidence": "https://developers.cloudflare.com/turnstile/get-started/server-side-validation/"
+  },
+  {
+   "claim": "Supabase Edge Functions: wall clock 150 s free / 400 s paid, request idle timeout 150 s (504 after), CPU 2 s per request excluding async I/O",
+   "where": "payments.ts:48 RUN_BUDGET_MS = 60_000 (the job's time budget rests on it)",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/guides/functions/limits"
+  }
+ ],
+ "coverage": "Read in full: supabase/functions/_shared/payments.ts, payments/moyasar.ts, checkout.ts, refunds.ts, disputes.ts, commerce-settings.ts, env.ts, http.ts, db.ts, jobs.ts, rate-limit.ts, turnstile.ts, tokens.ts, recent-totp.ts, staff.ts, admin.ts (handleAdmin dispatch 120-259, paymentRecheck 509-527, storageStore); supabase/functions/{payments,checkout,outbox,admin}/index.ts and deno.json; supabase/config.toml function blocks (verify_jwt false on payments/checkout/outbox); tests/support/moyasar-emulator.ts (whole, every route and harness control); supabase/migrations/20261002100000_payment_core.sql lines 500-616 and 728-1686 (every SQL function the Edge layer calls: payment_attempt_begin/created/close, apply_verified_payment, payment_event_record/result, payment_check_begin, payment_state, payment_callback_begin, payment_attempt_ref, payment_reconcile_claim, payment_attempt_checked, payment_attempt_duplicates, payments_kick); artifacts/acceptance/P08/moyasar-docs-2026-10-02.md, moyasar-sandbox-2026-10-02.md, moyasar-sandbox-probe.mjs (lines 1-100 plus a grep for key handling: the key is read from env and never printed); docs/payments-runbook.md (whole); PLANS/P08-CONTRACT.md sections 1, 2, 3, 6, 7, 9 (lines 1-165, 225-521); PLANS/ISSUES.md I28-I51; P08 round audits 01, 03, 04 (findings), 06 with their uncovered lists; AUDIT-2 report grep for the slice. Vendor pages fetched on 2026-10-06 and cited in doc_claims_checked: Moyasar webhook-reference, available-webhooks, create-webhook, setting-up-webhooks, create-invoice, list-invoice, cancel-invoice, fetch-payment, refund-payment, idempotency, pagination, metadata, errors, api-introduction, payment-operations guide, creating-invoices guide; Cloudflare Turnstile server-side validation; Supabase Edge Functions limits. Traced end to end: webhook (secret checked after a bounded parse, before any write; unset/empty secret -> paymentsConfig NOT_CONFIGURED -> 404; every payment_* type settled by fetch, card_auth_*/other ignored; replay deduped by event id; other account -> 404 -> unknown_payment; other mode -> mode_mismatch; 500 only when the record fails), callback (prompt only, id only, 60/h per IP), verify (exact Origin, state by order number, invoice URL by token only), startPayment (durable creating row -> one provider call -> adopt; 4xx/429 failed; timeout/5xx/unreadable uncertain -> list by metadata, adopt/abandon at 60 s, one re-begin), checkout cancel (every provider answer), refund-create/recheck/record-external (fetch first, reserve, one call with the amount, result or job), dispute-record, the job (claim, budget, 429 stop, refund leg). Emulator compared field by field with the vendor pages and the eight-invoice sandbox record: webhook envelope, event names, payment and invoice objects, pagination meta, error bodies (validation_error / invalid_request_error / record_not_found), cancel replies, past expired_at, amount minimum, metadata filter; the differences found are EF-MONEY-06 and -07 plus the known E02 items (retries, delivery timeout, payments[] on a paid invoice, refund reply, second partial refund, fee). Sampled only: tests/unit/payments.test.ts (test names, the webhook block 232-360, the secrets test 1734-1762), tests/unit/moyasar-emulator.test.ts (grep). Not reached: tests/integration/payment-http.test.ts, refunds-http.test.ts and moyasar-client.test.ts bodies; 20261002130000_refunds.sql (the refund SQL branches, outside the slice); 20261002110000_checkout_payment.sql (checkout_cancel/checkout_create bodies); .env.example (excluded by the .env* rule, so the R1-F7 fix was not re-verified); no runtime: the stack is down and no provider was called. Nothing critical, high or medium was found in the Edge money layer: the earlier fixes all hold in today's code (17 re-verified), and the remaining findings are low or info. Next with more time: run the EF-MONEY-08 recipe on the local stack; read refunds.sql against refunds.ts branch by branch; read payment-http.test.ts to confirm which webhook/callback/verify races are proven over HTTP rather than with stubs; a Deno-level check that AbortSignal.timeout aborts a stalled response body under the Supabase Edge runtime (the client's 10 s bound on response.json() depends on it)."
+}

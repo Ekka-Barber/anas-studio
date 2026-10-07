@@ -1,0 +1,24 @@
+{
+ "findings": [
+  {
+   "id": "SUPPLY-01",
+   "title": "next 16.3.5 sits behind GHSA-vcvr-r3jv-pc5j (critical, patched in 16.3.6) and nothing in CI runs pnpm audit",
+   "severity": "medium",
+   "category": "supply-chain",
+   "file": "package.json",
+   "line": 36,
+   "evidence": "pnpm audit --prod (2026-10-06): 'critical Next.js: Remote Code Execution in next/og ImageResponse, vulnerable >=16.2.0 <16.3.6, patched >=16.3.6, path .>next' plus two high (braces via next>sass>chokidar, source-map-js via next>postcss). src/ has no import of next/og or ImageResponse and next.config.ts has output:'export', so the RCE path is not reachable in this build; the advisory is still open against the pinned version and .github/workflows/ci.yml has no audit step.",
+   "impact": "Not exploitable as built (static export, no next/og). But VERIFICATION.md line 57 promises 'No silently suppressed critical/high runtime vulnerability' and the pinned next stays red in every audit; a Cloudflare Pages build log or a buyer-side scanner shows a critical advisory on the launch commit.",
+   "proposed_fix": "Bump next and eslint-config-next to 16.3.6 (pnpm up next@16.3.6 eslint-config-next@16.3.6), re-run pnpm check, and add a `pnpm audit --prod --audit-level=high` step to ci.yml so a new advisory turns the job red instead of staying invisible.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": ""
+  }
+ ],
+ "prior_fix_checks": [],
+ "plan_gaps": [],
+ "doc_claims_checked": [],
+ "coverage": ""
+}

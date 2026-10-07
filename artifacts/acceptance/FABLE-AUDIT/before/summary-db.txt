@@ -1,0 +1,16 @@
+# stack battery (before), commit 3a30a91, 2026-10-06T22:18:05Z
+db-reset -> exit 0 (72s)
+db-import -> exit 0 (5s)
+db-demo-catalog -> exit 0 (5s)
+db-env -> exit 0 (7s)
+edge-restart -> exit 0 (6s)
+test-db -> exit 0 (546s)
+ Test Files  31 passed (31)
+      Tests  814 passed (814)
+build -> exit 0 (73s)
+check-export -> exit 0 (7s)
+  OK 59 required files present; 372 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)
+check-budgets -> exit 0 (5s)
+  OK largest 148.9 KiB (budget 150.0 KiB)
+done 2026-10-06T22:30:23Z

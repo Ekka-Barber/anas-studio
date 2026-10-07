@@ -1,0 +1,186 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 20 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok  1 [chromium] › tests\e2e\orders.spec.ts:479:5 › at 360px › 1. a book: the product page to the receipt, the order link, a real download and the owner's order view (54.5s)
+  ok  2 [chromium] › tests\e2e\orders.spec.ts:600:5 › at 360px › 2. paper and signed editions: paid, shipped with a tracking number, delivered, returned and restocked (1.1m)
+  ok  3 [chromium] › tests\e2e\orders.spec.ts:714:5 › at 360px › 3. a failed payment leaves the invoice payable; the return page says pending; the second try settles it once (25.5s)
+  ok  4 [chromium] › tests\e2e\orders.spec.ts:763:5 › at 360px › 4. 3-D Secure: the challenge, then success; and a second order whose challenge is rejected stays unpaid (36.3s)
+  ok  5 [chromium] › tests\e2e\orders.spec.ts:801:5 › at 360px › 5. a cancel frees the held stock at once; a payment forced on the cancelled invoice lands as a late payment and is never lost (56.6s)
+  ok  6 [chromium] › tests\e2e\orders.spec.ts:866:5 › at 360px › 6. a refund of one line through the step-up: the provider, the ledger, the mail, the buyer's page and the download agree (1.1m)
+  ok  7 [chromium] › tests\e2e\orders.spec.ts:972:5 › at 360px › 7. the availability notice: a real sign-up, the confirmation, a restock, one notice, the unsubscribe (50.7s)
+  ok  8 [chromium] › tests\e2e\orders.spec.ts:1089:5 › at 360px › 8. a preorder: the date and the note before paying, on the order page and in the receipt; the capacity ends the next quote (58.5s)
+  ok  9 [chromium] › tests\e2e\orders.spec.ts:1167:5 › at 360px › 9. a dispute: a chargeback recorded through the step-up, a repeat answered as a duplicate, a follow-up; the figures and the ledger agree (46.4s)
+  ok 10 [chromium] › tests\e2e\orders.spec.ts:1256:5 › at 360px › 10. the owner's switch: closed through the commerce settings, the checkout refuses a new order; opened again, one goes through (42.9s)
+[WebServer] [browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+[WebServer] 
+[WebServer] - A server/client branch `if (typeof window !== 'undefined')`.
+[WebServer] - Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+[WebServer] - Date formatting in a user's locale which doesn't match the server.
+[WebServer] - External changing data without sending a snapshot of it along with the HTML.
+[WebServer] - Invalid HTML tag nesting.
+[WebServer] 
+[WebServer] It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+[WebServer] 
+[WebServer] https://react.dev/link/hydration-mismatch
+[WebServer] 
+[WebServer]   ...
+[WebServer]     <RedirectBoundary>
+[WebServer]       <RedirectErrorBoundary router={{...}}>
+[WebServer]         <InnerLayoutRouter url="/store/e2e..." tree={[...]} params={{slug:"e2e-..."}} cacheNode={{rsc:{...}, ...}} ...>
+[WebServer]           <SegmentViewNode type="page" pagePath="(public)/s...">
+[WebServer]             <SegmentTrieNode>
+[WebServer]             <ProductPage>
+[WebServer]               <main id="main" className="store-modu...">
+[WebServer]                 <div>
+[WebServer]                 <header>
+[WebServer]                 <div>
+[WebServer]                 <Band>
+[WebServer]                   <section data-tone="sand" className="band-modul...">
+[WebServer]                     <div>
+[WebServer]                     <noscript>
+[WebServer]                     <ul className="store-modu...">
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="95d39fe2-a..." label="كتاب رحلة ..." price="12.40 ر.س" preorder={null} ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="95d39fe2-a..." label="كتاب رحلة ..." preorder={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="72ceb09a-4..." label="كتاب رحلة ..." price="23.60 ر.س" preorder={null} ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="72ceb09a-4..." label="كتاب رحلة ..." preorder={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="ed802638-2..." label="كتاب رحلة ..." price="51.70 ر.س" preorder={null} ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="ed802638-2..." label="كتاب رحلة ..." preorder={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="43196d33-2..." label="كتاب رحلة ..." price="31.80 ر.س" preorder={null} ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="43196d33-2..." label="كتاب رحلة ..." preorder={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="22966972-b..." label="كتاب رحلة ..." price="44.50 ر.س" preorder={null} ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="22966972-b..." label="كتاب رحلة ..." preorder={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="7f445a93-3..." label="كتاب رحلة ..." price="60.20 ر.س" ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="7f445a93-3..." label="كتاب رحلة ..." preorder={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]           ...
+[WebServer]         ...
+[WebServer]  
+  ok 11 [chromium] › tests\e2e\orders.spec.ts:479:5 › at 1440px › 1. a book: the product page to the receipt, the order link, a real download and the owner's order view (49.5s)
+  ok 12 [chromium] › tests\e2e\orders.spec.ts:600:5 › at 1440px › 2. paper and signed editions: paid, shipped with a tracking number, delivered, returned and restocked (1.0m)
+Timed out waiting 900s for the test suite to run
+Timed out waiting 900s for the teardown for test suite to run
+
+  Slow test file: [chromium] › tests\e2e\orders.spec.ts (10.2m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  8 did not run
+  12 passed (15.0m)
+  2 errors were not a part of any test, see above for details

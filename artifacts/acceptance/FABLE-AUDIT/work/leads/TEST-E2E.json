@@ -1,0 +1,24 @@
+{
+ "findings": [
+  {
+   "id": "TEST-E2E-01",
+   "title": "Team screen silently truncates at 1,000 staff rows (newest hidden); HANDOFF records it as test pollution only",
+   "severity": "low",
+   "category": "correctness",
+   "file": "src/components/admin/TeamView.tsx",
+   "line": 43,
+   "evidence": "loadDirectory() calls supabase.rpc('staff_directory') with no range/pagination; the function orders `order by s.created_at` (supabase/migrations/20260925090000_audit_and_staff_directory.sql:76) and supabase/config.toml sets max_rows = 1000, so PostgREST drops every row past the 1000th: the newest invite. PLANS/HANDOFF.md:32 calls this test pollution and auth.spec:63 asserts the invited email is visible.",
+   "impact": "At >1000 staff rows the team screen shows a stale list with no notice and a fresh invite looks as if it failed; bounded (a studio team is tiny) but the UI has no truncation signal and the record misclassifies a product limit as a test artefact.",
+   "proposed_fix": "Order staff_directory by created_at desc, or page the rpc (.range) in TeamView; at minimum document the limit in HANDOFF as a product limit.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "HANDOFF.md 'about 1,000 staff rows'"
+  }
+ ],
+ "prior_fix_checks": [],
+ "plan_gaps": [],
+ "doc_claims_checked": [],
+ "coverage": "# TEST-E2E coverage (in progress)\nRead in full: playwright.config.ts, ci.yml, helpers.ts, shots.ts, visual.spec, no-js.spec, motion.spec, auth.spec, public.spec, cart-checkout.spec, checkout-api.spec, orders.spec, PLANS/VERIFICATION.md, PLANS/ISSUES.md (open), TeamView.tsx + staff_directory migration, rate-limit.ts.\nLeft: cms, media, order-page, orders-admin, orders-money, owner-operations, product-availability, reader, store-admin specs; docs/development.md; tests/integration/support.ts (harness cleanup); moyasar-emulator; acceptance records' e2e claims; vendor docs (Mailpit search order, supabase CLI in GH Actions, Playwright toPass).\n"
+}

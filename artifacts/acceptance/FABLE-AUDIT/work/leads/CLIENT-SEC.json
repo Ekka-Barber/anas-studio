@@ -1,0 +1,383 @@
+{
+ "findings": [
+  {
+   "id": "CLIENT-SEC-01",
+   "title": "Sign-in code requests carry no CAPTCHA: anyone can make Supabase Auth mail codes to the owner's address and spend the Resend daily quota that receipts need",
+   "severity": "high",
+   "category": "abuse-dos",
+   "file": "src/components/admin/SignIn.tsx",
+   "line": 36,
+   "evidence": "SignIn.tsx:36-39 calls `supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })` with no `captchaToken`; supabase/config.toml:218-222 leaves `[auth.captcha]` commented out, and ISSUES.md I28 (the hosted Auth settings list) names no CAPTCHA and no `email_sent` value. supabase/functions/_shared/outbox.ts:36-55: `DAILY_QUOTA = 100` (Resend free, 'daily email quota of 100 emails/day'), and 'Sign-in codes do not travel through the outbox — Supabase Auth sends them over its own SMTP connection'. Vendor: Supabase rate limits (https://supabase.com/docs/guides/auth/rate-limits): /auth/v1/otp is limited per user to one request per 60 s and per IP to 30 per 5 min; the project-wide 'emails sent' limit is 'customizable when you use custom SMTP'. Supabase Auth source (https://raw.githubusercontent.com/supabase/auth/master/internal/api/api.go): `/otp` is wrapped in `api.verifyCaptcha`, so a CAPTCHA would gate it once enabled.",
+   "impact": "An unauthenticated attacker who knows a staff address (Anas's is public) POSTs /auth/v1/otp from rotating IPs once a minute: up to 60 Arabic sign-in codes an hour land in the owner's inbox, and every one is a Resend send on the same account as receipts. Resend's free 100/day is reached in under two hours; the outbox then reads 429 as QUOTA and holds receipts, order-access links and owner alerts until the next 00:00 UTC (DATA-AND-SECURITY 'Email delivery'). Paying buyers get no receipt or order link for up to a day, and staff cannot sign in because their codes are refused too. Precondition: the hosted project's 'emails sent' rate limit is left at a value above ~4/hour (I28 sets none). With Resend's 3,000/month free quota the same loop empties the whole month in two to four days, and while the quota is spent Supabase Auth itself cannot deliver codes, so staff are locked out of the admin too (the sign-in form even reports the failed send as sent, CLIENT-SEC-10). The project's own evidence file PLANS/evidence/runtime-supabase-production.txt:123 quotes Supabase's advice to put CAPTCHA on sign-in and password-reset endpoints; no plan item took it up.",
+   "proposed_fix": "Enable Auth CAPTCHA (Turnstile, which the site already uses) on the hosted project and in `[auth.captcha]` for local, render the Turnstile widget on the sign-in email step and pass `options.captchaToken` to `signInWithOtp`; record in I28 an 'emails sent' limit sized for the staff (for example 10 per hour) so the Auth path alone can never spend the Resend day. Add both to the P11 hosted checklist.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "Against a stack with custom SMTP configured: `for i in 1..5: curl -X POST $SUPABASE_URL/auth/v1/otp -H 'apikey: <publishable>' -H 'content-type: application/json' -d '{\"email\":\"<owner>\",\"create_user\":false}'` spaced 61 s apart (or from different IPs). Expected wrong result: every call answers 200 and a mail is sent each time (no captcha_required error); after enabling CAPTCHA the same call answers 400 `captcha verification process failed`.",
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "CLIENT-SEC-02",
+   "title": "The Auth API tells an unknown address from a staff address (422 otp_disabled vs 200), so the UI's masked «إن كان هذا البريد مسجّلًا» hides nothing from an attacker",
+   "severity": "low",
+   "category": "information-disclosure",
+   "file": "src/components/admin/SignIn.tsx",
+   "line": 17,
+   "evidence": "SignIn.tsx:17-20 comment: 'Step 1 never reveals whether the address is a staff email; only a rate limit varies the message', and lines 43-52 map every non-429 answer to SENT_MESSAGE. The request is `signInWithOtp({ email, options: { shouldCreateUser: false } })`. Supabase Auth source (https://raw.githubusercontent.com/supabase/auth/master/internal/api/otp.go): with `create_user: false` and no such user, `shouldCreateUser` returns false and the handler answers 422 with code `otp_disabled`, message 'Signups not allowed for otp'; a known address answers 200 and sends the code. tests/e2e/auth.spec.ts:9-14 (\"an unknown email gets the identical sent message\") asserts only the UI sentence, so the suite proves nothing about the API oracle.",
+   "impact": "Anyone with the publishable key (it is in every page) can enumerate which addresses are staff accounts by calling /auth/v1/otp directly, one probe per address, under the 30-per-5-minutes-per-IP limit. Combined with CLIENT-SEC-01 it tells the attacker which inboxes to flood; on its own it confirms staff membership of a guessed address.",
+   "proposed_fix": "Correct the comment and the P03 claim (the masking is UI-only; Supabase's OTP endpoint is the oracle). The CAPTCHA of CLIENT-SEC-01 bounds the probing rate; no client code can remove the oracle, so the plan should state it as a known residual rather than a property.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "curl -s -o /dev/null -w '%{http_code}\\n' -X POST $SUPABASE_URL/auth/v1/otp -H 'apikey: <publishable>' -H 'content-type: application/json' -d '{\"email\":\"nobody-xyz@example.com\",\"create_user\":false}' → expect 422; repeat with a real staff address → expect 200.",
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "CLIENT-SEC-03",
+   "title": "Password-recovery mail is still a sign-in-by-link path for staff: the hook lets `recovery` through and the hosted template is the English default with a link",
+   "severity": "low",
+   "category": "auth-config",
+   "file": "supabase/migrations/20260930120000_audit_fixes.sql",
+   "line": 27,
+   "evidence": "deny_password_tokens refuses only `authentication_method = 'password'` (line 27) and its own comment (line 18) lists 'recovery' among the methods passed 'through unchanged'. supabase/config.toml:254-262 customises only `magic_link` (code only, `{{ .Token }}`); no `[auth.email.template.recovery]` exists, and I28's hosted list names only the magic-link template. Supabase Auth's `/auth/v1/recover` is unauthenticated and sends the default 'Reset Password' mail whose `{{ .ConfirmationURL }}` is a `/auth/v1/verify?type=recovery` link that creates a session and redirects to the site with the tokens in the fragment. The hook docs list `recovery` as an authentication_method (https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook).",
+   "impact": "Anyone can make Supabase send Anas (or any staff address) an English 'Reset your password' mail from the studio's sender, one per 60 s per address, without CAPTCHA (same channel as CLIENT-SEC-01). The link in it is a one-time sign-in: a mail-scanner prefetch burns it harmlessly, but a forwarded or shoulder-read link signs its holder in at aal1 without the emailed code D08 relies on. The owner also cannot tell this mail from a phishing attempt because the product never sends it on purpose.",
+   "proposed_fix": "Add `[auth.email.template.recovery]` with an Arabic body that carries no link or token («لا تُستخدم كلمات مرور في لوحة أنس؛ تجاهل هذه الرسالة»), set the same template on the hosted project (I28), and extend the hook to refuse `authentication_method = 'recovery'` as it refuses `password`.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "curl -X POST $SUPABASE_URL/auth/v1/recover -H 'apikey: <publishable>' -H 'content-type: application/json' -d '{\"email\":\"<staff address>\"}' → 200 and a 'Reset Password' mail in Inbucket/Mailpit whose body holds a /auth/v1/verify?token=…&type=recovery link; opening the link lands on site_url with #access_token=… (a live session). After the fix: the mail has no link and a recovery verify answers 403 from the hook.",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S01.4"
+  },
+  {
+   "id": "CLIENT-SEC-04",
+   "title": "«تسجيل الخروج» ignores a failed signOut: with an expired access token and no network the stored refresh token survives while the screen shows the sign-in page",
+   "severity": "low",
+   "category": "session",
+   "file": "src/components/admin/AdminShell.tsx",
+   "line": 132,
+   "evidence": "AdminShell.tsx:128-134: `clearDrafts(); await getSupabaseBrowserClient().auth.signOut(); router.replace('/admin/sign-in')` — the result is never read. In @supabase/auth-js 2.117.1 (node_modules/.pnpm/@supabase+auth-js@2.117.1/.../GoTrueClient.js:3430-3433) `_signOut` returns `{ error: sessionError }` before `removeCurrentSession()` when `_useSession` fails; `__loadSession` (lines 2544-2570) fails that way when the stored access token is past `expires_at` and the refresh request errors (offline), leaving the session object with its refresh token in localStorage.",
+   "impact": "On a shared or borrowed computer: the owner opens the admin after more than an hour away, the connection drops, he presses «تسجيل الخروج», sees the sign-in page and leaves. The next person who opens /admin once the network is back is signed in as him (the refresh token is still valid; Supabase refresh tokens 'never expire'). Narrow precondition (expired token + offline at the click), bounded impact (one device).",
+   "proposed_fix": "Read the result: `const { error } = await supabase.auth.signOut(); if (error) { setGate({status:'error'}) /* «تعذّر تسجيل الخروج؛ تحقق من الشبكة» */; return }` and only then redirect; keep `clearDrafts()` after the successful call.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "medium",
+   "prior_overlap": ""
+  },
+  {
+   "id": "CLIENT-SEC-05",
+   "title": "Rich-text links that pass the editor and the publish gate can vanish on the public page: the schema accepts `HTTPS://`, `https:host` and `https:/host`, the renderer requires the literal `https://`",
+   "severity": "low",
+   "category": "correctness",
+   "file": "src/lib/richtext.tsx",
+   "line": 31,
+   "evidence": "richtext.tsx:31 `node.url.startsWith('https://')`. src/admin/richtext.ts:25 `httpsUrl = z.url({ protocol: /^https$/ })`; Zod 4.6.5 (node_modules/zod/v4/core/schemas.js:232-236) applies its `://` guard only when the protocol regex equals its own `httpProtocol` source, so `URL.parse` normalises these. Verified with node: `HTTPS://a.com`, `https:a.com`, `https:/a.com` → schema success, `startsWith('https://')` false. RichTextEditor.tsx:95 and 215 use the same `httpsUrl`, so «تطبيق الرابط» accepts them and the paste transform keeps them.",
+   "impact": "An editor who types the address with caps lock on (or pastes `https:example.com`) gets no error, publishes, and the public page (and the admin preview, which uses the same renderer) shows the words as plain text with no link; nothing tells anyone. Not a security hole: the renderer still never emits a non-https href.",
+   "proposed_fix": "Make the two rules one: in richtext.tsx test `/^https:\\/\\//i.test(url)` and let the renderer normalise with `new URL(url).href`, or tighten `httpsUrl` with `.regex(/^https:\\/\\//)` so the editor refuses what the renderer drops. Add the three strings to tests/unit/richtext.test.ts.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S08.12, AUDIT-2 ADMIN-publish-2"
+  },
+  {
+   "id": "CLIENT-SEC-06",
+   "title": "The baseline `_headers` sends no Strict-Transport-Security while the soon page on the same domain already does; the launch headers list omits HSTS and Permissions-Policy",
+   "severity": "low",
+   "category": "headers",
+   "file": "public/_headers",
+   "line": 3,
+   "evidence": "public/_headers:3-6 (`/*`) sends nosniff, Referrer-Policy and the four CSP directives only. artifacts/soon/site/_headers:10 sends `Strict-Transport-Security: max-age=31536000` on anas.studio today. PLANS/DATA-AND-SECURITY.md:101 (the headers paragraph) and PLANS/VERIFICATION.md:45 (P10) list CSP, nosniff and no-store, never HSTS or Permissions-Policy; grep of PLANS/ and docs/ for 'Strict-Transport|HSTS|Permissions-Policy' finds nothing outside the soon page. Cloudflare Pages adds no HSTS by default (https://developers.cloudflare.com/pages/configuration/serving-pages/: default headers are Access-Control-Allow-Origin, Referrer-Policy, nosniff, Etag, Content-Type, Server).",
+   "impact": "When the product replaces the soon Worker on anas.studio, browsers that never saw the soon page get no HSTS unless the zone setting is turned on by hand; a first visit typed as http:// is one 301 away from a downgrade on a hostile network, and the staff sign-in page lives on this origin. Permissions-Policy is absent, so a future third-party script could use camera, geolocation or payment APIs unrestricted. Both are one line each and are not tracked anywhere in the plan.",
+   "proposed_fix": "Add to the `/*` block: `Strict-Transport-Security: max-age=31536000; includeSubDomains` and `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`; record in DATA-AND-SECURITY's headers paragraph and in I46/P10 that HSTS is sent by `_headers` (or by the zone, with the setting named) so P11 checks it on the hosted preview.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-1 S12.2 (CSP baseline only)"
+  },
+  {
+   "id": "CLIENT-SEC-07",
+   "title": "A lost or reset authenticator locks the owner out of every step-up action: a verified TOTP factor can only be unenrolled at aal2, the admin offers no replacement, and no runbook covers it",
+   "severity": "medium",
+   "category": "operations",
+   "file": "src/components/admin/MfaEnroll.tsx",
+   "line": 42,
+   "evidence": "MfaEnroll.tsx:42-46: when a verified TOTP factor exists the screen renders only «تطبيق المصادقة مفعّل.» — no unenroll, no re-enrol. Supabase Auth (https://raw.githubusercontent.com/supabase/auth/master/internal/api/mfa.go): `if factor.IsVerified() && !session.IsAAL2() { ... \"AAL2 required to unenroll verified factor\" }` and `if numVerifiedFactors > 0 && ... !session.IsAAL2() { \"AAL2 required to enroll a new factor\" }`, so without the old device no API call the browser can make removes or replaces the factor. docs/operations.md mentions TOTP only as a prerequisite (lines 562, 927-932, 1002, 1097); grep of docs/ and PLANS/ for 'unenroll|lost phone|new phone|mfa_factors' finds no recovery procedure (only the privacy-erase SQL deletes factors).",
+   "impact": "Anas changes or loses his phone without migrating the authenticator app: refunds, external-refund records, disputes, seller settings, policy approval, the checkout switch, invites, role changes and revokes all answer STEP_UP_REQUIRED and the dialog can never be satisfied. The only way back is a Supabase dashboard or SQL deletion of his row in auth.mfa_factors by whoever holds the project — on a Friday evening that may be nobody.",
+   "proposed_fix": "Write the recovery step into docs/operations.md and the owner training (P11): in the Supabase dashboard, Authentication → Users → the owner → remove the TOTP factor (or `delete from auth.mfa_factors where user_id = …` as postgres), then re-enrol in «الأمان»; tell Anas to keep the authenticator's backup/export. Optionally let a second active owner trigger the removal through staff-admin at aal2 (`admin.auth.admin.mfa.deleteFactor`), audited.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "CLIENT-SEC-08",
+   "title": "The store build trusts `products.cover_image` as free text: a non-id value becomes an `<img src>` on the public store, unlike every content image, which the build re-validates",
+   "severity": "low",
+   "category": "defence-in-depth",
+   "file": "src/lib/store.ts",
+   "line": 29,
+   "evidence": "store.ts:29 `cover_image: z.string().nullable()` with no shape rule; store.ts:126 `replaceMediaIds(row.cover_image, covers, MEDIA_ORIGIN)` and src/lib/images.ts:29-38 render any string that `parseMediaRef` accepts (`media|<base>|WxH|widths`) as `src=\"<base>/<w>.webp\"` from any origin. The database allows it: 20260927160000_catalog_and_checkout.sql:120 `cover_image text check (... char_length between 1 and 120)`, and only the owner may write it (products_update_owner). Content images go through `imageIdSchema` (src/admin/fields.ts:266-268: a manifest key or `isMediaId`) in the build's `schema.parse`, so the same value in a room fails the build.",
+   "impact": "Only an owner session can write the column, so this is not exploitable by editors or visitors; but a `media|https://tracker.example/x|100x100|360` written through the Data API (a stolen owner session, a mis-typed import) ships a third-party image request on /store to every visitor, where the content path would have refused it at build time. Bounded, owner-only precondition.",
+   "proposed_fix": "In `productRowSchema`, validate `cover_image` with the same rule as content: `z.string().refine((id) => Object.hasOwn(imageManifest, id) || isMediaId(id)).nullable()` (or `.regex(uuid)` plus the manifest check), so the build fails like it does for rooms.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": ""
+  },
+  {
+   "id": "CLIENT-SEC-09",
+   "title": "check:export scans no `.mjs` file, so the pdf.js worker and any future module chunk in out/ are outside the secret and demo scan",
+   "severity": "info",
+   "category": "tooling",
+   "file": "scripts/check-export.mjs",
+   "line": 118,
+   "evidence": "check-export.mjs:118 `const TEXT = /\\.(html|txt|js|css|json|map|xml|webmanifest)$|[\\\\/]_headers$/`; `find out -name '*.mjs'` lists out/_next/static/media/pdf.worker.min.3bl-ygmetel-a.mjs (it even carries a fixture address, jm@kbswfq.pkbglt, which is how the gap showed). The demo guard also receives only `.html` and `.js` files (line 126).",
+   "impact": "No secret can land in a vendored worker today, so nothing is exposed; but the scan's promise 'no file contains a server-side secret' is narrower than stated, and a Next or pdf.js upgrade that emits `.mjs` chunks would be unscanned without any warning.",
+   "proposed_fix": "Add `mjs|cjs` to the TEXT pattern (and to the `built` filter), one word.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-2 GAP-G3-3, I49(4)"
+  },
+  {
+   "id": "CLIENT-SEC-10",
+   "title": "A 5xx from Supabase Auth (SMTP or quota failure) is shown as «أرسلنا إليه رمزًا»: the masking meant for existence-revealing 4xx also hides a mail outage",
+   "severity": "low",
+   "category": "operability",
+   "file": "src/components/admin/SignIn.tsx",
+   "line": 43,
+   "evidence": "SignIn.tsx:43-52: `if (sendError && !sendError.status) → OFFLINE_MESSAGE; if (sendError?.status === 429) → RATE_LIMITED_MESSAGE; setMessage(SENT_MESSAGE); setStep('code')`. Any other status, including Supabase Auth's 500 `unexpected_failure` 'Error sending magic link email' when the custom SMTP (Resend) refuses the send, reaches the success branch. AUDIT-2 ADMIN-auth-8 fixed only the no-status (network) case.",
+   "impact": "During a Resend quota exhaustion (see CLIENT-SEC-01) or any SMTP outage, every staff member is told a code was sent and is moved to the code step; they wait out the ten minutes, retry, and get the same false sentence. Nobody learns that mail is down, so the owner home's mail warning is the only clue and only once someone is signed in.",
+   "proposed_fix": "Treat `sendError.status >= 500` like the network case with its own sentence («تعذّر إرسال الرمز الآن؛ حاول بعد قليل.») and stay on the email step; keep the masked success only for 2xx and 4xx.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "proof_recipe": "",
+   "confidence": "high",
+   "prior_overlap": "AUDIT-2 ADMIN-auth-8"
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "AUDIT-1 S01.4",
+   "claim": "Password sign-in is refused by a Custom Access Token hook and secure_password_change is on",
+   "holds": true,
+   "evidence": "supabase/config.toml:236 `secure_password_change = true`; :299-301 `[auth.hook.custom_access_token] enabled = true, uri = pg-functions://postgres/public/deny_password_tokens`; 20260930120000_audit_fixes.sql:21-38 defines the function, revokes it from public/anon/authenticated and grants supabase_auth_admin. Hosted wiring is still manual (I28). Residual: the hook passes `recovery` (CLIENT-SEC-03)."
+  },
+  {
+   "prior_id": "AUDIT-1 S12.2",
+   "claim": "public/_headers sends the safe CSP baseline on /*",
+   "holds": true,
+   "evidence": "public/_headers:6 `Content-Security-Policy: object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`; out/_headers is a copy (check:export requires it). Full CSP remains I46/P10."
+  },
+  {
+   "prior_id": "AUDIT-2 ADMIN-editor-3",
+   "claim": "Unsaved local drafts are keyed per user and cleared at sign-out (with a warning)",
+   "holds": true,
+   "evidence": "src/admin/fields.ts:190-225 StoredDraft.userId and draftOffer refuse another user's copy; CollectionForm.tsx:212 writes userId; AdminShell.tsx:86 clears on a user change, :128-131 confirms then clearDrafts() on sign-out."
+  },
+  {
+   "prior_id": "AUDIT-1 S08.7 / AUDIT-2 ADMIN-publish-1",
+   "claim": "Pasted h1/h4-h6, non-https links and tabs are transformed into allowed nodes",
+   "holds": true,
+   "evidence": "src/components/admin/RichTextEditor.tsx:209-227 registerAllowlistTransforms (HeadingNode retag, LinkNode unwrap unless httpsUrl, TabNode → space)."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-site-3",
+   "claim": "The sign-in mail sets RTL on a wrapper, not only on <html>",
+   "holds": true,
+   "evidence": "supabase/templates/magic_link.html:5 `<div dir=\"rtl\" style=\"text-align: right\">` around the code paragraph."
+  },
+  {
+   "prior_id": "AUDIT-1 X3.18 / AUDIT-2 X-A11Y-RTL-5",
+   "claim": "StepUp dialog has an accessible name and stays mounted so focus returns",
+   "holds": true,
+   "evidence": "StepUp.tsx:63 `aria-label=\"التحقق بتطبيق المصادقة\"`; TeamView.tsx:299-305 renders <StepUp open={stepUp !== null}> always."
+  },
+  {
+   "prior_id": "AUDIT-2 X-A11Y-RTL-4 / ADMIN-auth-9",
+   "claim": "Code inputs fold Arabic-Indic digits",
+   "holds": true,
+   "evidence": "src/lib/digits.ts otpDigits; used in SignIn.tsx:130, StepUp.tsx:84, MfaEnroll.tsx:128."
+  },
+  {
+   "prior_id": "AUDIT-2 ADMIN-auth-2 / AUDIT-1 S10.2",
+   "claim": "A failed session read or role RPC is not treated as a sign-out",
+   "holds": true,
+   "evidence": "AdminShell.tsx:90-95 keeps a ready gate on an RPC error; :104-113 a getSession error sets 'error' not 'signed-out'; :115-121 ignores INITIAL_SESSION."
+  },
+  {
+   "prior_id": "AUDIT-2 ADMIN-publish-10",
+   "claim": "Nested lists render inside the previous item, no stray bullet",
+   "holds": true,
+   "evidence": "src/lib/richtext.tsx:49-64."
+  },
+  {
+   "prior_id": "AUDIT-2 ADMIN-editor-10 / FIX-admin-2",
+   "claim": "Image and video id checks use own keys, not `in`",
+   "holds": true,
+   "evidence": "src/admin/fields.ts:266-269 Object.hasOwn(imageManifest, id) / Object.hasOwn(videoManifest, id); src/lib/images.ts:41 same."
+  },
+  {
+   "prior_id": "AUDIT-2 GAP-G2-4 / ADMIN-auth-6",
+   "claim": "TeamView uses the shared callFunction with its 200-shape validation",
+   "holds": true,
+   "evidence": "TeamView.tsx:7 imports callFunction; src/lib/supabase/functions.ts:28-31 validates the 200 reply shape."
+  },
+  {
+   "prior_id": "AUDIT-2 X-CONTRACT-7 / AUDIT-1 S12.5",
+   "claim": "Media id lookups are chunked under Cloudflare's 16 KB URL limit",
+   "holds": true,
+   "evidence": "src/lib/admin-publish.ts:71-86 MEDIA_CHUNK = 100; src/lib/content.ts:73-98 same; Cloudflare limit confirmed at https://developers.cloudflare.com/fundamentals/reference/connection-limits/ ('URLs have a limit of 16 KB')."
+  },
+  {
+   "prior_id": "AUDIT-2 ADMIN-publish-3 / ADMIN-publish-7",
+   "claim": "The bar shows the scheduled version and offers a reschedule; the preview banner names the live version",
+   "holds": true,
+   "evidence": "PublishBar.tsx:146-167; RoomPreview.tsx:90-94 previewNote."
+  },
+  {
+   "prior_id": "AUDIT-1 S01.1 / S02.4",
+   "claim": "Anon reads only visible posts of published_documents",
+   "holds": true,
+   "evidence": "20260930120000_audit_fixes.sql:49-51 policy published_documents_public_read; the build (src/lib/journal.ts:81) still filters visible as well."
+  },
+  {
+   "prior_id": "AUDIT-1 S02.5",
+   "claim": "The admin function's role check is real enforcement, not only reply shaping",
+   "holds": true,
+   "evidence": "supabase/functions/_shared/admin.ts:204-258 refuses by role and recentTotp per action before any work; staff-admin/index.ts:50-52 likewise."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Auth abuse controls for the hosted project: CAPTCHA on the Auth endpoints and an 'emails sent' limit sized for the staff",
+   "why_needed": "I28 lists the hosted Auth settings but no CAPTCHA and no email rate limit, so /otp and /recover can spend the Resend day and flood the owner's inbox (CLIENT-SEC-01, -03). Supabase's own production checklist, which the project fetched (PLANS/evidence/runtime-supabase-production.txt:123), recommends CAPTCHA on sign-in and password-reset endpoints.",
+   "touches": "supabase/config.toml ([auth.captcha], [auth.rate_limit] email_sent, [auth.email.template.recovery]), src/components/admin/SignIn.tsx (Turnstile widget + captchaToken), PLANS/ISSUES.md I28, docs/operations.md hosted checklist, tests/e2e/auth.spec.ts (the test key path)",
+   "package": "P11 (hosted setup); the code half can land in P10",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "Staff session lifetime on shared devices: time-box or inactivity timeout once the project is on Pro (E07)",
+   "why_needed": "Supabase sessions last indefinitely and refresh tokens never expire (https://supabase.com/docs/guides/auth/sessions); supabase/config.toml:284-289 leaves [auth.sessions] commented out and DATA-AND-SECURITY's session paragraph says nothing about lifetime. The time-box and inactivity settings are Pro-only, which E07 approves before live orders, so the decision belongs in the same gate.",
+   "touches": "supabase/config.toml [auth.sessions], PLANS/DATA-AND-SECURITY.md 'Media and session boundaries', PLANS/ISSUES.md I28, owner training",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "Owner recovery from a lost authenticator (TOTP): runbook and training step",
+   "why_needed": "A verified factor can only be removed at aal2 (Supabase Auth mfa.go), the admin has no replacement path and docs/operations.md has no procedure; every money and team action is blocked until someone edits auth.mfa_factors (CLIENT-SEC-07).",
+   "touches": "docs/operations.md, PLANS/WORK-PACKAGES.md P11 training list, optionally staff-admin (a second owner removes a factor at aal2)",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "HSTS and Permissions-Policy in the headers baseline and in the P10/P11 header checks",
+   "why_needed": "Neither header is sent by public/_headers nor named in DATA-AND-SECURITY's headers paragraph, VERIFICATION.md's P10 line or I46, while the soon page already sends HSTS on the same domain (CLIENT-SEC-06).",
+   "touches": "public/_headers, PLANS/DATA-AND-SECURITY.md:101, PLANS/VERIFICATION.md:45, PLANS/ISSUES.md I46, tests/e2e/security.spec.ts (P10)",
+   "package": "P10",
+   "urgency": "before_P10",
+   "owner_decision": false
+  },
+  {
+   "title": "State the staff-address oracle as a known residual, not a property",
+   "why_needed": "The P03 claim and SignIn.tsx:17-20 say step 1 never reveals a staff address; the Auth API does (CLIENT-SEC-02), and tests/e2e/auth.spec.ts:9-14 proves only the UI text. The plan should record it so nobody relies on it.",
+   "touches": "src/components/admin/SignIn.tsx comment, PLANS/DATA-AND-SECURITY.md session paragraph, artifacts/acceptance/P03 claims",
+   "package": "P10 (docs)",
+   "urgency": "later",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Cloudflare Pages applies every matching _headers rule to a request and joins a header defined twice with a comma",
+   "where": "public/_headers (the /* and /admin, /admin/*, /orders, /checkout/return, /notify/* blocks); artifacts/acceptance/P08/rounds/round-04b.md:126",
+   "verdict": "true",
+   "evidence": "https://developers.cloudflare.com/pages/configuration/headers/: 'An incoming request which matches multiple rules' URL patterns will inherit all rules' headers' and 'If a header is applied twice in the _headers file, the values are joined with a comma separator.' So /admin gets two CSP policies (both enforced) and /orders gets 'strict-origin-when-cross-origin, no-referrer' where the last valid token wins; this depends on the /* block staying first in the file."
+  },
+  {
+   "claim": "Cloudflare Pages redirects /x.html to /x, serves 404.html for unknown paths, and sends no HSTS by default",
+   "where": "public/_headers (exact rules /admin, /orders, /checkout/return), next.config.ts globalNotFound comment, scripts/check-export.mjs REQUIRED",
+   "verdict": "true",
+   "evidence": "https://developers.cloudflare.com/pages/configuration/serving-pages/: '/contact.html will be redirected to /contact'; '404.html ... ending in /404.html'; default headers listed are Access-Control-Allow-Origin, Cf-Ray, Referrer-Policy, Etag, Content-Type, X-Content-Type-Options, Server; cacheable assets 'Cache-Control: public, max-age=0, must-revalidate'."
+  },
+  {
+   "claim": "Cloudflare refuses a URL longer than 16 KB (why media ids are fetched 100 per request)",
+   "where": "src/lib/content.ts:71-73, src/lib/admin-publish.ts:68-71",
+   "verdict": "true",
+   "evidence": "https://developers.cloudflare.com/fundamentals/reference/connection-limits/: 'URLs have a limit of 16 KB.'"
+  },
+  {
+   "claim": "Supabase Auth limits /auth/v1/otp to one request per user per 60 s and 30 sign-in requests per 5 minutes per IP; the project-wide 'emails sent' limit is configurable with custom SMTP; MFA challenge/verify is fixed at 15 per minute per IP",
+   "where": "PLANS/DATA-AND-SECURITY.md:99 ('the MFA verify limit is fixed at 15 per minute per IP'), supabase/config.toml:201-216, PLANS/ISSUES.md I28",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/guides/auth/rate-limits: 'Defaults to a 60 seconds window before a new request is allowed for the same user' (/otp); 'Defaults to 30 requests per 5 minutes' per IP for signup/recover/resend/magiclink/otp/user; emails 'You can configure this limit when you use custom SMTP or the Send Email hook'; MFA '15 requests per minute' per IP, not customizable."
+  },
+  {
+   "claim": "Supabase Auth CAPTCHA (hCaptcha or Turnstile), once enabled, gates the /otp endpoint the sign-in form calls",
+   "where": "The fix proposed in CLIENT-SEC-01; supabase/config.toml:218-222 [auth.captcha]",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/guides/auth/auth-captcha: 'Supabase authentication has support for hCaptcha and Cloudflare Turnstile'; https://raw.githubusercontent.com/supabase/auth/master/internal/api/api.go: `r.With(api.limitHandler(api.limiterOpts.Otp)).With(api.verifyCaptcha).Post(\"/otp\", ...)`."
+  },
+  {
+   "claim": "Step 1 of sign-in never reveals whether an address is a staff email (with create_user=false Supabase answers the same for known and unknown addresses)",
+   "where": "src/components/admin/SignIn.tsx:17-20",
+   "verdict": "false",
+   "evidence": "https://raw.githubusercontent.com/supabase/auth/master/internal/api/otp.go: shouldCreateUser returns false on IsNotFoundError and the handler returns 'Signups not allowed for otp' (otp_disabled, 422); a known address proceeds to MagicLink and 200. The claim holds for the UI text only."
+  },
+  {
+   "claim": "Enrolling a new MFA factor requires an aal2 session once a verified factor exists, and unenrolling a verified factor requires aal2",
+   "where": "The step-up design in PLANS/DATA-AND-SECURITY.md:51 and :99 (owner step-up is Supabase TOTP at aal2) relies on a stolen aal1 session not being able to mint its own factor",
+   "verdict": "true",
+   "evidence": "https://raw.githubusercontent.com/supabase/auth/master/internal/api/mfa.go: 'AAL2 required to enroll a new factor' when numVerifiedFactors > 0 and the session is not AAL2; 'AAL2 required to unenroll verified factor'."
+  },
+  {
+   "claim": "TOTP MFA is a Pro-plan feature",
+   "where": "supabase/config.toml:311 comment '# Multi-factor-authentication is available to Supabase Pro plan.' (CLI template text)",
+   "verdict": "false",
+   "evidence": "https://supabase.com/docs/guides/auth/auth-mfa/totp: 'TOTP MFA API is free to use and is enabled on all Supabase projects by default.' Harmless: a template comment, and the design works on Free."
+  },
+  {
+   "claim": "Supabase sessions last indefinitely by default; refresh tokens never expire; time-box and inactivity timeouts are Pro-plan settings; reuse interval 10 s",
+   "where": "supabase/config.toml:174-178 and :284-289; PLANS/DATA-AND-SECURITY.md:99 (no lifetime stated)",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/guides/auth/sessions: 'By default, it lasts indefinitely'; 'refresh tokens never expire but can only be used once'; 'This feature is only available on Pro Plans and up' (time-box/inactivity); reuse interval 'By default this is 10 seconds'."
+  },
+  {
+   "claim": "The Custom Access Token hook receives authentication_method with values including password, otp, magiclink, recovery, token_refresh, totp, and may refuse with {error:{http_code,message}}",
+   "where": "supabase/migrations/20260930120000_audit_fixes.sql:18-35 (deny_password_tokens), supabase/config.toml:296-301",
+   "verdict": "true",
+   "evidence": "https://supabase.com/docs/guides/auth/auth-hooks/custom-access-token-hook: inputs user_id, claims, authentication_method with values oauth, password, otp, totp, recovery, invite, sso/saml, magiclink, email/signup, email_change, token_refresh, …; output must contain claims; error as {http_code, message}."
+  },
+  {
+   "claim": "React 19 blocks javascript: URLs in href in production builds",
+   "where": "Relied on implicitly: the lenient build schema (src/admin/collections/site-settings.ts:150 siteSettingsStoredSchema) does not re-check nav hrefs, and src/lib/richtext.tsx renders only https:// anyway",
+   "verdict": "true",
+   "evidence": "node_modules/react-dom/cjs/react-dom-client.production.js:1579-1585 sanitizeURL replaces a javascript: URL with 'javascript:throw new Error(React has blocked a javascript: URL as a security precaution.)' (react-dom 19.3.0)."
+  },
+  {
+   "claim": "Resend's free plan allows 100 emails a day and 3,000 a month",
+   "where": "supabase/functions/_shared/outbox.ts:36-44 (DAILY_QUOTA = 100), PLANS/P08-CONTRACT.md:448",
+   "verdict": "true",
+   "evidence": "https://resend.com/docs/knowledge-base/account-quotas-and-limits: the free plan has a 'daily email quota of 100 emails/day and 3,000 emails/month'. Matches outbox.ts DAILY_QUOTA/MONTHLY_QUOTA."
+  }
+ ],
+ "coverage": "Read in full: src/lib/supabase/{browser,functions}.ts; src/lib/{env,content,richtext,media-ref,images,admin-publish,journal,scenes,policies,store,book-preview,digits}.ts(x); src/admin/{richtext,fields}.ts; src/admin/collections/site-settings.ts (plus policies.ts header and index.ts labels); src/components/admin/{AdminShell,SignIn,MfaEnroll,StepUp,TeamView,RoomPreview,DocumentEditor,RichTextEditor,CollectionForm,PublishBar}.tsx; every file under src/app/(admin)/**; src/app/(public)/layout.tsx; next.config.ts; public/_headers; supabase/config.toml; supabase/templates/magic_link.html; scripts/{local-env,bootstrap-owner,check-export}.mjs; scripts/lib/demo-guard.mjs; src/components/public/Picture.tsx; supabase/functions/staff-admin/index.ts, _shared/staff.ts, _shared/recent-totp.ts, _shared/admin.ts 195-259 (the server twins of the browser gates); the hook and RLS parts of 20260930120000_audit_fixes.sql; RLS of products/product_variants/media/content_versions/published_documents; publish_version/archive_document/content_assert_publisher SQL; zod 4.6.5's URL check; @supabase/auth-js 2.117.1 signOut/__loadSession/_callRefreshToken; react-dom 19.3.0 sanitizeURL. Answers to the slice questions: (1) the build reads with the publishable (anon) key only, under RLS (visible posts, published products, enabled variants, referenced media); the four baked NEXT_PUBLIC values (URL, publishable key, Turnstile site key, Google flag) are public by nature. (2) Every browser gate found has a server twin: role gates → RLS current_staff_role() and the functions' role checks; step-up → recentTotp (aal2 + totp amr ≤ 300 s) in staff-admin and admin; content validation → build-time Zod parse (fail-closed) plus archive_document's collection rule; archive/publish → content_assert_publisher. Session: localStorage (sb-*-auth-token), 1 h JWT, indefinite refresh, no idle timeout (plan gap); sign-out clears drafts (CLIENT-SEC-04 edge). (3) The preview reads content_versions under RLS; a non-staff visitor sees «سجّل الدخول أولًا.», another role «لا توجد مسودة متاحة لك.»; noindex meta + X-Robots-Tag + no-store; no HTML sink (no dangerouslySetInnerHTML anywhere in src), links https-only, React blocks javascript:. (4) Lexical allowlist and renderer are consistent except the https spelling (CLIENT-SEC-05); no target, rel noopener noreferrer, no media nodes, pasted tabs/headings/links transformed. (5) OTP 6 digits/600 s, rotation on, reuse 10 s, signups off with the email provider on, hook wired locally, template is code-only; gaps: no CAPTCHA (01), recovery link (03), no session lifetime (plan gap). (6) Headers verified against Cloudflare docs; missing HSTS/Permissions-Policy (06); the Referrer-Policy comma join was already recorded in round 04b. (7) Bundle scan: no secret, no internal URL beyond the loopback build's own Supabase origin, no debug switch; secret names appear only in the admin's setup instructions.\n\nExport scan (out/, built 2026-10-03 against the loopback stack): every text file searched for sb_secret_/service_role/JWT shapes/postgres URLs/sbp_/whsec_/Resend keys, e-mails, bucket names, draft markers, UUIDs, debug switches; nothing secret; UUIDs are public product/variant ids; the only e-mails are help@anas.studio (planned), a pdf.js fixture and name@example.com.\n\nSampled only: the public view components (grep for href/src/style sinks, not a full read); tests/e2e/auth.spec.ts (names plus the first test); docs/operations.md (grep for TOTP); the P08 round files (grep for fragment/_headers/step-up/localStorage).\n\nNot reached: a running stack (none allowed), so CLIENT-SEC-01/02/03 carry runtime recipes; hosted Supabase dashboard values (email_sent, CAPTCHA, site_url, templates) exist only as plan text; whether Supabase's email_sent limiter counts /otp sends (docs ambiguous; source would settle it); other slices' files (checkout/order client code, functions beyond the staff identity path, DB beyond the publish path).\n\nObservations recorded, not filed: bidi control characters pass the control-character rule and the rich-text schema (trusted staff input); text formats other than bold/italic (Ctrl+U underline) are stored and silently dropped by the renderer; the lenient build schema for site_settings skips the nav-href rule (React 19 blocks javascript:, publish gate checks the rest); editors publish policies by design and thereby reset the owner's approval (AUDIT-1 X1.1, accepted); config.toml's 'MFA is Pro' comment is CLI template text.\n\nWith more time: read OrderView/RefundView/ReconciliationView/CommerceSettingsForm step-up retry paths for replay of the same body after verify (idempotency belongs to the functions slice); a browser test of the Lexical paste path with a crafted HTML clipboard (image, table, iframe); an e2e proof of the preview's two refusal sentences; a run of the three HTTP recipes once a stack is available. Scratch copies of everything are in SCRATCH\\\\CLIENT-SEC\\\\{findings,prior-fix-checks,plan-gaps,doc-claims}.jsonl, coverage.md and structured.json."
+}

@@ -1,0 +1,145 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 41 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  1 [chromium] › tests\e2e\store-admin.spec.ts:88:1 › the owner creates a product, a variant and a city rate without code changes (55.9s)
+  ok  2 [chromium] › tests\e2e\store-admin.spec.ts:160:1 › the checkout function prices the admin-created catalog: total is price plus fee (4.7s)
+  ok  3 [chromium] › tests\e2e\store-admin.spec.ts:174:1 › with checkout on (a fixture), a create reaches a persisted pending order (4.1s)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok  4 [chromium] › tests\e2e\store-admin.spec.ts:213:1 › a stale save shows the conflict and keeps the typed values (28.0s)
+  ok  5 [chromium] › tests\e2e\store-admin.spec.ts:235:1 › a percentage coupon typed as 12.5 is stored as 1250 basis points (21.2s)
+  ok  6 [chromium] › tests\e2e\store-admin.spec.ts:251:1 › an editor gets no store link (11.8s)
+  ok  7 [chromium] › tests\e2e\store-admin.spec.ts:258:1 › an operations member sees the products list, no «جديد», and cannot save (17.1s)
+  ok  8 [chromium] › tests\e2e\store-admin.spec.ts:274:1 › the policies collection lists its four fixed documents (23.3s)
+  ok  9 [chromium] › tests\e2e\store-admin.spec.ts:283:1 › the owner closes and reopens checkout with the switch, through the step-up dialog (46.3s)
+  ok 10 [chromium] › tests\e2e\store-admin.spec.ts:360:1 › an operations member does not see the checkout switch (12.3s)
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+[WebServer] [browser] When using "display: flex" or "display: inline-flex" on an element containing content editable, Chrome may have unwanted focusing behavior when clicking outside of it. Consider wrapping the content editable within a non-flex element.
+  ok 11 [chromium] › tests\e2e\store-admin.spec.ts:369:1 › screenshots at 360 and 1440 with no horizontal overflow (41.2s)
+  ok 12 [chromium] › tests\e2e\store-admin.spec.ts:700:9 › round 11c: the catalog and the figures › at 360px › the owner › shows the preorder fields only while «طلب مسبق» is on, refuses a missing note and a past date, and reads a saved preorder back (19.0s)
+  ok 13 [chromium] › tests\e2e\store-admin.spec.ts:783:9 › round 11c: the catalog and the figures › at 360px › the owner › shows the confirmed preorders of a preorder variant, none for an ordinary one, and keeps showing them once it is switched off (15.0s)
+  ok 14 [chromium] › tests\e2e\store-admin.spec.ts:818:9 › round 11c: the catalog and the figures › at 360px › the owner › says it could not read the variant, never a zero, offers «تحديث», puts what a new reading finds on a line that takes the focus, and says when the variant is gone (18.9s)
+  ok 15 [chromium] › tests\e2e\store-admin.spec.ts:873:9 › round 11c: the catalog and the figures › at 360px › the owner › refuses before any call what is not a PDF or an EPUB, an empty file and a bad name, and shows the function's refusal of a text file renamed .pdf (19.4s)
+  x  16 [chromium] › tests\e2e\store-admin.spec.ts:924:9 › round 11c: the catalog and the figures › at 360px › the owner › uploads a real PDF, shows it, hands it to the order that waited for it, and a second file replaces it for new orders only (42.6s)
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok 17 [chromium] › tests\e2e\store-admin.spec.ts:974:9 › round 11c: the catalog and the figures › at 360px › the owner › keeps the ticket when the function answers BUSY, and «أعد المحاولة» completes the same ticket again (14.5s)
+  ok 18 [chromium] › tests\e2e\store-admin.spec.ts:1031:9 › round 11c: the catalog and the figures › at 360px › the owner › saves the form after a paid file was uploaded: the version the record bumped is taken, also when the reply to the completion was lost (19.5s)
+  ok 19 [chromium] › tests\e2e\store-admin.spec.ts:1086:9 › round 11c: the catalog and the figures › at 360px › the owner › still ends in the conflict message when another session changed the variant as well as the upload (15.0s)
+  ok 20 [chromium] › tests\e2e\store-admin.spec.ts:1108:9 › round 11c: the catalog and the figures › at 360px › the owner › a refused upload takes no version: a save made meanwhile by another session still ends in the conflict, never overwritten (17.3s)
+  ok 21 [chromium] › tests\e2e\store-admin.spec.ts:1130:9 › round 11c: the catalog and the figures › at 360px › the owner › keeps what it showed and says the page may be behind when the variant cannot be read again after an upload (17.3s)
+[WebServer] ⨯ Failed to generate static paths for /admin/store/[table]/edit:
+[WebServer] Error: Page "/(admin)/admin/(shell)/store/[table]/edit/page" is missing param "/admin/store/[table]/edit" in "generateStaticParams()", which is required with "output: export" config.
+[WebServer]     at ignore-listed frames
+[WebServer] ⨯ Failed to generate static paths for /admin/store/[table]/edit:
+[WebServer] Error: Page "/(admin)/admin/(shell)/store/[table]/edit/page" is missing param "/admin/store/[table]/edit" in "generateStaticParams()", which is required with "output: export" config.
+[WebServer]     at ignore-listed frames
+  ok 22 [chromium] › tests\e2e\store-admin.spec.ts:1160:9 › round 11c: the catalog and the figures › at 360px › the owner › lists the availability sign-ups read-only, newest first, with no link on a row, no «جديد» and no edit page (22.5s)
+  ok 23 [chromium] › tests\e2e\store-admin.spec.ts:1208:9 › round 11c: the catalog and the figures › at 360px › the owner › shows the ledger figures of a range of days equal to the function's, with the sentence, and refuses a reversed or too long range before any call (12.6s)
+  ok 24 [chromium] › tests\e2e\store-admin.spec.ts:1294:9 › round 11c: the catalog and the figures › at 360px › the owner › says «غير مُعدّ بعد» for no commerce, cannot read a reply that is not the figures, and keeps the figures when a range fails (10.8s)
+  ok 25 [chromium] › tests\e2e\store-admin.spec.ts:1349:9 › round 11c: the catalog and the figures › at 360px › operations › sees the count and the file of a variant, and no upload, no form, no save (18.1s)
+  ok 26 [chromium] › tests\e2e\store-admin.spec.ts:1378:9 › round 11c: the catalog and the figures › at 360px › operations › reads the availability sign-ups too, from the store home, with nothing to change (7.2s)
+  ok 27 [chromium] › tests\e2e\store-admin.spec.ts:700:9 › round 11c: the catalog and the figures › at 1440px › the owner › shows the preorder fields only while «طلب مسبق» is on, refuses a missing note and a past date, and reads a saved preorder back (13.5s)
+  ok 28 [chromium] › tests\e2e\store-admin.spec.ts:783:9 › round 11c: the catalog and the figures › at 1440px › the owner › shows the confirmed preorders of a preorder variant, none for an ordinary one, and keeps showing them once it is switched off (15.1s)
+  ok 29 [chromium] › tests\e2e\store-admin.spec.ts:818:9 › round 11c: the catalog and the figures › at 1440px › the owner › says it could not read the variant, never a zero, offers «تحديث», puts what a new reading finds on a line that takes the focus, and says when the variant is gone (18.4s)
+  ok 30 [chromium] › tests\e2e\store-admin.spec.ts:873:9 › round 11c: the catalog and the figures › at 1440px › the owner › refuses before any call what is not a PDF or an EPUB, an empty file and a bad name, and shows the function's refusal of a text file renamed .pdf (18.1s)
+  ok 31 [chromium] › tests\e2e\store-admin.spec.ts:924:9 › round 11c: the catalog and the figures › at 1440px › the owner › uploads a real PDF, shows it, hands it to the order that waited for it, and a second file replaces it for new orders only (16.0s)
+  ok 32 [chromium] › tests\e2e\store-admin.spec.ts:974:9 › round 11c: the catalog and the figures › at 1440px › the owner › keeps the ticket when the function answers BUSY, and «أعد المحاولة» completes the same ticket again (14.8s)
+  ok 33 [chromium] › tests\e2e\store-admin.spec.ts:1031:9 › round 11c: the catalog and the figures › at 1440px › the owner › saves the form after a paid file was uploaded: the version the record bumped is taken, also when the reply to the completion was lost (14.7s)
+  ok 34 [chromium] › tests\e2e\store-admin.spec.ts:1086:9 › round 11c: the catalog and the figures › at 1440px › the owner › still ends in the conflict message when another session changed the variant as well as the upload (15.5s)
+  ok 35 [chromium] › tests\e2e\store-admin.spec.ts:1108:9 › round 11c: the catalog and the figures › at 1440px › the owner › a refused upload takes no version: a save made meanwhile by another session still ends in the conflict, never overwritten (16.4s)
+  ok 36 [chromium] › tests\e2e\store-admin.spec.ts:1130:9 › round 11c: the catalog and the figures › at 1440px › the owner › keeps what it showed and says the page may be behind when the variant cannot be read again after an upload (21.4s)
+  ok 37 [chromium] › tests\e2e\store-admin.spec.ts:1160:9 › round 11c: the catalog and the figures › at 1440px › the owner › lists the availability sign-ups read-only, newest first, with no link on a row, no «جديد» and no edit page (15.9s)
+[WebServer] ⨯ Failed to generate static paths for /admin/store/[table]/edit:
+[WebServer] Error: Page "/(admin)/admin/(shell)/store/[table]/edit/page" is missing param "/admin/store/[table]/edit" in "generateStaticParams()", which is required with "output: export" config.
+[WebServer]     at ignore-listed frames
+[WebServer] ⨯ Failed to generate static paths for /admin/store/[table]/edit:
+[WebServer] Error: Page "/(admin)/admin/(shell)/store/[table]/edit/page" is missing param "/admin/store/[table]/edit" in "generateStaticParams()", which is required with "output: export" config.
+[WebServer]     at ignore-listed frames
+  ok 38 [chromium] › tests\e2e\store-admin.spec.ts:1208:9 › round 11c: the catalog and the figures › at 1440px › the owner › shows the ledger figures of a range of days equal to the function's, with the sentence, and refuses a reversed or too long range before any call (16.7s)
+  ok 39 [chromium] › tests\e2e\store-admin.spec.ts:1294:9 › round 11c: the catalog and the figures › at 1440px › the owner › says «غير مُعدّ بعد» for no commerce, cannot read a reply that is not the figures, and keeps the figures when a range fails (19.4s)
+  ok 40 [chromium] › tests\e2e\store-admin.spec.ts:1349:9 › round 11c: the catalog and the figures › at 1440px › operations › sees the count and the file of a variant, and no upload, no form, no save (18.5s)
+  ok 41 [chromium] › tests\e2e\store-admin.spec.ts:1378:9 › round 11c: the catalog and the figures › at 1440px › operations › reads the availability sign-ups too, from the store home, with nothing to change (9.1s)
+
+
+  1) [chromium] › tests\e2e\store-admin.spec.ts:924:9 › round 11c: the catalog and the figures › at 360px › the owner › uploads a real PDF, shows it, hands it to the order that waited for it, and a second file replaces it for new orders only 
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  locator('#variant-commerce-status')
+    Expected: "رُفع الملف. وأُرسل رابط التنزيل إلى 1 من الطلبات المنتظرة."
+    Received: ""
+    Timeout:  20000ms
+
+    Call log:
+      - Expect "toHaveText" locator('#variant-commerce-status') with timeout 20000ms
+      - waiting for locator('#variant-commerce-status')
+        31 × locator resolved to <p role="status" tabindex="-1" id="variant-commerce-status" class="admin-module__nc4JNq__message">جارٍ الرفع…</p>
+           - unexpected value "جارٍ الرفع…"
+        11 × locator resolved to <p role="status" tabindex="-1" id="variant-commerce-status" class="admin-module__nc4JNq__message"></p>
+           - unexpected value ""
+
+
+      935 |
+      936 |           await input.setInputFiles({ name, mimeType: 'application/pdf', buffer: PDF_BYTES })
+    > 937 |           await expect(statusLine).toHaveText('رُفع الملف. وأُرسل رابط التنزيل إلى 1 من الطلبات المنتظرة.')
+          |                                    ^
+      938 |           await expect(statusLine).toBeFocused()
+      939 |           await expect(page.locator('#variant-commerce-alert')).toHaveText('')
+      940 |           await expect(area.getByText(new RegExp(`${esc(name)}، 1 كيلوبايت، رُفع .*\\d{4}`))).toBeVisible()
+        at C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME\tests\e2e\store-admin.spec.ts:937:36
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\playwright\store-admin-round-11c-the--98a90-aces-it-for-new-orders-only-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\playwright\store-admin-round-11c-the--98a90-aces-it-for-new-orders-only-chromium\error-context.md
+
+    Error Context: test-results\playwright\store-admin-round-11c-the--98a90-aces-it-for-new-orders-only-chromium\error-context.md
+
+    Error Context: test-results\playwright\store-admin-round-11c-the--98a90-aces-it-for-new-orders-only-chromium\error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\playwright\store-admin-round-11c-the--98a90-aces-it-for-new-orders-only-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\playwright\store-admin-round-11c-the--98a90-aces-it-for-new-orders-only-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › tests\e2e\store-admin.spec.ts:924:9 › round 11c: the catalog and the figures › at 360px › the owner › uploads a real PDF, shows it, hands it to the order that waited for it, and a second file replaces it for new orders only 
+  40 passed (17.8m)

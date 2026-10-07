@@ -1,0 +1,207 @@
+{
+ "findings": [
+  {
+   "id": "CONTRACT-01",
+   "title": "payments_reconcile job runs are recorded but never shown on the owner home (KNOWN_JOBS lacks it)",
+   "severity": "medium",
+   "category": "operations-visibility",
+   "file": "src/components/admin/AdminHome.tsx",
+   "line": 33,
+   "evidence": "KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep', 'backup'] and JOB_LABEL (lines 26-29) have no payments_reconcile entry, while supabase/functions/_shared/payments.ts:749 and jobs.ts paymentsJob() write job_run_record('payments_reconcile', ok|partial|failed|skipped) on every run; job_runs_latest() (20260926120000_contacts_and_email.sql:539) returns one row per job, so the data is there and the screen drops it.",
+   "impact": "The owner's job trail shows four healthy jobs while the payment reconciliation can be failing or skipped on every run (PAYMENTS_NOT_CONFIGURED after a key change, Moyasar unreachable, a database error). Pending attempts, webhook events and in-flight refunds then wait for a person with no screen that says the job stopped; the contract's 'the run is always recorded' buys the operator nothing.",
+   "proposed_fix": "Add payments_reconcile to KNOWN_JOBS and JOB_LABEL («مطابقة المدفوعات»), a stale window of a few minutes while payment rows are due (a small SQL like outbox_due_since over the three next_check_at columns) and a sentence for skipped with reason PAYMENTS_NOT_CONFIGURED.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "Listed as 'uncovered' in artifacts/acceptance/P08/rounds/round-12b.md (both worker reports), absent from PLANS/ISSUES.md, not fixed."
+  },
+  {
+   "id": "CONTRACT-03",
+   "title": "payments_kick wakes the reconciliation with a 15 s pg_net timeout while one run may spend 60 s on provider calls",
+   "severity": "medium",
+   "category": "cross-layer-timing",
+   "file": "supabase/migrations/20261002100000_payment_core.sql",
+   "line": 1671,
+   "evidence": "payments_kick: net.http_post(url := v_url || '/outbox', body := jsonb_build_object('job', 'payments_reconcile'), timeout_milliseconds := 15000). payments.ts:48 RUN_BUDGET_MS = 60_000 and moyasar.ts:21 MOYASAR_TIMEOUT_MS = 10_000; payment_reconcile_claim leases up to 10 attempts, 10 events and 5 refunds per run, each costing one to three provider calls, and the run records itself only at the end (payments.ts:749).",
+   "impact": "Whenever a run outlives 15 s (a slow or hung Moyasar, or many due rows) the caller disconnects before the function answers. If the Supabase edge runtime stops the isolate on that disconnect, the leased rows that were not reached wait for their 2-minute lease to lapse, the run's job_run_record is never written and the contract's 'so the run is always recorded' does not hold; even if the runtime keeps going, pg_net files every such kick as a timeout. The vendor docs say nothing about a client disconnect (doc_claims_checked), so only a run settles it.",
+   "proposed_fix": "Either raise timeout_milliseconds in payments_kick (and outbox_kick, the same pattern) above the run budget (e.g. 75000), or have the outbox function answer the kick at once and run runPaymentsReconcile inside EdgeRuntime.waitUntil(), the documented way to keep an instance alive past its response.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "On a fresh local stack: add a throwaway job branch to handleJobs that awaits 25 s then calls job_run_record('probe','ok','{}',now()). From psql: select net.http_post(url := '<functions_url>/outbox', headers := jsonb_build_object('Authorization','Bearer <JOBS_SECRET>','Content-Type','application/json'), body := '{\"job\":\"probe\"}'::jsonb, timeout_milliseconds := 5000); after 40 s: select * from finance.job_runs where job = 'probe'; select status_code, error_msg from net._http_response order by id desc limit 1. Wrong result: no probe row (the function was stopped at the pg_net timeout) together with error_msg 'Timeout was reached'.",
+   "confidence": "medium"
+  },
+  {
+   "id": "CONTRACT-02",
+   "title": "refund_settle: a fetched total below `before` but not below `origin` is re-leased every minute for ever (no 15-minute or 24-hour rule)",
+   "severity": "low",
+   "category": "state-machine",
+   "file": "supabase/migrations/20261002130000_refunds.sql",
+   "line": 610,
+   "evidence": "elsif p_provider_refunded < v_before then ... if p_provider_refunded < v_origin then refund_fail(...) else update finance.refunds r set next_check_at = now() + interval '1 minute' ... — no check_count step, no created_at + 15 minutes test, no 24-hour test (refund_checked's 24-hour rule runs only when the fetch itself failed).",
+   "impact": "If Moyasar keeps answering a `refunded` total between the refund's origin and its raised `before` (a lagging read after a dashboard refund was recorded, or a total that went down), the in-flight refund is leased and fetched every minute indefinitely, its balance stays reserved (REFUND_IN_FLIGHT for every new refund of that payment, order_resolve refused) and no alert is ever raised, since neither NOT_APPLIED nor refund_unverified applies. Contract section 3 promises 'there is no state that waits for ever'.",
+   "proposed_fix": "Give the stale-read branch the same clock as the not-landed branch: when now() >= created_at + 15 minutes, refund_fail(id, 'NOT_APPLIED') (or set next_check_at null with one refund_unverified alert); otherwise back off through check_count.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high"
+  },
+  {
+   "id": "CONTRACT-04",
+   "title": "The `status` reply's payments.reason code is dropped by every admin screen: the owner sees only «الدفع غير مضبوط»",
+   "severity": "low",
+   "category": "error-handling",
+   "file": "src/components/admin/CommerceSettingsForm.tsx",
+   "line": 61,
+   "evidence": "paymentsLine(): if (!payments.configured) return 'الدفع غير مضبوط'. The reason (NOT_CONFIGURED, BAD_MODE, KEY_MODE_MISMATCH, WEAK_WEBHOOK_SECRET, BAD_BASE_URL, BAD_CALLBACK_BASE, LIVE_ON_LOCAL, EMULATOR_ON_HOSTED, TEST_CODE_REQUIRED) that supabase/functions/_shared/admin.ts:594 puts in the reply has no consumer under src/ (no reference to PaymentsConfigReason or payments.reason). docs/payments-runbook.md:292 says the settings box 'says which state it is in'.",
+   "impact": "On the day the live keys arrive (E02), a wrong key prefix, a trailing slash, a missing PAYMENTS_TEST_ACCESS_CODE or a non-public callback base all read as one sentence; the owner must guess among nine causes or call the function by hand, while checkout stays closed and the reconciliation job records itself skipped.",
+   "proposed_fix": "Append the reason code to the sentence, e.g. «الدفع غير مضبوط (KEY_MODE_MISMATCH)», and map each code to one Arabic line taken from the runbook's list; the reply already carries it.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high"
+  },
+  {
+   "id": "CONTRACT-06",
+   "title": "The checkout tab keeps saying «وصلتنا دفعة هذا الطلب» for a refunded order, and the cart keeps the items of a paid order under review",
+   "severity": "low",
+   "category": "state-handling",
+   "file": "src/components/store/PaymentReturn.tsx",
+   "line": 108,
+   "evidence": "PaymentReturn spends the stored order and empties the cart only for state === 'paid' (line 108) and clears the order for expired/cancelled (line 109); needs_resolution, review and refunded clear nothing. HoldView.tsx:55 RECEIVED = {paid, paid_needs_resolution, refunded, review} shows closed 'received' for all four, and CheckoutForm.tsx:456 renders HoldView whenever a pending order is stored.",
+   "impact": "A buyer whose payment landed as paid_needs_resolution or review keeps the bought items in the cart (another tab can order and pay them again) and cannot start a new order in that tab for the rest of the session; a buyer whose order the owner refunded within the session sees the checkout page claim a payment was received. Bounded: the return page itself words each state correctly.",
+   "proposed_fix": "In PaymentReturn treat needs_resolution and review like paid for the cart (writeCart(EMPTY_CART), clearPendingOrder, clearIdempotency) and refunded like expired (clear the order and the key); in HoldView word 'refunded' as «أُعيد مبلغ هذا الطلب.».",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high"
+  },
+  {
+   "id": "CONTRACT-05",
+   "title": "finance.fulfillments.version is bumped by fulfillment_update but never sent by the screen nor checked by the SQL",
+   "severity": "info",
+   "category": "optimistic-concurrency",
+   "file": "supabase/migrations/20261002145000_order_operations.sql",
+   "line": 628,
+   "evidence": "fulfillment_update(p_order, p_item_ids, p_state, p_carrier, p_tracking, p_dedication_done) takes no expected version; its three UPDATEs set version = f.version + 1 (lines 714, 730, 740); OrderView.tsx:254 sends none. Contract section 4 lists the column without a use.",
+   "impact": "No wrong state found: the forward-only chain and the carrier/tracking equality turn a stale second tab into BAD_TRANSITION, and the dedication tick is idempotent. The column is dead weight that reads as if conflicts were detected.",
+   "proposed_fix": "Drop the column from the contract and the writes, or take an expected version per item and answer a CONFLICT code; the former is the smaller change.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high"
+  },
+  {
+   "id": "CONTRACT-07",
+   "title": "cart.ts fingerprint comment claims it normalizes 'exactly as the Edge Function' but phone and checkoutSession differ",
+   "severity": "info",
+   "category": "documentation",
+   "file": "src/lib/cart.ts",
+   "line": 193,
+   "evidence": "normalizedCore(): phone: core.phone?.trim() || null; supabase/functions/_shared/checkout.ts:401-425 normalizes the phone with normalizeSaudiMobile() (0501234567 becomes 966501234567) and hashes checkoutSession as well. The client digest is coarser only in the safe direction: a respelled phone mints a new key, and the same-session ACTIVE_HOLD hands the held order back.",
+   "impact": "No buyer-facing defect found; the comment misleads the next reader into assuming the two hashes are equal, and a future change that leaned on that would create IDEMPOTENCY_CONFLICT loops the UI cannot leave.",
+   "proposed_fix": "Reword the comment, or normalize the phone with normalizeSaudiMobile in normalizedCore (format.ts already re-exports it).",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high"
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "R4B-01",
+   "claim": "startPayment passes the ledger's reason in the closed payload; the hold view claims a payment only for a settled status or UNDER_REVIEW, ends on HOLD_EXPIRED, keeps the cancel otherwise",
+   "holds": true,
+   "evidence": "supabase/functions/_shared/payments.ts:251-256 spreads status and reason into {state:'closed'}; src/components/store/HoldView.tsx:55-63 shownBy(): RECEIVED or reason UNDER_REVIEW -> 'received', HOLD_EXPIRED -> 'expired', else 'blocked' with the cancel button."
+  },
+  {
+   "prior_id": "round-02 uncovered (a paid order with another open attempt answered pending)",
+   "claim": "payment_view answers paid/needs_resolution/refunded before looking at an active attempt and offers no invoice then",
+   "holds": true,
+   "evidence": "supabase/migrations/20261003100000_payment_view_expiry.sql:40-44 case order paid, paid_needs_resolution, refunded, then v_active; invoiceUrl only when v_state = 'pending'."
+  },
+  {
+   "prior_id": "R10B (20261003100000_payment_view_expiry.sql)",
+   "claim": "the invoice link is withheld once invoice_expires_at has passed",
+   "holds": true,
+   "evidence": "20261003100000_payment_view_expiry.sql:56 'and v_active.invoice_expires_at > now()'; order_access and payment_state both read finance.payment_view."
+  },
+  {
+   "prior_id": "R11A (a fully refunded line still sent to fulfillment_update)",
+   "claim": "a line that can no longer move is left out of p_item_ids",
+   "holds": true,
+   "evidence": "src/components/admin/OrderView.tsx:242-245 sendable filters out preparing lines whose item.fullyRefunded is true."
+  },
+  {
+   "prior_id": "R11B-6",
+   "claim": "a 2xx {ok:false} with no error object reads as BAD_REPLY and keeps the key",
+   "holds": true,
+   "evidence": "src/lib/admin-money.ts:296-299 refusalOf() null -> reading('alert', BAD_REPLY, {keep: true})."
+  },
+  {
+   "prior_id": "I48 item 4",
+   "claim": "checkout_price refuses a total under 100 halalas with TOTAL_BELOW_MINIMUM (minimum 100)",
+   "holds": true,
+   "evidence": "20261002110000_checkout_payment.sql:247-249; checkout.ts REFUSALS maps it to 422; quote.ts quoteErrorMessage words it."
+  },
+  {
+   "prior_id": "I48 item 3",
+   "claim": "the per-email exclusive hold and per-email throttle were removed from checkout_create",
+   "holds": true,
+   "evidence": "20261002110000_checkout_payment.sql:478-498: only the IP throttle and the session hold remain; the daily total is taken at line 532 after every refusal."
+  },
+  {
+   "prior_id": "round-07 (download filename double encoding)",
+   "claim": "the signed URL is rebuilt on the public Storage base with download=<filename> set once",
+   "holds": true,
+   "evidence": "supabase/functions/_shared/download.ts:87-97 publicFileUrl() slices at /object/sign/ and url.searchParams.set('download', filename)."
+  },
+  {
+   "prior_id": "round-07b payment_attempt_checked replacement",
+   "claim": "a prompt the provider answered clears UNVERIFIED",
+   "holds": true,
+   "evidence": "20261002145000_order_operations.sql:1095-1101: for p_source = 'prompt', last_error = case when p_ok and a.last_error = 'UNVERIFIED' then null end."
+  }
+ ],
+ "plan_gaps": [],
+ "doc_claims_checked": [
+  {
+   "claim": "Supabase Edge Functions: wall clock limit 150 s free / 400 s paid, CPU 2 s, request idle timeout 150 s (the frame RUN_BUDGET_MS = 60_000 sits in)",
+   "where": "https://supabase.com/docs/guides/functions/limits",
+   "verdict": "true",
+   "evidence": "'Free plan: 150s', 'Paid plans: 400s', 'Maximum CPU Time: 2s', 'Request idle timeout: 150s'."
+  },
+  {
+   "claim": "A Supabase Edge Function keeps running after its HTTP client (pg_net) closes the connection at its timeout",
+   "where": "https://supabase.com/docs/guides/functions/background-tasks and https://supabase.com/docs/guides/functions/limits",
+   "verdict": "unverifiable",
+   "evidence": "The docs describe termination at the wall-clock/CPU/memory limits and EdgeRuntime.waitUntil for work after the response ('The Function instance continues to run until the promise provided to waitUntil completes'); nothing states what happens when the caller disconnects before the response."
+  },
+  {
+   "claim": "pg_net net.http_post honours timeout_milliseconds (the migrations pass 15000)",
+   "where": "https://supabase.com/docs/guides/database/extensions/pg_net and https://supabase.github.io/pg_net/api/",
+   "verdict": "unverifiable",
+   "evidence": "The Supabase page shows the parameter with 'default 2000'; the pg_net project page shows 'default 1000' with 'WARNING: this is currently ignored, so there is no timeout'. The two vendor pages disagree, so whether the 15 s value binds depends on the deployed pg_net version."
+  },
+  {
+   "claim": "Moyasar refund endpoint: POST /v1/payments/{id}/refund, optional amount in the smallest unit, omitting it refunds the whole payment, the reply is the payment object with status, amount, refunded, refunded_at; errors 400/401/403/404",
+   "where": "https://docs.moyasar.com/api/payments/05-refund-payment",
+   "verdict": "true",
+   "evidence": "'An optional amount for the refund process, less than our equal to the payment amount (or captured)'; a full refund when omitted; the response schema lists id, status, amount, refunded, refunded_at; error codes 400 'Business Error or validation error', 401, 403, 404. Matches refundPayment() always sending amount and classifying by HTTP status."
+  },
+  {
+   "claim": "Moyasar allows several partial refunds on one payment and `refunded` is the cumulative total (refund_settle and refund_request rest on this)",
+   "where": "https://docs.moyasar.com/api/payments/05-refund-payment and https://docs.moyasar.com/guides/payment-operations",
+   "verdict": "unverifiable",
+   "evidence": "Neither page says whether a second partial refund is accepted or whether `refunded` accumulates; the operations guide says only 'The payment status changes to refunded'. P08-CONTRACT section 2 item 8 already lists this among the facts a real payment must prove before E02."
+  },
+  {
+   "claim": "Moyasar void: a paid payment can be voided for about 2 hours, after which a refund is used; the voided payment's status is `voided`",
+   "where": "https://docs.moyasar.com/guides/payment-operations",
+   "verdict": "true",
+   "evidence": "'can only be voided within approximately 2 hours of the original transaction. After that, use a refund instead.' and 'The payment status changes to voided.' refund_record_external's voided branch (delta = captured - confirmed) and attempt_provider_alerts' provider_status alert match this."
+  }
+ ],
+ "coverage": "Read in full: PLANS/P08-CONTRACT.md sections 2 (open items) and 3-7, ISSUES.md I49-I51, the 'uncovered' lists of P08 rounds 10a-12b. Browser callers: src/lib/supabase/functions.ts, cart.ts, store.ts, orders.ts, admin-money.ts, admin-orders.ts, admin-commerce.ts, money-input.ts, format.ts, admin-publish.ts (rpc part), admin/tables/{variants,coupons,customers,notifications}.ts; store/{quote.ts, CheckoutForm.tsx, HoldView.tsx, PaymentReturn.tsx, NotifyAction.tsx, VariantAction.tsx parser half}; admin/{OrderView.tsx 60-330 plus every rpc call site, RefundView.tsx 128-340, ReconciliationView.tsx 50-200 and 350-430, CommerceSettingsForm.tsx, TableForm.tsx 120-300, TableList.tsx 55-155, TeamView.tsx 70-130}; AdminHome KNOWN_JOBS; ContactForm body; OrderPage call sites, download and return-request paths. Edge handlers: _shared/checkout.ts, payments.ts, payments/moyasar.ts, orders.ts, admin.ts, refunds.ts, disputes.ts, download.ts 60-178, notify.ts, contact.ts 60-173, paid-files.ts, staff.ts, db.ts, http.ts, jobs.ts, rate-limit.ts, tokens.ts, saudi-mobile.ts (the one module both runtimes import), staff-admin/index.ts; config.toml verify_jwt. SQL final definitions: order_summary, checkout_price, checkout_quote, checkout_create, checkout_cancel, checkout_expire; payment_core: payment_view (both versions), order_try_commit, payment_attempt_begin/created/close, apply_verified_payment, payment_event_record/result, payment_check_begin, payment_state, payment_callback_begin, payment_attempt_ref, payment_reconcile_claim, payments_kick, payment_attempt_duplicates, attempt_worth_asking, attempt_provider_alerts; order_operations: every function; delivery: order_access, item_returnable, order_recover_list/apply, download_issue/redeem, paid_asset_set, paid_files_sweep_candidates, return_request_create; refunds: all; stats_disputes: entitlements_revoke, order_erasable, orders_delete, dispute_json/place, refund_succeed (final), buyer_retention_purge, owner_commerce_stats, dispute_record, disputes_list; notifications: variant_public_state, catalog_availability, notify_subscribe, notify_token_info/confirm/unsubscribe, notify_link_throttle; grants on products, product_variants, coupons, shipping_rates, customers, notifications, media; job_run_record/job_runs_latest; recipient_hash/rate_limit_take. Status sets diffed per layer (order, attempt, payment view, refund, fulfilment, return, notification, review reasons, reconciliation reasons, dispute enums): every emitted value has a label or a handled branch; the buyer's PAYMENT_STATES lacks only 'unknown', which order_access cannot emit. Error-code sets diffed: checkout_price vs quoteErrorMessage, checkout/orders/download/notify/refunds/disputes/paid-files REFUSALS vs their SQL, admin-orders REFUSALS for the six staff actions; each complete. Field-by-field parsers (orders.ts exact(), admin-orders.ts, admin-commerce.ts, quote.ts) compared with the jsonb_build_object keys of order_access, order_summary, payment_view, orders_list, order_detail, orders_alerts, reconciliation_list, disputes_list, variant_admin_info, owner_commerce_stats, refund_result/settle/record_external, dispute_record: no missing or extra required key found; nullability matches (jsonb_strip_nulls only where the parser treats the key as optional). Money stays integer halalas at every hop (parseRiyals, bigint sums serialized as JSON numbers well under 2^53); Riyadh day computed the same way in SQL, handlers and UI; the orders_list cursor round-trips the timestamptz text unchanged. Sampled only: OrderPage render branches, VariantAction/AddToCart/AvailabilityForm render halves, MediaLibrary/MediaUpload (earlier audits), outbox/email rendering (mail slice), privacy_buyer_export/erase bodies, the tests (not run, not read). Not reached: turnstile.ts internals (actions matched by grep only), commerce-settings.ts schemas vs commerce_settings_save, outbox_claim/result/attention vs EmailView, anything needing the running stack (ports 54320-54329 belong to another project). Next with more time: run CONTRACT-03's probe on a fresh local stack; read tests/integration/payment.test.ts and refunds-http.test.ts for the untested SQL branches (TOTAL_MISMATCH, PROVIDER_TOTAL_DECREASED, the stale-read branch); confirm cf-connecting-ip / x-forwarded-for on the hosted gateway (I32), since every throttle keys on it. Insurance files written under SCRATCH\\CONTRACT: findings.jsonl, findings-2.jsonl, prior-fix-checks.jsonl, doc-claims.jsonl, coverage.md."
+}

@@ -1,0 +1,374 @@
+{
+ "findings": [
+  {
+   "id": "EF-ACCESS-01",
+   "title": "Notify confirm link can die before the 7 days the mail promises: purge clock is updated_at, link clock is confirm_sent_at",
+   "severity": "low",
+   "category": "correctness",
+   "file": "supabase/migrations/20261002150000_notifications.sql",
+   "line": 423,
+   "evidence": "notifications_purge deletes pending rows where `n.updated_at < now() - interval '7 days'` (line 423). notify_confirm_queue (line 124) sets only `confirm_sent_at = now()`, never updated_at, and notify_confirm_backlog (hourly, cron line 457) may queue the mail hours or days after the sign-up when the 1/day address cap or the 30/day total cap held it. notify.ts:174 accepts a confirm link while `Date.now() - confirmSentAt <= 7 days`; email.ts:508 tells the visitor the link is `صالح لمدة 7 أيام`. No trigger maintains notifications.updated_at (payment_core.sql:380-399).",
+   "impact": "A visitor who signs up for two variants on one UTC day (the second mail is held by the 1/day address cap and queued by the backlog the next day), or anyone whose mail waited behind the day's 30, receives a confirm link that the daily purge invalidates up to a day or more before the 7 days the mail states; the purge also deletes the still-unsent mail of such a row. The click answers 404 `الرابط غير صالح أو انتهت صلاحيته.` and the subscription is lost. Introduced by the R8-06 fix (the backlog) without moving the purge clock.",
+   "proposed_fix": "In finance.notify_confirm_queue set `updated_at = now()` together with `confirm_sent_at` (or purge pending rows by greatest(updated_at, confirm_sent_at) < now() - 7 days). Add a SQL test: a pending row with updated_at 8 days ago and confirm_sent_at 2 days ago survives the purge.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "R8-06 (the backlog fix) and the round-8 ruling 'the confirm link's seven days run from the moment the mail is queued' cover the queue/send gap, not the purge clock."
+  },
+  {
+   "id": "EF-ACCESS-02",
+   "title": "Every public form answers 403 (and Turnstile HOSTNAME_MISMATCH) on www.anas.studio, which P11 attaches to the Pages project without a redirect",
+   "severity": "high",
+   "category": "launch-config",
+   "file": "supabase/functions/_shared/http.ts",
+   "line": 38,
+   "evidence": "siteOrigin() returns the single origin of SITE_URL (http.ts:38-46); contact.ts:98, notify.ts:105, orders.ts:147 and download.ts:114 refuse any other `origin` header with 403 `طلب غير مسموح.`, and the Turnstile verdict compares `hostname` with `new URL(siteUrl).hostname` (turnstile.ts:115; callers pass expectedHostname from SITE_URL). PLANS/WORK-PACKAGES.md:143 and PLANS/SITE-STATE-CONTRACT.md:49: 'take anas.studio and www off the Worker `anas-studio-soon` and attach them to the Pages project'; artifacts/soon/README.md:38 shows the Worker today serves both hosts. No `public/_redirects` exists and no plan line redirects www to the apex (D25 names only anas.studio). Cloudflare documents the www redirect for a Pages project as a separate Bulk Redirects configuration, not something Pages does by itself (developers.cloudflare.com/pages/how-to/www-redirect/).",
+   "impact": "At the planned launch configuration a real visitor who reaches the site as https://www.anas.studio (typed, bookmarked from the soon page, or linked) loads every page but cannot send the contact form, sign up for availability, recover an order link, open an order or download a paid file: the browser sends Origin https://www.anas.studio, the function answers 403 before reading the body, and the page shows `تعذّر الاتصال بالخدمة` or `طلب غير مسموح.`. Where the Origin would pass, a Turnstile token solved on www carries hostname www.anas.studio and is refused with `تعذّر التحقق من أنك إنسان.` (a human told they are a bot). Latent until launch; certain once www is attached.",
+   "proposed_fix": "At P11, redirect www.anas.studio to https://anas.studio with a zone-level Redirect Rule or Bulk Redirect (301, path kept) before attaching the host, and add this to the launch checklist and to I32's hosted checks (a GET on www answers 301 to the apex; the Turnstile widget's allowed hostnames list anas.studio only). No function change is needed if the redirect exists; otherwise siteOrigin() would have to accept a configured list.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none; I32 (hosted checks) does not list the host redirect."
+  },
+  {
+   "id": "EF-ACCESS-03",
+   "title": "Link recovery covers only an address's 5 most recent orders and the admin has no resend action: an older paid digital file becomes unreachable once its 7-day link expires",
+   "severity": "medium",
+   "category": "fulfilment",
+   "file": "supabase/migrations/20261002140000_delivery.sql",
+   "line": 196,
+   "evidence": "order_recover_list: `order by o.created_at desc, o.id desc limit 5` (line 196) and order_recover_apply refuses more than 5 items (line 225). Every order link expires 7 days after payment, a reissue or a file attach (P08-CONTRACT line 170; download_issue line 301 refuses an expired token). The receipt mail carries the only other copy of the link (email.ts:372) and it expires with it. grep of src/ and supabase/ for an owner action that queues an `order_link` mail for one order: none (only `order_recover_apply`, reachable through the public `recover` action).",
+   "impact": "A buyer with six or more paid orders on one address (a returning reader buying a title a month, or several small orders) who asks for a link more than 7 days after the sixth-oldest order was paid never gets that order's link again: recovery lists five newer orders, the admin cannot resend, and the entitlement to the paid file is intact but unreachable. The same holds for a buyer whose mailbox changed. Anas would have to answer such a request by hand with no tool.",
+   "proposed_fix": "Smallest: list every paid order of the address (the reply is the same whatever the address has, so no enumeration risk) while keeping the mail caps, or add an owner action in the admin order view (`order-link-resend`, owner, no TOTP) that reuses order_recover_apply for one order id and queues one `order_link` mail; record the choice in P08-CONTRACT section 6.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none; R7 recorded the global 20/day cap abuse, not the per-address ceiling."
+  },
+  {
+   "id": "EF-ACCESS-04",
+   "title": "TOKEN_HASH_PEPPER is accepted at any length: a short pepper makes every order and notification token derivable from client-known inputs",
+   "severity": "low",
+   "category": "hardening",
+   "file": "supabase/functions/_shared/env.ts",
+   "line": 51,
+   "evidence": "orders.ts:136, download.ts:103, notify.ts:94 and contact.ts:141 read the pepper with optionalEnv (env.ts:51-54), which refuses only an empty value. tokens.ts:43-45 derives the buyer's order token as HMAC(pepper, 'order-access:' + idempotencyKey), where the idempotency key is minted by the buyer's browser and kept in sessionStorage, and tokens.ts:61 derives the notify token as HMAC(pepper, 'notify:' + id + ':' + version) where the id is the notification row's uuid. paymentsConfig() refuses a webhook secret under 32 characters (moyasar.ts:90); nothing checks the pepper, and .env.example:27-32 and docs/operations.md:1383-1390 say what it does but never how long or how to make it.",
+   "impact": "If the operator sets a short or dictionary pepper at `supabase secrets set` (nothing stops it, and the local development value is a fixed string, docs/development.md:243), anyone who learns a notification id (a staff member reading public.notifications) or an order's idempotency key can brute-force the pepper offline against one known token or hash and then mint confirm, unsubscribe and order-access tokens for every row. With a 32-byte random pepper the derivation is sound.",
+   "proposed_fix": "Refuse a pepper shorter than 32 characters where it is read (one helper in env.ts used by the four functions, answering the existing 503/500 paths), and state in .env.example and docs/operations.md step 5 how to generate it (openssl rand -base64 32).",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "medium",
+   "prior_overlap": "none"
+  },
+  {
+   "id": "EF-ACCESS-05",
+   "title": "Contact form checks only the message's bytes against the 8 KiB body limit; a long Turnstile token or name can still push the body past it after the token was spent",
+   "severity": "low",
+   "category": "correctness",
+   "file": "src/components/public/contact/ContactForm.tsx",
+   "line": 92,
+   "evidence": "The client refuses a message whose UTF-8 length exceeds MESSAGE_MAX_BYTES = 5500 (line 18, line 92) and sends name, email, message, submissionKey and turnstileToken (lines 110-117); the function refuses any body over MAX_BODY_BYTES = 8192 with 413 `رسالتك أطول من المسموح؛ اختصرها وأرسلها من جديد.` (contact.ts:32, 106-107) and the schema admits a token of up to 2048 characters (contact.ts:82); Cloudflare documents the token's maximum as 2048 characters (developers.cloudflare.com/turnstile/get-started/server-side-validation/). Worst case: 5500 (message) + 480 (120 four-byte name characters) + 254 (email) + 36 + 2048 + about 100 of JSON syntax = 8418 bytes; JSON escaping of each line break adds one byte.",
+   "impact": "A visitor with a near-maximum message and a long challenge token passes the browser check, the function answers 413 blaming the message's length, and the Turnstile token was already consumed by the attempt; the visitor shortens a message that was within the stated limit. Rare (needs a message near 5,500 bytes and a long token); the AUDIT-1 S16.1 fix holds for the common case only.",
+   "proposed_fix": "Measure the whole payload before sending: build the body object and refuse when new TextEncoder().encode(JSON.stringify(body)).length > 8192 with the same field error, without spending the token; or lower MESSAGE_MAX_BYTES to 5000 so the sum stays under 8192 with a 2048-character token.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "medium",
+   "prior_overlap": "AUDIT-1 S16.1 (fixed): the fix bounds the message, not the body."
+  },
+  {
+   "id": "EF-ACCESS-06",
+   "title": "When the day's global contact budget is spent, every visitor is told they sent too many messages, and the documented fallback (a published e-mail) is not on the site",
+   "severity": "low",
+   "category": "ux-docs",
+   "file": "supabase/functions/_shared/contact.ts",
+   "line": 161,
+   "evidence": "contact_submit raises 54000 for the per-IP, per-email and the global `contact:all` 40/day buckets alike (20260930140000_audit2_fixes.sql:446-450); contact.ts:160-161 maps every 54000 to 429 `أرسلت رسائل كثيرة؛ حاول لاحقًا.`. docs/operations.md:167-171 accepts the global lock-out and says real visitors 'still have the published email address (help@anas.studio)', but PLANS/ISSUES.md I45 (3) records that no public page shows a contact e-mail, and ContactForm.tsx has no fallback line for a 429.",
+   "impact": "On a day a Turnstile-passing flood (8 rotating addresses at 5 an hour) spends the 40, a first-time visitor is told they sent too many messages and sees no other way to write; the operator's runbook believes an address is published. Bounded: one UTC day, a personal site.",
+   "proposed_fix": "Distinguish the global bucket in contact_submit (a different detail or hint on the 54000) and show `النموذج مغلق مؤقتًا اليوم؛ راسلني عبر القنوات المجاورة.` for it, or at least correct docs/operations.md:170 to the channels the page really shows (the social tiles) until I45 (3) is decided.",
+   "fix_size": "small",
+   "needs_owner": true,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "AUDIT-2 DB-contacts-2 (the 40/day cap) and docs/operations.md 'Residual abuse risk (accepted)'; the misleading message and the missing fallback are new."
+  },
+  {
+   "id": "EF-ACCESS-07",
+   "title": "Paid files are served with the upload default Cache-Control: max-age=3600, so a signed file URL is shared-cacheable for an hour although its token lives 60 seconds",
+   "severity": "low",
+   "category": "hardening",
+   "file": "src/components/admin/VariantCommerce.tsx",
+   "line": 205,
+   "evidence": "The owner's upload calls `uploadToSignedUrl(path, token, body, { contentType })` with no cacheControl (VariantCommerce.tsx:205); storage-js 2.117.1 DEFAULT_FILE_OPTIONS.cacheControl = '3600' and the upload sends `cache-control: max-age=3600` (node_modules/.pnpm/@supabase+storage-js@2.117.1/node_modules/@supabase/storage-js/dist/index.mjs:598-602, 779). Supabase's storage renderer sets the response Cache-Control from the object's stored cacheControl metadata (raw.githubusercontent.com/supabase/storage/master/src/storage/renderer/renderer.ts, handleCacheControl → mergeCacheControlDirectives([metadata.cacheControl], ...)) and never adds `private` or `no-store`. download.ts:38 signs for SIGNED_SECONDS = 60; orders-http.test.ts:319-322 asserts the token's exp but nothing asserts the file reply's Cache-Control.",
+   "impact": "The 60-second life of a file link is enforced by the token check at the origin only; any cache between the buyer and Storage that honours max-age (a TLS-terminating corporate or school proxy, or the platform CDN if it caches signed-object replies) may serve the same URL for up to an hour after the token expired, to anyone who holds that exact URL. Bounded: the URL already grants the file for 60 seconds and is unique per redeem.",
+   "proposed_fix": "Pass `cacheControl: '0'` on the paid-file upload in VariantCommerce.tsx (storage-js sends max-age=0), or set the metadata when `paid-file-complete` moves the object; assert `cache-control` on the real file reply in orders-http.test.ts. Add to I32: fetch a redeemed URL, wait 61 s, fetch again and expect a 4xx with cf-cache-status not HIT.",
+   "fix_size": "trivial",
+   "needs_owner": false,
+   "needs_runtime_proof": true,
+   "proof_recipe": "On the hosted project after a paid test order: call `redeem` once, GET the url (expect 200; record cache-control and cf-cache-status), sleep 61 s, GET the same url again. Wrong result: 200 with cf-cache-status HIT (token expiry bypassed by the cache). Expected after the fix: cache-control max-age=0 on the first reply and 4xx on the second.",
+   "confidence": "medium",
+   "prior_overlap": "none; I32 (2) records only nosniff for Storage replies."
+  },
+  {
+   "id": "EF-ACCESS-08",
+   "title": "return-request has no idempotency key: a lost reply and a second press file the request twice",
+   "severity": "low",
+   "category": "idempotency",
+   "file": "src/components/store/OrderPage.tsx",
+   "line": 214,
+   "evidence": "ReturnForm posts `{action:'return-request', orderNumber, accessToken, items, reason}` (OrderPage.tsx:214-220) with no submission key, keeps the quantities and reason on a network failure (lines 233-234 set only the problem text) and re-enables the button; return_request_create inserts a new finance.return_requests row on every accepted call (delivery.sql:598-600) and refuses a repeat only when the summed quantities exceed finance.item_returnable (lines 588-594). The contact form and checkout carry a browser-minted key for exactly this case (ContactForm.tsx:104, contact_submit's submission_key).",
+   "impact": "A buyer whose first press was stored but whose reply was lost (mobile network) presses again: when the first request asked for fewer units than bought, the second is accepted too, and the order shows two return requests the staff must reconcile by hand (the second may be approved for units the buyer did not mean to return). Bounded by the 5-a-day-per-order cap; no money moves without the staff.",
+   "proposed_fix": "Mint a UUID per filled form in ReturnForm (reset when the quantities or reason change), send it as `requestKey`, add a unique column to finance.return_requests and let return_request_create answer the existing row's id for a repeat (`{ok:true, returnId}`), like contact_submit.",
+   "fix_size": "small",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "none"
+  },
+  {
+   "id": "EF-ACCESS-09",
+   "title": "Observation: the per-IP throttle key carries the UTC date, so every hourly IP window also resets at UTC midnight",
+   "severity": "info",
+   "category": "rate-limit",
+   "file": "supabase/functions/_shared/rate-limit.ts",
+   "line": 62,
+   "evidence": "clientKeyHash hashes `${pepper}:${utcDate}:${address}` (rate-limit.ts:57-62); finance.rate_limit_take keys its fixed window on (bucket, key_hash, window_start). A request at 23:59 UTC and one at 00:01 UTC fall under different key_hash values, so an hourly bucket such as `contact:ip` (5), `notify:ip` (5), `order-recover:ip` (10) or `download-issue:ip` (120) gives a second full allowance across midnight (03:00 Riyadh). Deliberate for unlinkability (the file's header), so a trade-off, not a defect; recorded because docs/operations.md states the limits as plain hourly figures.",
+   "impact": "At most a doubled allowance once a day for a caller who times it; no effect on the email and global buckets, whose keys carry no date.",
+   "proposed_fix": "None required; a footnote in docs/operations.md 'Throttles' that the per-IP windows reset at UTC midnight.",
+   "fix_size": "none",
+   "needs_owner": false,
+   "needs_runtime_proof": false,
+   "confidence": "high",
+   "prior_overlap": "R8 'UTC-midnight boundary of the per-address and per-day buckets' concerns the daily buckets, not the date salt."
+  }
+ ],
+ "prior_fix_checks": [
+  {
+   "prior_id": "AUDIT-2 EF-comms-3",
+   "claim": "Operator-side Turnstile failures (wrong or missing secret, internal-error) answer 503, logged by code only, never 'you are not human'",
+   "holds": true,
+   "evidence": "turnstile.ts:53 SERVER_SIDE_ERROR_CODES, lines 97-104 → MISCONFIGURED with console.warn of the codes only; contact.ts:137, notify.ts:146, orders.ts:194 answer 503 TURNSTILE_UNAVAILABLE via isTurnstileUnavailable; tests/unit/turnstile.test.ts:50-59 and contact-route.test.ts:115-123 assert it."
+  },
+  {
+   "prior_id": "AUDIT-2 X-SEC-5",
+   "claim": "Per-IP throttles key an IPv6 client by its /64, not the full address",
+   "holds": true,
+   "evidence": "rate-limit.ts:41-54 throttleAddress; clientKeyHash uses it (line 62); scratch probe (node --experimental-strip-types): 2001:db8:1:2::1%25eth0 → 2001:db8:1:2::/64, ::ffff:1.2.3.4 and :: stay whole, a 9-group string stays whole."
+  },
+  {
+   "prior_id": "AUDIT-2 DB-contacts-2 / AUDIT-1 S04.1",
+   "claim": "The contact intake cap is 40 a day so notices fit the outbox's priority-1 budget",
+   "holds": true,
+   "evidence": "20260930140000_audit2_fixes.sql:446-448: contact:ip 5/hour, contact:email 3/hour, contact:all 40/day; docs/operations.md:147-165 matches. Side effect recorded as EF-ACCESS-06 (the 429 wording and the missing fallback)."
+  },
+  {
+   "prior_id": "AUDIT-1 S04.5",
+   "claim": "A newline in the contact name cannot forge the notice's lines",
+   "holds": true,
+   "evidence": "email.ts:242 folds CR, LF, U+0085, U+2028 and U+2029 to a space and wraps every user value in FSI/PDI isolates; the Reply-To is a JSON field of the provider request (email.ts:107, 156), never a raw header, and the address passed EMAIL_SHAPE (contact.ts:45)."
+  },
+  {
+   "prior_id": "AUDIT-1 S16.1",
+   "claim": "The contact form refuses a message that would exceed the function's 8 KiB body before spending a Turnstile token",
+   "holds": false,
+   "evidence": "ContactForm.tsx:18, 92 bound only the message (5,500 bytes); the body also carries a token the schema admits up to 2,048 characters, a 120-character name and the address, so the worst case is about 8.4 KiB > 8,192 (EF-ACCESS-05). Holds for ordinary tokens and names."
+  },
+  {
+   "prior_id": "AUDIT-1 G5.1",
+   "claim": "With JavaScript off or before hydration the contact form sends nothing (no GET with the visitor's data)",
+   "holds": true,
+   "evidence": "ContactForm.tsx:48 `scripted` via useSyncExternalStore (false in the static HTML), line 226 the submit button is disabled until scripted; `noValidate` form with onSubmit preventDefault; noscript notice at line 222."
+  },
+  {
+   "prior_id": "AUDIT-1 S16.2",
+   "claim": "A 422 from the function marks the refused field and moves focus there",
+   "holds": true,
+   "evidence": "ContactForm.tsx:128-134 reads fields.fieldErrors for name/email/message, sets REJECTED copy and focuses the first refused field."
+  },
+  {
+   "prior_id": "AUDIT-1 S20.6",
+   "claim": "Tests check the Turnstile action and hostname the contact handler passes to siteverify",
+   "holds": true,
+   "evidence": "tests/unit/contact-route.test.ts:89-113 (another action and another hostname refused with 400 TURNSTILE before any store); tests/unit/notify.test.ts:246 does the same for notify."
+  },
+  {
+   "prior_id": "AUDIT-1 X6.10",
+   "claim": "contact.ts and checkout.ts share http.ts helpers (NO_STORE, fail, siteOrigin) instead of redefining them",
+   "holds": true,
+   "evidence": "contact.ts:5 imports boundedText, corsHeaders, fail, NO_STORE, siteOrigin from ./http.ts; notify.ts, orders.ts and download.ts import the same."
+  },
+  {
+   "prior_id": "P08 R7-01 / R7-02 / R7-03 / R7-12",
+   "claim": "paid-file-complete removes the moved object only for a SQLSTATE outside class 08 or an explicit {ok:false}; 55P03 puts it back under its ticket; a refused removal throws and the object goes back under incoming/",
+   "holds": true,
+   "evidence": "paid-files.ts:212 SQLSTATE = /^(?!08)[0-9A-Z]{5}$/, lines 294-296 (putBack on 55P03, dropMoved otherwise), line 300 `if (result?.ok === false) await dropMoved(key)`, lines 111-115 remove() throws on a Storage error, 246-252 dropMoved falls back to putBack."
+  },
+  {
+   "prior_id": "P08 R7-04",
+   "claim": "download_issue, download_redeem, return_request_create and order_recover_list are bound to the configured payments mode",
+   "holds": true,
+   "evidence": "delivery.sql:298 (issue), 363 (redeem: the order read with environment = p_mode), 539 (return), 193 (recover list); the functions pass config.mode (orders.ts:199, 215, 234; download.ts:149, 155) and answer 503 while paymentsConfig() is not ok."
+  },
+  {
+   "prior_id": "P08 R8-01",
+   "claim": "While a variant is sellable every confirmed subscriber below the row's revision is told, not only on the false→true flip",
+   "holds": true,
+   "evidence": "notifications.sql:366-386: the `due` CTE runs whenever v_sellable; the revision moves only when `not r.sellable`."
+  },
+  {
+   "prior_id": "P08 R8-04",
+   "claim": "The purge cannot deadlock with a sign-up: orphan availability rows are taken with skip locked and deleted in a new statement",
+   "holds": true,
+   "evidence": "notifications.sql:434-441 `for update skip locked`, then a delete re-checking that no notification refers to the row."
+  },
+  {
+   "prior_id": "P08 R8-06 (orchestrator's fix)",
+   "claim": "A sign-up whose confirmation mail a cap held back is mailed later by the hourly backlog, and an address gets at most five confirmation mails in 30 days",
+   "holds": true,
+   "evidence": "notifications.sql:92-127 notify_confirm_queue (30-day count from the outbox, 1/day address bucket, 30/day total), 136-161 notify_confirm_backlog hourly (cron line 457). Side effect: the backlog can queue the mail days after updated_at while the purge still ages pending rows by updated_at (EF-ACCESS-01)."
+  },
+  {
+   "prior_id": "P08 R8-09",
+   "claim": "notify_subscribe decides on the variant's state read again under the availability row's lock",
+   "holds": true,
+   "evidence": "notifications.sql:204-209: insert-or-nothing, `for update`, then finance.variant_public_state read again before `sellable = false` is written."
+  },
+  {
+   "prior_id": "P08 round 8, the orchestrator's own finding",
+   "claim": "The availability sweep does nothing while the checkout switch is off",
+   "holds": true,
+   "evidence": "notifications.sql:352-354 returns 0 unless finance.commerce_settings.checkout_enabled."
+  }
+ ],
+ "plan_gaps": [
+  {
+   "title": "Redirect www.anas.studio to the apex before attaching the host to the Pages project",
+   "why_needed": "Every public function accepts exactly the SITE_URL origin and the Turnstile hostname of SITE_URL (EF-ACCESS-02); P11 attaches both anas.studio and www to the Pages project with no redirect, so on www every form answers 403 or a Turnstile hostname mismatch. Cloudflare's own how-to makes the www redirect a separate Bulk Redirects configuration (developers.cloudflare.com/pages/how-to/www-redirect/). The redirect must precede the host move, and I32's hosted checks should include it.",
+   "touches": "PLANS/WORK-PACKAGES.md P11 launch sequence, PLANS/SITE-STATE-CONTRACT.md:49, PLANS/ISSUES.md I32, docs/deployment.md and docs/launch-checklist.md (P11 files)",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  },
+  {
+   "title": "A way to reach an order whose link expired when the address has more than five paid orders",
+   "why_needed": "Recovery lists the five most recent orders only and the admin has no resend action (EF-ACCESS-03); after 7 days an older paid digital file is unreachable for the buyer and Anas has no tool to help. Either widen the recovery list or add an owner 'resend the order link' action in the admin order view; P08-CONTRACT section 6 must say which.",
+   "touches": "supabase/migrations (order_recover_list or a new owner function), supabase/functions/_shared/admin.ts, the admin order view, PLANS/P08-CONTRACT.md section 6",
+   "package": "P08",
+   "urgency": "before_P09",
+   "owner_decision": false
+  },
+  {
+   "title": "Replacing a paid file for buyers who already received it",
+   "why_needed": "paid_asset_set attaches a new file to new orders only and leaves every existing entitlement on the old asset (the admin says so: «يحل الملف الجديد محل الحالي في الطلبات الجديدة؛ الطلبات التي استلمت ملفًا تبقى عليه»). A corrupted or wrong file discovered after sales cannot be corrected for the buyers who have it, and the old object is kept for ever. The plan needs an owner choice: a 'replace for all' option (repoint non-revoked entitlements and mail order_ready again) or an explicit statement that this is handled by hand.",
+   "touches": "PLANS/P08-CONTRACT.md section 6 (paid_asset_set), supabase/functions/_shared/paid-files.ts, src/components/admin/VariantCommerce.tsx wording",
+   "package": "P08",
+   "urgency": "before_launch",
+   "owner_decision": true
+  },
+  {
+   "title": "Record the pepper's required strength and generation in the runbook and enforce it in code",
+   "why_needed": "TOKEN_HASH_PEPPER keys every buyer token and throttle hash; nothing states its length or how to make it, and the code accepts any non-empty value (EF-ACCESS-04). The P11 secrets step (docs/operations.md step 5, .env.example) should say 'at least 32 random bytes, openssl rand -base64 32', and the functions should refuse a shorter one like paymentsConfig refuses a weak webhook secret.",
+   "touches": ".env.example, docs/operations.md step 5, supabase/functions/_shared/env.ts and the four public functions",
+   "package": "P11",
+   "urgency": "before_launch",
+   "owner_decision": false
+  }
+ ],
+ "doc_claims_checked": [
+  {
+   "claim": "Siteverify is POST https://challenges.cloudflare.com/turnstile/v0/siteverify, accepts JSON {secret, response, remoteip} and answers {success, challenge_ts, hostname, error-codes, action, cdata}",
+   "where": "supabase/functions/_shared/turnstile.ts:5-9",
+   "verdict": "true",
+   "evidence": "developers.cloudflare.com/turnstile/get-started/server-side-validation/: 'The API accepts both application/x-www-form-urlencoded and application/json requests, but always returns JSON responses'; request fields secret, response, remoteip (optional), idempotency_key (optional, not used by the repository); response fields success, challenge_ts, hostname, error-codes, action, cdata, metadata.ephemeral_id."
+  },
+  {
+   "claim": "missing-input-secret, invalid-input-secret and internal-error are operator- or Cloudflare-side error codes; the others are the visitor's",
+   "where": "supabase/functions/_shared/turnstile.ts:15-19, 53",
+   "verdict": "true",
+   "evidence": "Same page, error table: missing-input-secret 'Secret parameter not provided', invalid-input-secret 'Secret key is invalid or expired', internal-error 'Internal error occurred'; visitor-side: missing-input-response, invalid-input-response 'Token is invalid, malformed, or expired', timeout-or-duplicate 'Token has already been validated'; bad-request 'Request is malformed' is neither, and the code treats it as INVALID_TOKEN (the function always sends a well-formed body)."
+  },
+  {
+   "claim": "A Turnstile token is single-use and expires, so the browser must reset the widget after every submission whatever the answer was",
+   "where": "src/lib/turnstile.ts:41-46; AvailabilityForm.tsx:133; OrderPage.tsx:342; ContactForm.tsx:140",
+   "verdict": "true",
+   "evidence": "'The validation token issued by Turnstile is valid for five minutes'; 'Each token can only be validated once. A replayed token will be rejected with the timeout-or-duplicate error code' (server-side-validation page); widget-configurations page: refresh-expired default auto, expired-callback 'invoked when the token expires and does not reset the widget'."
+  },
+  {
+   "claim": "The three dummy secret keys 1x…AA (always passes), 2x…AA (always fails), 3x…AA (already spent) exist and must never be used with a production sitekey",
+   "where": "supabase/functions/_shared/turnstile.ts:26-41",
+   "verdict": "true",
+   "evidence": "developers.cloudflare.com/turnstile/troubleshooting/testing/: 1x0000000000000000000000000000000AA 'Always passes validation', 2x…AA 'Always fails validation', 3x…AA 'Returns token already spent error'; 'Production secret keys will reject the dummy token. You must also use a dummy secret key for testing purposes.'"
+  },
+  {
+   "claim": "With a test secret, siteverify answers success:true with hostname 'example.com' and no action field, so the hostname and action checks must be skipped locally",
+   "where": "supabase/functions/_shared/turnstile.ts:29-35, 107-111; tests/unit/turnstile.test.ts:3-5",
+   "verdict": "unverifiable",
+   "evidence": "The repository's live capture artifacts/acceptance/P06/siteverify-live-test-secret.json (2026-09-26) shows {success:true, hostname:'example.com', metadata:{result_with_testing_key:true}, no action}; the current testing page's sample shows hostname 'localhost' and action 'test' for a dummy sitekey plus dummy secret. Not re-called live in this audit (no third-party calls). The skip is safe either way because a test secret is refused on a hosted site; the reply's metadata.result_with_testing_key is a second signal the code could refuse on."
+  },
+  {
+   "claim": "The Turnstile action value 'order-recover' is a valid action name",
+   "where": "src/components/store/OrderPage.tsx:306; supabase/functions/_shared/orders.ts:190",
+   "verdict": "true",
+   "evidence": "widget-configurations page: action 'can only contain up to 32 alphanumeric characters including _ and -'."
+  },
+  {
+   "claim": "verify_jwt = false is the right gateway setting for the public contact/orders/download/notify functions, which verify their own callers; the browser's plain fetch needs no apikey header",
+   "where": "supabase/config.toml:413-446; src/lib/orders.ts:102-106; ContactForm.tsx:107; AvailabilityForm.tsx:41",
+   "verdict": "true",
+   "evidence": "supabase.com/docs/guides/functions/auth: 'The default is verify_jwt = true, so the platform validates the JWT before your handler runs'; verify_jwt = false 'Required for public and webhook endpoints'; with auth 'none' 'Any caller, no check (for signed webhooks)' and 'your handler is fully responsible for authenticating the caller'."
+  },
+  {
+   "claim": "On the hosted platform the function itself must send the CORS headers and answer the OPTIONS preflight (the gateway adds none), so the functions' own site-origin headers are what the browser sees",
+   "where": "supabase/functions/_shared/http.ts:10-18; artifacts/acceptance/P08/rounds/round-07.md R7-07",
+   "verdict": "true",
+   "evidence": "supabase.com/docs/guides/functions/cors: the function handles `if (req.method === 'OPTIONS')` and sets Access-Control-Allow-Origin/Headers itself; 'If your function doesn't use withSupabase, add the headers yourself'; no statement that the platform injects CORS headers (the local Kong behaviour R7-07 saw is local only)."
+  },
+  {
+   "claim": "Supabase Storage honours the `download=<name>` query on a signed object URL and sends Content-Disposition with filename*=UTF-8'' percent-encoding, so an Arabic file name survives",
+   "where": "supabase/functions/_shared/download.ts:24-27, 87-97; PLANS/P08-CONTRACT.md section 7",
+   "verdict": "true",
+   "evidence": "raw.githubusercontent.com/supabase/storage/master/src/storage/renderer/renderer.ts handleDownload: `attachment; filename=${toFilenameFallback(download)}; filename*=UTF-8''${encodeExtValue(download)}` (bare `attachment;` when download is empty); tests/integration/orders-http.test.ts:329 asserts it on the local stack with 'كتاب أنس.pdf'."
+  },
+  {
+   "claim": "Storage signed-object replies advertise byte ranges (Accept-Ranges) and set no X-Content-Type-Options header; their Cache-Control is the object's own",
+   "where": "artifacts/acceptance/P08/rounds/round-07.md 'Range support and nosniff on the signed file reply (I32)'; PLANS/ISSUES.md I32 (2)",
+   "verdict": "true",
+   "evidence": "renderer.ts sets `.header('Accept-Ranges', 'bytes')` unconditionally and `Content-Range` when the backend returned one; no X-Content-Type-Options anywhere in the renderer; handleCacheControl merges metadata.cacheControl (EF-ACCESS-07)."
+  },
+  {
+   "claim": "A signed upload URL (paid-file-ticket) is valid for 2 hours and uploads without further authentication",
+   "where": "supabase/functions/_shared/paid-files.ts:5-8, 83-88",
+   "verdict": "true",
+   "evidence": "supabase.com/docs/reference/javascript/storage-from-createsigneduploadurl: 'Signed upload URLs can be used to upload files to the bucket without further authentication. They are valid for 2 hours.' The daily incoming/ sweep (24 h) is therefore after any ticket could still be used."
+  },
+  {
+   "claim": "Hosted Supabase sits behind Cloudflare, which sets cf-connecting-ip on every request and replaces any client value; else the LAST x-forwarded-for hop is the visitor",
+   "where": "supabase/functions/_shared/rate-limit.ts:12-20; docs/operations.md:114-117",
+   "verdict": "unverifiable",
+   "evidence": "No official Supabase statement found. github.com/orgs/supabase/discussions/7884: a Supabase maintainer (2022-10-31) 'We've made an update that should populate the X-Forwarded-For header with the request's client IP correctly', the accepted answer reads the FIRST entry, and a 2023 comment says the header is sometimes empty; cf-connecting-ip is not mentioned. I32 already schedules the hosted probe; the last-hop choice is safe only if the gateway appends the real address after a client-sent value."
+  },
+  {
+   "claim": "storage-js createSignedUrl(key, 60, {download}) double-encodes an Arabic name, so the name must be added on the rebuilt URL",
+   "where": "supabase/functions/_shared/download.ts:24-27; round-07.md R7-13",
+   "verdict": "true",
+   "evidence": "node_modules/.pnpm/@supabase+storage-js@2.117.1/node_modules/@supabase/storage-js/dist/index.mjs:1060-1067: `query.set('download', …)` through URLSearchParams, then `encodeURI(`${url}${signedURL}&${queryString}`)` over the already-encoded string; the repository's real-Storage test asserts the rebuilt URL's filename*=UTF-8'' value equals encodeURIComponent('كتاب أنس.pdf')."
+  },
+  {
+   "claim": "storage-js uploads send cache-control: max-age=3600 unless cacheControl is given",
+   "where": "src/components/admin/VariantCommerce.tsx:205 (no cacheControl passed)",
+   "verdict": "true",
+   "evidence": "dist/index.mjs:598-602 DEFAULT_FILE_OPTIONS { cacheControl: '3600', contentType: 'text/plain;charset=UTF-8', upsert: false }; line 779 `headers['cache-control'] = max-age=${options.cacheControl}` in uploadToSignedUrl."
+  },
+  {
+   "claim": "Attaching www.anas.studio to the Pages project (P11 launch sequence) serves the site on www; Pages does not redirect www to the apex by itself",
+   "where": "PLANS/WORK-PACKAGES.md:143; PLANS/SITE-STATE-CONTRACT.md:49",
+   "verdict": "true",
+   "evidence": "developers.cloudflare.com/pages/how-to/www-redirect/: the www→apex redirect is a separate Bulk Redirects list and rule plus a proxied placeholder DNS record (192.0.2.1) for www; the plan has no such step."
+  }
+ ],
+ "coverage": "Read in full: supabase/functions/_shared/{http,env,db,tokens,rate-limit,turnstile,contact,notify,orders,download,paid-files,saudi-mobile}.ts; supabase/functions/{orders,download,notify,contact}/index.ts and deno.json; supabase/config.toml [functions.*] and [edge_runtime]; src/lib/{orders,turnstile}.ts; src/lib/supabase/functions.ts; src/components/store/{OrderPage,NotifyAction,AvailabilityForm}.tsx; src/components/public/contact/ContactForm.tsx; src/app/(public)/{orders,notify/confirm,notify/unsubscribe}/page.tsx; public/_headers; migrations 20261002140000_delivery.sql and 20261002150000_notifications.sql whole, contact_submit (20260930140000_audit2_fixes.sql), rate_limit_take and recipient_hash (20260926120000), order_summary (20261002110000), payment_view (20261003100000), the notifications/entitlements/fulfillments/return_requests tables and the commit path's entitlement and fulfilment inserts (20261002100000); email.ts send paths and every template; outbox.ts renderMail; admin.ts dispatch and storageStore; payments/moyasar.ts paymentsConfig; src/components/admin/VariantCommerce.tsx upload; src/lib/admin-commerce.ts checkPaidFile; tests/unit/{contact-route,rate-limit,turnstile}.test.ts whole; tests/integration/orders-http.test.ts download section; P08 rounds 07 and 08 whole; AUDIT-1 appendix and AUDIT-2 report (slice greps); PLANS/ISSUES.md whole; docs/operations.md throttles section; P08-CONTRACT sections 5-7 at the cited lines. Probed in scratch (node --experimental-strip-types, read-only): saudi-mobile, throttleAddress, requestIp and parseNotificationToken edge cases; all as documented. Vendor documentation fetched and cited: Cloudflare Turnstile server-side validation, testing and widget configurations; Cloudflare Pages www-redirect how-to; Supabase Edge Functions auth and CORS guides; Supabase storage renderer source (Content-Disposition, Accept-Ranges, Cache-Control); createSignedUploadUrl reference; storage-js 2.117.1 dist (createSignedUrl encoding, upload default cacheControl); the Supabase discussion on the client IP header. Sampled only: tests/unit/{download,notify,orders,tokens,env,http}.test.ts (case names), tests/e2e/orders.spec.ts (case names and the real-download step). Not reached: anything that needs the hosted project or a running stack (the hosted gateway's IP headers and CORS behaviour, Range/nosniff/CDN caching of signed file replies, a live siteverify call, the test suites and e2e were not run). Not opened: _archive/, .env*, supabase/functions/.env, deploy/design/. Scratch files: findings.jsonl (9), doc-claims.jsonl (15), prior-fix-checks.jsonl (16), plan-gaps.jsonl (4), coverage.md, probe.mts under SCRATCH\\EF-ACCESS. With more time: the refund and revoke paths that flip download.available against a redeem in flight on two connections; the outbox's priority-2 quota against the 7-day confirm window end to end; the contacts retention job against outbox rows of a purged contact; a hosted probe of the IP header and of a redeemed URL after 61 s."
+}
