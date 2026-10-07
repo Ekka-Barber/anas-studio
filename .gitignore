@@ -40,3 +40,7 @@ __pycache__/
 
 # D42: the WhatsApp export stays on the owner's machine only (removed from Git history).
 /BOOK_ASSETS/ANAS_WHATSAPP_CHAT/
+
+# Claude Code transient local copy (dirty on this machine since 2026-10-03, before the
+# FABLE-AUDIT; see artifacts/acceptance/FABLE-AUDIT/HANDOFF-2026-10-07.md).
+/.claude/settings.json.tmp
