@@ -4,7 +4,8 @@
  * The cart screen (P07): prices come from the live `quote` only, called on
  * load and after every change (debounced ~300 ms); localStorage holds nothing
  * but variant ids, quantities and dedications. Each line shows its title,
- * unit price, quantity, line total and «حذف», plus the quote's own error for
+ * unit price, quantity, line total and «حذف» (a line the quote reads as
+ * digital is one copy: no quantity control), plus the quote's own error for
  * that line and the «إزالة غير المتاح» button for the invalid ones. The
  * city select appears when a line is physical or signed, the coupon is kept
  * in sessionStorage, and `checkoutEnabled` false hides the checkout button
@@ -154,7 +155,9 @@ export function CartView() {
     const target = focusAfter.current
     if (target === null) return
     focusAfter.current = null
-    const element = target === '' ? emptyNote.current : document.getElementById(`cart-quantity-${target}`)
+    // A digital line has no quantity field: its «حذف» takes the focus instead.
+    const element =
+      target === '' ? emptyNote.current : (document.getElementById(`cart-quantity-${target}`) ?? document.getElementById(`cart-remove-${target}`))
     element?.focus()
   }, [storedCart])
 
@@ -247,34 +250,37 @@ export function CartView() {
                     </ul>
                   )}
                   <div className={styles.lineControls}>
-                    <div className={styles.quantity}>
-                      <button
-                        type="button"
-                        className={styles.stepButton}
-                        aria-label={`إنقاص الكمية: ${name}`}
-                        onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity - 1))}
-                        disabled={line.quantity <= 1}
-                      >
-                        −
-                      </button>
-                      <QuantityInput
-                        id={`cart-quantity-${line.variantId}`}
-                        value={line.quantity}
-                        label={`الكمية: ${name}`}
-                        onCommit={(next) => update((latest) => setQuantity(latest, line.variantId, next))}
-                      />
-                      <button
-                        type="button"
-                        className={styles.stepButton}
-                        aria-label={`زيادة الكمية: ${name}`}
-                        onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity + 1))}
-                        disabled={line.quantity >= MAX_QUANTITY}
-                      >
-                        +
-                      </button>
-                    </div>
+                    {quoteLine?.fulfillment !== 'digital' && (
+                      <div className={styles.quantity}>
+                        <button
+                          type="button"
+                          className={styles.stepButton}
+                          aria-label={`إنقاص الكمية: ${name}`}
+                          onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity - 1))}
+                          disabled={line.quantity <= 1}
+                        >
+                          −
+                        </button>
+                        <QuantityInput
+                          id={`cart-quantity-${line.variantId}`}
+                          value={line.quantity}
+                          label={`الكمية: ${name}`}
+                          onCommit={(next) => update((latest) => setQuantity(latest, line.variantId, next))}
+                        />
+                        <button
+                          type="button"
+                          className={styles.stepButton}
+                          aria-label={`زيادة الكمية: ${name}`}
+                          onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity + 1))}
+                          disabled={line.quantity >= MAX_QUANTITY}
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
                     {quoteLine && <p className={styles.lineTotal}>{formatMoney(quoteLine.total)}</p>}
                     <button
+                      id={`cart-remove-${line.variantId}`}
                       type="button"
                       className={styles.textButton}
                       aria-label={`حذف ${name}`}

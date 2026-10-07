@@ -6,7 +6,8 @@
  *
  * - The provider documents no refund id: the evidence of a refund is the
  *   payment's own `refunded` total. So the total is fetched FIRST (a failed
- *   fetch answers 503 with nothing written), `refund_request` reserves the
+ *   fetch answers 503, a payment the key cannot see 404, with nothing
+ *   written), `refund_request` reserves the
  *   balance with it, and only a `new` refund goes on to the provider call, which
  *   always carries the amount. No SQL lock is held across that call.
  * - What the provider answers is only a prompt for `refund_result`: a 2xx with
@@ -111,6 +112,10 @@ const refusal = (code: string): Response => {
 
 const unavailable = (): Response => fail(503, 'PROVIDER_UNAVAILABLE', 'تعذّر الوصول إلى بوابة الدفع الآن. لم يتغيّر شيء؛ حاول بعد قليل.')
 
+/** A payment fetch that failed: one the configured key cannot see is 404 (asking again changes nothing), anything else 503. */
+const fetchFailed = (result: { kind: string }): Response =>
+  result.kind === 'not_found' ? fail(404, 'NOT_FOUND', 'لم تُعثر على الدفعة لدى بوابة الدفع.') : unavailable()
+
 /** A database failure: a revoked owner is 403, a malformed call 422, anything else a detail-free 500. */
 function sqlFailure(error: unknown): Response {
   const code = (error as { code?: string } | null)?.code
@@ -178,7 +183,9 @@ async function refundAtProvider(
   if (result.ok) return { p_outcome: 'succeeded', p_provider_refunded: result.data.refunded, p_error: null }
   // A 4xx means nothing moved. Anything else (a timeout, a 5xx, a 429, an unreadable reply) may have happened.
   if (result.kind === 'refused' || result.kind === 'not_found') {
-    return { p_outcome: 'failed', p_provider_refunded: null, p_error: result.kind === 'refused' ? 'REFUND_REFUSED' : 'REFUND_NOT_FOUND' }
+    // A refusal keeps the provider's HTTP status in its code (REFUND_REFUSED_400) when the reply carried one.
+    const refused = typeof result.status === 'number' ? `REFUND_REFUSED_${result.status}` : 'REFUND_REFUSED'
+    return { p_outcome: 'failed', p_provider_refunded: null, p_error: result.kind === 'refused' ? refused : 'REFUND_NOT_FOUND' }
   }
   return { p_outcome: 'uncertain', p_provider_refunded: null, p_error: `REFUND_${result.kind.toUpperCase()}` }
 }
@@ -222,7 +229,7 @@ export async function refundCreate(deps: RefundDeps, actor: string, body: unknow
     if (target instanceof Response) return target
     // The provider's total first: a failed fetch writes nothing.
     const fetched = await payments.client.fetchPayment(target)
-    if (!fetched.ok) return unavailable()
+    if (!fetched.ok) return fetchFailed(fetched)
     const items = request.allocation.items ?? []
     const shipping = request.allocation.shipping ?? 0
     requested = (await payments.rpc('refund_request', {
@@ -267,7 +274,7 @@ export async function refundRecheck(deps: RefundDeps, actor: string, body: unkno
       | { ok: true; providerPaymentId: string | null }
     if (!ref.ok) return fail(404, 'NOT_FOUND', 'لم نجد عملية الاسترداد هذه.')
     const fetched = await payments.client.fetchPayment(ref.providerPaymentId ?? '')
-    if (!fetched.ok) return unavailable()
+    if (!fetched.ok) return fetchFailed(fetched)
     return settledAnswer(await payments.rpc('refund_settle', { p_refund: parsed.data.refundId, p_provider_refunded: fetched.data.refunded }))
   } catch (error) {
     return sqlFailure(error)
@@ -285,7 +292,7 @@ export async function refundRecordExternal(deps: RefundDeps, actor: string, body
     const target = await providerPaymentId(payments, actor, request)
     if (target instanceof Response) return target
     const fetched = await payments.client.fetchPayment(target)
-    if (!fetched.ok) return unavailable()
+    if (!fetched.ok) return fetchFailed(fetched)
     const recorded = await payments.rpc('refund_record_external', {
       p_actor: actor,
       p_attempt: request.attemptId ?? null,

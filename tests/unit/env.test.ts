@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   assertLocalTestDatabase,
@@ -7,6 +7,7 @@ import {
   requireEnv,
   secretsMatch,
 } from '../../src/lib/env'
+import { apiKey } from '../../supabase/functions/_shared/db.ts'
 
 describe('isLocalDatabaseUrl', () => {
   it.each([
@@ -108,5 +109,55 @@ describe('requireEnv', () => {
   it('throws MissingEnvError when empty', () => {
     process.env[key] = ''
     expect(() => requireEnv(key)).toThrow(MissingEnvError)
+  })
+})
+
+// FABLE-AUDIT F1-1: the Edge Functions' service client takes the key the platform now provides, the `default` entry of
+// SUPABASE_SECRET_KEYS (a JSON dictionary), and falls back to the legacy SUPABASE_SERVICE_ROLE_KEY.
+describe('apiKey: the service client\'s key', () => {
+  const serviceKey = (): string => apiKey('SUPABASE_SECRET_KEYS', 'SUPABASE_SERVICE_ROLE_KEY')
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('takes the default entry of SUPABASE_SECRET_KEYS first, over the legacy key', () => {
+    vi.stubEnv('SUPABASE_SECRET_KEYS', JSON.stringify({ default: 'sb_secret_new_key', other: 'sb_secret_other' }))
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'legacy-service-role-key')
+    expect(serviceKey()).toBe('sb_secret_new_key')
+  })
+
+  it('falls back to SUPABASE_SERVICE_ROLE_KEY when SUPABASE_SECRET_KEYS is unset', () => {
+    vi.stubEnv('SUPABASE_SECRET_KEYS', '')
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'legacy-service-role-key')
+    expect(serviceKey()).toBe('legacy-service-role-key')
+  })
+
+  it.each([
+    ['malformed JSON', '{default: sb_secret_x'],
+    ['an empty default', JSON.stringify({ default: '' })],
+    ['a default that is not a string', JSON.stringify({ default: 42 })],
+    ['no default entry', JSON.stringify({ other: 'sb_secret_other' })],
+    ['JSON null', 'null'],
+    ['a JSON string', JSON.stringify('sb_secret_bare')],
+  ])('falls back to the legacy key for %s', (_label, value) => {
+    vi.stubEnv('SUPABASE_SECRET_KEYS', value)
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'legacy-service-role-key')
+    expect(serviceKey()).toBe('legacy-service-role-key')
+  })
+
+  it('throws MissingEnvError naming the legacy key when neither gives one', () => {
+    vi.stubEnv('SUPABASE_SECRET_KEYS', '{nope')
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '')
+    expect(() => serviceKey()).toThrow(MissingEnvError)
+    expect(() => serviceKey()).toThrow('SUPABASE_SERVICE_ROLE_KEY')
+  })
+
+  it('reads the publishable dictionary the same way for the caller\'s client', () => {
+    vi.stubEnv('SUPABASE_PUBLISHABLE_KEYS', JSON.stringify({ default: 'sb_publishable_key' }))
+    vi.stubEnv('SUPABASE_ANON_KEY', 'legacy-anon-key')
+    expect(apiKey('SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_ANON_KEY')).toBe('sb_publishable_key')
+    vi.stubEnv('SUPABASE_PUBLISHABLE_KEYS', '')
+    expect(apiKey('SUPABASE_PUBLISHABLE_KEYS', 'SUPABASE_ANON_KEY')).toBe('legacy-anon-key')
   })
 })

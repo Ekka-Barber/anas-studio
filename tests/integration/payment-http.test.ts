@@ -836,8 +836,15 @@ describe('startPayment against the emulator', () => {
     const result = await startPayment({ ...inProcess(), client: badKey }, { orderNumber: placed.number, accessTokenHash: placed.hash, ipHash: null })
     expect(result).toMatchObject({ kind: 'ok', payment: { state: 'unavailable' } })
     const attempt = await row('select * from finance.payment_attempts where order_id = $1', [placed.id])
-    expect(attempt).toMatchObject({ status: 'failed', last_error: 'CREATE_REFUSED', provider_invoice_id: null })
+    // The provider's status stays in the code: the emulator answers a wrong key 401.
+    expect(attempt).toMatchObject({ status: 'failed', last_error: 'CREATE_REFUSED_401', provider_invoice_id: null })
     expect(attempt.next_check_at).toBeNull()
+    // Every buyer after this one would meet the same refusal: the owners hear of it, once a UTC day.
+    const alerts = await rows(
+      "select payload ->> 'alert' as alert from finance.email_outbox where kind = 'owner_alert' and dedupe_key like 'payment_create_refused:' || to_char(now() at time zone 'UTC', 'YYYY-MM-DD') || ':%'",
+    )
+    expect(alerts.length).toBeGreaterThan(0)
+    expect(alerts.every((entry) => entry.alert === 'payment_create_refused')).toBe(true)
   })
 
   it('a create the provider answers 429 closes the attempt failed: unavailable', async () => {

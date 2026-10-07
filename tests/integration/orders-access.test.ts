@@ -14,11 +14,12 @@
 // email.
 import { randomUUID } from 'node:crypto'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { type RecoverableOrder, recoveryItems } from '../../supabase/functions/_shared/orders.ts'
 import { orderAccessToken, orderAccessTokenHash } from '../../supabase/functions/_shared/tokens.ts'
-import { commerceHarness, type Harness, type Paid, type Row, settledWithin, uniqueEmail } from './support'
+import { commerceHarness, type Harness, type Paid, type Row, settledWithin, sha256, signIn, uniqueEmail } from './support'
 
 vi.setConfig({ testTimeout: 90_000, hookTimeout: 120_000 })
 
@@ -511,6 +512,111 @@ describe('recovery', () => {
       h.call('order_recover_apply', { p_ip_hash: ip, p_items: Array.from({ length: 6 }, () => ({ orderId: randomUUID(), version: 0 })) }),
     ).rejects.toMatchObject({ code: '22023' })
     await expect(h.call('order_recover_apply', { p_ip_hash: ip, p_items: [{ orderId: 'nope', version: 0 }] })).rejects.toMatchObject({ code: '22P02' })
+  })
+})
+
+// --- order_link_reissue (FABLE-AUDIT M1b) -------------------------------------------------------------------------------
+
+describe('order_link_reissue', () => {
+  let ownerClient: SupabaseClient
+  let operationsClient: SupabaseClient
+  beforeAll(async () => {
+    ownerClient = await signIn(owner.email)
+    operationsClient = await signIn((await h.makeStaff('operations')).email)
+  })
+
+  const reissue = async (client: SupabaseClient, args: Record<string, unknown>): Promise<{ data: any; code: string | undefined }> => {
+    const { data, error } = await client.rpc('order_link_reissue', args)
+    return { data, code: error?.code }
+  }
+  /** What the Edge Function derives for a version, as recovery does: the hash of the token of the order's key. */
+  const hashFor = async (p: Paid, version: number): Promise<string> => orderAccessTokenHash(PEPPER, await orderAccessToken(PEPPER, p.key, version))
+  const linkMails = (orderId: string): Promise<Row[]> => h.rows("select * from finance.email_outbox where kind = 'order_link' and payload ->> 'orderId' = $1 order by id", [orderId])
+  const audits = (orderId: string): Promise<Row[]> => h.rows("select * from public.audit_events where action = 'order.link_reissued' and entity_id = $1 order by id", [orderId])
+  const today = async (): Promise<string> => (await h.row("select to_char(now() at time zone 'UTC', 'YYYY-MM-DD') as d")).d as string
+  const secondsAhead = async (orderId: string): Promise<number> =>
+    Number((await h.row('select extract(epoch from (access_token_expires_at - now())) as s from finance.orders where id = $1', [orderId])).s)
+
+  it('rotates the link to the next version: the old token dies, the new one opens the order for 7 days, one mail, an audit row', async () => {
+    const p = await h.paid([{ variantId: await h.digital(), quantity: 1 }])
+    const hash = await hashFor(p, 1)
+    expect(await reissue(ownerClient, { p_order: p.id, p_version: 1, p_token_hash: hash, p_email: null })).toEqual({
+      data: { ok: true, version: 1, emailChanged: false },
+      code: undefined,
+    })
+    expect(await access(p)).toEqual(NOT_FOUND)
+    expect((await access({ number: p.number, hash })).ok).toBe(true)
+    expect(await orderOf(p.id)).toMatchObject({ access_token_version: 1, access_token_hash: hash, customer_email: p.email.toLowerCase() })
+    expect(await secondsAhead(p.id)).toBeGreaterThan(7 * 24 * 3600 - 120)
+    const mails = await linkMails(p.id)
+    expect(mails).toHaveLength(1)
+    expect(mails[0]).toMatchObject({ dedupe_key: `order_link:${p.id}:1:${await today()}`, kind: 'order_link', priority: 1, recipient: p.email.toLowerCase(), status: 'pending' })
+    expect(mails[0]!.payload).toEqual({ orderId: p.id })
+    const rows = await audits(p.id)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ actor: owner.userId, entity: 'order' })
+    expect(rows[0]!.summary).toEqual({ orderNumber: p.number, emailChanged: false })
+
+    // The same version again is stale: refused, and nothing changes.
+    expect((await reissue(ownerClient, { p_order: p.id, p_version: 1, p_token_hash: hash, p_email: null })).data).toEqual({ ok: false, code: 'VERSION_MISMATCH' })
+    expect(await linkMails(p.id)).toHaveLength(1)
+    // Rotated again, version 2: the version 1 link dies too.
+    const next = await hashFor(p, 2)
+    expect((await reissue(ownerClient, { p_order: p.id, p_version: 2, p_token_hash: next, p_email: null })).data).toMatchObject({ ok: true, version: 2 })
+    expect(await access({ number: p.number, hash })).toEqual(NOT_FOUND)
+    expect((await access({ number: p.number, hash: next })).ok).toBe(true)
+  })
+
+  it('re-addresses an order to a corrected address: the link goes to the new one, the order\'s address and hash follow it, the audit row names neither', async () => {
+    const p = await h.paid([{ variantId: await h.digital(), quantity: 1 }])
+    const corrected = uniqueEmail('corrected')
+    const hash = await hashFor(p, 1)
+    expect((await reissue(ownerClient, { p_order: p.id, p_version: 1, p_token_hash: hash, p_email: `  ${corrected.toUpperCase()} ` })).data).toEqual({
+      ok: true,
+      version: 1,
+      emailChanged: true,
+    })
+    expect(await access(p)).toEqual(NOT_FOUND)
+    expect((await access({ number: p.number, hash })).ok).toBe(true)
+    expect(await orderOf(p.id)).toMatchObject({ customer_email: corrected, email_hash: sha256(corrected), access_token_version: 1 })
+    const mails = await linkMails(p.id)
+    expect(mails).toHaveLength(1)
+    expect(mails[0]).toMatchObject({ dedupe_key: `order_link:${p.id}:1:${await today()}`, recipient: corrected })
+    const rows = await audits(p.id)
+    expect(rows[0]!.summary).toEqual({ orderNumber: p.number, emailChanged: true })
+    const text = JSON.stringify(rows)
+    for (const address of [corrected, p.email]) expect(text.includes(address), address).toBe(false)
+    // The new address finds the order through recovery; the old one no longer does.
+    const listed = async (email: string): Promise<string[]> =>
+      ((await h.call('order_recover_list', { p_mode: 'test', p_ip_hash: h.ipHash(), p_email: email })) as RecoverableOrder[]).map((entry) => entry.orderId)
+    expect(await listed(corrected)).toEqual([p.id])
+    expect(await listed(p.email)).toEqual([])
+  })
+
+  it('refuses what it cannot do and changes nothing: an unknown order, one that is not paid, a version that is not the next, an address that is not one; and anyone but an owner', async () => {
+    const p = await h.paid([{ variantId: await h.digital(), quantity: 1 }])
+    const hash = await hashFor(p, 1)
+    const placed = await h.place([{ variantId: await h.digital(), quantity: 1 }])
+    const call = (over: Record<string, unknown>, client: SupabaseClient = ownerClient) =>
+      reissue(client, { p_order: p.id, p_version: 1, p_token_hash: hash, p_email: null, ...over })
+    expect((await call({ p_order: randomUUID() })).data).toEqual(NOT_FOUND)
+    expect((await call({ p_order: placed.id })).data).toEqual({ ok: false, code: 'BAD_STATUS', status: 'pending_payment' })
+    expect((await call({ p_version: 2 })).data).toEqual({ ok: false, code: 'VERSION_MISMATCH' })
+    for (const email of ['not-an-address', '', 'a@b']) expect((await call({ p_email: email })).data, email).toEqual({ ok: false, code: 'INVALID_EMAIL' })
+    for (const over of [{ p_version: 0 }, { p_version: null }, { p_token_hash: 'x' }, { p_token_hash: null }]) {
+      expect((await call(over)).code, JSON.stringify(over)).toBe('22023')
+    }
+    // Operations work the orders, but the link is the owner's to reissue: refused before anything is read.
+    expect((await call({}, operationsClient)).code).toBe('42501')
+    expect((await call({ p_order: randomUUID() }, operationsClient)).code).toBe('42501')
+    expect(await orderOf(p.id)).toMatchObject({ access_token_version: 0, access_token_hash: p.hash, customer_email: p.email.toLowerCase() })
+    expect((await access(p)).ok).toBe(true)
+    expect(await linkMails(p.id)).toEqual([])
+    expect(await audits(p.id)).toEqual([])
+    const can = async (role: string): Promise<boolean> =>
+      (await h.row("select has_function_privilege($1, 'public.order_link_reissue(uuid, integer, text, text)', 'execute') as ok", [role])).ok as boolean
+    expect(await can('authenticated')).toBe(true)
+    expect(await can('anon')).toBe(false)
   })
 })
 

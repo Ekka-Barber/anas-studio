@@ -81,8 +81,11 @@ interface ClaimedRow {
   lease_id: string
   kind: string
   recipient: string
-  /** Ids only, never a token or an address; an `owner_alert` carries `{alert, ...ids}`. */
-  payload: { contactId?: string; orderId?: string; refundId?: string; itemIds?: string[]; notificationId?: string }
+  /**
+   * Ids only, never a token or an address; an `owner_alert` carries `{alert, ...ids}`, and a refused invoice creation
+   * (`payment_create_refused`) also its short ASCII `error` code.
+   */
+  payload: { contactId?: string; orderId?: string; refundId?: string; itemIds?: string[]; notificationId?: string; error?: string }
   idempotency_key: string
   attempts: number
 }
@@ -150,7 +153,9 @@ async function renderMail(rpc: Rpc, row: ClaimedRow): Promise<RenderedEmail | St
 
   if (kind === 'owner_alert') {
     const alert = (await rpc('alert_email_data', { p_payload: payload })) as AlertEmailData | null
-    return alert ? renderOwnerAlert(alert, siteUrl) : closed('GONE')
+    // `alert_email_data` has no branch for the kinds of FABLE-AUDIT round M1a and answers them with `{alert}` alone, so
+    // the code of a refused invoice creation is taken from the alert's own payload until it carries one itself.
+    return alert ? renderOwnerAlert({ error: payload.error ?? null, ...alert }, siteUrl) : closed('GONE')
   }
 
   if (kind === 'notify_confirm' || kind === 'availability') {
@@ -279,8 +284,18 @@ export async function runOutbox(rpc: Rpc = serviceRpc()): Promise<OutboxSummary>
       // refused too: stop. The row waits for the reset without using up an
       // attempt (outbox_result).
       if (outcome.outcome === 'retry' && outcome.error === 'QUOTA') break
+      // The account refused the call (a revoked key, an unverified domain):
+      // every further send would be refused the same way, so stop here too.
+      // The row waits without using up an attempt (outbox_result), and the run
+      // is recorded failed with the reason, for the owner to fix the account.
+      if (outcome.outcome === 'retry' && outcome.error === 'PROVIDER_CONFIG') {
+        summary.reason = 'PROVIDER_CONFIG'
+        break
+      }
     }
-    if (summary.claimed === 0) {
+    if (summary.reason === 'PROVIDER_CONFIG') {
+      summary.status = 'failed'
+    } else if (summary.claimed === 0) {
       // `outbox_kick` calls this function only while a row is due, so an empty
       // claim means a daily, reserve or monthly cap is holding mail back. An
       // 'ok' run every minute hid that from the owner home: record it as a

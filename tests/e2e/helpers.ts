@@ -155,25 +155,27 @@ export async function staffAccessToken(email: string): Promise<string> {
 }
 
 /**
- * Reads the 6-digit sign-in code Supabase Auth just sent through Mailpit.
- * Pass the previous code to wait for a newer email instead of re-reading it.
+ * Reads the 8-digit sign-in code Supabase Auth just sent through Mailpit.
+ * Pass the previous code to wait for a newer email instead of re-reading it,
+ * or `seen`, the IDs of the messages the address had before the code was
+ * requested: the newest message is then read only once it is not one of them.
  */
-export async function readCodeFromMailpit(email: string, previousCode?: string): Promise<string> {
+export async function readCodeFromMailpit(email: string, previousCode?: string, seen?: ReadonlySet<string>): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const search = (await fetch(
       `${status.MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
     ).then((r) => r.json())) as { messages?: { ID: string }[] }
     const latest = search.messages?.[0]
-    if (latest) {
+    if (latest && !seen?.has(latest.ID)) {
       const message = (await fetch(`${status.MAILPIT_URL}/api/v1/message/${latest.ID}`).then((r) =>
         r.json(),
       )) as { Text?: string; HTML?: string }
-      const match = (message.Text ?? message.HTML ?? '').match(/\b\d{6}\b/)
+      const match = (message.Text ?? message.HTML ?? '').match(/\b\d{8}\b/)
       if (match && match[0] !== previousCode) return match[0]
     }
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
-  throw new Error(`No sign-in code email found for ${email}`)
+  throw new Error(`No ${seen ? 'new ' : ''}sign-in code email found for ${email}`)
 }
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
@@ -202,7 +204,7 @@ export function totpCode(secret: string): string {
   return String(binary % 1_000_000).padStart(6, '0')
 }
 
-export const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 6 أرقام.'
+export const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 8 أرقام.'
 
 export interface LocalEnv {
   JOBS_SECRET: string
@@ -333,9 +335,14 @@ export async function waitForMail(address: string, subject: string, timeoutMs = 
 export async function signInByCode(page: Page, email: string, previousCode?: string): Promise<void> {
   await page.goto('/admin/sign-in')
   await page.getByLabel('البريد الإلكتروني').fill(email)
+  // The button waits for Turnstile's token (always-pass test key locally).
+  await expect(page.getByRole('button', { name: 'أرسل الرمز' })).toBeEnabled()
+  // The code must come from a mail sent after this click: a second sign-in of the same address would otherwise read
+  // the first one's spent code, and a send that failed behind the same sentence would read as sent (FABLE-AUDIT T-18).
+  const seen = new Set((await mailsTo(email)).map((mail) => mail.id))
   await page.getByRole('button', { name: 'أرسل الرمز' }).click()
   await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
-  const code = await readCodeFromMailpit(email, previousCode)
+  const code = await readCodeFromMailpit(email, previousCode, seen)
   await page.getByLabel('رمز الدخول').fill(code)
   await page.getByRole('button', { name: 'تحقق' }).click()
   await expect(page).toHaveURL(/\/admin$/)

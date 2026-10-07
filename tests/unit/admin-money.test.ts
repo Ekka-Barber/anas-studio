@@ -4,15 +4,18 @@
 // idempotency key's life (kept across a step-up retry and a network retry, renewed after a change, dropped with
 // a final answer), the step-up retry, the sentence each answer becomes, the dispute form's checks and body.
 // The strict parsers of the three replies (their code is in admin-orders.ts, beside the other parsers) are proven
-// here too; the screens are proven in tests/e2e/orders-money.spec.ts.
+// here too; the screens are proven in tests/e2e/orders-money.spec.ts. FABLE-AUDIT F2b adds the cap of what the
+// paying attempt can still give back (a refund recorded from Moyasar's dashboard included) and CHARGEBACK_RECORDED.
 import { describe, expect, it, vi } from 'vitest'
 
 import {
   AMOUNT_ABOVE,
   AMOUNT_INVALID,
+  attemptBalance,
   BAD_REPLY,
   buildDispute,
   CANCELLED,
+  CHARGEBACK_RECORDED,
   decisionsFor,
   DISPUTE_DUPLICATE,
   DISPUTE_PROBLEMS,
@@ -39,6 +42,7 @@ import {
   riyadhToday,
   shippingLeft,
   sum,
+  TOTAL_ABOVE,
   withStepUp,
   type DisputeInput,
   type DisputeLine,
@@ -104,6 +108,38 @@ describe('what a refund can still take', () => {
     expect(reviewRefundFields(0)).toEqual([])
   })
 
+  it('offers no more than the paying attempt can still give back: what it captured less every succeeded refund of it, the dashboard\'s included', () => {
+    const refunds = [
+      { attemptId: D, status: 'succeeded', amount: 1000, source: 'admin' },
+      // Recorded from Moyasar's dashboard: it allocates no line, so no line's remainder shows it.
+      { attemptId: D, status: 'succeeded', amount: 6000, source: 'provider_dashboard' },
+      { attemptId: D, status: 'failed', amount: 500, source: 'admin' },
+      { attemptId: D, status: 'uncertain', amount: 700, source: 'admin' },
+      { attemptId: E, status: 'succeeded', amount: 900, source: 'admin' },
+      { attemptId: null, status: 'succeeded', amount: 800, source: 'admin' },
+    ]
+    const attempts = [{ id: D, captured: 10600 }, { id: E, captured: 2000 }]
+    const balance = (id: string, over: Partial<{ attempts: unknown; refunds: unknown }> = {}) =>
+      attemptBalance({ attempts, refunds, ...over } as unknown as Parameters<typeof attemptBalance>[0], id)
+    expect(balance(D)).toBe(3600)
+    expect(balance(E)).toBe(1100)
+    // No capture yet, no such attempt, or more refunded than captured: nothing to give.
+    expect(balance(D, { attempts: [{ id: D, captured: null }] })).toBe(0)
+    expect(balance(A)).toBe(0)
+    expect(balance(D, { attempts: [{ id: D, captured: 5000 }] })).toBe(0)
+
+    // Each line and the shipping is offered up to the cap, and none once nothing is left.
+    const detail = detailOf([item(A, 'أ', 6000, 1000), item(B, 'ب', 3000, 0)], 2500)
+    expect(orderRefundFields(detail, 3600).map((field) => [field.key, field.remainder])).toEqual([
+      [A, 3600],
+      [B, 3000],
+      ['shipping', 2500],
+    ])
+    expect(orderRefundFields(detail, 0)).toEqual([])
+    // With no cap, each line's own remainder.
+    expect(orderRefundFields(detail).map((field) => field.remainder)).toEqual([5000, 3000, 2500])
+  })
+
   it('knows which refunds are in flight', () => {
     expect(['submitting', 'uncertain'].every(inFlight)).toBe(true)
     expect(['succeeded', 'failed', 'x'].some(inFlight)).toBe(false)
@@ -164,6 +200,15 @@ describe('what refuses a refund before its confirmation', () => {
   it('lets a refund through with one positive amount and a reason of one to 300 characters', () => {
     expect(refundProblem(reads('', '10'), 'س', false)).toBeNull()
     expect(refundProblem(reads('10'), 'س'.repeat(300), true)).toBeNull()
+  })
+
+  it('refuses a total above what the paying attempt can still give back, each field being within its own', () => {
+    expect(refundProblem(reads('30', '30'), 'سبب', false, 5000)).toBe(TOTAL_ABOVE)
+    expect(refundProblem(reads('30', '20'), 'سبب', false, 5000)).toBeNull()
+    expect(TOTAL_ABOVE).toBe('المجموع أكبر من المتبقي في الدفعة.')
+    // A field above its own remainder, or nothing typed, is said first.
+    expect(refundProblem(reads('50'), 'سبب', false, 1000)).toBe(AMOUNT_ABOVE)
+    expect(refundProblem(reads(''), 'سبب', false, 0)).toBe(NEEDS_AMOUNT)
   })
 })
 
@@ -389,6 +434,17 @@ describe('what a refund answer says', () => {
 
   it('says nothing when the owner closed the dialog', () => {
     expect(readRefundReply(fail(CANCELLED, ''))).toBeNull()
+  })
+
+  it('says a chargeback recorded on the payment in this screen\'s words (the function has only a generic one), as a final answer', () => {
+    expect(readRefundReply(fail('CHARGEBACK_RECORDED', 'تعذّر تنفيذ الإجراء.'))).toEqual({
+      line: 'alert',
+      text: 'سُجّل استرجاع بنكي على هذه الدفعة؛ لا يمكن الاسترداد منها.',
+      done: false,
+      keep: false,
+      ahead: false,
+    })
+    expect(CHARGEBACK_RECORDED).toBe('سُجّل استرجاع بنكي على هذه الدفعة؛ لا يمكن الاسترداد منها.')
   })
 
   it('never reads a reply it cannot parse as made or as failed: it says so, and keeps the request', () => {

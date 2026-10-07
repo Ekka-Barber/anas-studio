@@ -13,7 +13,7 @@ import { createHash, createHmac, randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { anonClient, createStaff, pgRpc, serviceRoleDb, signIn, uniqueEmail } from './support'
+import { anonClient, createStaff, pgRpc, serviceRoleDb, settledWithin, signIn, uniqueEmail } from './support'
 
 const PEPPER = `integration-pepper-${randomUUID()}`
 const REV = { store: 1, delivery: 1, refund: 1 }
@@ -314,6 +314,52 @@ describe('grants and access (D32)', () => {
     expect(coupons.error?.code).toBe('42501')
     const customers = await anonClient().from('customers').select('id')
     expect(customers.error?.code).toBe('42501')
+  })
+
+  // FABLE-AUDIT T-7 (TEST-DB-10): the buyers' e-mail, name and phone. customers_read_staff names the owner and
+  // operations, customers_update_owner the owner alone, and authenticated is granted select and update (name, phone)
+  // only: no insert, no delete, never the e-mail.
+  it('customers: the owner and operations read them, an editor and a revoked owner read nothing, nobody inserts or deletes, and only the owner corrects a name or phone', async () => {
+    const email = uniqueEmail('customer')
+    const id = (
+      await postgres.query<{ id: string }>("insert into public.customers (email, name, phone) values ($1, 'مشترٍ أول', '966501234567') returning id", [email])
+    ).rows[0]!.id
+    const stored = async () => (await postgres.query('select email, name, phone from public.customers where id = $1', [id])).rows[0]
+    const owner = await signIn((await createStaff('owner')).email)
+    const operations = await signIn((await createStaff('operations')).email)
+    const editor = await signIn((await createStaff('editor')).email)
+    // A session still valid after its owner was revoked (another active owner remains: the one above).
+    const revoked = await createStaff('owner')
+    const revokedOwner = await signIn(revoked.email)
+    await postgres.query('update public.staff set active = false where user_id = $1', [revoked.userId])
+
+    for (const [label, client] of [['owner', owner], ['operations', operations]] as const) {
+      const read = await client.from('customers').select('email, name, phone').eq('id', id)
+      expect(read.error, label).toBeNull()
+      expect(read.data, label).toEqual([{ email, name: 'مشترٍ أول', phone: '966501234567' }])
+    }
+    for (const [label, client] of [['editor', editor], ['revoked owner', revokedOwner]] as const) {
+      const read = await client.from('customers').select('id').eq('id', id)
+      expect(read.error, label).toBeNull()
+      expect(read.data, label).toEqual([])
+    }
+    for (const [label, client] of [['owner', owner], ['editor', editor]] as const) {
+      expect((await client.from('customers').insert({ email: uniqueEmail('intruder'), name: 'دخيل' })).error?.code, `${label} insert`).toBe('42501')
+    }
+    expect((await owner.from('customers').delete().eq('id', id)).error?.code).toBe('42501')
+    // An update the policy does not allow matches no row.
+    for (const [label, client] of [['operations', operations], ['editor', editor], ['revoked owner', revokedOwner]] as const) {
+      const update = await client.from('customers').update({ name: 'تغيير' }).eq('id', id).select('id')
+      expect(update.error, label).toBeNull()
+      expect(update.data, label).toEqual([])
+    }
+    expect(await stored()).toEqual({ email, name: 'مشترٍ أول', phone: '966501234567' })
+
+    const corrected = await owner.from('customers').update({ name: 'مشترٍ ثانٍ', phone: '966509876543' }).eq('id', id).select('id')
+    expect(corrected.error).toBeNull()
+    expect(corrected.data).toEqual([{ id }])
+    expect((await owner.from('customers').update({ email: uniqueEmail('moved') }).eq('id', id)).error?.code).toBe('42501')
+    expect(await stored()).toEqual({ email, name: 'مشترٍ ثانٍ', phone: '966509876543' })
   })
 
   it('anon cannot select a variant\'s stock, digital asset or low-stock threshold, but reads the priced public columns', async () => {
@@ -664,12 +710,28 @@ describe('checkout_price refusals (AUDIT-2)', () => {
     expect(await errorCodes([{ variantId: signed, quantity: 1, dedication: 'ه'.repeat(201) }])).toEqual(['INVALID_DEDICATION'])
     expect(await errorCodes([{ variantId: signed, quantity: 1, dedication: 'ه'.repeat(200) }])).toEqual([])
 
-    // Six of a 100,000 SAR item: past the 500,000 SAR ceiling that keeps the
+    // A digital line is one copy: the order grants one entitlement per line, so any other quantity is refused with the
+    // line, the variant and its maximum (FABLE-AUDIT M2-4: the cart tells it from the 1 to 20 rule by `maximum`), in
+    // quote and in create; one copy is priced.
+    expect(((await quote(pool[0]!, [{ variantId: digital, quantity: 2 }], city)) as any).errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: digital, maximum: 1 }])
+    expect(((await quote(pool[0]!, [{ variantId: signed, quantity: 1 }, { variantId: digital, quantity: 20 }], city)) as any).errors).toEqual([
+      { code: 'INVALID_QUANTITY', line: 2, variantId: digital, maximum: 1 },
+    ])
+    const twice = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 2 }] })
+    expect(twice.result).toMatchObject({ ok: false, code: 'INVALID_QUANTITY' })
+    expect(twice.result.quote.errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: digital, maximum: 1 }])
+    expect(await quote(pool[0]!, [{ variantId: digital, quantity: 1 }], city)).toMatchObject({ ok: true, errors: [], total: 1500 })
+    // The 1 to 20 rule names no maximum: a physical line of 21, and a digital one of 21 (refused before its variant is read).
+    const physical = await makeVariant(product, { fulfillment: 'physical', price: 4000, stock: 50 })
+    expect(((await quote(pool[0]!, [{ variantId: physical, quantity: 21 }], city)) as any).errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: physical }])
+    expect(((await quote(pool[0]!, [{ variantId: digital, quantity: 21 }], city)) as any).errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: digital }])
+
+    // Six of a 100,000 SAR printed item: past the 500,000 SAR ceiling that keeps the
     // subtotal inside an integer. Create refuses it with the same code, it does not raise.
-    const pricey = await makeVariant(product, { fulfillment: 'digital', price: 10_000_000 })
+    const pricey = await makeVariant(product, { fulfillment: 'physical', price: 10_000_000, stock: 10 })
     const lines = [{ variantId: pricey, quantity: 6 }]
     expect(await errorCodes(lines)).toEqual(['CART_TOO_LARGE'])
-    const created = await createOrder(pool[0]!, { lines })
+    const created = await createOrder(pool[0]!, { lines, cityKey: city })
     expect(created.code).toBeUndefined()
     expect(created.result).toMatchObject({ ok: false, code: 'CART_TOO_LARGE' })
     // Exactly at the ceiling is fine.
@@ -1120,20 +1182,33 @@ describe('concurrency (separate connections)', () => {
     expect(refused).toHaveLength(4)
   })
 
-  it('two creates for a coupon limited to one use: exactly one keeps it', async () => {
+  // FABLE-AUDIT T-3 (TEST-DB-11): the two carts hold different variants, so no variant lock can order the creates; only
+  // the coupon's row lock does. A third session holds that row while both creates start, so both are waiting at once;
+  // once it is freed, the first to take the lock keeps the single use and the other must find it spent.
+  it('two creates for a coupon limited to one use, on different variants, forced to race: exactly one keeps it', async () => {
     const product = await makeProduct()
-    const variant = await makeVariant(product, { fulfillment: 'digital', price: 10_000 })
+    const variants = [
+      await makeVariant(product, { fulfillment: 'digital', price: 10_000 }),
+      await makeVariant(product, { fulfillment: 'digital', price: 10_000 }),
+    ]
     const coupon = await makeCoupon({ kind: 'percent', percentBp: 1000, usageLimit: 1 })
-    const answers = await Promise.all(
-      pool.slice(0, 2).map((client) =>
-        createOrder(client, { lines: [{ variantId: variant, quantity: 1 }], couponCode: coupon.code, email: uniqueEmail('coupon-race') }),
-      ),
+    const holder = new Client({ connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+    await holder.connect()
+    await holder.query('begin')
+    await holder.query('select 1 from public.coupons where id = $1 for update', [coupon.id])
+    const creates = variants.map((variantId, i) =>
+      createOrder(pool[i]!, { lines: [{ variantId, quantity: 1 }], couponCode: coupon.code, email: uniqueEmail('coupon-race') }),
     )
-    const ok = answers.filter((answer) => answer.result?.ok === true)
-    expect(ok).toHaveLength(1)
-    for (const answer of answers.filter((a) => a.result?.ok !== true)) {
-      expect(['COUPON_EXHAUSTED', 'QUOTE_CHANGED']).toContain(answer.result?.code)
+    try {
+      for (const create of creates) expect(await settledWithin(create)).toBe('blocked')
+    } finally {
+      await holder.query('commit')
+      await holder.end()
     }
+    const answers = await Promise.all(creates)
+    expect(answers.filter((answer) => answer.result?.ok === true)).toHaveLength(1)
+    expect(answers.filter((answer) => answer.result?.ok !== true).map((answer) => answer.result?.code ?? answer.code)).toEqual(['COUPON_EXHAUSTED'])
+    expect(Number((await postgres.query('select count(*) as n from finance.coupon_redemptions where coupon_id = $1', [coupon.id])).rows[0]!.n)).toBe(1)
   })
 
   it('two concurrent creates with one idempotency key: one order, both answers name it', async () => {
@@ -1258,26 +1333,26 @@ describe('preorder', () => {
   })
 
   it('a digital preorder line gets a reservation, and it counts against the capacity until the order goes', async () => {
-    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 3 } })
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 5000, preorder: { capacity: 2 } })
+    const lines = [{ variantId: variant, quantity: 1 }]
     const key = randomUUID()
-    const first = await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 2 }], idempotencyKey: key })
+    const first = await createOrder(pool[0]!, { lines, idempotencyKey: key })
     expect(first.result.ok).toBe(true)
     const reservations = (await postgres.query<any>('select preorder, state, quantity from finance.inventory_reservations where order_id = $1', [first.result.order.id])).rows
-    expect(reservations).toEqual([{ preorder: true, state: 'held', quantity: 2 }])
+    expect(reservations).toEqual([{ preorder: true, state: 'held', quantity: 1 }])
+    // A digital line is one copy, whatever the capacity left.
+    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: variant, maximum: 1 }])
 
-    // One unit left: two are refused as a hold, one is fine.
-    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).errors).toEqual([
-      { code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 1, held: true },
-    ])
-    expect((await createOrder(pool[0]!, { lines: [{ variantId: variant, quantity: 1 }] })).result.ok).toBe(true)
-    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 1 }])) as any).errors).toEqual([
+    // One copy left: a second order takes it, and then a third is refused as a hold.
+    expect((await createOrder(pool[0]!, { lines })).result.ok).toBe(true)
+    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([
       { code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true },
     ])
 
-    // Cancelling the first order frees its two units.
+    // Cancelling the first order frees its copy.
     const cancelled = await rpc(pool[0]!)('checkout_cancel', { p_order_number: first.result.order.orderNumber, p_access_token_hash: hashFor(tokenFor(key)) })
     expect(cancelled).toEqual({ ok: true, status: 'cancelled' })
-    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).ok).toBe(true)
+    expect(((await quote(pool[0]!, lines)) as any).ok).toBe(true)
   })
 
   it('the order items keep what the buyer was shown, every preorder line holds a reservation with its own flag, and a later change rewrites nothing', async () => {
@@ -1449,6 +1524,8 @@ describe('checkout_cancel while a payment attempt is active (P08)', () => {
     expect(await rpc(pool[0]!)('checkout_cancel', { p_order_number: number, p_access_token_hash: '0'.repeat(64) })).not.toHaveProperty('attempt')
 
     expect(await rpc(pool[0]!)('payment_attempt_close', { p_attempt: begun.attemptId, p_status: 'failed', p_error: 'CREATE_REFUSED' })).toMatchObject({ ok: true })
+    // A refused creation alerts the owners (once a UTC day); this test leaves no such mail behind.
+    await postgres.query("delete from finance.email_outbox where kind = 'owner_alert' and payload ->> 'attemptId' = $1", [begun.attemptId])
     expect(await rpc(pool[0]!)('checkout_cancel', { p_order_number: number, p_access_token_hash: hash })).toEqual({ ok: true, status: 'cancelled' })
 
     // An order that is no longer pending answers its status, attempt or not.

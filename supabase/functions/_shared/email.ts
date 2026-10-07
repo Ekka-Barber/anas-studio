@@ -57,8 +57,11 @@ export type SendOutcome =
  *   back and waits for the reset instead of counting it), and
  *   `rate_limit_exceeded` → retry as `RATE_LIMIT` (a short backoff;
  *   resend.com/docs/api-reference/errors, fetched 2026-09-30);
- * - other 4xx (400 `validation_error`, 401, 403 unverified domain or
- *   suspended key, 404, 405, 422 …) → permanent;
+ * - 401 and 403 (a missing, revoked or suspended key, an unverified domain)
+ *   → retry as `PROVIDER_CONFIG`: the account refused the call, so every
+ *   message would meet the same refusal until the owner fixes it; the outbox
+ *   gives the attempt back and stops the run instead of exhausting the queue;
+ * - other 4xx (400 `validation_error`, 404, 405, 422 …) → permanent;
  * - 5xx (`application_error` 500, `service_unavailable` 503) "Try the request
  *   again later" → retry. */
 function classifyResendFailure(status: number, name: string | undefined): { outcome: 'retry' | 'permanent'; error: string } {
@@ -66,6 +69,7 @@ function classifyResendFailure(status: number, name: string | undefined): { outc
     const quota = name === 'daily_quota_exceeded' || name === 'monthly_quota_exceeded'
     return { outcome: 'retry', error: quota ? 'QUOTA' : 'RATE_LIMIT' }
   }
+  if (status === 401 || status === 403) return { outcome: 'retry', error: 'PROVIDER_CONFIG' }
   if (status === 409) {
     if (name === 'concurrent_idempotent_requests') return { outcome: 'retry', error: 'CONCURRENT_IDEMPOTENT' }
     if (name === 'resource_locked') return { outcome: 'retry', error: 'RESOURCE_LOCKED' }
@@ -224,6 +228,9 @@ function isolated(value: string): string {
   return `${FSI}${value}${PDI}`
 }
 
+/** A visitor's own embeddings, overrides and isolates (U+202A to U+202E, U+2066 to U+2069), which could reverse the rest of a line or close ours. */
+const VISITOR_BIDI = /[\u202A-\u202E\u2066-\u2069]/gu
+
 export interface ContactNoticeData {
   name: string
   email: string
@@ -233,18 +240,19 @@ export interface ContactNoticeData {
 
 /**
  * The staff notice about one contact message: plain text, isolates around
- * every user line. It is the whole inbox (D31): the full message, sent with
- * Reply-To set to the visitor, so the owner answers from their own mailbox.
+ * every user line, and none of the visitor's own bidi controls. It is the
+ * whole inbox (D31): the full message, sent with Reply-To set to the visitor,
+ * so the owner answers from their own mailbox.
  */
 export function renderContactNotice(data: ContactNoticeData): { subject: string; text: string } {
-  const message = data.message.slice(0, NOTICE_MESSAGE_LIMIT)
+  const message = data.message.replace(VISITOR_BIDI, '').slice(0, NOTICE_MESSAGE_LIMIT)
   // The name is one line: a line break in it would forge the lines below.
-  const name = data.name.replace(/[\r\n\u0085\u2028\u2029]+/gu, ' ')
+  const name = data.name.replace(VISITOR_BIDI, '').replace(/[\r\n\u0085\u2028\u2029]+/gu, ' ')
   const lines = [
     'رسالة جديدة من نموذج التواصل',
     '',
     `الاسم: ${isolated(name)}`,
-    `البريد: ${isolated(data.email)}`,
+    `البريد: ${isolated(data.email.replace(VISITOR_BIDI, ''))}`,
     `الوقت: ${data.createdAt}`,
     '',
     'نص الرسالة:',
@@ -309,6 +317,8 @@ export interface NotifyEmailData {
   productTitle: string
   variantTitle: string
   slug: string
+  /** The variant is sold as a preorder, so the availability notice says it can be preordered. A row without it reads as a stocked variant. */
+  preorder?: boolean
 }
 
 /** `alert_email_data` (round 5): the facts an owner needs, by alert type; an alert it does not know carries only `alert`. */
@@ -324,6 +334,8 @@ export interface AlertEmailData {
   status?: string | null
   eventType?: string | null
   paymentId?: string | null
+  /** `payment_create_refused`: the code the provider's refusal was recorded with (`CREATE_REFUSED_401`). */
+  error?: string | null
 }
 
 /**
@@ -393,13 +405,22 @@ function lineLines(line: OrderEmailLine): string[] {
 }
 
 /**
- * The receipt of a paid order. An order that is not plainly paid (the payment
- * arrived but a line cannot be delivered, or it was refunded since) only says
- * that the payment arrived and the order is being reviewed.
+ * The receipt of a paid order. An order that is not plainly paid only says
+ * that the payment arrived: that the order is being reviewed (a line cannot be
+ * delivered), or, once it is refunded, that the money went back.
  */
 export function renderReceipt(order: OrderEmailData, siteUrl: string, token: string): RenderedEmail {
   const number = one(order.orderNumber)
   const { subtotal, discount, shipping, total } = order.totals
+  if (order.status === 'refunded') {
+    return orderMail(
+      order,
+      `وصلتنا دفعتك للطلب رقم ${number} وأُعيد المبلغ`,
+      [`وصلتنا دفعتك للطلب رقم ${number} بمبلغ ${money(total)}، وقد أُعيد المبلغ إليك؛ لا يلزمك شيء.`, '', ...sellerLines(order)],
+      siteUrl,
+      token,
+    )
+  }
   if (order.status !== 'paid') {
     return orderMail(
       order,
@@ -513,12 +534,13 @@ export function renderNotifyConfirm(data: NotifyEmailData, siteUrl: string, toke
   }
 }
 
-/** The product is back: its page and the link that stops these messages. */
+/** The product is back (or open for preorder): its page and the link that stops these messages. */
 export function renderAvailability(data: NotifyEmailData, siteUrl: string, token: string): RenderedEmail {
+  const back = data.preorder === true ? 'أصبح متاحًا للطلب المسبق' : 'توفّر'
   return {
-    subject: `توفّر ${one(data.productTitle)}`,
+    subject: `${back} ${one(data.productTitle)}`,
     text: [
-      `توفّر ${one(data.productTitle)} (${one(data.variantTitle)}) الذي طلبت أن نخبرك عنه.`,
+      `${back} ${one(data.productTitle)} (${one(data.variantTitle)}) الذي طلبت أن نخبرك عنه.`,
       'صفحة المنتج:',
       `${siteUrl}/store/${encodeURIComponent(data.slug)}`,
       '',
@@ -586,6 +608,21 @@ function alertText(alert: AlertEmailData): RenderedEmail {
       return {
         subject: 'تنبيه: استرداد لم يتم التحقق منه',
         text: `لم نتمكن من التحقق من استرداد الطلب ${order} (${amount}) منذ أكثر من 24 ساعة. أعد الفحص من لوحة الطلبات.`,
+      }
+    case 'attempt_mode_changed':
+      return {
+        subject: 'تنبيه: دفعة من وضع آخر تحتاج متابعة',
+        text: `تغيّر وضع الدفع (تجريبي/حقيقي) بينما كانت دفعة الطلب ${order} قيد التنفيذ؛ راجعها في لوحة بوابة الدفع وفي شاشة المطابقة.`,
+      }
+    case 'refund_mode_changed':
+      return {
+        subject: 'تنبيه: استرداد من وضع آخر يحتاج متابعة',
+        text: `تغيّر وضع الدفع (تجريبي/حقيقي) بينما كان استرداد الطلب ${order} قيد التنفيذ؛ راجعه في لوحة بوابة الدفع وفي شاشة المطابقة.`,
+      }
+    case 'payment_create_refused':
+      return {
+        subject: 'تنبيه: بوابة الدفع ترفض إنشاء الفواتير',
+        text: `رفضت بوابة الدفع إنشاء فاتورة (${alert.error ? one(alert.error) : UNKNOWN}). تحقق من مفتاح الدفع ووضعه في إعدادات الدوال؛ لا يستطيع أي مشترٍ الدفع حتى يُصلح ذلك.`,
       }
     default:
       return { subject: 'تنبيه جديد في المتجر', text: `وصل تنبيه جديد (${one(alert.alert)}) يحتاج مراجعتك.` }

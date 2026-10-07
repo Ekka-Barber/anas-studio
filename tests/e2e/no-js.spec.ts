@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 /**
  * JavaScript off (DESIGN.md: everything is visible without it). The three
@@ -118,3 +118,79 @@ for (const route of ['/orders', '/notify/confirm', '/notify/unsubscribe']) {
     expect(overflow, `horizontal overflow on ${route}`).toBeLessThanOrEqual(1)
   })
 }
+
+// FABLE-AUDIT T-16 (TEST-E2E-06): nothing waits behind a start state. Playwright counts an element at opacity 0, or
+// clipped to nothing, as visible, so these read the computed style instead: every section of the main content and every
+// entrance and reveal must end fully opaque, unclipped, visible and with a box. Motion is on here, so the entrances
+// really play (they are CSS, and run without JavaScript too) before the check.
+
+/** The elements of `selector` that are hidden, as "tag.class: why". */
+function hiddenContent(page: Page, selector = 'main section, [data-enter], [data-reveal]'): Promise<string[]> {
+  return page.evaluate(
+    (query) =>
+      [...document.querySelectorAll<HTMLElement>(query)].flatMap((element) => {
+        const style = getComputedStyle(element)
+        const box = element.getBoundingClientRect()
+        const problems = [
+          style.opacity !== '1' && `opacity ${style.opacity}`,
+          style.clipPath !== 'none' && style.clipPath !== 'inset(0px)' && `clip-path ${style.clipPath}`,
+          style.visibility !== 'visible' && `visibility ${style.visibility}`,
+          (box.width === 0 || box.height === 0) && 'an empty box',
+        ].filter(Boolean)
+        return problems.length > 0 ? [`${element.tagName.toLowerCase()}.${String(element.className).split(' ')[0]}: ${problems.join(', ')}`] : []
+      }),
+    selector,
+  )
+}
+
+/** Until no animation on the document's clock is still playing; the scroll-linked ones never end, so they are left out. */
+async function animationsEnded(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            document
+              .getAnimations()
+              .filter((animation) => animation.timeline === document.timeline && animation.playState === 'running')
+              .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime)).length,
+        ),
+      { timeout: 30_000 },
+    )
+    .toBe(0)
+}
+
+test.describe('nothing is left at a hidden start state', () => {
+  test.use({ reducedMotion: 'no-preference' })
+
+  for (const width of [375, 1440]) {
+    test.describe(`at ${width}px`, () => {
+      test.use({ viewport: { width, height: 900 } })
+      for (const route of ['/', '/started', '/built', '/passed', '/shelf']) {
+        test(`${route} without JavaScript, once its entrances have played`, async ({ page }) => {
+          await page.goto(route)
+          await animationsEnded(page)
+          expect(await hiddenContent(page)).toEqual([])
+        })
+      }
+    })
+  }
+
+  test.describe('with JavaScript', () => {
+    test.use({ javaScriptEnabled: true })
+
+    test('/ once every part has scrolled into view and every reveal has played', async ({ page }) => {
+      await page.goto('/')
+      // The reveal layer has run and holds what is below the fold at its start, so the check at the end can fail.
+      await expect.poll(async () => (await hiddenContent(page, '[data-reveal]')).length, { timeout: 60_000 }).toBeGreaterThan(0)
+      const height = await page.evaluate(() => document.documentElement.scrollHeight)
+      for (let top = 0; top <= height; top += 300) {
+        await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), top)
+        // Two frames: the observer that starts a reveal reports on the frame after the scroll.
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      }
+      await animationsEnded(page)
+      expect(await hiddenContent(page)).toEqual([])
+    })
+  })
+})

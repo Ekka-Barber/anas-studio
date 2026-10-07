@@ -421,12 +421,13 @@ export async function commerceHarness(pepper: string, poolSize = 6) {
     // disabled, nothing of this run left due for the reconciliation job or waiting in the outbox.
     await postgres.query("update public.products set status = 'archived' where id = any($1::uuid[])", [created.products])
     await postgres.query('update public.shipping_rates set enabled = false where city_key = any($1::text[])', [created.rates])
+    // The orders stay whole, with their refunds and returns (FABLE-AUDIT T-18, as orders.spec.ts does since R12A-2):
+    // deleting a refund the provider made would leave its attempt's provider total above the ledger's, a phantom external
+    // refund on the owner's screens. Only their due checks are parked.
     await postgres.query('update finance.payment_attempts set next_check_at = null where order_id = any($1::uuid[])', [created.orders])
-    await postgres.query('update finance.return_requests set refund_id = null where order_id = any($1::uuid[])', [created.orders])
+    await postgres.query('update finance.refunds set next_check_at = null where order_id = any($1::uuid[])', [created.orders])
     // Only this run's own rows, by its orders: whatever else writes to the local database meanwhile (a dev session, an e2e
-    // run) keeps its refunds, review payments and alerts. The owner alerts of a run's orders carry the order's id, like its mail.
-    await postgres.query('delete from finance.refunds where order_id = any($1::uuid[])', [created.orders])
-    await postgres.query('delete from finance.return_requests where order_id = any($1::uuid[])', [created.orders])
+    // run) keeps its review payments and alerts. The owner alerts of a run's orders carry the order's id, like its mail.
     await postgres.query(
       "update finance.payment_reviews set closed_at = coalesce(closed_at, now()), closed_reason = coalesce(closed_reason, 'test cleanup') where order_id = any($1::uuid[])",
       [created.orders],

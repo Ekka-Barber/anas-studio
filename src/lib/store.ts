@@ -16,9 +16,8 @@ import { cache } from 'react'
 import { z } from 'zod'
 
 import { richTextSchema } from '../admin/richtext'
-import { mediaById, replaceMediaIds } from './content'
-import { requireEnv } from './env'
-import { collectMediaIds, MEDIA_ORIGIN } from './media-ref'
+import { mediaById, readAllRows, replaceMediaIds } from './content'
+import { collectMediaIds, isMediaId, MEDIA_ORIGIN, parseMediaRef } from './media-ref'
 
 const productRowSchema = z.object({
   id: z.string().regex(/^[0-9a-f-]{36}$/),
@@ -69,31 +68,38 @@ export interface StoreProduct {
   variants: StoreVariant[]
 }
 
-async function fetchCatalog(): Promise<StoreProduct[]> {
-  const url = requireEnv('NEXT_PUBLIC_SUPABASE_URL')
-  const key = requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY')
+/**
+ * The cover a product page may draw: a media-library reference (on the media
+ * origin) or one to a path on the site itself, or a value that is no
+ * reference at all (a manifest id, drawn from the site's own files, or an
+ * unresolved library id, drawn as nothing). The column is free text, so a
+ * reference to any other host draws no image (CLIENT-SEC-08).
+ */
+function siteCover(cover: string): string | null {
+  const ref = parseMediaRef(cover)
+  if (ref === null) return cover
+  const library = `${MEDIA_ORIGIN}/m/`
+  // A path read the way a browser reads it (a tab dropped, a backslash taken
+  // for a slash), so neither can carry it to another host.
+  const onSite = ref.base.startsWith('/') && URL.parse(ref.base, 'https://site.invalid')?.host === 'site.invalid'
+  return onSite || (ref.base.startsWith(library) && isMediaId(ref.base.slice(library.length))) ? cover : null
+}
 
+async function fetchCatalog(): Promise<StoreProduct[]> {
+  // Read whole, page by page (`readAllRows`); the id breaks ties so the pages neither skip nor repeat a row.
   const productParams = new URLSearchParams({
     select: 'id,slug,title,summary,body,cover_image,sort_order,demo',
     status: 'eq.published',
-    order: 'sort_order.asc,title.asc',
+    order: 'sort_order.asc,title.asc,id.asc',
   })
-  const productResponse = await fetch(`${url}/rest/v1/products?${productParams}`, { headers: { apikey: key } })
-  if (!productResponse.ok) {
-    throw new Error(`Failed to fetch products: ${productResponse.status}`)
-  }
-  const productRows = productRowSchema.array().parse(await productResponse.json())
+  const productRows = productRowSchema.array().parse(await readAllRows('products', productParams))
 
   const variantParams = new URLSearchParams({
     select: 'id,product_id,sku,title,fulfillment,price_halalas,sort_order,preorder,preorder_ships_on,preorder_note',
     enabled: 'eq.true',
-    order: 'sort_order.asc',
+    order: 'sort_order.asc,id.asc',
   })
-  const variantResponse = await fetch(`${url}/rest/v1/product_variants?${variantParams}`, { headers: { apikey: key } })
-  if (!variantResponse.ok) {
-    throw new Error(`Failed to fetch variants: ${variantResponse.status}`)
-  }
-  const variantRows = variantRowSchema.array().parse(await variantResponse.json())
+  const variantRows = variantRowSchema.array().parse(await readAllRows('product_variants', variantParams))
 
   const covers = await mediaById([
     ...new Set(productRows.flatMap((row) => (row.cover_image ? collectMediaIds(row.cover_image) : []))),
@@ -123,7 +129,7 @@ async function fetchCatalog(): Promise<StoreProduct[]> {
     title: row.title,
     summary: row.summary,
     body: row.body,
-    cover: row.cover_image ? replaceMediaIds(row.cover_image, covers, MEDIA_ORIGIN) : null,
+    cover: row.cover_image ? siteCover(replaceMediaIds(row.cover_image, covers, MEDIA_ORIGIN)) : null,
     sortOrder: row.sort_order,
     demo: row.demo,
     variants: (byProduct.get(row.id) ?? []).sort(

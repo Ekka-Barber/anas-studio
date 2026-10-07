@@ -17,13 +17,9 @@ import { richTextSchema } from '../../src/admin/richtext'
 import { registerAllowlistTransforms, toggleBlock } from '../../src/components/admin/RichTextEditor'
 
 describe('the editor keeps pasted HTML inside the rich-text allowlist', () => {
-  it('maps h1 to h2 and h4-h6 to h3, and unwraps a link that is not https', () => {
-    const editor = createEditor({
-      nodes: [HeadingNode, LinkNode],
-      onError: (error) => {
-        throw error
-      },
-    })
+  it('maps h1 to h2 and h4-h6 to h3, and unwraps a link the link rule refuses', () => {
+    // The editor's own node set: the transforms include one for lists.
+    const editor = headlessEditor()
     registerAllowlistTransforms(editor)
     editor.update(
       () => {
@@ -32,7 +28,7 @@ describe('the editor keeps pasted HTML inside the rich-text allowlist', () => {
           $createHeadingNode('h5').append($createTextNode('b')),
           $createHeadingNode('h2').append($createTextNode('c')),
           $createParagraphNode().append(
-            $createLinkNode('http://plain.test').append($createTextNode('d')),
+            $createLinkNode('HTTPS://plain.test').append($createTextNode('d')),
             $createLinkNode('https://safe.test').append($createTextNode('e')),
           ),
         )
@@ -45,7 +41,7 @@ describe('the editor keeps pasted HTML inside the rich-text allowlist', () => {
     expect(blocks.slice(0, 3).map((block) => block.tag)).toEqual(['h2', 'h3', 'h2'])
     expect(blocks[3]!.children.map((node) => node.type)).toEqual(['text', 'link'])
     expect(blocks[3]!.children[0]!.text).toBe('d')
-    expect(JSON.stringify(json)).not.toContain('http://plain.test')
+    expect(JSON.stringify(json)).not.toContain('HTTPS://plain.test')
     expect(richTextSchema.safeParse(json).success).toBe(true)
   })
 })
@@ -118,6 +114,60 @@ describe('the link rule is the schema rule (ADMIN-publish-2)', () => {
     const json = editor.getEditorState().toJSON()
     const children = (json.root.children[0] as unknown as { children: Array<{ type: string }> }).children
     expect(children.map((node) => node.type)).toEqual(['text', 'link'])
+    expect(richTextSchema.safeParse(json).success).toBe(true)
+  })
+
+  it('keeps http and mailto links, and unwraps «HTTPS://» and «https:host», which the page would not draw (CLIENT-SEC-07)', () => {
+    const editor = headlessEditor()
+    registerAllowlistTransforms(editor)
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createParagraphNode().append(
+            $createLinkNode('HTTPS://example.com').append($createTextNode('a')),
+            $createLinkNode('https:example.com').append($createTextNode('b')),
+            $createLinkNode('http://example.com').append($createTextNode('c')),
+            $createLinkNode('mailto:anas@example.com').append($createTextNode('d')),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    const json = editor.getEditorState().toJSON()
+    const children = (json.root.children[0] as unknown as { children: Array<{ type: string; url?: string; text?: string }> }).children
+    expect(children.map((node) => node.url ?? node.text)).toEqual(['ab', 'http://example.com', 'mailto:anas@example.com'])
+    expect(richTextSchema.safeParse(json).success).toBe(true)
+  })
+})
+
+describe('a pasted checklist never blocks publishing (CLIENT-SEC-03)', () => {
+  // Lexical reads a Google Docs or GitHub checklist as a `check` list.
+  function pasteChecklist(editor: LexicalEditor) {
+    editor.update(
+      () => {
+        $getRoot().append(
+          $createListNode('check').append(
+            $createListItemNode(true).append($createTextNode('done')),
+            $createListItemNode(false).append($createTextNode('todo')),
+          ),
+        )
+      },
+      { discrete: true },
+    )
+    return editor.getEditorState().toJSON()
+  }
+
+  it('without the transform the check list is something the schema refuses', () => {
+    expect(richTextSchema.safeParse(pasteChecklist(headlessEditor())).success).toBe(false)
+  })
+
+  it('with it the checklist is a bulleted list with the same items, and the document is valid', () => {
+    const editor = headlessEditor()
+    registerAllowlistTransforms(editor)
+    const json = pasteChecklist(editor)
+    const list = json.root.children[0] as unknown as { listType: string; children: Array<{ children: Array<{ text: string }> }> }
+    expect(list.listType).toBe('bullet')
+    expect(list.children.map((item) => item.children[0]!.text)).toEqual(['done', 'todo'])
     expect(richTextSchema.safeParse(json).success).toBe(true)
   })
 })

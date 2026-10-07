@@ -1,9 +1,13 @@
 # Cloudflare Pages response headers (D32). Next copies this file into `out/`.
+# HSTS is the soon page's own value, so moving the domain to Pages keeps it;
+# no includeSubDomains or preload until the owner approves either.
 
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Content-Security-Policy: object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
 
 # The admin: never indexed, never cached, never framed. `/admin/*` does not
 # match `/admin` itself, so both are listed.

@@ -216,10 +216,15 @@ token_verifications = 30
 web3 = 30
 
 # Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# Auth checks a Turnstile token on the sign-in code request (/otp), and on /signup, /recover and a
+# password grant, so a plain script no longer spends the mail quota on staff addresses (CLIENT-SEC-01). The
+# secret below is Cloudflare's published always-pass TEST secret, not a credential
+# (developers.cloudflare.com/turnstile/troubleshooting/testing): any token passes, and it is for
+# this local stack only. The hosted project gets its real secret in the dashboard (I28).
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "1x0000000000000000000000000000000AA"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
@@ -236,8 +241,9 @@ enable_confirmations = false
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
-# Number of characters used in the email OTP.
-otp_length = 6
+# Number of characters used in the email OTP. Eight digits: GoTrue counts no failed attempts per
+# code, so the length is what holds a guesser off (CLIENT-SEC-06). The hosted project needs the same (I28).
+otp_length = 8
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 600
 

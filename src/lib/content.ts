@@ -97,6 +97,35 @@ export async function mediaById(ids: string[]): Promise<Map<string, MediaInfo>> 
   return byId
 }
 
+/** PostgREST's `max_rows` (supabase/config.toml, and the hosted default): one answer never holds more rows. */
+const PAGE_ROWS = 1000
+
+/**
+ * Every row a build-time list read matches, read with the publishable key a
+ * page of `PAGE_ROWS` at a time (`limit` and `offset`, what supabase-js's
+ * `.range()` sends) until a short page comes back. Past `max_rows` PostgREST
+ * answers 200 with the first rows only, so an unpaged read would drop the
+ * rest without a word (DB-CORE-08). `params` must order the rows by a unique
+ * key, or a row could fall between two pages.
+ */
+export async function readAllRows(table: string, params: URLSearchParams): Promise<unknown[]> {
+  const rows: unknown[] = []
+  for (let offset = 0; ; offset += PAGE_ROWS) {
+    const page = new URLSearchParams(params)
+    page.set('limit', String(PAGE_ROWS))
+    page.set('offset', String(offset))
+    const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/${table}?${page}`, {
+      headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') },
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${table}: ${response.status}`)
+    }
+    const batch = (await response.json()) as unknown[]
+    rows.push(...batch)
+    if (batch.length < PAGE_ROWS) return rows
+  }
+}
+
 /**
  * Replaces media-library ids in a parsed document with `formatMediaRef`
  * strings (P05). An id anon may not read stays a bare string.

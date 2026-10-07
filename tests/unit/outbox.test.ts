@@ -194,6 +194,22 @@ describe('every kind calls its data function and sends to the row recipient', ()
     expect(run.sent[0]!.subject).toBe('تنبيه جديد في المتجر')
     expect(run.sent[0]!.text).toContain('something_new')
   })
+
+  // FABLE-AUDIT F1-17: alert_email_data answers payment_create_refused with its code alone; the refusal's own code is in
+  // the alert's payload (payment_attempt_close wrote it), so the owner still reads which refusal it was.
+  it('payment_create_refused: the refusal code comes from the alert\'s own payload while alert_email_data does not carry it', async () => {
+    const payload = { alert: 'payment_create_refused', attemptId: REFUND_ID, orderId: ORDER_ID, error: 'CREATE_REFUSED_401' }
+    const run = await runOne('owner_alert', payload, { alert_email_data: { alert: 'payment_create_refused' } }, 'owner@example.com')
+    expect(run.fn('alert_email_data')).toEqual([['alert_email_data', { p_payload: payload }]])
+    expect(run.sent[0]!.subject).toBe('تنبيه: بوابة الدفع ترفض إنشاء الفواتير')
+    expect(run.sent[0]!.text).toContain('رفضت بوابة الدفع إنشاء فاتورة (⁨CREATE_REFUSED_401⁩).')
+    // Once the data function carries the code, its answer wins; another kind never shows the payload's code.
+    const answered = await runOne('owner_alert', payload, { alert_email_data: { alert: 'payment_create_refused', error: 'CREATE_REFUSED_403' } }, 'owner@example.com')
+    expect(answered.sent[0]!.text).toContain('CREATE_REFUSED_403')
+    expect(answered.sent[0]!.text).not.toContain('CREATE_REFUSED_401')
+    const other = await runOne('owner_alert', { ...payload, alert: 'attempt_unverified' }, { alert_email_data: { alert: 'attempt_unverified', orderNumber: 'ABCD2345', amount: 7000 } }, 'owner@example.com')
+    expect(other.sent[0]!.text).not.toContain('CREATE_REFUSED')
+  })
 })
 
 describe('a row whose data is gone or whose state no longer allows the mail is closed, never sent', () => {
@@ -284,6 +300,72 @@ describe('a row whose data is gone or whose state no longer allows the mail is c
     expect(run.fn('outbox_result')).toEqual([])
     expect(run.fetchSpy).not.toHaveBeenCalled()
     expect(run.fn('job_run_record')[0]![1]).toMatchObject({ p_job: 'email_outbox', p_status: 'skipped', p_detail: { reason } })
+  })
+})
+
+// FABLE-AUDIT F1-4: a revoked key or an unverified domain refuses every message the same way. As a permanent outcome
+// it exhausted the whole queue in one run; now the first refusal stops the run and the row keeps its attempt.
+describe('an account the provider refuses (401, 403) stops the run', () => {
+  it.each([401, 403])('a %i: the row waits without spending an attempt, nothing more is claimed, and the run is recorded failed with PROVIDER_CONFIG', async (status) => {
+    const calls: Call[] = []
+    let claims = 0
+    const rpc: Rpc = async (fn, args) => {
+      calls.push([fn, args])
+      if (fn === 'outbox_claim') {
+        // Mail is due all day: every claim would find another row.
+        claims += 1
+        return [{ id: String(claims), lease_id: `lease-${claims}`, kind: 'receipt', recipient: 'buyer@example.com', payload: { orderId: ORDER_ID }, idempotency_key: `idem-${claims}`, attempts: 1 }]
+      }
+      return fn === 'order_email_data' ? orderData() : null
+    }
+    const refused = { statusCode: status, name: 'validation_error', message: 'The anas.studio domain is not verified.' }
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify(refused), { status }))
+    vi.stubGlobal('fetch', fetchSpy)
+    const summary = await runOutbox(rpc)
+    const fn = (name: string): Call[] => calls.filter(([called]) => called === name)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fn('outbox_claim')).toHaveLength(1)
+    expect(fn('outbox_result')).toEqual([
+      ['outbox_result', { p_id: '1', p_lease_id: 'lease-1', p_outcome: 'retry', p_provider_id: null, p_error: 'PROVIDER_CONFIG' }],
+    ])
+    expect(summary).toEqual({ job: 'email_outbox', status: 'failed', claimed: 1, accepted: 0, retry: 1, permanent: 0, uncertain: 0, reason: 'PROVIDER_CONFIG' })
+    expect(fn('job_run_record')).toEqual([
+      [
+        'job_run_record',
+        {
+          p_job: 'email_outbox',
+          p_status: 'failed',
+          p_detail: { claimed: 1, accepted: 0, retry: 1, permanent: 0, uncertain: 0, reason: 'PROVIDER_CONFIG' },
+          p_started_at: expect.any(String),
+        },
+      ],
+    ])
+  })
+
+  it('a run whose sends went out before the account refused one is still failed with the reason', async () => {
+    let claims = 0
+    const runs: Array<Record<string, unknown>> = []
+    const rpc: Rpc = async (fn, args) => {
+      if (fn === 'job_run_record') runs.push(args)
+      if (fn === 'outbox_claim') {
+        claims += 1
+        return [{ id: String(claims), lease_id: `lease-${claims}`, kind: 'receipt', recipient: 'buyer@example.com', payload: { orderId: ORDER_ID }, idempotency_key: `idem-${claims}`, attempts: 1 }]
+      }
+      return fn === 'order_email_data' ? orderData() : null
+    }
+    let sends = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        sends += 1
+        return sends === 1 ? new Response(JSON.stringify({ id: 'prov-1' }), { status: 200 }) : new Response(JSON.stringify({ name: 'restricted_api_key' }), { status: 401 })
+      }),
+    )
+    const summary = await runOutbox(rpc)
+    expect(sends).toBe(2)
+    expect(summary).toMatchObject({ status: 'failed', claimed: 2, accepted: 1, retry: 1, reason: 'PROVIDER_CONFIG' })
+    expect(runs[0]).toMatchObject({ p_status: 'failed', p_detail: { claimed: 2, accepted: 1, retry: 1, reason: 'PROVIDER_CONFIG' } })
   })
 })
 

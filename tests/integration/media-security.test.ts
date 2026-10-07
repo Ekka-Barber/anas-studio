@@ -362,6 +362,58 @@ describe('RLS through real JWTs', () => {
   })
 })
 
+// FABLE-AUDIT M2-9 (ARCH-12): the public pages print an image's alt text and caption, and they are static files, so an
+// edit of either asks for a build, as a publish does.
+describe('an edit of what the public pages print asks for a site build', () => {
+  const requestedAt = async (): Promise<number> =>
+    (await postgres.query<{ requested_at: Date | null }>('select requested_at from finance.site_builds where id = 1')).rows[0]!.requested_at?.getTime() ?? 0
+  /** Moves the pending request ten minutes back, and answers it: a new request is any later one. */
+  const park = async (): Promise<number> => {
+    await postgres.query("update finance.site_builds set requested_at = now() - interval '10 minutes' where id = 1")
+    return requestedAt()
+  }
+
+  it('an alt text or caption edit of a published image leaves a build request pending; one of an unpublished image, of its name, folder or rights, or the same text again, asks for none', async () => {
+    const editor = await createStaff('editor')
+    const published = await createTicket(editor.userId)
+    await completeTicket(editor.userId, published)
+    const unpublished = await createTicket(editor.userId)
+    await completeTicket(editor.userId, unpublished)
+    const docId = randomUUID()
+    await postgres.query("insert into public.content_versions (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)", [
+      docId,
+      JSON.stringify({ cover: published, visible: true }),
+    ])
+    await postgres.query("insert into public.published_documents (collection, doc_id, seq, data) values ('posts', $1, 1, $2::jsonb)", [
+      docId,
+      JSON.stringify({ cover: published, visible: true }),
+    ])
+    // The library edits a row through the Data API as the signed-in editor.
+    const client = await signIn(editor.email)
+    const edit = async (id: string, values: Record<string, string>): Promise<void> => {
+      const { error } = await client.from('media').update(values).eq('id', id)
+      expect(error).toBeNull()
+    }
+
+    let parked = await park()
+    await edit(published, { name: 'اسم آخر', folder: 'أخرى', rights: 'حقوق أخرى' })
+    await edit(unpublished, { alt_ar: 'وصف لصورة لا تُعرض', caption: 'شرح لا يُعرض' })
+    expect(await requestedAt()).toBe(parked)
+
+    await edit(published, { alt_ar: 'وصف أدق' })
+    expect(await requestedAt()).toBeGreaterThan(parked)
+    expect((await postgres.query('select alt_ar from public.media where id = $1', [published])).rows[0]!.alt_ar).toBe('وصف أدق')
+
+    parked = await park()
+    await edit(published, { caption: 'شرح جديد' })
+    expect(await requestedAt()).toBeGreaterThan(parked)
+
+    parked = await park()
+    await edit(published, { alt_ar: 'وصف أدق', caption: 'شرح جديد' })
+    expect(await requestedAt()).toBe(parked)
+  })
+})
+
 describe('usage and delete', () => {
   it('media_where_used reports each document once per state: live, draft, scheduled, and a live document with a newer draft', async () => {
     const editor = await createStaff('editor')

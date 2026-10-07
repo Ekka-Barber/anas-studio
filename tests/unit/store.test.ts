@@ -2,6 +2,7 @@
 // preorder's delivery date and note, and never stock or capacity.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MEDIA_ORIGIN, parseMediaRef } from '../../src/lib/media-ref'
 import { getProducts } from '../../src/lib/store'
 
 const PRODUCT = '0a000000-0000-4000-8000-000000000001'
@@ -82,5 +83,36 @@ describe('getProducts: a variant\'s preorder', () => {
     await expect(getProducts()).rejects.toThrow()
     catalog([variant({ preorder: 'yes' })])
     await expect(getProducts()).rejects.toThrow()
+  })
+})
+
+describe('getProducts: a product cover (CLIENT-SEC-08)', () => {
+  const MEDIA = '0c000000-0000-4000-8000-000000000001'
+  /** The cover the build gives the one product whose `cover_image` is `stored`; the library holds MEDIA. */
+  async function cover(stored: string) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/rest/v1/products?')) return Response.json([{ ...product, cover_image: stored }])
+        if (url.includes('/rest/v1/media?')) return Response.json([{ id: MEDIA, derivatives: [{ width: 720, height: 960 }], alt_ar: 'الغلاف' }])
+        return Response.json([])
+      }),
+    )
+    return (await getProducts())[0]!.cover
+  }
+
+  it('draws a library picture from the media origin, a reference to a path on the site, and a manifest id', async () => {
+    expect(parseMediaRef(await cover(MEDIA))?.base).toBe(`${MEDIA_ORIGIN}/m/${MEDIA}`)
+    expect(await cover('media|/images/cover|720x960|720')).toBe('media|/images/cover|720x960|720')
+    expect(await cover('book-cover')).toBe('book-cover')
+  })
+
+  it.each([
+    ['another host', `media|https://other.host/m/${MEDIA}|720x960|720`],
+    ['a host after two slashes', 'media|//other.host/cover|720x960|720'],
+    ['a host after a slash and a backslash', 'media|/\\other.host/cover|720x960|720'],
+    ['a host after a slash and a tab, which the browser drops', 'media|/\t/other.host/cover|720x960|720'],
+  ])('draws no image for a reference to %s', async (_label, stored) => {
+    expect(await cover(stored)).toBeNull()
   })
 })

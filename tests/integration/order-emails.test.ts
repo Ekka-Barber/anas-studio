@@ -678,6 +678,25 @@ describe('alert_email_data', () => {
     }
   })
 
+  // FABLE-AUDIT M2-13 (QUALITY-16): the alerts written after round 5 answered with their code alone.
+  it('the alerts written since: the mode-changed ones the order number, a refused invoice that and its error code, a policy reset the policy and its seq, the brake the bounced count', async () => {
+    const placed = await plain()
+    const started = await start(placed)
+    const attemptFacts = await data({ alert: 'attempt_mode_changed', attemptId: started.attemptId, orderId: placed.id })
+    expect(attemptFacts).toEqual({ alert: 'attempt_mode_changed', orderNumber: placed.number })
+    expect(renderOwnerAlert(attemptFacts, SITE).text).toContain(placed.number)
+    const refundFacts = await data({ alert: 'refund_mode_changed', refundId: randomUUID(), orderId: placed.id })
+    expect(refundFacts).toEqual({ alert: 'refund_mode_changed', orderNumber: placed.number })
+    expect(renderOwnerAlert(refundFacts, SITE).text).toContain(placed.number)
+    const refused = await data({ alert: 'payment_create_refused', attemptId: started.attemptId, orderId: placed.id, error: 'CREATE_REFUSED_401' })
+    expect(refused).toEqual({ alert: 'payment_create_refused', orderNumber: placed.number, error: 'CREATE_REFUSED_401' })
+    expect(renderOwnerAlert(refused, SITE).text).toContain('CREATE_REFUSED_401')
+    expect(await data({ alert: 'policies_reset', policy: 'store', seq: 3 })).toEqual({ alert: 'policies_reset', orderNumber: null, policy: 'store', seq: 3 })
+    // A policy taken down has no seq.
+    expect(await data({ alert: 'policies_reset', policy: 'refund', seq: null })).toEqual({ alert: 'policies_reset', orderNumber: null, policy: 'refund', seq: null })
+    expect(await data({ alert: 'confirm_mail_braked', bounced: 4 })).toEqual({ alert: 'confirm_mail_braked', orderNumber: null, bounced: 4 })
+  })
+
   it('an alert it does not know, or whose rows are gone, answers the code alone; a malformed id never raises', async () => {
     const placed = await plain()
     expect(await data({ alert: 'brand_new', orderId: placed.id, amount: 5 })).toEqual({ alert: 'brand_new' })
@@ -721,10 +740,18 @@ describe('notify_email_data', () => {
       await row("insert into public.notifications (email, variant_id, status, token_version) values ($1, $2, 'pending', 3) returning id", [email, variant.id])
     ).id as string
     created.notifications.push(id)
-    const expected = { status: 'pending', tokenVersion: 3, email, productTitle: product.title, variantTitle: variantRow.title, slug: product.slug }
+    const expected = { status: 'pending', tokenVersion: 3, email, productTitle: product.title, variantTitle: variantRow.title, slug: product.slug, preorder: false }
     expect(await call('notify_email_data', { p_id: id })).toEqual(expected)
     await postgres.query("update public.notifications set status = 'confirmed', token_version = 4 where id = $1", [id])
     expect(await call('notify_email_data', { p_id: id })).toEqual({ ...expected, status: 'confirmed', tokenVersion: 4 })
+    // FABLE-AUDIT M2-13: the variant's preorder flag as it is now, so the notice can say it is a preorder.
+    await postgres.query('update public.product_variants set preorder = true, preorder_capacity = $2, preorder_ships_on = $3, preorder_note = $4 where id = $1', [
+      variant.id,
+      PREORDER.capacity,
+      PREORDER.shipsOn,
+      PREORDER.note,
+    ])
+    expect(await call('notify_email_data', { p_id: id })).toEqual({ ...expected, status: 'confirmed', tokenVersion: 4, preorder: true })
     expect(await call('notify_email_data', { p_id: randomUUID() })).toBeNull()
     await postgres.query('delete from public.notifications where id = $1', [id])
     expect(await call('notify_email_data', { p_id: id })).toBeNull()
@@ -745,7 +772,10 @@ describe('outbox_claim: three tiers (contract section 8)', () => {
     [50, ['order_link', 'receipt']],
     [79, ['order_link', 'receipt']],
     [80, ['receipt']],
-    [99, ['receipt']],
+    // Priority 0 keeps the last five sends of the day for Supabase Auth's sign-in codes (round M1b): it stops at 95.
+    [94, ['receipt']],
+    [95, []],
+    [99, []],
     [100, []],
   ])('with %i sends in the UTC day, these kinds are claimed: %j', async (sends, expected) => {
     const claimed = await rolledBack([], async () => {

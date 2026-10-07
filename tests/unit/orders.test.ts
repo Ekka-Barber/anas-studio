@@ -91,6 +91,8 @@ beforeEach(() => {
   vi.stubEnv('SITE_URL', SITE)
   vi.stubEnv('TOKEN_HASH_PEPPER', PEPPER)
   vi.stubEnv('TURNSTILE_SECRET_KEY', '1x0000000000000000000000000000000AA')
+  // The payment variable the handler reads when the injected configuration is not working: unset unless a test sets it.
+  vi.stubEnv('PAYMENTS_MODE', '')
 })
 
 afterEach(() => {
@@ -197,14 +199,41 @@ describe('the gates, in checkout\'s order', () => {
     expect(verifyOk).not.toHaveBeenCalled()
   })
 
-  it('is unavailable, and calls nothing, while the payment settings are not working', async () => {
+  it('is unavailable, and calls nothing, while no payment mode is set: no working configuration and no PAYMENTS_MODE', async () => {
     for (const body of [getBody(), recoverBody(), returnBody()]) {
       const response = await post(request(body), { config: { ok: false, reason: 'NOT_CONFIGURED' } })
       expect(response.status).toBe(503)
       expect((await replyOf(response)).error?.code).toBe('UNAVAILABLE')
     }
+    // A mode that is not one is no mode at all.
+    vi.stubEnv('PAYMENTS_MODE', 'production')
+    expect((await post(request(getBody()), { config: { ok: false, reason: 'BAD_MODE' } })).status).toBe(503)
     expect(recorded).toHaveLength(0)
     expect(verifyOk).not.toHaveBeenCalled()
+  })
+
+  // F1-16: no action here calls the provider, so a missing or broken Moyasar setting must not take the order page,
+  // recovery or returns down with checkout.
+  it('with no Moyasar configuration, the order page, recovery and a return request still answer, bound to PAYMENTS_MODE', async () => {
+    vi.stubEnv('PAYMENTS_MODE', 'test')
+    const unconfigured = { config: { ok: false, reason: 'KEY_MODE_MISMATCH' } as const }
+    scripted('order_access', { ok: true, order: { orderNumber: NUMBER }, payment: { state: 'paid' }, items: [], returns: [] })
+    scripted('order_recover_list', [])
+    scripted('order_recover_apply', 0)
+    scripted('return_request_create', { ok: true, returnId: ORDER })
+
+    const page = await post(request(getBody()), unconfigured)
+    expect(page.status).toBe(200)
+    expect((await replyOf(page)).data.order).toEqual({ orderNumber: NUMBER })
+    expect((await post(request(recoverBody()), unconfigured)).status).toBe(200)
+    expect((await post(request(returnBody()), unconfigured)).status).toBe(201)
+    expect(names()).toEqual(['order_access', 'order_recover_list', 'order_recover_apply', 'return_request_create'])
+    for (const fn of ['order_access', 'order_recover_list', 'return_request_create']) expect(calls(fn)[0]!.p_mode, fn).toBe('test')
+
+    // A live site stays live.
+    vi.stubEnv('PAYMENTS_MODE', 'live')
+    await post(request(getBody()), unconfigured)
+    expect(calls('order_access')[1]!.p_mode).toBe('live')
   })
 
   it('puts Referrer-Policy: no-referrer and Cache-Control: no-store on every reply, whatever its status', async () => {

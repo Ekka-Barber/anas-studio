@@ -78,6 +78,7 @@ export const REVIEW_REASON_LABELS: Readonly<Record<string, string>> = {
   SECOND_PAYMENT: 'دفعة ثانية على فاتورة مدفوعة',
   ORDER_ALREADY_PAID: 'الطلب مدفوع بدفعة أخرى',
   UNMAPPED_INVOICE: 'فاتورة غير مرتبطة بطلب',
+  REFUNDED_BEFORE_SETTLE: 'مستردّة قبل التسوية',
 }
 export const REFUND_STATUS_LABELS: Readonly<Record<string, string>> = {
   submitting: 'قيد الإرسال',
@@ -92,6 +93,7 @@ export const RECONCILIATION_REASON_LABELS: Readonly<Record<string, string>> = {
   UNVERIFIED: 'لم يُتحقق منها',
   PROVIDER_STATUS: 'حالة مختلفة لدى Moyasar',
   EXTERNAL_REFUND: 'استرداد لدى Moyasar غير مسجّل',
+  MODE_CHANGED: 'تغيّر وضع الدفع',
 }
 export const DISPUTE_KIND_LABELS: Readonly<Record<string, string>> = {
   chargeback: 'اعتراض بطاقة',
@@ -106,6 +108,8 @@ export const DISPUTE_DECISION_LABELS: Readonly<Record<string, string>> = {
   entitlement_kept: 'إبقاء الملفات',
   fulfillment_stopped: 'إيقاف الشحن',
 }
+/** The badge of a line whose shipping a dispute stopped (`order_detail`'s `stopped`): it is not shipped. */
+export const STOPPED_BADGE = 'موقوف بنزاع'
 
 /** The Arabic word of an enum value; a value the table does not know is its own code (the screens draw it `dir="ltr"`). */
 export function labelOf(labels: Readonly<Record<string, string>>, code: string): string {
@@ -230,7 +234,11 @@ export const RECONCILIATION_PATH = '/admin/orders/reconciliation'
 
 /**
  * The counts of the list's line and the home: «تحتاج مطابقة» is the owner's alone, the sum of what
- * the reconciliation screen lists, and it links there (`href`).
+ * the reconciliation screen lists, and it links there (`href`): the refunds in doubt (with those the
+ * job parked for the other payment mode, MODE_CHANGED), the attempts not verified (with those parked
+ * for the other mode, MODE_CHANGED), the webhook events given up on and the refunds made outside.
+ * «دفعات قيد المراجعة» counts the open review payments, a payment refunded before it settled
+ * (REFUNDED_BEFORE_SETTLE) among them.
  */
 export function alertCounts(alerts: OrdersAlerts, owner: boolean): Array<{ label: string; value: number; href?: string }> {
   return [
@@ -270,6 +278,7 @@ function itemOf(value: unknown) {
     preorder: o.preorder === null ? null : preorderOf(o.preorder),
     refunded: int(o.refunded),
     fullyRefunded: bool(o.fullyRefunded),
+    stopped: bool(o.stopped),
   }
 }
 function attemptOf(value: unknown) {
@@ -547,6 +556,12 @@ export function parseDisputeReply(value: unknown) {
   return { duplicate: bool(o.duplicate), dispute: disputeOf(o.dispute) }
 }
 
+/** `order-link-reissue`: `{version, emailChanged}`, the link's new version and whether the order's address changed. */
+export function parseReissueReply(value: unknown) {
+  const o = obj(value)
+  return { version: int(o.version), emailChanged: bool(o.emailChanged) }
+}
+
 // ---------------------------------------------------------------------------
 // The action replies
 // ---------------------------------------------------------------------------
@@ -557,10 +572,11 @@ export interface Restocked {
   from: number
   to: number
 }
-/** A call that did what it was asked (`changed` only for a fulfilment: how many items moved). */
+/** A call that did what it was asked (`changed` only for a fulfilment: how many items moved; `corrected` when it fixed the carrier or tracking of shipped items). */
 export interface Done {
   ok: true
   changed: number | null
+  corrected: boolean
   restocked: Restocked[]
 }
 /** A business refusal: its code, and what the function adds to some (the state, the status, the items at fault). */
@@ -582,6 +598,7 @@ export function parseActionReply(value: unknown): Done | Refusal {
     return {
       ok: true,
       changed: o.changed === undefined ? null : typeof o.changed === 'boolean' ? Number(o.changed) : int(o.changed),
+      corrected: o.corrected === undefined ? false : bool(o.corrected),
       restocked:
         o.restocked === undefined
           ? []
@@ -611,6 +628,8 @@ const REFUSALS: Record<OrderAction, Readonly<Record<string, string>>> = {
     BAD_TRANSITION: 'لا تنتقل هذه العناصر إلى هذه الحالة.',
     ITEM_REFUNDED: 'عنصر مُعاد مبلغه بالكامل لا يُشحن.',
     DEDICATION_NOT_DONE: 'أكمل الإهداء قبل الشحن.',
+    FULFILLMENT_STOPPED: 'أُوقف شحن هذه الأصناف بقرار نزاع.',
+    REFUND_IN_FLIGHT: 'استرداد قيد التنفيذ على هذه الأصناف؛ انتظر نتيجته.',
   },
   decide: { NOT_FOUND: 'لم نجد طلب الإرجاع.' },
   receive: { NOT_FOUND: 'لم نجد طلب الإرجاع.', INVALID_ITEMS: 'كمية العودة إلى المخزون غير صحيحة.' },
@@ -618,6 +637,7 @@ const REFUSALS: Record<OrderAction, Readonly<Record<string, string>>> = {
     NOT_FOUND: ORDER_NOT_FOUND,
     STOCK_UNAVAILABLE: 'المخزون لا يكفي لعنصر في هذا الطلب؛ عدّل المخزون أو أعد مبلغ العنصر أولًا.',
     REFUND_IN_FLIGHT: 'استرداد قيد المعالجة؛ أعد المحاولة بعد دقائق.',
+    PAYMENT_REVERSED: 'الدفعة مستردّة أو ملغاة لدى بوابة الدفع؛ سجّل الاسترداد بدل التسليم.',
   },
   close: { NOT_FOUND: 'لم نجد هذه الدفعة.', ALREADY_CLOSED: 'أُغلقت هذه المراجعة من قبل.' },
   dismiss: { NOT_FOUND: 'لم نجد هذا الإشعار.', NOT_EXHAUSTED: 'لا يحتاج هذا الإشعار إلى مراجعة.' },

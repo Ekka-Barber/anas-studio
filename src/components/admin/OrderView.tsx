@@ -13,7 +13,9 @@
  * The contact is for fulfilment: no link, no other use is offered. The owner's money
  * actions (round 11b) are `RefundView`, `DisputeForm` and the rechecks: each a call of the
  * `admin` function (through the step-up dialog where it moves money), said on this screen's
- * one status line or alert line, and followed by a new reading of the order.
+ * one status line or alert line, and followed by a new reading of the order. The owner's
+ * «إعادة إرسال رابط الطلب» (FABLE-AUDIT) goes the same way: `order-link-reissue`, through the
+ * dialog when a new address is given.
  */
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -42,12 +44,13 @@ import {
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
+  STOPPED_BADGE,
   type Done,
   type OrderAction,
   type OrderDetail,
   type Refusal,
 } from '@/lib/admin-orders'
-import { disputeLines, inFlight as refundInFlight, REREAD_FAILED } from '@/lib/admin-money'
+import { disputeLines, inFlight as refundInFlight, readReissueReply, REISSUE_CONFIRM, reissueBody, REREAD_FAILED } from '@/lib/admin-money'
 import { formatDate, formatMoney, formatNumber, formatRiyadh } from '@/lib/format'
 import { clampQuantity } from '@/lib/orders'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
@@ -56,7 +59,7 @@ import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 import { DisputeForm } from './DisputeForm'
 import { Enum, Fact, ltr, ltrLong, NONE, TestBadge } from './OrdersView'
-import { recheckAttempt, recheckRefund, RefundView, useFocusBack, useStepUp, type Money, type Said } from './RefundView'
+import { recheckAttempt, recheckRefund, RefundView, sendMoney, useFocusBack, useStepUp, type Money, type Said } from './RefundView'
 
 type Load = { kind: 'loading' } | { kind: 'failed' } | { kind: 'missing' } | { kind: 'ready'; detail: OrderDetail }
 type Item = OrderDetail['items'][number]
@@ -64,6 +67,12 @@ type Reply = { data: unknown; error: { code?: string } | null }
 
 const NO_ITEMS = 'اختر عناصر من هذا الطلب.'
 const NEEDS_CARRIER = 'أدخل شركة الشحن ورقم التتبع.'
+/** The orders whose link the owner can send again (`order_link_reissue` answers BAD_STATUS for any other). */
+const LINK_STATUSES = new Set(['paid', 'paid_needs_resolution', 'refunded'])
+
+/** A line still being prepared that cannot ship: fully refunded, or stopped by a dispute. It is shown, never chosen. */
+const blocked = (entry: Pick<OrderDetail['fulfillments'][number], 'state'>, item: Item | undefined): boolean =>
+  entry.state === 'preparing' && (item?.fullyRefunded === true || item?.stopped === true)
 
 const nameOf = (item: Pick<Item, 'productTitle' | 'variantTitle'>): string =>
   [item.productTitle, item.variantTitle].filter((part) => part !== '').join(': ')
@@ -106,6 +115,7 @@ export function OrderView() {
   const [restock, setRestock] = useState<Record<string, string>>({})
   const [closeReasons, setCloseReasons] = useState<Record<string, string>>({})
   const [confirming, setConfirming] = useState(false)
+  const [reissueEmail, setReissueEmail] = useState('')
   const step = useStepUp()
   const focusBack = useFocusBack()
   // The attempt or review payment whose dispute form is open (`attempt:<id>` or `review:<paymentId>`).
@@ -237,11 +247,11 @@ export function OrderView() {
 
   function fulfil(state: 'preparing' | 'shipped' | 'delivered') {
     if (load.kind !== 'ready') return
-    // Only lines that can still move: one chosen before a refund made it fully refunded (seen on the re-read) is not sent.
+    // Only lines that can still move: one chosen before a refund or a dispute blocked it (seen on the re-read) is not sent.
     const { fulfillments, items } = load.detail
     const sendable = selected.filter((itemId) => {
       const entry = fulfillments.find((candidate) => candidate.itemId === itemId)
-      return entry !== undefined && !(entry.state === 'preparing' && items.find((item) => item.id === itemId)?.fullyRefunded === true)
+      return entry !== undefined && !blocked(entry, items.find((item) => item.id === itemId))
     })
     if (sendable.length === 0) return report('alert', NO_ITEMS)
     const company = clean(carrier)
@@ -267,7 +277,8 @@ export function OrderView() {
           setCarrier('')
           setTracking('')
         }
-        return 'تم التحديث.'
+        // Every chosen line had shipped: the function fixed their carrier or tracking and moved nothing.
+        return reply.corrected ? 'صُحّحت بيانات الشحن.' : 'تم التحديث.'
       },
     )
   }
@@ -325,6 +336,18 @@ export function OrderView() {
     const reason = closeReason(closeReasons[paymentId] ?? '')
     if (!reason.ok) return report('alert', reason.message)
     void act(`close:${paymentId}`, 'close', () => rpc('review_close', { p_payment: paymentId, p_reason: reason.reason }), () => 'أُغلقت المراجعة.')
+  }
+
+  /** The owner's «إعادة إرسال رابط الطلب»: a new address replaces the order's and kills its link, so it is confirmed first. */
+  function reissue() {
+    if (load.kind !== 'ready') return
+    const body = reissueBody(load.detail.order.id, reissueEmail)
+    if (body.email !== undefined && !window.confirm(REISSUE_CONFIRM)) return
+    void moneyRun('reissue', async () => {
+      const said = readReissueReply(await sendMoney(body, step.ask))
+      if (said?.line === 'status') setReissueEmail('')
+      return said
+    })
   }
 
   function toggleDispute(key: string) {
@@ -396,8 +419,10 @@ export function OrderView() {
     const refundTarget = owner && order.status !== 'refunded' ? (d.attempts.find((attempt) => attempt.status === 'paid') ?? null) : null
     // The owner's «أعد الفحص» of a refund in flight: a column only while there is one.
     const rechecks = owner && d.refunds.some((refund) => refundInFlight(refund.status))
-    const picked = d.fulfillments.filter((entry) => selected.includes(entry.itemId))
+    const picked = d.fulfillments.filter((entry) => selected.includes(entry.itemId) && !blocked(entry, itemOf(entry.itemId)))
     const dedicate = picked.some((entry) => itemOf(entry.itemId)?.fulfillment === 'signed' && !entry.dedicationDone)
+    // Every chosen line has shipped: «تم الشحن» becomes the correction of their carrier and tracking.
+    const correcting = picked.length > 0 && picked.every((entry) => entry.state === 'shipped')
 
     return (
       <>
@@ -412,6 +437,31 @@ export function OrderView() {
             <Fact label="المدينة">{order.delivery.city === null ? NONE : <bdi>{order.delivery.city}</bdi>}</Fact>
             <Fact label="العنوان">{order.delivery.address === null ? NONE : <bdi>{order.delivery.address}</bdi>}</Fact>
           </ul>
+          {owner && LINK_STATUSES.has(order.status) && (
+            <div className={styles.form}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="reissue-email">
+                  بريد جديد (اختياري)
+                </label>
+                <input
+                  id="reissue-email"
+                  className={styles.input}
+                  type="email"
+                  dir="ltr"
+                  spellCheck={false}
+                  autoComplete="off"
+                  maxLength={254}
+                  value={reissueEmail}
+                  onChange={(event) => setReissueEmail(event.target.value)}
+                />
+              </div>
+              <div className={styles.row}>
+                <button type="button" className={styles.buttonSecondary} disabled={off} onClick={reissue}>
+                  إعادة إرسال رابط الطلب
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         <section>
@@ -685,8 +735,8 @@ export function OrderView() {
                 <tbody>
                   {d.fulfillments.map((entry) => {
                     const item = itemOf(entry.itemId)
-                    // A fully refunded line still being prepared is shown but is not shipped.
-                    const choosable = !(entry.state === 'preparing' && item?.fullyRefunded === true)
+                    // A fully refunded or stopped line still being prepared is shown but is not shipped.
+                    const choosable = !blocked(entry, item)
                     return (
                       <tr key={entry.id}>
                         <td data-label="العنصر">
@@ -706,6 +756,12 @@ export function OrderView() {
                         </td>
                         <td data-label="الحالة" className={styles.cellNowrap}>
                           <Enum labels={FULFILLMENT_STATE_LABELS} code={entry.state} />
+                          {item?.stopped === true && (
+                            <>
+                              {' '}
+                              <span className={styles.badge}>{STOPPED_BADGE}</span>
+                            </>
+                          )}
                         </td>
                         <td data-label="شركة الشحن">{entry.carrier !== null && <bdi>{entry.carrier}</bdi>}</td>
                         <td data-label="رقم التتبع">{entry.tracking !== null && ltrLong(entry.tracking)}</td>
@@ -758,7 +814,7 @@ export function OrderView() {
                     </button>
                   )}
                   <button type="button" className={styles.button} disabled={off} onClick={() => fulfil('shipped')}>
-                    تم الشحن
+                    {correcting ? 'تصحيح بيانات الشحن' : 'تم الشحن'}
                   </button>
                   <button type="button" className={styles.button} disabled={off} onClick={() => fulfil('delivered')}>
                     تم التسليم

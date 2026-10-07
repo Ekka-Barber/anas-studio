@@ -80,6 +80,9 @@ beforeEach(() => {
   for (const spy of logs) spy.mockClear()
   vi.stubEnv('SITE_URL', SITE)
   vi.stubEnv('TOKEN_HASH_PEPPER', PEPPER)
+  // The two payment variables the handler reads when the injected configuration is not working: unset unless a test sets them.
+  vi.stubEnv('PAYMENTS_MODE', '')
+  vi.stubEnv('FUNCTIONS_PUBLIC_URL', '')
 })
 
 afterEach(() => {
@@ -152,11 +155,47 @@ describe('the gates', () => {
     expect(recorded).toHaveLength(0)
   })
 
-  it('is unavailable, and calls nothing, while the payment settings are not working', async () => {
+  it('is unavailable, and calls nothing, while no payment mode is set: no working configuration and no PAYMENTS_MODE', async () => {
     for (const body of [issueBody(), redeemBody()]) {
       const response = await post(request(body), { config: { ok: false, reason: 'NOT_CONFIGURED' } })
       expect(response.status).toBe(503)
     }
+    expect(recorded).toHaveLength(0)
+    expect(signer).not.toHaveBeenCalled()
+  })
+
+  // F1-16: neither action calls the provider, so a missing or broken Moyasar setting must not stop a buyer's files.
+  it('with no Moyasar configuration, an issue and a redeem still answer: the mode from PAYMENTS_MODE, the link on the public base of FUNCTIONS_PUBLIC_URL', async () => {
+    vi.stubEnv('PAYMENTS_MODE', 'test')
+    vi.stubEnv('FUNCTIONS_PUBLIC_URL', 'http://127.0.0.1:54321/functions/v1')
+    const unconfigured = { config: { ok: false, reason: 'NOT_CONFIGURED' } as const }
+    scripted('download_issue', { ok: true, expiresAt: '2026-10-02T12:00:00Z' })
+    scripted('download_redeem', { ok: true, storageKey: STORAGE_KEY, filename: FILENAME, mime: 'application/pdf' })
+
+    const issued = await post(request(issueBody()), unconfigured)
+    expect(issued.status).toBe(200)
+    expect(calls('download_issue')[0]!.p_mode).toBe('test')
+
+    const redeemed = await post(request(redeemBody()), unconfigured)
+    expect(redeemed.status).toBe(200)
+    expect(calls('download_redeem')[0]!.p_mode).toBe('test')
+    const url = new URL((await replyOf(redeemed)).data.url)
+    expect(url.origin + url.pathname).toBe(`http://127.0.0.1:54321/storage/v1/object/sign/paid-files/${STORAGE_KEY}`)
+    expect(url.searchParams.get('download')).toBe(FILENAME)
+  })
+
+  it('with no Moyasar configuration and no usable public base, nothing is called: a redeem never spends a use on a link it cannot build', async () => {
+    vi.stubEnv('PAYMENTS_MODE', 'live')
+    for (const base of ['', 'not a url']) {
+      vi.stubEnv('FUNCTIONS_PUBLIC_URL', base)
+      for (const body of [issueBody(), redeemBody()]) {
+        expect((await post(request(body), { config: { ok: false, reason: 'KEY_MODE_MISMATCH' } })).status).toBe(503)
+      }
+    }
+    // A mode that is not one is no mode at all.
+    vi.stubEnv('PAYMENTS_MODE', 'production')
+    vi.stubEnv('FUNCTIONS_PUBLIC_URL', 'http://127.0.0.1:54321/functions/v1')
+    expect((await post(request(redeemBody()), { config: { ok: false, reason: 'BAD_MODE' } })).status).toBe(503)
     expect(recorded).toHaveLength(0)
     expect(signer).not.toHaveBeenCalled()
   })

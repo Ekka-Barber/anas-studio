@@ -175,6 +175,56 @@ describe('email_event_record', () => {
     ).toBe(1)
   })
 
+  // FABLE-AUDIT M2-10 (VENDOR-PAY-03): Resend's bounce types are Permanent, Transient and Undetermined.
+  it('an Undetermined bounce is treated like a Transient one: recorded, nothing suppressed, and the next mail to the address still goes; a Permanent one suppresses and holds the next mail back', async () => {
+    const suppressed = async (recipient: string): Promise<unknown[]> =>
+      (await postgres.query('select reason from finance.email_suppressions where recipient_hash = $1', [hashOf(recipient)])).rows
+    const undetermined = await sentRow('bounce-undetermined')
+    expect(
+      await recordEvent({
+        type: 'email.bounced',
+        messageId: undetermined.providerId,
+        recipient: undetermined.recipient,
+        bounceType: 'Undetermined',
+        evidence: { bounceType: 'Undetermined', bounceSubType: 'Undetermined' },
+      }),
+    ).toBe('recorded')
+    expect(await suppressed(undetermined.recipient)).toEqual([])
+    // The row says what happened to it all the same.
+    expect((await postgres.query<{ delivery: string }>('select delivery from finance.email_outbox where id = $1', [undetermined.id])).rows[0]!.delivery).toBe('bounced')
+    const transient = await sentRow('bounce-transient')
+    expect(await recordEvent({ type: 'email.bounced', messageId: transient.providerId, recipient: transient.recipient, bounceType: 'Transient' })).toBe('recorded')
+    expect(await suppressed(transient.recipient)).toEqual([])
+    const permanent = await sentRow('bounce-permanent-next')
+    expect(await recordEvent({ type: 'email.bounced', messageId: permanent.providerId, recipient: permanent.recipient, bounceType: 'Permanent' })).toBe('recorded')
+    expect(await suppressed(permanent.recipient)).toEqual([{ reason: 'bounced' }])
+
+    // The next mail to each address, a buyer's receipt due long ago, in a claim that is rolled back.
+    await postgres.query('begin')
+    try {
+      const next = async (recipient: string): Promise<string> =>
+        (
+          await postgres.query<{ id: string }>(
+            `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, next_at)
+             values ($1, 'receipt', 0, $2, '{}'::jsonb, now() - interval '10 years') returning id`,
+            [unique('next'), recipient],
+          )
+        ).rows[0]!.id
+      const toUndetermined = await next(undetermined.recipient)
+      const toPermanent = await next(permanent.recipient)
+      await postgres.query('set local role service_role')
+      const claimed = (await postgres.query<{ id: string }>('select id from public.outbox_claim(1, 60, 1000000, 0, 100000000, 0)')).rows.map((row) => row.id)
+      await postgres.query('set local role postgres')
+      const statusOf = async (id: string): Promise<string> =>
+        (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [id])).rows[0]!.status
+      expect(claimed).toEqual([toUndetermined])
+      expect(await statusOf(toUndetermined)).toBe('sending')
+      expect(await statusOf(toPermanent)).toBe('suppressed')
+    } finally {
+      await postgres.query('rollback')
+    }
+  })
+
   it('an undocumented bounce type suppresses conservatively and the evidence keeps the raw type', async () => {
     const unknown = await sentRow('bounce-unknown')
     expect(
@@ -410,19 +460,30 @@ describe('runOutbox (fetch stubbed, service_role through a direct session)', () 
     expect(run.detail).toMatchObject({ reason: 'EMAIL_NOT_CONFIGURED' })
   })
 
-  it('a suppressed recipient is never sent', async () => {
+  it('a suppressed buyer address is never sent; a contact notice to a suppressed staff address still goes: staff mail is never held back by the list', async () => {
     await parkOthers()
-    const row = await pendingNotice('suppressed', 'رسالة ممنوعة')
+    // A buyer's mail (a receipt) to an address on the list: suppressed before it is ever claimed or rendered.
+    const buyer = `${unique('suppressed-buyer')}@example.com`
+    const receipt = await postgres.query<{ id: string }>(
+      `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload) values ($1, 'receipt', 0, $2, '{}'::jsonb) returning id`,
+      [unique('suppressed-receipt'), buyer],
+    )
+    created.outbox.push(receipt.rows[0]!.id)
+    created.suppressions.push(hashOf(buyer))
+    await postgres.query("insert into finance.email_suppressions (recipient_hash, reason) values ($1, 'manual')", [hashOf(buyer)])
+    // An operations member whose own address is on the list (a past bounce): the notice is theirs, and it goes.
+    const row = await pendingNotice('suppressed', 'رسالة إلى عنوان في القائمة')
     await postgres.query("insert into finance.email_suppressions (recipient_hash, reason) values ($1, 'manual')", [
       hashOf(row.recipient),
     ])
-    const { fn } = stubFetch(() => new Response(JSON.stringify({ id: 'never' }), { status: 200 }))
+    const { fn, calls } = stubFetch(() => new Response(JSON.stringify({ id: 'prov-suppressed-staff' }), { status: 200 }))
     const summary = await runOutbox(rpc)
-    expect(summary).toMatchObject({ claimed: 0, accepted: 0 })
-    expect(fn).not.toHaveBeenCalled()
-    expect(
-      (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [row.id])).rows[0]!
-        .status,
-    ).toBe('suppressed')
+    expect(summary).toMatchObject({ claimed: 1, accepted: 1 })
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect((JSON.parse(String(calls[0]!.init.body)) as { to: string[] }).to).toEqual([row.recipient])
+    const statusOf = async (id: string): Promise<string> =>
+      (await postgres.query<{ status: string }>('select status from finance.email_outbox where id = $1', [id])).rows[0]!.status
+    expect(await statusOf(receipt.rows[0]!.id)).toBe('suppressed')
+    expect(await statusOf(row.id)).toBe('sent')
   })
 })

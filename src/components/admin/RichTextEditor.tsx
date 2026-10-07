@@ -33,7 +33,7 @@ import {
   type LexicalEditor,
 } from 'lexical'
 
-import { httpsUrl, type RichTextDocument } from '../../admin/richtext'
+import { linkUrlSchema, type RichTextDocument } from '../../admin/richtext'
 
 import styles from './admin.module.css'
 
@@ -90,9 +90,10 @@ function Toolbar(): JSX.Element {
 
   function applyLink() {
     const url = linkUrl.trim()
-    // An empty field removes the link; anything else must be an https address
-    // the schema accepts (not «https://» alone, not one with a space), and says so.
-    if (url !== '' && !httpsUrl.safeParse(url).success) {
+    // An empty field removes the link; anything else must be an address the
+    // schema accepts (not «https://» alone, not one with a space, not
+    // «HTTPS://» or «https:host»), and says so.
+    if (url !== '' && !linkUrlSchema.safeParse(url).success) {
       setLinkError(true)
       return
     }
@@ -201,10 +202,12 @@ function Toolbar(): JSX.Element {
 const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode]
 
 /**
- * Pasted HTML brings nodes the schema rejects: h1 and h4–h6 headings, and
- * links that are not https. Pasted plain text brings tabs, which Lexical keeps
- * as a `tab` node. Turn them into the nearest allowed node instead (a tab
- * becomes one space), so publishing is never blocked by a paste.
+ * Pasted HTML brings nodes the schema rejects: h1 and h4–h6 headings, links
+ * whose address the link rule refuses, and checklists (Google Docs, GitHub),
+ * which Lexical reads as a `check` list. Pasted plain text brings tabs, which
+ * Lexical keeps as a `tab` node. Turn them into the nearest allowed node
+ * instead (a tab becomes one space, a checklist a bulleted list), so
+ * publishing is never blocked by a paste.
  */
 export function registerAllowlistTransforms(editor: LexicalEditor): () => void {
   const heading = editor.registerNodeTransform(HeadingNode, (node) => {
@@ -212,9 +215,12 @@ export function registerAllowlistTransforms(editor: LexicalEditor): () => void {
     if (tag !== 'h2' && tag !== 'h3') node.setTag(tag === 'h1' ? 'h2' : 'h3')
   })
   const link = editor.registerNodeTransform(LinkNode, (node) => {
-    if (httpsUrl.safeParse(node.getURL()).success) return
+    if (linkUrlSchema.safeParse(node.getURL()).success) return
     for (const child of node.getChildren()) node.insertBefore(child)
     node.remove()
+  })
+  const list = editor.registerNodeTransform(ListNode, (node) => {
+    if (node.getListType() === 'check') node.setListType('bullet')
   })
   const tab = editor.registerNodeTransform(TabNode, (node) => {
     node.replace($createTextNode(' ').setFormat(node.getFormat()))
@@ -222,6 +228,7 @@ export function registerAllowlistTransforms(editor: LexicalEditor): () => void {
   return () => {
     heading()
     link()
+    list()
     tab()
   }
 }

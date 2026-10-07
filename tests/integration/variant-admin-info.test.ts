@@ -180,7 +180,9 @@ describe('the confirmed preorders', () => {
 
   it('counts the units of a digital preorder too (it takes capacity)', async () => {
     const variant = await h.makeVariant({ fulfillment: 'digital', price: 3500, preorder: { capacity: 5 } })
-    await h.paid([{ variantId: variant, quantity: 2 }])
+    // A digital line is one copy (M1b-6), so two orders of one copy each.
+    await h.paid([{ variantId: variant, quantity: 1 }])
+    await h.paid([{ variantId: variant, quantity: 1 }])
     expect(await info(ownerDb, variant)).toEqual({ ok: true, preorderUnits: 2, file: null })
   })
 })

@@ -11,10 +11,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleAdmin, type MediaStore, PRIVATE_BUCKET, PUBLIC_BUCKET } from '../../supabase/functions/_shared/admin.ts'
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
 import { handleJobs } from '../../supabase/functions/_shared/jobs.ts'
+import { recoveryItems } from '../../supabase/functions/_shared/orders.ts'
 import { runOutbox } from '../../supabase/functions/_shared/outbox.ts'
 import type { PaymentDeps } from '../../supabase/functions/_shared/payments.ts'
 import type { MoyasarClient, PaymentsConfigOk } from '../../supabase/functions/_shared/payments/moyasar.ts'
 import type { StaffIdentity } from '../../supabase/functions/_shared/staff.ts'
+import { orderAccessToken, orderAccessTokenHash } from '../../supabase/functions/_shared/tokens.ts'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -142,6 +144,34 @@ describe('admin function: who may do what', () => {
       body: JSON.stringify({ action: 'status', padding: 'x'.repeat(17_000) }),
     })
     expect((await handleAdmin(oversized, { rpc, staff: staffAs('owner'), store })).status).toBe(413)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('a streamed body over 16 KiB is refused with 413 as it arrives: never read whole, never parsed (F1-13)', async () => {
+    const rpc = vi.fn(async () => null)
+    const parse = vi.spyOn(JSON, 'parse')
+    const chunk = new TextEncoder().encode('x'.repeat(1024))
+    let pulled = 0
+    // 64 KiB with no content-length: a reader that buffers the whole body pulls every chunk before it can refuse it.
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        if (pulled > 64) controller.close()
+        else controller.enqueue(chunk)
+      },
+    })
+    const streamed = new Request('http://127.0.0.1:54321/functions/v1/admin', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer staff-token' },
+      body,
+      duplex: 'half',
+    } as RequestInit)
+    const response = await handleAdmin(streamed, { rpc, staff: staffAs('owner'), store: memoryStore() })
+    const parsedBody = parse.mock.calls.filter(([text]) => String(text).includes('xxxxxxxx'))
+    parse.mockRestore()
+    expect(response.status).toBe(413)
+    expect(pulled).toBeLessThan(64)
+    expect(parsedBody).toEqual([])
     expect(rpc).not.toHaveBeenCalled()
   })
 
@@ -286,6 +316,24 @@ describe('admin function: media upload (P05 checks, D32 storage)', () => {
     const response = await handleAdmin(post({ action: 'media-complete', ticketId }), { rpc, staff: staffAs('owner'), store })
     expect(response.status).toBe(403)
     expect(store.objects.has(`${PUBLIC_BUCKET}/m/${ticketId}/360.webp`)).toBe(false)
+  })
+
+  // F1-14: a row that may have been committed must not point at nothing.
+  it.each([
+    ['a network failure (no SQLSTATE)', new Error('fetch failed')],
+    ['a lost connection (a SQLSTATE the function never raises)', Object.assign(new Error('connection lost'), { code: '08006' })],
+  ])('when the media row\'s outcome is unknown (%s) every object stays for the row that may exist, and the answer is the 500', async (_label, failure) => {
+    const { ticketId, store, rpc: base } = await uploaded(await jpeg(400, 300), await webp(360, 270))
+    const rpc: Rpc = async (fn, args) => {
+      if (fn === 'media_complete') throw failure
+      return base(fn, args)
+    }
+    const response = await handleAdmin(post({ action: 'media-complete', ticketId }), { rpc, staff: staffAs('owner'), store })
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'FAILED' } })
+    expect(store.objects.has(`${PUBLIC_BUCKET}/m/${ticketId}/360.webp`)).toBe(true)
+    expect(store.objects.has(`${PRIVATE_BUCKET}/originals/${ticketId}`)).toBe(true)
+    expect(store.removed).toEqual([])
   })
 })
 
@@ -433,6 +481,111 @@ describe('admin function: commerce policies approve (P07 round 2)', () => {
     expect(calls).toEqual([
       ['commerce_policies_approve', { p_actor: '11111111-1111-4111-8111-111111111111', p_expected_version: 3 }],
     ])
+  })
+})
+
+describe('admin function: order-link-reissue (FABLE-AUDIT F1-10)', () => {
+  const ORDER = '33333333-3333-4333-8333-333333333333'
+  const KEY = '44444444-4444-4444-8444-444444444444'
+  const PEPPER = 'unit-test-pepper-for-the-link-reissue'
+
+  /** The service rpc answers `order_email_data`; the caller's rpc answers `order_link_reissue`. Both record their calls. */
+  function doubles(reply: unknown = { ok: true, version: 3, emailChanged: false }, data: unknown = { orderId: ORDER, idempotencyKey: KEY, tokenVersion: 2 }) {
+    const service: Array<[string, Record<string, unknown>]> = []
+    const caller: Array<[string, Record<string, unknown>]> = []
+    const rpc: Rpc = async (fn, args) => {
+      service.push([fn, args])
+      return fn === 'order_email_data' ? data : null
+    }
+    const asCaller: Rpc = async (fn, args) => {
+      caller.push([fn, args])
+      if (reply instanceof Error) throw reply
+      return reply
+    }
+    return { rpc, asCaller, service, caller }
+  }
+  const reissue = (body: Record<string, unknown>, deps: ReturnType<typeof doubles>, role: StaffIdentity['role'] = 'owner', recentTotp = false) =>
+    handleAdmin(post({ action: 'order-link-reissue', ...body }), { rpc: deps.rpc, asCaller: deps.asCaller, staff: staffAs(role, recentTotp), store: memoryStore() })
+
+  beforeEach(() => {
+    vi.stubEnv('TOKEN_HASH_PEPPER', PEPPER)
+  })
+
+  it('derives the next version\'s token from the order\'s key as recovery does, and hands only its hash to the SQL, called as the owner', async () => {
+    const deps = doubles()
+    const response = await reissue({ orderId: ORDER }, deps)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true, data: { version: 3, emailChanged: false } })
+    expect(deps.service).toEqual([['order_email_data', { p_order: ORDER }]])
+    const token = await orderAccessToken(PEPPER, KEY, 3)
+    expect(deps.caller).toEqual([
+      ['order_link_reissue', { p_order: ORDER, p_version: 3, p_token_hash: await orderAccessTokenHash(PEPPER, token), p_email: null }],
+    ])
+    // The very hash recovery derives for the next version of an expired link.
+    const recovered = await recoveryItems(PEPPER, [{ orderId: ORDER, idempotencyKey: KEY, tokenVersion: 2, expired: true }])
+    expect(deps.caller[0]![1].p_token_hash).toBe(recovered[0]!.tokenHash)
+    // Neither the token nor the order's key reaches the SQL.
+    expect(JSON.stringify(deps.caller)).not.toContain(token)
+    expect(JSON.stringify(deps.caller)).not.toContain(KEY)
+  })
+
+  it('a plain re-send needs no fresh TOTP; a new address does, and without it nothing is read or called', async () => {
+    const deps = doubles()
+    expect((await reissue({ orderId: ORDER }, deps, 'owner', false)).status).toBe(200)
+    deps.service.length = 0
+    deps.caller.length = 0
+    const readdressed = await reissue({ orderId: ORDER, email: 'Mona@Example.com' }, deps, 'owner', false)
+    expect(readdressed.status).toBe(403)
+    expect(await readdressed.json()).toMatchObject({ error: { code: 'STEP_UP_REQUIRED', message: 'أدخل رمز تطبيق المصادقة للمتابعة.' } })
+    expect(deps.service).toEqual([])
+    expect(deps.caller).toEqual([])
+    // With a fresh TOTP the address goes to the SQL trimmed and lower-cased, as checkout normalizes it.
+    expect((await reissue({ orderId: ORDER, email: ' Mona@Example.com ' }, deps, 'owner', true)).status).toBe(200)
+    expect(deps.caller[0]![1].p_email).toBe('mona@example.com')
+  })
+
+  it('is the owner\'s alone: an editor or an operations member is refused before anything is read', async () => {
+    const deps = doubles()
+    for (const role of ['editor', 'operations', null] as const) {
+      const response = await reissue({ orderId: ORDER }, deps, role, true)
+      expect(response.status).toBe(403)
+      expect(await response.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
+    }
+    expect(deps.service).toEqual([])
+    expect(deps.caller).toEqual([])
+  })
+
+  it('refuses a malformed body with 422, and is unavailable without the pepper, before anything is read', async () => {
+    const deps = doubles()
+    for (const body of [{}, { orderId: 'not-a-uuid' }, { orderId: ORDER, email: 5 }, { orderId: ORDER, extra: true }]) {
+      expect((await reissue(body, deps, 'owner', true)).status, JSON.stringify(body)).toBe(422)
+    }
+    vi.stubEnv('TOKEN_HASH_PEPPER', '')
+    expect((await reissue({ orderId: ORDER }, deps)).status).toBe(503)
+    expect(deps.service).toEqual([])
+    expect(deps.caller).toEqual([])
+  })
+
+  it.each([
+    ['NOT_FOUND', 404, 'لم نجد هذا الطلب.'],
+    ['BAD_STATUS', 409, 'لا يُرسل رابط لطلب لم يُدفع.'],
+    ['VERSION_MISMATCH', 409, 'تغيّر الطلب؛ أعد التحميل.'],
+    ['INVALID_EMAIL', 422, 'تحقق من البريد.'],
+  ] as const)('maps the SQL refusal %s to %i with its Arabic message', async (code, status, message) => {
+    const response = await reissue({ orderId: ORDER }, doubles({ ok: false, code }))
+    expect(response.status).toBe(status)
+    expect(await response.json()).toMatchObject({ ok: false, error: { code, message } })
+  })
+
+  it('an order the service cannot read is 404 and the SQL is not called; a revoked owner is 403; anything else a detail-free 500', async () => {
+    const missing = doubles(undefined, null)
+    expect((await reissue({ orderId: ORDER }, missing)).status).toBe(404)
+    expect(missing.caller).toEqual([])
+    expect((await reissue({ orderId: ORDER }, doubles(Object.assign(new Error('Owner only.'), { code: '42501' })))).status).toBe(403)
+    const broken = await reissue({ orderId: ORDER }, doubles(Object.assign(new Error('connection to 10.0.0.5 lost'), { code: '08006' })))
+    expect(broken.status).toBe(500)
+    expect(JSON.stringify(await broken.json())).not.toContain('10.0.0.5')
+    expect((await reissue({ orderId: ORDER }, doubles({ unexpected: true }))).status).toBe(500)
   })
 })
 

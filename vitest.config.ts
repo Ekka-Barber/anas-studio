@@ -25,6 +25,10 @@ export default defineConfig(({ mode }) => {
           : ['tests/unit/**/*.test.ts'],
       // Playwright owns end-to-end specs.
       exclude: ['tests/e2e/**', 'node_modules/**'],
+      // Unit tests run in UTC on every machine. On one set to Asia/Riyadh (the
+      // owner's) a formatter that lost its `timeZone: 'Asia/Riyadh'` would still
+      // show Riyadh dates and its test would pass; in UTC it fails.
+      env: mode === 'db' ? {} : { TZ: 'UTC' },
       // Database tests share one local database and some mutate global state
       // (the last-owner test deactivates other owners), so their files run one
       // at a time.

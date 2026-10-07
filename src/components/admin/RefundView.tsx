@@ -21,6 +21,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } fr
 
 import {
   AMOUNT_PROBLEMS,
+  attemptBalance,
   EXTERNAL_SENTENCE,
   keyFor,
   NEEDS_EXTERNAL_REASON,
@@ -38,7 +39,7 @@ import {
   type Kept,
   type Verdict,
 } from '@/lib/admin-money'
-import { clean, type OrderDetail } from '@/lib/admin-orders'
+import { clean, DISPUTE_DIRECTION_LABELS, DISPUTE_KIND_LABELS, labelOf, type OrderDetail } from '@/lib/admin-orders'
 import { formatMoney } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
@@ -234,12 +235,18 @@ interface Frozen {
 /**
  * The refund form: an amount for each line that can still be refunded and for the shipping (a review payment has the
  * one amount), a reason, and «ربط بطلب الإرجاع» when a received return has no refund yet. «إعادة المبلغ» opens the
- * confirmation; «تأكيد الاسترداد» is the only thing that sends.
+ * confirmation; «تأكيد الاسترداد» is the only thing that sends. An order's form offers no more than its paying attempt
+ * can still give back (a refund made in Moyasar's dashboard allocates no line), says that cap, and lists the
+ * chargebacks recorded on the attempt above its fields.
  */
 export function RefundView({ subject, money }: { subject: RefundSubject; money: Money }) {
   const review = subject.kind === 'review'
-  const fields = review ? reviewRefundFields(subject.remainder) : orderRefundFields(subject.detail)
+  const cap = review ? Number.POSITIVE_INFINITY : attemptBalance(subject.detail, subject.attemptId)
+  const fields = review ? reviewRefundFields(subject.remainder) : orderRefundFields(subject.detail, cap)
   const returns = review ? [] : receivedReturns(subject.detail)
+  const chargebacks = review
+    ? []
+    : (subject.detail.disputes ?? []).filter((dispute) => dispute.attemptId === subject.attemptId && dispute.kind === 'chargeback')
   const [texts, setTexts] = useState<Record<string, string>>({})
   const [reason, setReason] = useState('')
   const [returnChoice, setReturnChoice] = useState('')
@@ -270,7 +277,7 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
 
   function start(event: FormEvent) {
     event.preventDefault()
-    const problem = refundProblem(reads, reason, review)
+    const problem = refundProblem(reads, reason, review, cap)
     if (problem !== null) return money.say('alert', problem)
     money.clear()
     // Frozen here: the confirmation shows, and `confirm` sends, exactly this, whatever the screen reads meanwhile.
@@ -324,6 +331,16 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
 
   return (
     <>
+      {chargebacks.length > 0 && (
+        <ul className={styles.metaList}>
+          {chargebacks.map((dispute) => (
+            <li key={dispute.id}>
+              نزاع مسجّل: {labelOf(DISPUTE_KIND_LABELS, dispute.kind)} <bdi dir="ltr">{dispute.providerRef}</bdi> {formatMoney(dispute.amount)}{' '}
+              {labelOf(DISPUTE_DIRECTION_LABELS, dispute.direction)}
+            </li>
+          ))}
+        </ul>
+      )}
       {frozen !== null ? (
         <div ref={groupRef} tabIndex={-1} className={styles.form} role="group" aria-labelledby={`${id}-total`}>
           <p id={`${id}-total`}>الإجمالي: {formatMoney(frozen.total)}</p>
@@ -420,6 +437,7 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
               </select>
             </div>
           )}
+          {!review && <p>المتبقي في الدفعة: {formatMoney(cap)}</p>}
           <p>الإجمالي: {formatMoney(total)}</p>
           <div className={styles.row}>
             <button ref={startRef} type="submit" className={styles.button} disabled={money.busy}>

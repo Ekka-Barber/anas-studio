@@ -378,7 +378,6 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
   it.each([
     ['unavailable', bad('unavailable')],
     ['refused (a 4xx)', bad('refused', 401)],
-    ['not found', bad('not_found', 404)],
     ['rate limited', bad('rate_limited', 429)],
     ['uncertain', bad('uncertain')],
   ])('a fetch that is %s answers 503 and writes nothing: no reservation, no refund call', async (_label, fetched) => {
@@ -388,6 +387,20 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
       const refused = await answer(await send(body))
       expect(refused.status).toBe(503)
       expect(refused.body).toMatchObject({ ok: false, error: { code: 'PROVIDER_UNAVAILABLE' } })
+    }
+    expect(called('refund_request')).toHaveLength(0)
+    expect(called('refund_result')).toHaveLength(0)
+    expect(client.refundPayment).not.toHaveBeenCalled()
+  })
+
+  // F1-11: a payment the configured key cannot see (a 404) will not appear by trying again: 404, never "try later".
+  it('a payment the provider does not know answers 404 NOT_FOUND and writes nothing: no reservation, no refund call', async () => {
+    client.fetchPayment.mockResolvedValue(bad('not_found', 404))
+    for (const body of [create(), createForReview()]) {
+      calls.length = 0
+      const refused = await answer(await send(body))
+      expect(refused.status).toBe(404)
+      expect(refused.body).toMatchObject({ ok: false, error: { code: 'NOT_FOUND', message: 'لم تُعثر على الدفعة لدى بوابة الدفع.' } })
     }
     expect(called('refund_request')).toHaveLength(0)
     expect(called('refund_result')).toHaveLength(0)
@@ -496,8 +509,11 @@ describe('refund-create: every provider answer becomes the outcome the SQL is to
     expect((await outcome(good(paymentOf({ refunded: 7777 })))).p_provider_refunded).toBe(7777)
   })
 
+  // F1-11: a refusal keeps the provider's HTTP status in its code, so the owner can tell a 400 from a 401.
   it.each([
-    ['a refusal (4xx)', bad('refused', 400), 'REFUND_REFUSED'],
+    ['a refusal (400)', bad('refused', 400), 'REFUND_REFUSED_400'],
+    ['a refusal (401)', bad('refused', 401), 'REFUND_REFUSED_401'],
+    ['a refusal that carried no status', bad('refused'), 'REFUND_REFUSED'],
     ['a payment the provider does not know (404)', bad('not_found', 404), 'REFUND_NOT_FOUND'],
   ])('%s is failed: nothing moved, the balance is free again', async (_label, answered, code) => {
     expect(await outcome(answered)).toEqual({ p_refund: REFUND, p_outcome: 'failed', p_provider_refunded: null, p_error: code })
@@ -584,13 +600,20 @@ describe('refund-recheck', () => {
   it.each([
     ['unavailable', bad('unavailable')],
     ['refused', bad('refused', 401)],
-    ['not found', bad('not_found', 404)],
     ['rate limited', bad('rate_limited', 429)],
   ])('a failed fetch (%s) is 503 and settles nothing: a refund is never decided from a read that failed', async (_label, fetched) => {
     client.fetchPayment.mockResolvedValue(fetched)
     const refused = await answer(await send(recheck()))
     expect(refused.status).toBe(503)
     expect(refused.body).toMatchObject({ error: { code: 'PROVIDER_UNAVAILABLE' } })
+    expect(names()).toEqual(['refund_ref'])
+  })
+
+  it('a payment the provider does not know is 404 NOT_FOUND and settles nothing', async () => {
+    client.fetchPayment.mockResolvedValue(bad('not_found', 404))
+    const refused = await answer(await send(recheck()))
+    expect(refused.status).toBe(404)
+    expect(refused.body).toMatchObject({ error: { code: 'NOT_FOUND', message: 'لم تُعثر على الدفعة لدى بوابة الدفع.' } })
     expect(names()).toEqual(['refund_ref'])
   })
 
@@ -660,10 +683,14 @@ describe('refund-record-external', () => {
     expect(called('refund_record_external')).toHaveLength(0)
   })
 
-  it('a failed fetch is 503 and records nothing', async () => {
+  it('a failed fetch is 503 and records nothing; a payment the provider does not know is 404 and records nothing', async () => {
     client.fetchPayment.mockResolvedValue(bad('unavailable'))
     const refused = await answer(await send(external()))
     expect(refused.status).toBe(503)
+    client.fetchPayment.mockResolvedValue(bad('not_found', 404))
+    const unknown = await answer(await send(external()))
+    expect(unknown.status).toBe(404)
+    expect(unknown.body).toMatchObject({ error: { code: 'NOT_FOUND', message: 'لم تُعثر على الدفعة لدى بوابة الدفع.' } })
     expect(called('refund_record_external')).toHaveLength(0)
   })
 

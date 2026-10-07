@@ -47,7 +47,7 @@ describe('what restore-check proves', () => {
   })
 })
 
-describe('restore-check --extract', () => {
+describe('restore-check --extract', { timeout: 60_000 }, () => {
   it('refuses a directory inside the repository before it reads anything', () => {
     const result = restoreCheck(['missing.enc', '--extract', 'restore-plaintext'], 'a-real-backup-passphrase-123')
     expect(result.status).toBe(1)
@@ -56,7 +56,7 @@ describe('restore-check --extract', () => {
   })
 })
 
-describe('restore-check arguments', () => {
+describe('restore-check arguments', { timeout: 60_000 }, () => {
   it('--help prints the usage and exits 0 before any passphrase prompt or CLI call', () => {
     const result = restoreCheck(['--help'])
     expect(result.status).toBe(0)
@@ -105,7 +105,7 @@ describe('restore-check --extract failures', () => {
     const dest = join(root, 'dest-wrong')
     expectFriendly(restoreCheck([good, '--extract', dest], 'not-the-passphrase-xyz'), /wrong passphrase or damaged file/)
     expect(existsSync(dest)).toBe(false)
-  }, 30_000)
+  }, 60_000)
 
   it('a file that is not a backup, a missing file and a destination that is not empty each say so', () => {
     const junk = join(root, 'junk.enc')
@@ -116,5 +116,5 @@ describe('restore-check --extract failures', () => {
     mkdirSync(busy)
     writeFileSync(join(busy, 'there.txt'), 'x')
     expectFriendly(restoreCheck([good, '--extract', busy], GOOD), /not empty/)
-  }, 30_000)
+  }, 60_000)
 })

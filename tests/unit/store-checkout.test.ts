@@ -4,8 +4,15 @@
 // page reads from its address, its verify schedule, how a payment reply is
 // read (anything unknown is `preparing`, never paid) and how the sandbox access
 // code travels. The screens themselves are in tests/e2e/cart-checkout.spec.ts.
+// FABLE-AUDIT F2b adds the digital variant's add control (one copy, no
+// quantity), the phone a digital-only cart does not send, and what the return
+// page releases for each state.
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { AddToCart } from '../../src/components/store/AddToCart'
+import { VariantAction } from '../../src/components/store/VariantAction'
 import {
   fetchQuote,
   orderSchema,
@@ -15,7 +22,7 @@ import {
   postPayments,
   quoteErrorMessage,
 } from '../../src/components/store/quote'
-import { builtPolicyRevisions, returnOrder, TEST_ACCESS_KEY, VERIFY_SCHEDULE_SECONDS } from '../../src/lib/cart'
+import { builtPolicyRevisions, phoneToSend, returnOrder, returnRelease, TEST_ACCESS_KEY, VERIFY_SCHEDULE_SECONDS } from '../../src/lib/cart'
 
 const TOKEN = 'T'.repeat(43)
 const HASH = 'a'.repeat(64)
@@ -89,6 +96,55 @@ describe('returnOrder', () => {
 describe('the verify schedule', () => {
   it('asks at 0, 2, 4, 8, 15 and 30 seconds', () => {
     expect([...VERIFY_SCHEDULE_SECONDS]).toEqual([0, 2, 4, 8, 15, 30])
+  })
+})
+
+describe('what the return page releases', () => {
+  it('ends a paid order with the cart that bought it', () => {
+    expect(returnRelease('paid')).toBe('cart')
+  })
+
+  it('ends the order and keeps the cart for every other settled state, the two review states and a refund included', () => {
+    for (const state of ['needs_resolution', 'review', 'refunded', 'expired', 'cancelled']) expect(returnRelease(state), state).toBe('order')
+  })
+
+  it('releases nothing while the payment is pending, for an order it does not know, or a state it does not know', () => {
+    for (const state of ['pending', 'unknown', '', 'PAID', 'succeeded']) expect(returnRelease(state), state).toBeNull()
+  })
+})
+
+describe('the phone a checkout sends', () => {
+  it('is the one typed, trimmed, while the cart holds a physical or signed line', () => {
+    expect(phoneToSend(true, ' 0501234567 ')).toBe('0501234567')
+    expect(phoneToSend(true, '   ')).toBeUndefined()
+    expect(phoneToSend(true, '')).toBeUndefined()
+  })
+
+  it('is none for a digital-only cart, whatever was typed before the cart changed', () => {
+    expect(phoneToSend(false, '0501234567')).toBeUndefined()
+    expect(phoneToSend(false, 'not a phone')).toBeUndefined()
+  })
+})
+
+describe('a digital variant\'s add control', () => {
+  const V = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
+
+  it('has no quantity field: one copy', () => {
+    const digital = renderToStaticMarkup(createElement(AddToCart, { variantId: V, label: 'كتاب: رقمي', digital: true }))
+    expect(digital).not.toContain('type="number"')
+    expect(digital).not.toContain('الكمية')
+    expect(digital).toContain('أضف إلى السلة')
+    const paper = renderToStaticMarkup(createElement(AddToCart, { variantId: V, label: 'كتاب: ورقي' }))
+    expect(paper).toContain('type="number"')
+    expect(paper).toContain('الكمية')
+  })
+
+  it('is what the product row passes on', () => {
+    const row = (digital?: boolean) =>
+      renderToStaticMarkup(createElement(VariantAction, { variantId: V, label: 'كتاب: رقمي', price: '12.40 ر.س', preorder: null, privacyRevision: null, digital }))
+    expect(row(true)).not.toContain('type="number"')
+    expect(row(false)).toContain('type="number"')
+    expect(row()).toContain('type="number"')
   })
 })
 

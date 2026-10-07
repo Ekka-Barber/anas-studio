@@ -1,5 +1,3 @@
-import manifest from '../../content/book-source-manifest.json'
-
 /**
  * The book's public preview (P02): the pages of «خوص» Anas approved for
  * reading before buying (E04 range, owner 2026-09-28), exported by
@@ -12,13 +10,28 @@ import manifest from '../../content/book-source-manifest.json'
  * cover). page-flip only turns left-to-right books, so the reader hands it the
  * leaves reversed; `toFlip` converts between the two orders.
  */
-export const PREVIEW_URL = manifest.output.url
+
+/**
+ * The preview file. It and `PAGE_LABELS` are the public part of
+ * `content/book-source-manifest.json` (written by `scripts/prepare-preview.py`);
+ * the manifest itself is a record (the owner's approval note, the source files
+ * and their hashes) that importing would ship whole in the reader's
+ * JavaScript (CLIENT-SEC-13), so the two are written out here, and
+ * tests/unit/book-room.test.ts fails when they disagree with it.
+ */
+export const PREVIEW_URL = '/book/khous-preview.pdf'
 
 /** Height over width of a leaf: 4:5, the cover's own shape. */
 export const PAGE_RATIO = 1.25
 
 /** The label of each preview page, by its 1-based page number. */
-export const PAGE_LABELS: ReadonlyMap<number, string> = new Map(manifest.pages.map((entry) => [entry.page, entry.label]))
+export const PAGE_LABELS: ReadonlyMap<number, string> = new Map([
+  [1, 'الإهداء'],
+  [2, 'المقدمة'],
+  [3, 'المقدمة'],
+  [4, 'من فصل «صورة الروضة»'],
+  [5, 'من فصل «صورة الروضة»'],
+])
 
 export type Leaf =
   | { kind: 'cover' }

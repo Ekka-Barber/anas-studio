@@ -920,6 +920,41 @@ describe('finance.availability_sweep', () => {
     expect(await availabilityMail(variantId)).toHaveLength(1)
   })
 
+  // FABLE-AUDIT M2-7 (FIX-A2-04): the switch alone is not an open store. The store is closed here before the restock, so
+  // the minute job, which reads the same settings, cannot send the notice in between.
+  it('does nothing while checkout is closed in effect though the switch is on (the policies unapproved, the seller unregistered), and spends no notice', async () => {
+    const variantId = await soldOut()
+    const note = await insertNote(variantId, 'confirmed')
+    const settings = await h.row('select checkout_enabled, seller_registration, policy_revisions from finance.commerce_settings where id = 1')
+    expect(settings.checkout_enabled).toBe(true)
+    const restore = (): Promise<unknown> =>
+      h.postgres.query('update finance.commerce_settings set seller_registration = $1, policy_revisions = $2::jsonb where id = 1', [
+        settings.seller_registration,
+        JSON.stringify(settings.policy_revisions),
+      ])
+    for (const [label, closing] of [
+      ['the policies unapproved', "policy_revisions = '{}'::jsonb"],
+      ['the seller unregistered', 'seller_registration = null'],
+    ] as const) {
+      await h.postgres.query(`update finance.commerce_settings set ${closing} where id = 1`)
+      try {
+        await restock(variantId)
+        await sweep()
+        expect(await availabilityOf(variantId), label).toMatchObject({ sellable: false, revision: 0 })
+        expect(await availabilityMail(variantId), label).toHaveLength(0)
+        expect((await noteById(note.id)).notified_revision, label).toBe(0)
+      } finally {
+        await setVariant(variantId, 'stock = 0')
+        await restore()
+      }
+    }
+    // Open again: the subscriber is told once.
+    await restock(variantId)
+    await sweep()
+    expect((await availabilityMail(variantId)).map((mail) => mail.dedupe_key)).toEqual([`availability:${variantId}:1:${note.id}`])
+    expect(await availabilityOf(variantId)).toMatchObject({ sellable: true, revision: 1 })
+  })
+
   it('is scheduled every minute, and nothing but the migration role and pg_cron can run it', async () => {
     const job = await h.row("select schedule, command from cron.job where jobname = 'availability-sweep'")
     expect(job).toEqual({ schedule: '* * * * *', command: 'select finance.availability_sweep()' })
@@ -1002,6 +1037,83 @@ describe('finance.notify_confirm_backlog and the caps of a confirmation mail', (
   it('is scheduled hourly', async () => {
     const job = await h.row("select schedule, command from cron.job where jobname = 'notify-confirm-backlog'")
     expect(job).toEqual({ schedule: '17 * * * *', command: 'select finance.notify_confirm_backlog()' })
+  })
+})
+
+// --- the bounce brake ------------------------------------------------------------------------------------------------
+
+// FABLE-AUDIT M2-6 (VENDOR-PAY-02): a confirmation goes to an address a visitor typed. More than 3 of them bounced or
+// complained in the last 7 days, and nothing more is queued until the run of bounces ages out; the owners are told
+// once a day.
+describe('finance.notify_confirm_queue: the bounce brake', () => {
+  beforeAll(async () => {
+    // Someone to tell.
+    await h.makeStaff('owner')
+  })
+
+  type Outcome = { reply: unknown; note: Row; mails: Row[]; alerts: Row[]; allowance: number; backlog: number }
+  /**
+   * One sign-up for a sold-out variant, in a transaction on a superuser session that is rolled back: the
+   * confirmations sent in the last 7 days are made to bounce `recent` times, with `older` more bounces sent 8 days
+   * ago (every other confirmation's delivery is cleared inside it, so the count is the test's own), and the visitor
+   * signs up as the service role does. Answers what the sign-up stored and queued, the day's brake alerts, the
+   * allowance the address spent, and what the hourly backlog then queued.
+   */
+  async function signUpWith(recent: number, older = 0): Promise<Outcome> {
+    const variantId = await soldOut()
+    const email = uniqueEmail('braked')
+    const client = await superuser()
+    await client.query('begin')
+    try {
+      await client.query("update finance.email_outbox set delivery = null where kind = 'notify_confirm' and delivery in ('bounced', 'complained')")
+      for (let i = 0; i < recent + older; i += 1) {
+        counter += 1
+        await client.query(
+          `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, sent_at, delivery)
+           values ($1, 'notify_confirm', 2, $2, '{}'::jsonb, 'sent', now() - $3::interval, $4)`,
+          [`${PREFIX}${counter}`, uniqueEmail('bounced'), i < recent ? '1 day' : '8 days', i % 2 === 0 ? 'bounced' : 'complained'],
+        )
+      }
+      await client.query('set local role service_role')
+      const reply = (await client.query('select public.notify_subscribe($1, $2, $3, 1) as r', [h.ipHash(), email, variantId])).rows[0].r
+      await client.query('set local role postgres')
+      const note = (await client.query('select * from public.notifications where email = $1 and variant_id = $2', [email, variantId])).rows[0]
+      const mails = (await client.query("select * from finance.email_outbox where payload ->> 'notificationId' = $1", [note.id])).rows
+      const day = (await client.query("select to_char(now() at time zone 'UTC', 'YYYY-MM-DD') as d")).rows[0].d as string
+      const alerts = (await client.query("select * from finance.email_outbox where kind = 'owner_alert' and dedupe_key like $1", [`confirm_mail_braked:${day}:%`])).rows
+      const allowance = Number(
+        (await client.query("select count(*)::int as n from finance.rate_limits where bucket = 'notify-confirm:email' and key_hash = $1", [sha256(email)])).rows[0].n,
+      )
+      const backlog = Number((await client.query('select finance.notify_confirm_backlog() as n')).rows[0].n)
+      return { reply, note, mails, alerts, allowance, backlog }
+    } finally {
+      await client.query('rollback')
+      await client.end()
+    }
+  }
+
+  it('with 4 bounced or complained confirmations this week queues no confirmation, spends no allowance, and alerts the owners once', async () => {
+    const braked = await signUpWith(4)
+    // The visitor is told the same: the row is stored and waits.
+    expect(braked.reply).toEqual(OK)
+    expect(braked.note).toMatchObject({ status: 'pending', confirm_sent_at: null })
+    expect(braked.mails).toEqual([])
+    expect(braked.allowance).toBe(0)
+    // Nor does the hourly backlog get round it.
+    expect(braked.backlog).toBe(0)
+    expect(braked.alerts.length).toBeGreaterThan(0)
+    for (const alert of braked.alerts) expect(alert).toMatchObject({ kind: 'owner_alert', priority: 0, payload: { alert: 'confirm_mail_braked', bounced: 4 } })
+    // One per owner: the sign-up and the backlog's try both met the brake, and the day's key took the second.
+    expect(new Set(braked.alerts.map((alert) => alert.recipient)).size).toBe(braked.alerts.length)
+  })
+
+  it('with 3 this week (and an older one) it queues as before, and nobody is alerted', async () => {
+    const open = await signUpWith(3, 1)
+    expect(open.reply).toEqual(OK)
+    expect(open.mails.map((mail) => mail.kind)).toEqual(['notify_confirm'])
+    expect(open.note.confirm_sent_at).toBeInstanceOf(Date)
+    expect(open.allowance).toBe(1)
+    expect(open.alerts).toEqual([])
   })
 })
 

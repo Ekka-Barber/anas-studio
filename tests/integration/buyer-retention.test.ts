@@ -36,17 +36,21 @@ async function customer(daysAgo: number): Promise<string> {
   return rows[0]!.id
 }
 
-async function order(customerId: string, status: string, endedDaysAgo: number): Promise<string> {
+/**
+ * An order that ended `endedDaysAgo` days ago. Live by default: what money or work keeps an order is the live rule, and a
+ * test-environment order (sandbox payments, no money) has its own (FABLE-AUDIT M2-12).
+ */
+async function order(customerId: string, status: string, endedDaysAgo: number, environment: 'test' | 'live' = 'live'): Promise<string> {
   const { rows } = await postgres.query<{ id: string }>(
     `insert into finance.orders (order_number, access_token_hash, access_token_expires_at, customer_id, customer_email,
        customer_name, customer_phone, seller, policy_revisions, subtotal_halalas, discount_halalas, shipping_halalas,
        total_halalas, environment, idempotency_key, request_hash, checkout_session, email_hash, status, hold_expires_at,
        created_at, updated_at)
-     values ($1, $2, now(), $3, 'buyer@example.com', 'مشترٍ', '966501234567', '{}', '{}', 1000, 0, 0, 1000, 'test',
+     values ($1, $2, now(), $3, 'buyer@example.com', 'مشترٍ', '966501234567', '{}', '{}', 1000, 0, 0, 1000, $6,
        gen_random_uuid(), $2, gen_random_uuid(), $2, $4, now() - make_interval(days => $5),
        now() - make_interval(days => $5 + 1), now() - make_interval(days => $5))
      returning id`,
-    [orderNumber(), hash(), customerId, status, endedDaysAgo],
+    [orderNumber(), hash(), customerId, status, endedDaysAgo, environment],
   )
   return rows[0]!.id
 }
@@ -64,7 +68,7 @@ async function attempt(
   const { rows } = await postgres.query<{ id: string }>(
     `insert into finance.payment_attempts (order_id, status, amount_halalas, environment, invoice_expires_at,
        provider_invoice_id, provider_payment_id, last_error, next_check_at)
-     values ($1, $2, 1000, 'test', now() - interval '95 days', $3, $4, $5,
+     values ($1, $2, 1000, (select o.environment from finance.orders o where o.id = $1), now() - interval '95 days', $3, $4, $5,
        case when $6::boolean then now() + interval '1 day' end)
      returning id`,
     [orderId, status, randomUUID(), extra.payment ?? null, extra.lastError ?? null, extra.due ?? false],
@@ -233,6 +237,48 @@ describe('buyer retention (D42)', () => {
       }
       // The buyer still has orders, so the profile stays.
       expect(await exists('public.customers', buyer)).toBe(true)
+    } finally {
+      await postgres.query('rollback')
+    }
+  })
+
+  // FABLE-AUDIT M2-12 (OPS-PRIVACY-20): sandbox payments are no money, so a test-environment order goes 90 days after it
+  // ended whatever its payment, with the rows a paid order has; work still attached keeps it, and a live one stays.
+  it('purges a paid test-environment order 90 days after it ended, with its payment rows; one with work attached, a younger one and a live one stay', async () => {
+    await postgres.query('begin')
+    try {
+      const buyer = await customer(120)
+      const attempts = async (orderId: string): Promise<number> =>
+        (await postgres.query('select 1 from finance.payment_attempts where order_id = $1', [orderId])).rowCount ?? 0
+      const refunded = async (orderId: string): Promise<string> => {
+        const paying = await attempt(orderId, 'paid', { payment: randomUUID() })
+        await postgres.query(
+          `insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, source, succeeded_at)
+           values ($1, $2, 1000, 'استرداد', 'succeeded', 'admin', now() - interval '91 days')`,
+          [orderId, paying],
+        )
+        return paying
+      }
+      const sandbox = await order(buyer, 'refunded', 91, 'test')
+      await refunded(sandbox)
+      const young = await order(buyer, 'paid', 10, 'test')
+      await attempt(young, 'paid', { payment: randomUUID() })
+      const working = await order(buyer, 'paid', 91, 'test')
+      await attempt(working, 'paid', { payment: randomUUID() })
+      await attempt(working, 'pending')
+      const live = await order(buyer, 'refunded', 91)
+      await refunded(live)
+
+      await postgres.query('select finance.buyer_retention_purge()')
+
+      expect(await exists('finance.orders', sandbox)).toBe(false)
+      expect(await attempts(sandbox)).toBe(0)
+      expect((await postgres.query('select 1 from finance.refunds where order_id = $1', [sandbox])).rowCount).toBe(0)
+      for (const [label, id] of Object.entries({ young, working, live })) {
+        expect(await exists('finance.orders', id), label).toBe(true)
+        expect(await attempts(id), label).toBeGreaterThan(0)
+      }
+      expect((await postgres.query('select 1 from finance.refunds where order_id = $1', [live])).rowCount).toBe(1)
     } finally {
       await postgres.query('rollback')
     }

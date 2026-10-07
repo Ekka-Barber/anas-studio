@@ -7,7 +7,9 @@
  * denied — the memory cart keeps it for the tab. After adding it says so and
  * links to the cart. A variant that is a preorder right now (`preorder`, from
  * `VariantAction`) says «اطلب مسبقًا» on its button: the same cart line, and
- * the cart and the checkout carry its note and date before payment.
+ * the cart and the checkout carry its note and date before payment. A digital
+ * variant (`digital`) is one copy: no quantity field, and a second add changes
+ * nothing and says the book is in the cart.
  */
 // Relative, not `@/`: the unit tests import `VariantAction`, which imports this file, and the unit config has no alias.
 import Link from 'next/link'
@@ -24,7 +26,17 @@ function toQuantity(text: string): number {
   return Number.isFinite(next) ? Math.min(MAX_QUANTITY, Math.max(1, next)) : 1
 }
 
-export function AddToCart({ variantId, label, preorder = false }: { variantId: string; label: string; preorder?: boolean }) {
+export function AddToCart({
+  variantId,
+  label,
+  preorder = false,
+  digital = false,
+}: {
+  variantId: string
+  label: string
+  preorder?: boolean
+  digital?: boolean
+}) {
   const verb = preorder ? 'اطلب مسبقًا' : 'أضف إلى السلة'
   // The field keeps a draft so it can be emptied and retyped; leaving it clamps.
   const [draft, setDraft] = useState('1')
@@ -33,13 +45,14 @@ export function AddToCart({ variantId, label, preorder = false }: { variantId: s
   const [note, setNote] = useState('')
 
   function add() {
-    const quantity = toQuantity(draft)
+    const quantity = digital ? 1 : toQuantity(draft)
     setDraft(String(quantity))
     const { cart } = readCart()
-    const next = addLine(cart, { variantId, quantity })
+    const next = addLine(cart, { variantId, quantity }, digital)
     const added = cartCount(next) - cartCount(cart)
     if (added === 0) {
-      setNote(`لم يُضف شيء: الحد الأقصى ${MAX_QUANTITY} لكل منتج و${MAX_LINES} منتجًا في السلة.`)
+      const held = digital && cart.lines.some((line) => line.variantId === variantId.toLowerCase())
+      setNote(held ? 'الكتاب الرقمي في سلتك.' : `لم يُضف شيء: الحد الأقصى ${MAX_QUANTITY} لكل منتج و${MAX_LINES} منتجًا في السلة.`)
       return
     }
     writeCart(next)
@@ -53,20 +66,22 @@ export function AddToCart({ variantId, label, preorder = false }: { variantId: s
 
   return (
     <div className={styles.addToCart}>
-      <label className={styles.quantityLabel}>
-        الكمية
-        <span className="visually-hidden">: {label}</span>
-        <input
-          className={styles.quantityInput}
-          type="number"
-          min={1}
-          max={MAX_QUANTITY}
-          inputMode="numeric"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => setDraft(String(toQuantity(draft)))}
-        />
-      </label>
+      {!digital && (
+        <label className={styles.quantityLabel}>
+          الكمية
+          <span className="visually-hidden">: {label}</span>
+          <input
+            className={styles.quantityInput}
+            type="number"
+            min={1}
+            max={MAX_QUANTITY}
+            inputMode="numeric"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onBlur={() => setDraft(String(toQuantity(draft)))}
+          />
+        </label>
+      )}
       <ActionButton onClick={add} aria-label={`${verb}: ${label}`}>
         {verb}
       </ActionButton>

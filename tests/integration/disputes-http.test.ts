@@ -5,10 +5,12 @@
 // `apply_verified_payment` (the shared fixtures of `support.ts`): a dispute is recorded by hand from Moyasar's emails, so
 // nothing here reaches Moyasar and no emulator is needed; the function only needs its payment settings to know the mode.
 // This file switches `finance.commerce_settings.checkout_enabled` on, saved and restored by the fixtures.
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { handleAdmin } from '../../supabase/functions/_shared/admin.ts'
 
 import { commerceHarness, type Harness, type Paid, type Row, signIn, status, stepUp } from './support'
 
@@ -44,9 +46,11 @@ afterAll(async () => {
   await h.stop()
 })
 
-async function adminCall(client: SupabaseClient | null, body: Record<string, unknown>): Promise<{ status: number; body: any }> {
+/** Calls the admin function as `caller`: a signed-in client, a raw access token, or no one (the publishable key only). */
+async function adminCall(caller: SupabaseClient | string | null, body: Record<string, unknown>): Promise<{ status: number; body: any }> {
   const headers: Record<string, string> = { 'content-type': 'application/json', apikey: status.PUBLISHABLE_KEY }
-  if (client) headers.authorization = `Bearer ${(await client.auth.getSession()).data.session!.access_token}`
+  const token = typeof caller === 'string' ? caller : caller ? (await caller.auth.getSession()).data.session!.access_token : null
+  if (token) headers.authorization = `Bearer ${token}`
   const response = await fetch(`${FUNCTIONS_URL}/admin`, { method: 'POST', headers, body: JSON.stringify(body) })
   return { status: response.status, body: await response.json() }
 }
@@ -188,8 +192,8 @@ describe('dispute-record and stats through the real admin function', () => {
       expect(refused.status).toBe(403)
       expect(refused.body).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
     }
-    // No session at all.
-    expect([401, 403]).toContain((await adminCall(null, record(p, { providerRef }))).status)
+    // No session at all: the function's own answer (the gateway lets the publishable key through).
+    expect(await adminCall(null, record(p, { providerRef }))).toMatchObject({ status: 401, body: { ok: false, error: { code: 'UNAUTHENTICATED' } } })
     expect(await rowsOf(providerRef)).toHaveLength(0)
     expect(await disputeCount()).toBe(before)
 
@@ -228,6 +232,49 @@ describe('dispute-record and stats through the real admin function', () => {
       expect(refused.body).toMatchObject({ ok: false, error: { code: 'INVALID' } })
     }
     for (const client of [operations, editor]) expect((await adminCall(client, { action: 'stats' })).status).toBe(403)
-    expect((await adminCall(null, { action: 'stats' })).status).toBeGreaterThanOrEqual(401)
+    expect(await adminCall(null, { action: 'stats' })).toMatchObject({ status: 401, body: { ok: false, error: { code: 'UNAUTHENTICATED' } } })
+  })
+
+  // FABLE-AUDIT T-8 (TEST-DB-07): the step-up is read from the token's claims (aal, amr), so a token whose payload was
+  // edited, or one that another key signed, must never pass for a real one. Both are refused by the gateway
+  // (verify_jwt) and, without it, by the handler's own staff check (getClaims, called in process here), and nothing is
+  // written.
+  it('a token whose claims were edited to a fresh TOTP, or that another key signed, is 401 and writes nothing', async () => {
+    const p = await h.paid([{ variantId: await h.digital(2500), quantity: 1 }])
+    const providerRef = ref('FORGED')
+    const before = await disputeCount()
+    // A real owner at aal1: the step-up is all that stands between this session and a write.
+    const owner = await signIn((await h.makeStaff('owner')).email)
+    expect(await adminCall(owner, record(p, { providerRef }))).toMatchObject({ status: 403, body: { error: { code: 'STEP_UP_REQUIRED' } } })
+
+    const [header, payload, signature] = (await owner.auth.getSession()).data.session!.access_token.split('.')
+    const claims = JSON.parse(Buffer.from(payload!, 'base64url').toString('utf8'))
+    const now = Math.floor(Date.now() / 1000)
+    const raised = Buffer.from(JSON.stringify({ ...claims, aal: 'aal2', amr: [{ method: 'totp', timestamp: now }, ...(claims.amr ?? [])] })).toString('base64url')
+    const hs256 = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const forgeries = {
+      'the payload edited, the old signature kept': `${header}.${raised}.${signature}`,
+      'signed with another key': `${hs256}.${raised}.${createHmac('sha256', randomBytes(32)).update(`${hs256}.${raised}`).digest('base64url')}`,
+    }
+    vi.stubEnv('SUPABASE_URL', status.API_URL)
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', status.SECRET_KEY)
+    try {
+      for (const [label, token] of Object.entries(forgeries)) {
+        expect((await adminCall(token, record(p, { providerRef }))).status, label).toBe(401)
+        const direct = await handleAdmin(
+          new Request(`${FUNCTIONS_URL}/admin`, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: JSON.stringify(record(p, { providerRef })),
+          }),
+        )
+        expect(direct.status, label).toBe(401)
+        expect(await direct.json(), label).toMatchObject({ ok: false, error: { code: 'UNAUTHENTICATED' } })
+      }
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    expect(await rowsOf(providerRef)).toHaveLength(0)
+    expect(await disputeCount()).toBe(before)
   })
 })

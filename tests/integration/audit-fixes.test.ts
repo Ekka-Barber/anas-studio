@@ -90,13 +90,26 @@ describe('S01.4: no password sign-in', () => {
     const set = await serviceClient.auth.admin.updateUserById(staff.userId, { password })
     expect(set.error).toBeNull()
 
-    const response = await fetch(`${status.API_URL}/auth/v1/token?grant_type=password`, {
-      method: 'POST',
-      headers: { apikey: status.PUBLISHABLE_KEY, 'content-type': 'application/json' },
-      body: JSON.stringify({ email: staff.email, password }),
-    })
+    const passwordGrant = (body: Record<string, unknown>) =>
+      fetch(`${status.API_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { apikey: status.PUBLISHABLE_KEY, 'content-type': 'application/json' },
+        body: JSON.stringify({ email: staff.email, password, ...body }),
+      })
+
+    // The sign-in CAPTCHA (F2a) is a control of its own: a request without a token stops there.
+    const withoutToken = await passwordGrant({})
+    expect(withoutToken.status).toBe(400)
+    const refusedByCaptcha = (await withoutToken.json()) as { error_code?: string; access_token?: string }
+    expect(refusedByCaptcha.error_code).toBe('captcha_failed')
+    expect(refusedByCaptcha.access_token).toBeUndefined()
+
+    // Past it (the local test secret accepts any token), the deny-password hook refuses the grant.
+    const response = await passwordGrant({ gotrue_meta_security: { captcha_token: 'local-test' } })
     expect(response.status).toBe(403)
-    expect(((await response.json()) as { access_token?: string }).access_token).toBeUndefined()
+    const refused = (await response.json()) as { access_token?: string }
+    expect(refused.access_token).toBeUndefined()
+    expect(JSON.stringify(refused)).toContain('Password sign-in is disabled')
 
     const client = await signIn(staff.email)
     expect((await client.auth.getSession()).data.session).not.toBeNull()
@@ -138,6 +151,90 @@ describe('S01.5: functions are deny-by-default', () => {
         }
       }
     })
+  })
+})
+
+// FABLE-AUDIT T-2 (TEST-DB-01, PLANS/VERIFICATION.md:22): no API role can create objects (no runtime DDL), finance is
+// not even visible to anon or authenticated, and every relation those two can reach is behind row-level security. The
+// grants are pinned as the catalog answers them (table-wide, or the columns of a column grant; through PUBLIC or a role
+// membership too): a new grant fails here until it is added to the list on purpose.
+describe('TEST-DB-01: schemas and tables are deny-by-default', () => {
+  it('no API role may create in public or finance, and anon and authenticated cannot use finance', async () => {
+    const rows = (
+      await postgres.query<{ role: string; schema: string; create: boolean; usage: boolean }>(
+        `select r.role, s.schema,
+                has_schema_privilege(r.role, s.schema, 'CREATE') as create,
+                has_schema_privilege(r.role, s.schema, 'USAGE') as usage
+           from unnest(array['anon', 'authenticated', 'service_role']) as r(role)
+          cross join unnest(array['public', 'finance']) as s(schema)`,
+      )
+    ).rows
+    expect(rows).toHaveLength(6)
+    expect(rows.filter((row) => row.create)).toEqual([])
+    expect(rows.filter((row) => row.schema === 'finance' && row.role !== 'service_role' && row.usage)).toEqual([])
+  })
+
+  it('anon and authenticated hold exactly the allowed privileges, each on a table behind RLS or a security-invoker view', async () => {
+    const rows = (
+      await postgres.query<{ entry: string; kind: string; rls: boolean; invoker: boolean }>(
+        `select r.role || ' ' || p.priv || ' ' || n.nspname || '.' || c.relname ||
+                case when has_table_privilege(r.role, c.oid, p.priv) then ''
+                     else ' (' || (select string_agg(a.attname, ', ' order by a.attnum)
+                                     from pg_attribute a
+                                    where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
+                                      and has_column_privilege(r.role, c.oid, a.attnum, p.priv)) || ')'
+                end as entry,
+                c.relkind::text as kind,
+                c.relrowsecurity as rls,
+                coalesce('security_invoker=true' = any(c.reloptions), false) as invoker
+           from pg_class c
+           join pg_namespace n on n.oid = c.relnamespace
+          cross join unnest(array['anon', 'authenticated']) as r(role)
+          cross join unnest(array['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']) as p(priv)
+          where n.nspname in ('public', 'finance')
+            and c.relkind in ('r', 'p', 'v', 'm', 'f')
+            and (has_table_privilege(r.role, c.oid, p.priv)
+                 or (p.priv in ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES') and has_any_column_privilege(r.role, c.oid, p.priv)))`,
+      )
+    ).rows
+    // Row-level security filters a table's rows; a view applies its caller's rights (and so the tables' RLS) only when
+    // it is security_invoker. A materialized view or a foreign table has neither.
+    const unguarded = rows.filter((row) => !(((row.kind === 'r' || row.kind === 'p') && row.rls) || (row.kind === 'v' && row.invoker)))
+    expect(unguarded.map((row) => row.entry)).toEqual([])
+    expect(rows.map((row) => row.entry).sort()).toEqual([
+      'anon SELECT public.media (id, alt_ar, derivatives)',
+      'anon SELECT public.product_variants (id, product_id, sku, title, fulfillment, price_halalas, enabled, sort_order, preorder, preorder_ships_on, preorder_note)',
+      'anon SELECT public.products',
+      'anon SELECT public.published_documents',
+      'anon SELECT public.shipping_rates (id, city_key, name_ar, fee_halalas, enabled, sort_order)',
+      'authenticated DELETE public.coupons',
+      'authenticated DELETE public.product_variants',
+      'authenticated DELETE public.products',
+      'authenticated DELETE public.shipping_rates',
+      'authenticated INSERT public.content_versions (collection, doc_id, seq, data)',
+      'authenticated INSERT public.coupons (code, kind, percent_bp, amount_halalas, starts_at, ends_at, min_subtotal_halalas, usage_limit, product_ids, enabled)',
+      'authenticated INSERT public.product_variants (product_id, sku, title, fulfillment, price_halalas, enabled, stock, low_stock_threshold, sort_order, preorder, preorder_capacity, preorder_ships_on, preorder_note)',
+      'authenticated INSERT public.products (slug, title, summary, body, cover_image, status, sort_order)',
+      'authenticated INSERT public.shipping_rates (city_key, name_ar, fee_halalas, enabled, sort_order)',
+      'authenticated SELECT public.audit_events',
+      'authenticated SELECT public.content_documents',
+      'authenticated SELECT public.content_versions',
+      'authenticated SELECT public.coupons',
+      'authenticated SELECT public.customers',
+      'authenticated SELECT public.media',
+      'authenticated SELECT public.notifications',
+      'authenticated SELECT public.product_variants',
+      'authenticated SELECT public.products',
+      'authenticated SELECT public.published_documents',
+      'authenticated SELECT public.shipping_rates',
+      'authenticated SELECT public.staff',
+      'authenticated UPDATE public.coupons (code, kind, percent_bp, amount_halalas, starts_at, ends_at, min_subtotal_halalas, usage_limit, product_ids, enabled)',
+      'authenticated UPDATE public.customers (name, phone)',
+      'authenticated UPDATE public.media (name, folder, alt_ar, caption, rights)',
+      'authenticated UPDATE public.product_variants (product_id, sku, title, fulfillment, price_halalas, enabled, stock, low_stock_threshold, sort_order, preorder, preorder_capacity, preorder_ships_on, preorder_note)',
+      'authenticated UPDATE public.products (slug, title, summary, body, cover_image, status, sort_order)',
+      'authenticated UPDATE public.shipping_rates (city_key, name_ar, fee_halalas, enabled, sort_order)',
+    ])
   })
 })
 

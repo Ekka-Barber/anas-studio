@@ -9,6 +9,7 @@ import { createOwner, readCodeFromMailpit, SENT_MESSAGE, totpCode, uniqueEmail }
 test('an unknown email gets the identical sent message', async ({ page }) => {
   await page.goto('/admin/sign-in')
   await page.getByLabel('البريد الإلكتروني').fill(uniqueEmail('unknown'))
+  await expect(page.getByRole('button', { name: 'أرسل الرمز' })).toBeEnabled()
   await page.getByRole('button', { name: 'أرسل الرمز' }).click()
   await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
 })
@@ -19,6 +20,7 @@ test('sign-in by code reaches /admin, enrols TOTP, and invites a member through 
 
   await page.goto('/admin/sign-in')
   await page.getByLabel('البريد الإلكتروني').fill(email)
+  await expect(page.getByRole('button', { name: 'أرسل الرمز' })).toBeEnabled()
   await page.getByRole('button', { name: 'أرسل الرمز' }).click()
   await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
 
@@ -43,6 +45,7 @@ test('sign-in by code reaches /admin, enrols TOTP, and invites a member through 
   await page.locator('nav').getByRole('button', { name: 'تسجيل الخروج' }).click()
   await expect(page).toHaveURL(/\/admin\/sign-in$/)
   await page.getByLabel('البريد الإلكتروني').fill(email)
+  await expect(page.getByRole('button', { name: 'أرسل الرمز' })).toBeEnabled()
   await page.getByRole('button', { name: 'أرسل الرمز' }).click()
   await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
   await page.getByLabel('رمز الدخول').fill(await readCodeFromMailpit(email, code))

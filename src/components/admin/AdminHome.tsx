@@ -24,19 +24,21 @@ type Count = { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: n
 
 const JOB_LABEL: Record<string, string> = {
   email_outbox: 'إرسال البريد',
+  payments_reconcile: 'مطابقة المدفوعات',
   site_build: 'بناء الموقع',
   media_sweep: 'تنظيف الوسائط',
   backup: 'النسخ الاحتياطي',
 }
 const JOB_STATUS_LABEL: Record<string, string> = { ok: 'سليم', partial: 'جزئي', failed: 'فاشل', skipped: 'متجاوز' }
 /** Jobs that exist in code today; a job with no run yet shows «لم يعمل بعد». */
-const KNOWN_JOBS = ['email_outbox', 'site_build', 'media_sweep', 'backup'] as const
+const KNOWN_JOBS = ['email_outbox', 'payments_reconcile', 'site_build', 'media_sweep', 'backup'] as const
 
 /** How old a last completion may be before the cron probably died and the
  * recorded «سليم» is stale (M4). The site build runs only after a publish,
  * so it has no limit; the media sweep runs daily. The email job has no entry
  * (I35): since D32 it runs only while mail is due, so it warns by its own
- * rule in `emailWaiting` instead of by its last run's age. */
+ * rule in `emailWaiting` instead of by its last run's age; so does the payment
+ * reconciliation (P08), which runs only while payment work is due. */
 const STALE_JOB_MS: Partial<Record<string, number>> = {
   media_sweep: 26 * 60 * 60 * 1000,
   backup: 30 * 24 * 60 * 60 * 1000,
@@ -44,9 +46,10 @@ const STALE_JOB_MS: Partial<Record<string, number>> = {
 /** The backup is run by Anas himself (D35), not by a schedule, so its stale
  * and never-run texts name the backup instead of telling him to check a
  * scheduler; a manual job has no schedule to check. The email job's text
- * names the waiting mail (I35). */
+ * names the waiting mail (I35), the reconciliation's the waiting payments. */
 const JOB_STALE_TEXT: Partial<Record<string, string>> = {
   email_outbox: 'بريد ينتظر الإرسال منذ أكثر من 10 دقائق. تأكد من الجدولة.',
+  payments_reconcile: 'مدفوعات تنتظر المطابقة منذ أكثر من 10 دقائق. تأكد من الجدولة.',
   backup: 'آخر نسخة احتياطية أقدم من 30 يومًا.',
 }
 const JOB_NEVER_TEXT: Partial<Record<string, string>> = {
@@ -59,6 +62,9 @@ const QUOTA_HELD_TEXT = 'بريد محجوز بسبب حدّ الإرسال. ي�
 /** `site_build` skipped with `NO_HOOK`: no rebuild hook is set, so a publish
  * is recorded but the site is never rebuilt. */
 const NO_HOOK_TEXT = 'رابط بناء الموقع غير مضبوط، فلن يُعاد بناء الموقع عند النشر.'
+/** `payments_reconcile` skipped with `PAYMENTS_NOT_CONFIGURED`: the payment
+ * settings are not working, so nothing is reconciled. */
+const PAYMENTS_OFF_TEXT = 'الدفع غير مضبوط؛ المطابقة متوقفة.'
 /** How far back the owner home lists `content.publish_due_failed` events. */
 const PUBLISH_FAILED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 /** `outbox_attention()` caps its result at 200 rows (its SQL limit), so a
@@ -141,11 +147,17 @@ export function emailWaiting(run: JobRun | undefined, dueSince: string | null): 
 }
 
 /** What a job line says in place of its last run when something is wrong
- * with it, or null when the job is healthy. */
+ * with it, or null when the job is healthy. `dueSince` is the job's own: the
+ * outbox's for the email job, the payment work's for the reconciliation. */
 export function jobProblem(job: string, run: JobRun | undefined, dueSince: string | null): string | null {
   if (job === 'email_outbox') {
     if (!emailWaiting(run, dueSince)) return null
     return isQuotaHeld(run) ? QUOTA_HELD_TEXT : (JOB_STALE_TEXT.email_outbox ?? STALE_TEXT)
+  }
+  if (job === 'payments_reconcile') {
+    if (run?.status === 'skipped' && run.detail?.reason === 'PAYMENTS_NOT_CONFIGURED') return PAYMENTS_OFF_TEXT
+    // The email job's 10-minute rule (its run never records QUOTA_HELD).
+    return emailWaiting(run, dueSince) ? (JOB_STALE_TEXT.payments_reconcile ?? STALE_TEXT) : null
   }
   if (job === 'site_build' && run?.status === 'skipped' && run.detail?.reason === 'NO_HOOK') return NO_HOOK_TEXT
   return run !== undefined && isStaleRun(run) ? (JOB_STALE_TEXT[job] ?? STALE_TEXT) : null
@@ -156,7 +168,7 @@ export function AdminHome() {
   const [ownError, setOwnError] = useState(false)
   const [emailProblems, setEmailProblems] = useState<Count>(LOADING)
   const [jobRuns, setJobRuns] = useState<
-    { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: string | null }
+    { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: Partial<Record<string, string | null>> }
   >({ state: 'loading' })
   const [scheduled, setScheduled] = useState<Count>(LOADING)
   const [orders, setOrders] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: OrdersAlerts }>({
@@ -190,15 +202,23 @@ export function AdminHome() {
 
     async function loadJobs() {
       const supabase = getSupabaseBrowserClient()
-      const [runs, due] = await Promise.all([
+      const [runs, due, paymentsDue] = await Promise.all([
         supabase.rpc('job_runs_latest'),
         supabase.rpc('outbox_due_since'),
+        supabase.rpc('payments_due_since'),
       ])
       if (!active) return
       setJobRuns(
-        runs.error || due.error
+        runs.error || due.error || paymentsDue.error
           ? { state: 'error' }
-          : { state: 'ok', value: (runs.data as JobRun[]) ?? [], dueSince: (due.data as string | null) ?? null },
+          : {
+              state: 'ok',
+              value: (runs.data as JobRun[]) ?? [],
+              dueSince: {
+                email_outbox: (due.data as string | null) ?? null,
+                payments_reconcile: (paymentsDue.data as string | null) ?? null,
+              },
+            },
       )
     }
 
@@ -371,7 +391,7 @@ export function AdminHome() {
             <ul className={styles.metaList}>
               {KNOWN_JOBS.map((job) => {
                 const run = jobRuns.value.find((row) => row.job === job)
-                const problem = jobProblem(job, run, jobRuns.dueSince)
+                const problem = jobProblem(job, run, jobRuns.dueSince[job] ?? null)
                 return (
                   <li key={job}>
                     {JOB_LABEL[job] ?? job}:{' '}

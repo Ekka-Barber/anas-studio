@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { archiveDocument, publishDocument, scheduleDocument } from '../../src/lib/admin-publish'
+import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument } from '../../src/lib/admin-publish'
 
 import { anonClient, createStaff, signIn } from './support'
 
@@ -171,6 +171,83 @@ describe('archiveDocument', () => {
     expect(await archiveDocument('posts', docId)).toEqual({ ok: true })
     expect(await liveData('posts', docId)).toEqual([])
     expect(await buildRequestedAt()).not.toBeNull()
+  })
+})
+
+// FABLE-AUDIT T-6 (TEST-DB-08): like publish_version, these four are granted to every signed-in session, and their own
+// check (content_assert_publisher, or current_staff_role for media_product_usage) lets only an active owner or editor
+// in. None of them refuses an editor.
+describe('scheduling, unscheduling, archiving and the media usage read', () => {
+  /** A live taxonomy (seq 1) with seq 2 scheduled an hour ahead, made by `editor` through the admin's own calls. */
+  async function liveAndScheduled(editor: SupabaseClient, docId: string): Promise<void> {
+    const draft = async (seq: number, label: string) =>
+      expect((await editor.from('content_versions').insert({ collection: 'taxonomies', doc_id: docId, seq, data: { kind: 'tag', label } })).error).toBeNull()
+    await draft(1, 'أول')
+    expect(await publishDocument('taxonomies', docId, 1)).toEqual({ ok: true })
+    await draft(2, 'ثان')
+    expect(await scheduleDocument('taxonomies', docId, 2, new Date(Date.now() + 3_600_000).toISOString())).toEqual({ ok: true })
+  }
+  /** Nothing of the document stays behind, so no schedule falls due later. */
+  async function remove(docId: string): Promise<void> {
+    await postgres.query("delete from public.published_documents where collection = 'taxonomies' and doc_id = $1", [docId])
+    await postgres.query("delete from public.content_versions where collection = 'taxonomies' and doc_id = $1", [docId])
+  }
+
+  it('an operations member and a revoked editor are refused by each with insufficient_privilege, and nothing changes', async () => {
+    const editor = await as('editor')
+    const docId = uniqueSlug('tax-refused')
+    try {
+      await liveAndScheduled(editor, docId)
+      const state = async () => ({
+        live: await liveData('taxonomies', docId),
+        scheduled: (
+          await postgres.query("select seq, publish_at from public.content_versions where collection = 'taxonomies' and doc_id = $1 and publish_at is not null", [docId])
+        ).rows,
+      })
+      const before = await state()
+      expect(before.live).toEqual([{ kind: 'tag', label: 'أول' }])
+      expect(before.scheduled.map((row) => row.seq)).toEqual([2])
+
+      const operations = await signIn((await createStaff('operations')).email)
+      const member = await createStaff('editor')
+      const revoked = await signIn(member.email)
+      await postgres.query('update public.staff set active = false where user_id = $1', [member.userId])
+      const calls: Record<string, Record<string, unknown>> = {
+        schedule_version: { p_collection: 'taxonomies', p_doc_id: docId, p_seq: 2, p_at: new Date(Date.now() + 7_200_000).toISOString() },
+        cancel_schedule: { p_collection: 'taxonomies', p_doc_id: docId },
+        archive_document: { p_collection: 'taxonomies', p_doc_id: docId },
+        media_product_usage: { p_id: randomUUID() },
+      }
+      for (const [label, client] of [['operations', operations], ['revoked editor', revoked]] as const) {
+        for (const [fn, args] of Object.entries(calls)) {
+          expect((await client.rpc(fn, args)).error?.code, `${label}: ${fn}`).toBe('42501')
+        }
+      }
+      expect(await state()).toEqual(before)
+      // An active editor passes the same check: the refusals above are the role check, not the arguments.
+      expect((await editor.rpc('media_product_usage', { p_id: randomUUID() })).error).toBeNull()
+    } finally {
+      await remove(docId)
+    }
+  })
+
+  it('cancel_schedule takes back the pending schedule and nothing else: the live version stays, and the audit names the editor', async () => {
+    const editor = await as('editor')
+    const docId = uniqueSlug('tax-unschedule')
+    try {
+      await liveAndScheduled(editor, docId)
+      const listed = async () =>
+        (await editor.from('content_documents').select('live_seq, scheduled_seq').eq('collection', 'taxonomies').eq('doc_id', docId)).data
+      expect(await listed()).toEqual([{ live_seq: 1, scheduled_seq: 2 }])
+
+      expect(await cancelSchedule('taxonomies', docId)).toEqual({ ok: true })
+      expect(await listed()).toEqual([{ live_seq: 1, scheduled_seq: null }])
+      expect(await liveData('taxonomies', docId)).toEqual([{ kind: 'tag', label: 'أول' }])
+      const audit = await postgres.query("select actor from public.audit_events where action = 'content.unschedule' and entity_id = $1", [docId])
+      expect(audit.rows).toEqual([{ actor: (await editor.auth.getUser()).data.user!.id }])
+    } finally {
+      await remove(docId)
+    }
   })
 })
 

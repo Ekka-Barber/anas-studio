@@ -128,3 +128,43 @@ describe('verifyTurnstile', () => {
     expect(await verifyTurnstile({ ...base, secret: PASS_SECRET })).toEqual({ ok: true })
   })
 })
+
+// FABLE-AUDIT T-13: the request itself. A wrong URL or field name would fail every visitor against the real siteverify,
+// and the visitor's address must not be sent when there is none.
+describe('the siteverify request', () => {
+  /** Records every request and answers a valid challenge. */
+  function capture(): Array<{ url: string; init: RequestInit }> {
+    const calls: Array<{ url: string; init: RequestInit }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        calls.push({ url: String(url), init })
+        return new Response(JSON.stringify({ success: true, action: 'contact', hostname: 'anas.studio' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }),
+    )
+    return calls
+  }
+
+  it('posts the secret, the token and the visitor address as JSON to Cloudflare, with a timeout', async () => {
+    const calls = capture()
+    expect(await verifyTurnstile({ ...base, secret: REAL_SECRET })).toEqual({ ok: true })
+    expect(calls).toHaveLength(1)
+    expect(calls[0]!.url).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify')
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(new Headers(calls[0]!.init.headers).get('content-type')).toBe('application/json')
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ secret: REAL_SECRET, response: 'tok', remoteip: '203.0.113.7' })
+    expect(calls[0]!.init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it.each([
+    ['no address', undefined],
+    ["the literal 'local' (a direct local call)", 'local'],
+  ])('with %s, remoteip is left out of the body', async (_label, remoteIp) => {
+    const calls = capture()
+    expect(await verifyTurnstile({ ...base, remoteIp, secret: REAL_SECRET })).toEqual({ ok: true })
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ secret: REAL_SECRET, response: 'tok' })
+  })
+})

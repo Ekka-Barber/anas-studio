@@ -115,7 +115,8 @@ function* files(dir) {
   }
 }
 
-const TEXT = /\.(html|txt|js|css|json|map|xml|webmanifest)$|[\\/]_headers$/
+// .mjs (the PDF.js worker) and .svg files are text too: a secret could ride in either.
+const TEXT = /\.(html|txt|js|mjs|css|json|map|xml|webmanifest|svg)$|[\\/]_headers$/
 let scanned = 0
 const built = []
 for (const file of files(outDir)) {
@@ -123,7 +124,7 @@ for (const file of files(outDir)) {
   if (!TEXT.test(file)) continue
   scanned += 1
   const text = readFileSync(file, 'utf8')
-  if (/\.(html|js)$/.test(file)) built.push({ path: relative.split(path.sep).join('/'), text })
+  if (/\.(html|m?js)$/.test(file)) built.push({ path: relative.split(path.sep).join('/'), text })
   for (const [kind, pattern] of SECRET_PATTERNS) {
     if (pattern.test(text)) failures.push(`${relative}: ${kind}`)
   }

@@ -4,10 +4,14 @@
 // shapes round 7b documents (artifacts/acceptance/P08/rounds/round-07b.md), the
 // reading of the action replies and their sentences, and the search box's
 // normalization; round 11b adds the reconciliation and disputes parsers, the money replies and their words.
+// FABLE-AUDIT F2b adds the new server codes (a dispute's stopped line, a shipping correction, a refund in
+// flight, a payment reversed at the provider, a mode change, a payment refunded before it settled) and the
+// owner's re-send of an order's link (its body and every answer, read by `src/lib/admin-money.ts`).
 // The screens themselves are proven in tests/e2e/orders-admin.spec.ts and tests/e2e/orders-money.spec.ts.
 import { describe, expect, it, vi } from 'vitest'
 
 import { isWidePath } from '../../src/components/admin/AdminShell'
+import { BAD_REPLY, CANCELLED, readReissueReply, REISSUE_CONFIRM, reissueBody, REISSUED, REISSUED_NEW_EMAIL } from '../../src/lib/admin-money'
 import {
   alertCounts,
   ATTEMPT_STATUS_LABELS,
@@ -31,6 +35,7 @@ import {
   parseOrdersAlerts,
   parseOrdersList,
   parseReconciliation,
+  parseReissueReply,
   RECONCILIATION_PATH,
   RECONCILIATION_REASON_LABELS,
   REFUND_SOURCE_LABELS,
@@ -40,9 +45,11 @@ import {
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
+  STOPPED_BADGE,
   type OrderAction,
   type Refusal,
 } from '../../src/lib/admin-orders'
+import type { FunctionResult } from '../../src/lib/supabase/functions'
 
 // AdminShell imports through the `@/` alias, which the unit config does not resolve.
 vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowserClient: () => ({}) }))
@@ -118,6 +125,7 @@ describe('the words of every state', () => {
         SECOND_PAYMENT: 'دفعة ثانية على فاتورة مدفوعة',
         ORDER_ALREADY_PAID: 'الطلب مدفوع بدفعة أخرى',
         UNMAPPED_INVOICE: 'فاتورة غير مرتبطة بطلب',
+        REFUNDED_BEFORE_SETTLE: 'مستردّة قبل التسوية',
       },
     ],
     ['refund status', REFUND_STATUS_LABELS, { submitting: 'قيد الإرسال', uncertain: 'غير مؤكد', succeeded: 'تم', failed: 'لم يتم' }],
@@ -130,6 +138,7 @@ describe('the words of every state', () => {
         UNVERIFIED: 'لم يُتحقق منها',
         PROVIDER_STATUS: 'حالة مختلفة لدى Moyasar',
         EXTERNAL_REFUND: 'استرداد لدى Moyasar غير مسجّل',
+        MODE_CHANGED: 'تغيّر وضع الدفع',
       },
     ],
     ['dispute kind', DISPUTE_KIND_LABELS, { chargeback: 'اعتراض بطاقة', payout_difference: 'فرق تحويل', fee_difference: 'فرق رسوم', other: 'أخرى' }],
@@ -154,6 +163,10 @@ describe('the words of every state', () => {
 
   it('lists the seven filters, «الكل» first', () => {
     expect(ORDER_FILTERS).toEqual(['all', 'paid', 'to_ship', 'needs_resolution', 'pending', 'refunded', 'review'])
+  })
+
+  it('badges a line a dispute stopped', () => {
+    expect(STOPPED_BADGE).toBe('موقوف بنزاع')
   })
 })
 
@@ -273,6 +286,7 @@ function detail(owner: boolean): Record<string, unknown> {
         preorder: null,
         refunded: 1000,
         fullyRefunded: false,
+        stopped: true,
       },
       {
         id: C,
@@ -289,6 +303,7 @@ function detail(owner: boolean): Record<string, unknown> {
         preorder: { shipsOn: '2030-01-01', note: 'يصلك بعد الطباعة' },
         refunded: 0,
         fullyRefunded: false,
+        stopped: false,
       },
     ],
     attempts: [
@@ -517,6 +532,8 @@ describe('parseOrderDetail', () => {
     expect(reply.detail.order).toMatchObject({ orderNumber: 'ABCD2345', total: 10600, couponCode: 'SAVE10', contact: { phone: '966501234567' } })
     expect(reply.detail.items.map((item) => item.sku)).toEqual(['SKU-1', 'SKU-2'])
     expect(reply.detail.items[1]!.preorder).toEqual({ shipsOn: '2030-01-01', note: 'يصلك بعد الطباعة' })
+    // Whether a dispute stopped the line's shipping, for every staff role.
+    expect(reply.detail.items.map((item) => item.stopped)).toEqual([true, false])
     expect(reply.detail.disputes).toHaveLength(1)
     expect(reply.detail.audit).toHaveLength(1)
     expect(reply.detail.audit![0]!.summary).toEqual({ orderNumber: 'ABCD2345' })
@@ -529,6 +546,7 @@ describe('parseOrderDetail', () => {
     expect(reply.detail.disputes).toBeNull()
     expect(reply.detail.audit).toBeNull()
     expect(reply.detail.returns).toHaveLength(1)
+    expect(reply.detail.items[0]!.stopped).toBe(true)
   })
 
   it("tells an owner's empty list from an operations reply with none", () => {
@@ -590,21 +608,26 @@ describe('parseOrderDetail', () => {
 
 describe('the action replies', () => {
   it('reads a fulfilment that moved items, one that changed nothing, and the boolean the brief names', () => {
-    expect(parseActionReply({ ok: true, changed: 2, itemIds: [B, C] })).toEqual({ ok: true, changed: 2, restocked: [] })
-    expect(parseActionReply({ ok: true, changed: 0, itemIds: [] })).toEqual({ ok: true, changed: 0, restocked: [] })
+    expect(parseActionReply({ ok: true, changed: 2, itemIds: [B, C] })).toEqual({ ok: true, changed: 2, corrected: false, restocked: [] })
+    expect(parseActionReply({ ok: true, changed: 0, itemIds: [] })).toEqual({ ok: true, changed: 0, corrected: false, restocked: [] })
     expect(parseActionReply({ ok: true, changed: false })).toMatchObject({ changed: 0 })
     expect(parseActionReply({ ok: true, changed: true })).toMatchObject({ changed: 1 })
   })
 
+  it('reads a correction of shipped items: their carrier or tracking fixed, nothing moved', () => {
+    expect(parseActionReply({ ok: true, changed: 2, itemIds: [B, C], corrected: true })).toEqual({ ok: true, changed: 2, corrected: true, restocked: [] })
+    expect(parseActionReply({ ok: true, changed: 1, corrected: false })).toMatchObject({ corrected: false })
+  })
+
   it('reads a decision, a resolution and a closing, which carry no count', () => {
-    expect(parseActionReply({ ok: true, returnId: H, state: 'approved' })).toEqual({ ok: true, changed: null, restocked: [] })
+    expect(parseActionReply({ ok: true, returnId: H, state: 'approved' })).toEqual({ ok: true, changed: null, corrected: false, restocked: [] })
     expect(parseActionReply({ ok: true, orderNumber: 'ABCD2345', status: 'paid' })).toMatchObject({ ok: true })
     expect(parseActionReply({ ok: true, paymentId: PAYMENT, closedAt: ISO })).toMatchObject({ ok: true })
   })
 
   it('reads what a receipt put back on the shelf', () => {
     const reply = parseActionReply({ ok: true, returnId: H, state: 'received', restocked: [{ itemId: B, variantId: C, quantity: 1, from: 8, to: 9 }] })
-    expect(reply).toEqual({ ok: true, changed: null, restocked: [{ itemId: B, quantity: 1, from: 8, to: 9 }] })
+    expect(reply).toEqual({ ok: true, changed: null, corrected: false, restocked: [{ itemId: B, quantity: 1, from: 8, to: 9 }] })
   })
 
   it('reads a refusal with what the function adds to it', () => {
@@ -620,7 +643,7 @@ describe('the action replies', () => {
   })
 
   it('refuses a reply that is not one', () => {
-    for (const reply of [null, [], 'x', {}, { ok: 'yes' }, { ok: false }, { ok: false, code: 5 }, { ok: true, changed: 1.5 }, { ok: true, restocked: [{ itemId: 'x', quantity: 1, from: 1, to: 2 }] }, { ok: false, code: 'X', itemIds: ['x'] }]) {
+    for (const reply of [null, [], 'x', {}, { ok: 'yes' }, { ok: false }, { ok: false, code: 5 }, { ok: true, changed: 1.5 }, { ok: true, changed: 1, corrected: 'true' }, { ok: true, restocked: [{ itemId: 'x', quantity: 1, from: 1, to: 2 }] }, { ok: false, code: 'X', itemIds: ['x'] }]) {
       expect(() => parseActionReply(reply), JSON.stringify(reply)).toThrow()
     }
   })
@@ -639,9 +662,16 @@ describe('the sentence of a refusal', () => {
     expect(text('fulfil', 'NOT_FOUND')).toBe('لم نجد هذا الطلب.')
   })
 
-  it('says the three things a resolution can refuse, with the status of one that cannot be resolved', () => {
+  it('says a line a dispute stopped and one a refund in flight holds (the screen adds the lines at fault)', () => {
+    expect(text('fulfil', 'FULFILLMENT_STOPPED', { itemIds: [B] })).toBe('أُوقف شحن هذه الأصناف بقرار نزاع.')
+    expect(text('fulfil', 'REFUND_IN_FLIGHT', { itemIds: [B, C] })).toBe('استرداد قيد التنفيذ على هذه الأصناف؛ انتظر نتيجته.')
+    expect(parseActionReply({ ok: false, code: 'FULFILLMENT_STOPPED', itemIds: [B] })).toMatchObject({ code: 'FULFILLMENT_STOPPED', itemIds: [B] })
+  })
+
+  it('says the four things a resolution can refuse, with the status of one that cannot be resolved', () => {
     expect(text('resolve', 'STOCK_UNAVAILABLE')).toBe('المخزون لا يكفي لعنصر في هذا الطلب؛ عدّل المخزون أو أعد مبلغ العنصر أولًا.')
     expect(text('resolve', 'REFUND_IN_FLIGHT')).toBe('استرداد قيد المعالجة؛ أعد المحاولة بعد دقائق.')
+    expect(text('resolve', 'PAYMENT_REVERSED')).toBe('الدفعة مستردّة أو ملغاة لدى بوابة الدفع؛ سجّل الاسترداد بدل التسليم.')
     expect(text('resolve', 'NOT_RESOLVABLE', { status: 'paid' })).toContain('مدفوع')
     expect(text('resolve', 'NOT_RESOLVABLE', { status: 'paid_needs_resolution' })).toContain('يحتاج حلًا')
     expect(text('resolve', 'NOT_FOUND')).toBe('لم نجد هذا الطلب.')
@@ -840,5 +870,49 @@ describe('parseDisputes', () => {
     expect(() => parseDisputes({ references: [{ kind: 'chargeback', providerRef: 'CB-1', rows: [] }] })).toThrow()
     expect(() => parseDisputes({ references: {} })).toThrow()
     expect(() => parseDisputes(null)).toThrow()
+  })
+})
+
+// --- FABLE-AUDIT F2b: the owner's «إعادة إرسال رابط الطلب» (`order-link-reissue` of the `admin` function) ---------
+
+describe('the re-send of an order\'s link', () => {
+  const refused = (code: string, message = 'رسالة الدالة'): FunctionResult<unknown> => ({ ok: false, error: { code, message } })
+
+  it('sends the order alone, or with the new address typed, trimmed', () => {
+    expect(reissueBody(A, '')).toEqual({ action: 'order-link-reissue', orderId: A })
+    expect(reissueBody(A, '   ')).toEqual({ action: 'order-link-reissue', orderId: A })
+    expect(reissueBody(A, '  Buyer@Example.com ')).toEqual({ action: 'order-link-reissue', orderId: A, email: 'Buyer@Example.com' })
+    expect(REISSUE_CONFIRM).toBe('سيُغيّر بريد الطلب ويُبطل الرابط القديم. متابعة؟')
+  })
+
+  it('reads `{version, emailChanged}` strictly', () => {
+    expect(parseReissueReply({ version: 3, emailChanged: false })).toEqual({ version: 3, emailChanged: false })
+    expect(parseReissueReply({ version: 4, emailChanged: true, extra: 1 })).toEqual({ version: 4, emailChanged: true })
+    for (const bad of [null, [], {}, { version: 3 }, { emailChanged: true }, { version: '3', emailChanged: true }, { version: 1.5, emailChanged: true }, { version: 3, emailChanged: 'yes' }]) {
+      expect(() => parseReissueReply(bad), JSON.stringify(bad)).toThrow()
+    }
+  })
+
+  it('says where the new link went', () => {
+    expect(readReissueReply({ ok: true, data: { version: 3, emailChanged: false } })).toEqual({ line: 'status', text: 'أُرسل رابط جديد إلى عنوان الطلب.' })
+    expect(readReissueReply({ ok: true, data: { version: 3, emailChanged: true } })).toEqual({ line: 'status', text: 'غُيّر البريد وأُرسل رابط جديد.' })
+    expect([REISSUED, REISSUED_NEW_EMAIL]).toEqual(['أُرسل رابط جديد إلى عنوان الطلب.', 'غُيّر البريد وأُرسل رابط جديد.'])
+  })
+
+  it('says the three refusals in this screen\'s words, any other in the function\'s, and nothing when the code dialog was closed', () => {
+    expect(readReissueReply(refused('VERSION_MISMATCH'))).toEqual({ line: 'alert', text: 'تغيّر الطلب؛ أعد التحميل.' })
+    expect(readReissueReply(refused('INVALID_EMAIL'))).toEqual({ line: 'alert', text: 'تحقق من البريد.' })
+    expect(readReissueReply(refused('BAD_STATUS', 'لا يُرسل رابط لطلب لم يُدفع.'))).toEqual({ line: 'alert', text: 'لا يمكن إرسال رابط لهذا الطلب في حالته.' })
+    expect(readReissueReply(refused('NOT_FOUND', 'لم نجد هذا الطلب.'))).toEqual({ line: 'alert', text: 'لم نجد هذا الطلب.' })
+    expect(readReissueReply(refused('FORBIDDEN', ''))).toEqual({ line: 'alert', text: 'تعذّر إكمال الإجراء.' })
+    expect(readReissueReply(refused('constructor'))).toEqual({ line: 'alert', text: 'رسالة الدالة' })
+    expect(readReissueReply(refused(CANCELLED, ''))).toBeNull()
+  })
+
+  it('never reads an unreadable answer as sent', () => {
+    for (const data of [null, {}, { version: 3 }, { version: 3, emailChanged: 'true' }]) {
+      expect(readReissueReply({ ok: true, data }), JSON.stringify(data)).toEqual({ line: 'alert', text: BAD_REPLY })
+    }
+    expect(readReissueReply({ ok: false } as unknown as FunctionResult<unknown>)).toEqual({ line: 'alert', text: BAD_REPLY })
   })
 })

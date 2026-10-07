@@ -1,11 +1,12 @@
 /**
  * Safe public renderer for rich text (D14). Draws only the allowlisted nodes
  * from `src/admin/richtext.ts`; anything else renders nothing. No HTML
- * strings, no inline styles, https links only.
+ * strings, no inline styles, and a link only where its address passes the
+ * editor's own rule (`linkUrlSchema`).
  */
 import type { ReactNode } from 'react'
 
-import { TEXT_FORMAT_BOLD, TEXT_FORMAT_ITALIC, type RichTextDocument, type RichTextNode } from '../admin/richtext'
+import { linkUrlSchema, TEXT_FORMAT_BOLD, TEXT_FORMAT_ITALIC, type RichTextDocument, type RichTextNode } from '../admin/richtext'
 
 function childrenOf(node: RichTextNode): RichTextNode[] {
   return Array.isArray(node.children) ? (node.children as RichTextNode[]) : []
@@ -28,7 +29,7 @@ function renderNode(node: RichTextNode, key: number): ReactNode {
     case 'linebreak':
       return <br key={key} />
     case 'link': {
-      const url = typeof node.url === 'string' && node.url.startsWith('https://') ? node.url : null
+      const url = linkUrlSchema.safeParse(node.url).data
       if (!url) return <span key={key}>{renderNodes(childrenOf(node))}</span>
       return (
         <a key={key} href={url} rel="noopener noreferrer">

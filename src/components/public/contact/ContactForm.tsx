@@ -14,8 +14,33 @@ const FIELDS: Field[] = ['name', 'email', 'message']
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-/** The function refuses a body past 8 KiB and Arabic is two bytes a character, so 5,000 characters can be too long. */
-const MESSAGE_MAX_BYTES = 5500
+/** The `contact` function refuses a body past 8 KiB (`MAX_BODY_BYTES` in supabase/functions/_shared/contact.ts). */
+const MAX_BODY_BYTES = 8_192
+
+type Values = { name: string; email: string; message: string; website: string }
+
+/** The JSON the form sends: the fields trimmed, and the hidden field only when something filled it. */
+function contactBody(values: Values, submissionKey: string, turnstileToken: string): string {
+  return JSON.stringify({
+    name: values.name.trim(),
+    email: values.email.trim(),
+    message: values.message.trim(),
+    submissionKey,
+    turnstileToken,
+    ...(values.website ? { website: values.website } : {}),
+  })
+}
+
+/**
+ * Whether the request fits under the function's limit, measured as it is
+ * sent: UTF-8 bytes of the JSON, where Arabic is two bytes a character and a
+ * line break is written as two characters. The Turnstile token and the
+ * submission key come after this check, so the margin is their longest:
+ * Cloudflare's 2,048 characters and a UUID's 36 (EF-ACCESS-09).
+ */
+export function fitsContactLimit(values: Values): boolean {
+  return new TextEncoder().encode(contactBody(values, '0'.repeat(36), '0'.repeat(2048))).length <= MAX_BODY_BYTES
+}
 
 /** The event a service's «اطلب جلسة» sends to put its name in the message. */
 export const SERVICE_EVENT = 'anasaq:contact-service'
@@ -89,7 +114,7 @@ export function ContactForm() {
     if (!values.email.trim()) found.email = 'اكتب بريدك الإلكتروني.'
     else if (!EMAIL.test(values.email.trim())) found.email = 'تأكد من كتابة البريد بشكل صحيح.'
     if (!values.message.trim()) found.message = 'اكتب رسالتك.'
-    else if (new TextEncoder().encode(values.message.trim()).length > MESSAGE_MAX_BYTES) found.message = 'رسالتك أطول من المسموح؛ اختصرها.'
+    else if (!fitsContactLimit(values)) found.message = 'رسالتك أطول من المسموح؛ اختصرها.'
     setErrors(found)
     const first = found.name ? nameRef : found.email ? emailRef : found.message ? messageRef : null
     if (first) {
@@ -107,14 +132,7 @@ export function ContactForm() {
       const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/contact`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          name: values.name.trim(),
-          email: values.email.trim(),
-          message: values.message.trim(),
-          submissionKey: submissionKey.current,
-          turnstileToken: turnstile.token,
-          ...(values.website ? { website: values.website } : {}),
-        }),
+        body: contactBody(values, submissionKey.current, turnstile.token),
       })
       const reply = (await response.json().catch(() => null)) as {
         ok?: boolean

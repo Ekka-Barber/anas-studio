@@ -9,11 +9,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { collections, documentTitle, isRoomSlug, ROOM_DOC_LABELS, schemaFor } from '../../src/admin/collections'
 import { bookRoomFields, bookRoomSchema } from '../../src/admin/collections/rooms'
 import { BookView } from '../../src/components/public/book/BookView'
+import { PAGE_LABELS, PREVIEW_URL } from '../../src/lib/book-preview'
 import { getBookRoom, type BookRoom } from '../../src/lib/content'
 import { typeset } from '../../src/lib/format'
 import { parseMediaRef } from '../../src/lib/media-ref'
 import content from '../../content/initial-content.json'
 import preview from '../../content/book-preview-text.json'
+import manifest from '../../content/book-source-manifest.json'
 
 // BookView imports through the `@/` alias, which the unit config does not resolve:
 // each import is redirected to the real file, except the ones that need a browser or the manifest.
@@ -125,5 +127,12 @@ describe('the characters section of the book page', () => {
     const page = html({ ...book, characters: [] })
     expect(page).not.toContain('characters')
     expect(page).not.toContain('الشخصيات')
+  })
+})
+
+describe('the preview reader’s file and page labels (CLIENT-SEC-13)', () => {
+  it('are the public part of the preview manifest, which the reader no longer imports whole', () => {
+    expect(PREVIEW_URL).toBe(manifest.output.url)
+    expect([...PAGE_LABELS]).toEqual(manifest.pages.map((entry) => [entry.page, entry.label]))
   })
 })

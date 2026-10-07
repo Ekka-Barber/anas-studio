@@ -8,7 +8,8 @@
  * in sessionStorage as `anasaq:dedications` and goes with the tab); prices
  * come from the live `quote` only. A malformed value or another
  * version is discarded. Duplicate variant lines merge with the quantity
- * capped at 20, and a cart holds at most 50 lines. When localStorage throws,
+ * capped at 20 (a digital variant's line stays one copy), and a cart holds at
+ * most 50 lines. When localStorage throws,
  * the cart lives in memory for the tab and the UI shows the honest note.
  */
 export const CART_STORAGE_KEY = 'anasaq:cart:v1'
@@ -92,14 +93,20 @@ function clampQuantity(quantity: number): number {
   return Math.min(MAX_QUANTITY, Math.max(1, Math.trunc(quantity)))
 }
 
-/** Adds a line, merging a duplicate variant and capping quantity and line count. */
-export function addLine(cart: CartV1, line: CartLine): CartV1 {
+/**
+ * Adds a line, merging a duplicate variant and capping quantity and line count.
+ * A digital variant (`single`) is one copy, since an order grants one file per
+ * line and the checkout refuses any other quantity: its line holds 1, and
+ * adding it again changes nothing.
+ */
+export function addLine(cart: CartV1, line: CartLine, single = false): CartV1 {
   const variantId = line.variantId.toLowerCase()
   if (!UUID.test(variantId)) return cart
-  const quantity = clampQuantity(line.quantity)
+  const quantity = single ? 1 : clampQuantity(line.quantity)
   const dedication = line.dedication?.slice(0, MAX_DEDICATION)
   const existing = cart.lines.find((l) => l.variantId === variantId)
   if (existing) {
+    if (single) return cart
     return {
       version: 1,
       lines: cart.lines.map((l) =>
@@ -176,6 +183,15 @@ export interface CreateRequestCore {
   phone?: string
   policyRevisions: Record<string, number>
   quoteHash: string
+}
+
+/**
+ * The phone `create` sends: the one typed, trimmed, only while the form shows
+ * the field (the quote holds a physical or signed line). A digital-only cart
+ * sends none, so a number typed before the cart changed is never sent unseen.
+ */
+export function phoneToSend(physical: boolean, phone: string): string | undefined {
+  return physical ? phone.trim() || undefined : undefined
 }
 
 /** Deterministic JSON: object keys sorted at every depth, `undefined` dropped. */
@@ -468,6 +484,20 @@ export function returnOrder(search: string, stored: PendingOrder | null): Return
   const orderNumber = ORDER_NUMBER.test(queried) ? queried : (stored?.orderNumber ?? null)
   if (orderNumber === null) return null
   return { orderNumber, accessToken: stored?.orderNumber === orderNumber ? stored.accessToken : null }
+}
+
+/**
+ * What the return page releases once `verify` answers `state`. Every settled
+ * state releases this tab's stored order and its key, so the checkout page no
+ * longer shows that order: `paid` with the cart that bought it (`cart`), the
+ * two review states (`needs_resolution`, `review`), `refunded`, `expired` and
+ * `cancelled` keeping the cart (`order`). Null releases nothing (`pending`,
+ * `unknown`, a state this page does not know).
+ */
+export function returnRelease(state: string): 'cart' | 'order' | null {
+  if (state === 'paid') return 'cart'
+  if (['needs_resolution', 'review', 'refunded', 'expired', 'cancelled'].includes(state)) return 'order'
+  return null
 }
 
 /** The buyer's checkout session id, one per tab, minted once. */

@@ -729,6 +729,42 @@ describe('refund_request: reserving the balance', () => {
     expect(await requestReview(r, { p_return: received })).toEqual({ ok: false, code: 'INVALID_RETURN' })
   })
 
+  it('CHARGEBACK_RECORDED while the attempt\'s latest chargeback row is against the seller; a later row for the seller lifts it', async () => {
+    const p = await plain()
+    const dispute = (kind: string, providerRef: string, follows: number, direction: string): Promise<any> =>
+      call('dispute_record', {
+        p_actor: ownerUser.userId,
+        p_kind: kind,
+        p_provider_ref: providerRef,
+        p_follows: follows,
+        p_attempt: p.attemptId,
+        p_review_payment: null,
+        p_amount: p.total,
+        p_direction: direction,
+        p_occurred_on: '2001-03-05',
+        p_reason: 'اعتراض حامل البطاقة',
+        p_resolution: null,
+        p_decision: 'none',
+        p_item_ids: '{}',
+        p_environment: 'test',
+      })
+    // A fee difference against the seller is no chargeback: it refuses nothing (the refund is then failed to free the balance).
+    expect(await dispute('fee_difference', unique('FEE'), 0, 'against_seller')).toMatchObject({ ok: true })
+    const free = await flight(p)
+    expect(await result(free, 'failed', null, 'REFUSED')).toMatchObject({ ok: true, status: 'failed' })
+
+    // The bank took the money back for the buyer: a refund would pay it twice.
+    const reference = unique('CB')
+    expect(await dispute('chargeback', reference, 0, 'against_seller')).toMatchObject({ ok: true, dispute: { seq: 1 } })
+    const before = await refundsOf(p.attemptId)
+    expect(await request(p)).toEqual({ ok: false, code: 'CHARGEBACK_RECORDED' })
+    expect(await request(p, { p_amount: 1, p_allocation: alloc(p.items[0]!, 1) })).toEqual({ ok: false, code: 'CHARGEBACK_RECORDED' })
+    expect(await refundsOf(p.attemptId)).toEqual(before)
+    // Won by the seller: the latest row is for the seller, and a refund goes through again.
+    expect(await dispute('chargeback', reference, 1, 'for_seller')).toMatchObject({ ok: true, dispute: { seq: 2 } })
+    expect(await request(p)).toMatchObject({ ok: true, state: 'new' })
+  })
+
   it('the refusals come in the contract\'s order: the key, then refundable, in flight, the total, the balance, the allocation, the return', async () => {
     const p = await plain()
     const bogusReturn = randomUUID()
@@ -788,6 +824,75 @@ describe('refund_request: the idempotency key', () => {
     expect(await refundsOf(p.attemptId)).toHaveLength(1)
     expect(await refundsOf(q.attemptId)).toHaveLength(0)
     expect(await count('select count(*)::int as n from finance.refunds where review_payment_id = $1', [r.paymentId])).toBe(0)
+  })
+})
+
+// FABLE-AUDIT M2-3 (ADMIN-COMMERCE-05): the owner's screen sends the confirmed refunded total it was built from as
+// `expectedRefunded`, beside the allocation, so a stale screen never refunds the same money twice.
+describe('refund_request: the confirmed total the screen was built from', () => {
+  it('proceeds when the screen\'s total is the confirmed one, and the allocation is checked and stored without it', async () => {
+    const p = await plain() // 3 500
+    const first = await flight(p, { p_amount: 1000, p_allocation: { ...alloc(p.items[0]!, 1000), expectedRefunded: 0 } })
+    expect((await refundOf(first)).allocation).toEqual(alloc(p.items[0]!, 1000))
+    await result(first, 'succeeded', 1000)
+    const second = await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 500), expectedRefunded: 1000 }, p_provider_refunded: 1000 })
+    expect(second).toMatchObject({ ok: true, state: 'new', amount: 500 })
+    expect((await refundOf(second.refundId)).allocation).toEqual(alloc(p.items[0]!, 500))
+    // The allocation rules are the same with it: parts that do not add up are still refused.
+    await result(second.refundId, 'succeeded', 1500)
+    expect(await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 499), expectedRefunded: 1500 }, p_provider_refunded: 1500 })).toEqual({ ok: false, code: 'INVALID_ALLOCATION' })
+  })
+
+  it('a screen one halala behind answers STALE with the confirmed total and writes nothing, before the provider\'s total is looked at', async () => {
+    const p = await plain()
+    const first = await flight(p, { p_amount: 1000 })
+    await result(first, 'succeeded', 1000)
+    const refunds = await refundsOf(p.attemptId)
+    const attempt = await attemptOf(p.attemptId)
+    const requested = await count("select count(*)::int as n from public.audit_events where action = 'refund.requested'")
+    const stale = { ok: false, code: 'STALE', refunded: 1000 }
+    expect(await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 500), expectedRefunded: 999 }, p_provider_refunded: 1000 })).toEqual(stale)
+    // A screen read before the first refund, and one ahead of the ledger, are stale the same way.
+    expect(await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 500), expectedRefunded: 0 }, p_provider_refunded: 1000 })).toEqual(stale)
+    expect(await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 500), expectedRefunded: 1001 }, p_provider_refunded: 1000 })).toEqual(stale)
+    // Before the provider's total: not even the attempt's provider total moves.
+    expect(await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 500), expectedRefunded: 0 }, p_provider_refunded: 1700 })).toEqual(stale)
+    expect(await refundsOf(p.attemptId)).toEqual(refunds)
+    expect(await attemptOf(p.attemptId)).toEqual(attempt)
+    expect(await count("select count(*)::int as n from public.audit_events where action = 'refund.requested'")).toBe(requested)
+    // A refund in flight is still REFUND_IN_FLIGHT, whatever the screen expected.
+    await flight(p, { p_amount: 500, p_allocation: alloc(p.items[0]!, 500), p_provider_refunded: 1000 })
+    expect(await request(p, { p_amount: 500, p_allocation: { ...alloc(p.items[0]!, 500), expectedRefunded: 0 }, p_provider_refunded: 1000 })).toEqual({ ok: false, code: 'REFUND_IN_FLIGHT' })
+  })
+
+  it('a replay of a stored refund answers it, whatever the screen expected', async () => {
+    const p = await plain()
+    const key = randomUUID()
+    const hash = sha256('one request from a screen that has since gone stale')
+    const asked = (): Promise<any> =>
+      request(p, { p_idempotency_key: key, p_request_hash: hash, p_allocation: { ...alloc(p.items[0]!, 1000), expectedRefunded: 0 } })
+    const first = await asked()
+    expect(first).toMatchObject({ ok: true, state: 'new' })
+    await result(first.refundId, 'succeeded', 1000)
+    // The confirmed total is 1 000 now, and the replay still says 0: it is the stored refund, not STALE and not a second one.
+    expect(await asked()).toEqual({ ok: true, state: 'duplicate', refundId: first.refundId, status: 'succeeded', amount: 1000 })
+    expect(await refundsOf(p.attemptId)).toHaveLength(1)
+  })
+
+  it('a review payment\'s screen sends it too, and a malformed expected total is a malformed call', async () => {
+    const r = await review({ mapped: false })
+    const first = await requestReview(r, { p_allocation: { expectedRefunded: 0 } })
+    expect(first).toMatchObject({ ok: true, state: 'new' })
+    expect((await refundOf(first.refundId)).allocation).toEqual({})
+    await result(first.refundId, 'succeeded', 1000)
+    expect(await requestReview(r, { p_allocation: { expectedRefunded: 0 }, p_provider_refunded: 1000 })).toEqual({ ok: false, code: 'STALE', refunded: 1000 })
+    expect(await requestReview(r, { p_allocation: { expectedRefunded: 1000 }, p_provider_refunded: 1000 })).toMatchObject({ ok: true, state: 'new' })
+
+    const p = await plain()
+    for (const expected of ['0', -1, 1.5, null, 1_000_000_000]) {
+      await expect(request(p, { p_allocation: { ...alloc(p.items[0]!, 1000), expectedRefunded: expected } }), String(expected)).rejects.toMatchObject({ code: '22023' })
+    }
+    expect(await refundsOf(p.attemptId)).toHaveLength(0)
   })
 })
 
@@ -1458,6 +1563,29 @@ describe('refund_record_external', () => {
 // --- the success effects -----------------------------------------------------------------------------------------
 
 describe('the success effects of a refund of a paying attempt', () => {
+  it('renews the order\'s link with the refunded mail, so that the mail\'s link opens; never shortened', async () => {
+    const p = await plain()
+    const access = (): Promise<any> => call('order_access', { p_order_number: p.number, p_access_token_hash: p.hash, p_ip_hash: ipHash(), p_mode: 'test' })
+    const daysLeft = async (): Promise<number> =>
+      Number((await row('select extract(epoch from (access_token_expires_at - now())) / 86400 as d from finance.orders where id = $1', [p.id])).d)
+    // The link expired 7 days after the payment; the refund comes later.
+    await postgres.query("update finance.orders set access_token_expires_at = now() - interval '1 minute' where id = $1", [p.id])
+    expect(await access()).toEqual({ ok: false, code: 'NOT_FOUND' })
+    const first = await flight(p)
+    // Asked is not refunded: no mail yet, and the link is as it was.
+    expect(await access()).toEqual({ ok: false, code: 'NOT_FOUND' })
+    expect(await result(first, 'succeeded', 1000)).toMatchObject({ ok: true, status: 'succeeded' })
+    expect(await mailsOf(first)).toHaveLength(1)
+    expect(await access()).toMatchObject({ ok: true, order: { orderNumber: p.number, refunded: 1000 } })
+    expect(await daysLeft()).toBeGreaterThan(6.9)
+
+    // A link with longer left keeps it.
+    await postgres.query("update finance.orders set access_token_expires_at = now() + interval '30 days' where id = $1", [p.id])
+    const second = await flight(p, { p_provider_refunded: 1000 })
+    expect(await result(second, 'succeeded', 2000)).toMatchObject({ ok: true, status: 'succeeded' })
+    expect(await daysLeft()).toBeGreaterThan(29.9)
+  })
+
   it('entitlements: an item is revoked when its refunded total equals what it cost, across refunds; the others stay granted', async () => {
     const p = await three()
     const [a, b, c] = p.items as [Item, Item, Item]

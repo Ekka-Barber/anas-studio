@@ -21,13 +21,16 @@ vi.mock('../../supabase/functions/_shared/db.ts', () => ({
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const request = new Request('http://127.0.0.1:54321/functions/v1/admin', { headers: { authorization: 'Bearer token' } })
 
-function authReturns(result: unknown) {
+/** Auth answers `result` to the token check and the staff lookup answers `staff`; returns the token check's spy. */
+function authReturns(result: unknown, staff: unknown = { data: { role: 'owner', active: true }, error: null }) {
+  const getClaims = vi.fn(async () => result)
   hoisted.client = {
-    auth: { getClaims: async () => result },
+    auth: { getClaims },
     from: () => ({
-      select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role: 'owner', active: true }, error: null }) }) }),
+      select: () => ({ eq: () => ({ maybeSingle: async () => staff }) }),
     }),
   }
+  return getClaims
 }
 
 describe('staffFromRequest: Auth failures', () => {
@@ -47,6 +50,36 @@ describe('staffFromRequest: Auth failures', () => {
   it('a verified token resolves the staff role', async () => {
     authReturns({ data: { claims: { sub: OWNER } }, error: null })
     expect(await staffFromRequest(request)).toEqual({ userId: OWNER, role: 'owner', recentTotp: false })
+  })
+})
+
+// FABLE-AUDIT T-10: only an active staff row with a role the app knows gives a role. A genuine token without one is
+// role null (callers answer 403), a failed lookup is a server fault (500), and a header that is not a bearer token is
+// unauthenticated without asking Auth at all.
+describe('staffFromRequest: the staff row and the header', () => {
+  const verified = { data: { claims: { sub: OWNER } }, error: null }
+
+  it.each([
+    ['a revoked owner (active false)', { data: { role: 'owner', active: false }, error: null }],
+    ['an active row with a role the app does not know', { data: { role: 'superuser', active: true }, error: null }],
+    ['no staff row at all', { data: null, error: null }],
+  ])('%s gives role null, not a role and not 401: the token itself is genuine', async (_label, staff) => {
+    authReturns(verified, staff)
+    expect(await staffFromRequest(request)).toEqual({ userId: OWNER, role: null, recentTotp: false })
+  })
+
+  it('a staff lookup that fails throws STAFF_LOOKUP_FAILED, so callers answer 500', async () => {
+    authReturns(verified, { data: null, error: { message: 'connection refused', code: 'XX000' } })
+    await expect(staffFromRequest(request)).rejects.toThrow('STAFF_LOOKUP_FAILED')
+  })
+
+  it.each([
+    ['a Basic header', { authorization: 'Basic x' }],
+    ['no Authorization header', {}],
+  ])('%s is unauthenticated (null) and Auth is never asked', async (_label, headers) => {
+    const getClaims = authReturns(verified)
+    expect(await staffFromRequest(new Request('http://127.0.0.1:54321/functions/v1/admin', { headers }))).toBeNull()
+    expect(getClaims).not.toHaveBeenCalled()
   })
 })
 

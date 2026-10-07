@@ -81,6 +81,8 @@ function api(db: Client) {
     detail: (order: string | null) => call('order_detail', { p_order: order }),
     fulfil: (order: string, items: string[], state: string, carrier: string | null = null, tracking: string | null = null, dedication: boolean | null = null) =>
       call('fulfillment_update', { p_order: order, p_item_ids: uuids(items), p_state: state, p_carrier: carrier, p_tracking: tracking, p_dedication_done: dedication }),
+    correct: (order: string, items: string[], carrier: string | null, tracking: string | null) =>
+      call('fulfillment_correct', { p_order: order, p_item_ids: uuids(items), p_carrier: carrier, p_tracking: tracking }),
     decide: (id: string, decision: string, note: string | null = null) => call('return_decide', { p_return: id, p_decision: decision, p_note: note }),
     receive: (id: string, restock: unknown = []) => call('return_receive', { p_return: id, p_restock: restock }),
     resolve: (order: string) => call('order_resolve', { p_order: order }),
@@ -277,6 +279,7 @@ const NINE = [
   'public.orders_list(text, text, timestamptz, integer)',
   'public.order_detail(uuid)',
   'public.fulfillment_update(uuid, uuid[], text, text, text, boolean)',
+  'public.fulfillment_correct(uuid, uuid[], text, text)',
   'public.return_decide(uuid, text, text)',
   'public.return_receive(uuid, jsonb)',
   'public.order_resolve(uuid)',
@@ -296,6 +299,7 @@ const HELPERS = [
   'finance.refund_json(finance.refunds)',
   'finance.event_json(finance.payment_events)',
   'finance.event_needs_person(finance.payment_events)',
+  'finance.order_stopped_items(uuid)',
 ]
 
 describe('grants', () => {
@@ -371,6 +375,7 @@ describe('who may call', () => {
     ['reconciliation_list', {}],
     ['review_close', { p_payment: reviewPayment, p_reason: REVIEW_REASON }],
     ['event_dismiss', { p_event: 'no-such-event' }],
+    ['fulfillment_correct', { p_order: shipOrder.id, p_item_ids: [shipOrder.items[0]!.id], p_carrier: 'SMSA', p_tracking: 'T1' }],
   ]
 
   it('refuses anon, an editor, a revoked owner and an inactive operations member on every one of the nine, and changes nothing', async () => {
@@ -638,7 +643,9 @@ describe('order_detail', () => {
     // Its items, with what was written on the signed one and what each has had refunded.
     expect(detail.items).toHaveLength(3)
     for (const entry of detail.items) {
-      sameKeys(entry, ['dedication', 'discount', 'fullyRefunded', 'fulfillment', 'id', 'lineNo', 'preorder', 'productTitle', 'quantity', 'refunded', 'sku', 'total', 'unitPrice', 'variantTitle'])
+      sameKeys(entry, ['dedication', 'discount', 'fullyRefunded', 'fulfillment', 'id', 'lineNo', 'preorder', 'productTitle', 'quantity', 'refunded', 'sku', 'stopped', 'total', 'unitPrice', 'variantTitle'])
+      // No dispute stopped any of them.
+      expect(entry.stopped).toBe(false)
     }
     expect(detail.items.map((entry: Row) => entry.id)).toEqual([physItem.id, sigItem.id, bookItem.id])
     expect(detail.items[0]).toMatchObject({ lineNo: 1, fulfillment: 'physical', quantity: 2, unitPrice: 4000, total: 8000, refunded: 1000, fullyRefunded: false, dedication: null, preorder: null })
@@ -822,12 +829,141 @@ describe('fulfillment_update', () => {
     expect(await fulfilmentOf(phys.id)).toEqual(before)
     expect(await mailsOf(p.id, 'order_shipped')).toHaveLength(1)
     expect(await auditsOf('fulfillment.updated', p.id)).toHaveLength(1)
+    expect(await auditsOf('fulfillment.corrected', p.id)).toEqual([])
 
-    // A correction is not a move.
+    // A correction is not a move: a second «تم الشحن» with other values (another member's screen that has not seen
+    // the first) changes nothing and rewrites nobody's carrier or tracking; `fulfillment_correct` is the correction.
     expect(await ownerApi.fulfil(p.id, [phys.id], 'shipped', 'SMSA', 'T2')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: [phys.id] })
-    expect(await ownerApi.fulfil(p.id, [phys.id], 'shipped', 'Aramex', 'T1')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: [phys.id] })
+    expect(await opsApi.fulfil(p.id, [phys.id], 'shipped', 'Aramex', 'T1')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: [phys.id] })
     expect(await fulfilmentOf(phys.id)).toEqual(before)
     expect(await mailsOf(p.id, 'order_shipped')).toHaveLength(1)
+    expect(await auditsOf('fulfillment.updated', p.id)).toHaveLength(1)
+    expect(await auditsOf('fulfillment.corrected', p.id)).toEqual([])
+  })
+
+  it('fulfillment_correct corrects a mistyped carrier or tracking of what has shipped: the rows change, no second mail, an audit row of its own; an item not shipped is refused', async () => {
+    const p = await h.paid([{ variantId: await h.physical(4000, 10), quantity: 1 }, { variantId: await h.physical(2500, 10), quantity: 1 }, { variantId: await h.physical(1500, 10), quantity: 1 }])
+    const [a, b, c] = p.items as [PaidItem, PaidItem, PaidItem]
+    expect(await ownerApi.fulfil(p.id, [a.id, b.id], 'shipped', 'SMSA', 'T1')).toMatchObject({ ok: true, changed: 2 })
+    const shippedAt = (await fulfilmentOf(a.id)).shipped_at
+    const mails = await mailsOf(p.id, 'order_shipped')
+    expect(mails).toHaveLength(1)
+
+    // The tracking of one item was mistyped: operations correct it; its carrier and its shipping time stay.
+    expect(await opsApi.correct(p.id, [a.id], 'SMSA', ' T1-FIXED ')).toEqual({ ok: true, changed: 1, itemIds: [a.id], corrected: true })
+    expect(await fulfilmentOf(a.id)).toMatchObject({ state: 'shipped', carrier: 'SMSA', tracking: 'T1-FIXED', version: 3, updated_by: operations.userId, shipped_at: shippedAt })
+    expect(await fulfilmentOf(b.id)).toMatchObject({ state: 'shipped', carrier: 'SMSA', tracking: 'T1', version: 2 })
+    // No mail: the buyer's shipped mail is the one already queued.
+    expect(await mailsOf(p.id, 'order_shipped')).toEqual(mails)
+    const corrected = await auditsOf('fulfillment.corrected', p.id)
+    expect(corrected).toHaveLength(1)
+    expect(corrected[0]).toMatchObject({ actor: operations.userId, entity: 'order' })
+    // The ids only, never the text that was typed.
+    expect(corrected[0]!.summary).toEqual({ orderNumber: p.number, itemIds: [a.id] })
+    expect(await auditsOf('fulfillment.updated', p.id)).toHaveLength(1)
+
+    // Both at once: each row that differs changes; the same call again changes nothing and audits nothing.
+    expect(await ownerApi.correct(p.id, [a.id, b.id], 'Aramex', 'T1-FIXED')).toEqual({ ok: true, changed: 2, itemIds: sorted([a.id, b.id]), corrected: true })
+    expect(await ownerApi.correct(p.id, [a.id, b.id], 'Aramex', 'T1-FIXED')).toEqual({ ok: true, changed: 0, itemIds: [] })
+    expect(await fulfilmentOf(b.id)).toMatchObject({ carrier: 'Aramex', tracking: 'T1-FIXED', version: 3 })
+    expect(await auditsOf('fulfillment.corrected', p.id)).toHaveLength(2)
+
+    // Named beside an item still being prepared, the correction is refused whole and names that item: it never ships
+    // anything. `fulfillment_update` refuses another tracking beside it too, naming the shipped one.
+    expect(await ownerApi.correct(p.id, [a.id, c.id], 'Aramex', 'OTHER')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: [c.id] })
+    expect(await ownerApi.fulfil(p.id, [a.id, c.id], 'shipped', 'Aramex', 'OTHER')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: [a.id] })
+    await unchanged(c)
+    expect(await fulfilmentOf(a.id)).toMatchObject({ tracking: 'T1-FIXED', version: 4 })
+    expect(await mailsOf(p.id, 'order_shipped')).toEqual(mails)
+    expect(await auditsOf('fulfillment.corrected', p.id)).toHaveLength(2)
+  })
+
+  it('fulfillment_correct refuses a malformed call by raising, an order or an item that is not there, an order that is not paid, and an item that is not shipped: still prepared, or delivered', async () => {
+    const { p, phys, sig, book } = await make()
+    const other = await make()
+    const many = Array.from({ length: 51 }, () => randomUUID())
+    const malformed: Array<[string, () => Promise<unknown>]> = [
+      ['no ids', () => ownerApi.correct(p.id, [], 'SMSA', 'T1')],
+      ['too many ids', () => ownerApi.correct(p.id, many, 'SMSA', 'T1')],
+      ['a null id', () => pgRpc(ownerDb)('fulfillment_correct', { p_order: p.id, p_item_ids: `{${phys.id},NULL}`, p_carrier: 'SMSA', p_tracking: 'T1' })],
+      ['no carrier', () => ownerApi.correct(p.id, [phys.id], null, 'T1')],
+      ['a blank carrier', () => ownerApi.correct(p.id, [phys.id], '   ', 'T1')],
+      ['a carrier of 81 characters', () => ownerApi.correct(p.id, [phys.id], 'x'.repeat(81), 'T1')],
+      ['a carrier on two lines', () => ownerApi.correct(p.id, [phys.id], 'SM\nSA', 'T1')],
+      ['no tracking', () => ownerApi.correct(p.id, [phys.id], 'SMSA', null)],
+      ['a blank tracking', () => ownerApi.correct(p.id, [phys.id], 'SMSA', ' \t ')],
+      ['a tracking of 121 characters', () => ownerApi.correct(p.id, [phys.id], 'SMSA', 'x'.repeat(121))],
+      ['a tracking on two lines', () => ownerApi.correct(p.id, [phys.id], 'SMSA', 'T1\nT2')],
+    ]
+    for (const [name, attempt] of malformed) expect(await sqlstate(attempt()), name).toBe('22023')
+
+    expect(await ownerApi.correct(randomUUID(), [phys.id], 'SMSA', 'T1')).toEqual(NOT_FOUND)
+    const pending = await h.place([{ variantId: await h.physical(4000, 10), quantity: 1 }])
+    expect(await opsApi.correct(pending.id, [randomUUID()], 'SMSA', 'T1')).toEqual({ ok: false, code: 'ORDER_NOT_PAID', status: 'pending_payment' })
+    // Every id must be the fulfilment of an item of this order, once: a digital item has none.
+    expect(await ownerApi.correct(p.id, [book.id], 'SMSA', 'T1')).toEqual({ ok: false, code: 'INVALID_ITEMS', itemIds: [book.id] })
+    expect(await ownerApi.correct(p.id, [phys.id, other.phys.id], 'SMSA', 'T1')).toEqual({ ok: false, code: 'INVALID_ITEMS', itemIds: [other.phys.id] })
+    expect(await ownerApi.correct(p.id, [phys.id, phys.id], 'SMSA', 'T1')).toMatchObject({ ok: false, code: 'INVALID_ITEMS' })
+    // Items still being prepared: the correction never ships them, and nothing changes.
+    expect(await opsApi.correct(p.id, [phys.id, sig.id], 'SMSA', 'T1')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: sorted([phys.id, sig.id]) })
+    await unchanged(phys, sig, other.phys)
+    // A delivered item is not corrected either.
+    expect(await ownerApi.fulfil(p.id, [phys.id], 'shipped', 'SMSA', 'T1')).toMatchObject({ ok: true, changed: 1 })
+    expect(await ownerApi.fulfil(p.id, [phys.id], 'delivered')).toMatchObject({ ok: true, changed: 1 })
+    const delivered = await fulfilmentOf(phys.id)
+    expect(await ownerApi.correct(p.id, [phys.id], 'SMSA', 'T2')).toEqual({ ok: false, code: 'BAD_TRANSITION', itemIds: [phys.id] })
+    expect(await fulfilmentOf(phys.id)).toEqual(delivered)
+    expect(await auditsOf('fulfillment.corrected', p.id)).toEqual([])
+    expect(await mailsOf(p.id, 'order_shipped')).toHaveLength(1)
+  })
+
+  it('answers REFUND_IN_FLIGHT for an item a refund in flight allocates, and moves nothing; once the refund is decided, the item follows it', async () => {
+    const p = await h.paid([{ variantId: await h.physical(4000, 10), quantity: 1 }, { variantId: await h.signed(9000, 10), quantity: 1 }])
+    const [phys, sig] = p.items as [PaidItem, PaidItem]
+    const asked = await askRefund(p, [{ item: phys, amount: phys.paid }])
+    // All or nothing: the signed item beside it is neither ticked nor shipped.
+    expect(await ownerApi.fulfil(p.id, [phys.id, sig.id], 'shipped', 'SMSA', 'T1', true)).toEqual({ ok: false, code: 'REFUND_IN_FLIGHT', itemIds: [phys.id] })
+    expect(await opsApi.fulfil(p.id, [phys.id], 'preparing')).toEqual({ ok: false, code: 'REFUND_IN_FLIGHT', itemIds: [phys.id] })
+    await unchanged(phys, sig)
+    expect((await fulfilmentOf(sig.id)).dedication_done).toBe(false)
+    expect(await mailsOf(p.id, 'order_shipped')).toEqual([])
+    // An item no refund allocates still ships.
+    expect(await ownerApi.fulfil(p.id, [sig.id], 'shipped', 'SMSA', 'T1', true)).toEqual({ ok: true, changed: 1, itemIds: [sig.id] })
+    // The refund lands: the item is refunded in full, and it is never shipped.
+    expect(await h.call('refund_settle', { p_refund: asked.refundId, p_provider_refunded: asked.before + asked.amount })).toMatchObject({ ok: true, status: 'succeeded' })
+    expect(await ownerApi.fulfil(p.id, [phys.id], 'shipped', 'SMSA', 'T1')).toEqual({ ok: false, code: 'ITEM_REFUNDED', itemIds: [phys.id] })
+    await unchanged(phys)
+
+    // A refund in flight for part of an item holds it too; once it fails, the item ships.
+    const q = await h.paid([{ variantId: await h.physical(4000, 10), quantity: 1 }])
+    const item = q.items[0]!
+    const part = await askRefund(q, [{ item, amount: 1000 }])
+    expect(await ownerApi.fulfil(q.id, [item.id], 'shipped', 'SMSA', 'T2')).toEqual({ ok: false, code: 'REFUND_IN_FLIGHT', itemIds: [item.id] })
+    expect(await h.call('refund_result', { p_refund: part.refundId, p_outcome: 'failed', p_provider_refunded: null, p_error: 'REFUSED' })).toMatchObject({ ok: true, status: 'failed' })
+    expect(await ownerApi.fulfil(q.id, [item.id], 'shipped', 'SMSA', 'T2')).toEqual({ ok: true, changed: 1, itemIds: [item.id] })
+  })
+
+  it('renews the order\'s link when it mails a shipment, so that the mail\'s link opens; never shortened, and not by a call that ships nothing', async () => {
+    const { p, phys, sig } = await make()
+    const access = (): Promise<any> => h.call('order_access', { p_order_number: p.number, p_access_token_hash: p.hash, p_ip_hash: h.ipHash(), p_mode: 'test' })
+    const daysLeft = async (): Promise<number> =>
+      Number((await h.row('select extract(epoch from (access_token_expires_at - now())) / 86400 as d from finance.orders where id = $1', [p.id])).d)
+    // The link expired 7 days after the payment; the goods ship later.
+    await h.postgres.query("update finance.orders set access_token_expires_at = now() - interval '1 minute' where id = $1", [p.id])
+    expect(await access()).toEqual(NOT_FOUND)
+    // The checklist alone mails nothing and renews nothing.
+    expect(await ownerApi.fulfil(p.id, [sig.id], 'preparing', null, null, true)).toMatchObject({ ok: true, changed: 1 })
+    expect(await access()).toEqual(NOT_FOUND)
+
+    expect(await ownerApi.fulfil(p.id, [phys.id], 'shipped', 'SMSA', 'T1')).toEqual({ ok: true, changed: 1, itemIds: [phys.id] })
+    expect(await mailsOf(p.id, 'order_shipped')).toHaveLength(1)
+    expect(await access()).toMatchObject({ ok: true, order: { orderNumber: p.number } })
+    expect(await daysLeft()).toBeGreaterThan(6.9)
+
+    // A link with longer left keeps it.
+    await h.postgres.query("update finance.orders set access_token_expires_at = now() + interval '30 days' where id = $1", [p.id])
+    expect(await ownerApi.fulfil(p.id, [sig.id], 'shipped', 'SMSA', 'T2')).toEqual({ ok: true, changed: 1, itemIds: [sig.id] })
+    expect(await daysLeft()).toBeGreaterThan(29.9)
   })
 
   it('moves only forward: preparing, shipped, delivered, each one step; delivered ignores a carrier and a tracking', async () => {
@@ -1271,6 +1407,71 @@ describe('order_resolve', () => {
     expect(await count('finance.fulfillments', placed.id)).toBe(1)
   })
 
+  it('answers PAYMENT_REVERSED and changes nothing while the paying payment\'s money went back at the provider: voided, or refunded in full; a part refunded is no reversal', async () => {
+    const variant = await h.physical(4000, 10)
+    const p = await stuck([{ variantId: variant, quantity: 1 }], [variant])
+    await h.postgres.query('update public.product_variants set stock = 10 where id = $1', [variant])
+    // The provider now calls the paying payment voided.
+    expect(await fetched(p, { status: 'voided' })).toMatchObject({ outcome: 'not_paid' })
+    const before = await orderOf(p.id)
+    const reservations = await h.rows('select id, state from finance.inventory_reservations where order_id = $1 order by id', [p.id])
+    expect(await ownerApi.resolve(p.id)).toEqual({ ok: false, code: 'PAYMENT_REVERSED' })
+    expect(await orderOf(p.id)).toEqual(before)
+    expect(await h.rows('select id, state from finance.inventory_reservations where order_id = $1 order by id', [p.id])).toEqual(reservations)
+    expect(await stockOf(variant)).toBe(10)
+    expect(await count('finance.fulfillments', p.id)).toBe(0)
+    expect(await mailsOf(p.id, 'receipt')).toHaveLength(1)
+    expect(await auditsOf('order.resolved', p.id)).toEqual([])
+    // Once the owner records the void as a refund, the order is refunded: nothing to resolve.
+    const recorded = await h.call('refund_record_external', { p_actor: owner.userId, p_attempt: p.attemptId, p_review_payment: null, p_provider_refunded: 0, p_provider_status: 'voided', p_reason: 'إلغاء من لوحة البوابة' })
+    expect(recorded).toMatchObject({ ok: true, amount: p.total })
+    expect(await ownerApi.resolve(p.id)).toEqual({ ok: false, code: 'NOT_RESOLVABLE', status: 'refunded' })
+
+    // Refunded in full at the provider, and not in the ledger yet: the same answer.
+    const full = await h.physical(4000, 10)
+    const q = await stuck([{ variantId: full, quantity: 1 }], [full])
+    await h.postgres.query('update public.product_variants set stock = 10 where id = $1', [full])
+    expect(await fetched(q, { status: 'refunded', refunded: q.total })).toMatchObject({ outcome: 'already_paid' })
+    expect(await ownerApi.resolve(q.id)).toEqual({ ok: false, code: 'PAYMENT_REVERSED' })
+    expect(await stockOf(full)).toBe(10)
+    expect((await orderOf(q.id)).status).toBe('paid_needs_resolution')
+
+    // A part refunded at the provider is no reversal, though Moyasar then calls the payment `refunded` too (what the
+    // owner's refund of the missing line produces): the order is delivered.
+    const part = await h.physical(4000, 10)
+    const r = await stuck([{ variantId: part, quantity: 1 }], [part])
+    await h.postgres.query('update public.product_variants set stock = 10 where id = $1', [part])
+    expect(await fetched(r, { status: 'refunded', refunded: r.total - 1 })).toMatchObject({ outcome: 'already_paid' })
+    expect(await h.row('select provider_status, provider_refunded_halalas from finance.payment_attempts where id = $1', [r.attemptId])).toEqual({
+      provider_status: 'refunded',
+      provider_refunded_halalas: r.total - 1,
+    })
+    expect(await ownerApi.resolve(r.id)).toEqual({ ok: true, orderNumber: r.number, status: 'paid' })
+    expect(await stockOf(part)).toBe(9)
+  })
+
+  it('marks the audit row when the commit takes the order\'s coupon past its usage limit, as a late payment does', async () => {
+    const variant = await h.physical(4000, 10)
+    const p = await stuck([{ variantId: variant, quantity: 1 }], [variant])
+    // The order's coupon, whose one use another order took while this one waited. A disabled coupon still commits:
+    // the price was charged.
+    const coupon = (
+      await h.row("insert into public.coupons (code, kind, percent_bp, usage_limit, enabled) values ($1, 'percent', 1000, 1, false) returning id", [
+        `OVER${Date.now()}${process.pid}`,
+      ])
+    ).id as string
+    await h.postgres.query('update finance.orders set coupon_id = $2 where id = $1', [p.id, coupon])
+    const taker = await h.place([{ variantId: await h.digital(1000), quantity: 1 }])
+    await h.postgres.query("insert into finance.coupon_redemptions (coupon_id, order_id, state, expires_at) values ($1, $2, 'committed', now())", [coupon, taker.id])
+    await h.postgres.query('update public.product_variants set stock = 10 where id = $1', [variant])
+
+    expect(await ownerApi.resolve(p.id)).toEqual({ ok: true, orderNumber: p.number, status: 'paid' })
+    expect(await h.row('select state from finance.coupon_redemptions where order_id = $1', [p.id])).toEqual({ state: 'committed' })
+    const audits = await auditsOf('order.resolved', p.id)
+    expect(audits).toHaveLength(1)
+    expect(audits[0]!.summary).toEqual({ orderNumber: p.number, amount: p.total, couponOverLimit: true })
+  })
+
   it('refuses an order that is not waiting for it, and one that is not there', async () => {
     const variant = await h.physical(4000, 10)
     const paid = await h.paid([{ variantId: variant, quantity: 1 }])
@@ -1383,6 +1584,18 @@ describe('orders_alerts', () => {
     expect(delta(base, await numbers())).toEqual(zero({ uncertainRefunds: 1 }))
     const settled = await h.call('refund_settle', { p_refund: asked.refundId, p_provider_refunded: asked.before + asked.amount })
     expect(settled).toMatchObject({ ok: true, status: 'succeeded' })
+    expect(delta(base, await numbers())).toEqual(zero())
+
+    // A refund still submitting is the job's while a check is scheduled; once none is (the job stops after 24 hours
+    // without an answer) it waits for a person, and it is counted until it settles.
+    const s = await h.paid([{ variantId: variant, quantity: 1 }])
+    const waiting = await askRefund(s, [{ item: s.items[0]!, amount: 1000 }])
+    expect(delta(base, await numbers())).toEqual(zero())
+    await h.postgres.query("update finance.refunds set created_at = now() - interval '25 hours' where id = $1", [waiting.refundId])
+    await h.call('refund_checked', { p_refund: waiting.refundId, p_error: 'HTTP_500' })
+    expect(await h.row('select status, next_check_at from finance.refunds where id = $1', [waiting.refundId])).toEqual({ status: 'submitting', next_check_at: null })
+    expect(delta(base, await numbers())).toEqual(zero({ uncertainRefunds: 1 }))
+    expect(await h.call('refund_settle', { p_refund: waiting.refundId, p_provider_refunded: waiting.before + waiting.amount })).toMatchObject({ ok: true, status: 'succeeded' })
     expect(delta(base, await numbers())).toEqual(zero())
 
     // A refund made in the provider's dashboard, until the owner records it. An in-flight refund of our own is not one.
@@ -1582,6 +1795,32 @@ describe('reconciliation_list', () => {
     expect(await ownerApi.dismiss(gaveUp)).toEqual({ ok: true, eventId: gaveUp })
     expect(((await list()).events as Row[]).map((entry) => entry.eventId)).not.toContain(gaveUp)
   })
+
+  it('clears the mark the job left on work of the other mode once a recheck reaches the provider: off the screen, out of the count, and its order erasable', async () => {
+    const placed = await h.place([{ variantId: await h.physical(4000, 30), quantity: 1 }])
+    const started = await h.startPayment(placed)
+    // What the job's claim does to an attempt of the other mode (20261007100000_fable_audit_payments.sql): parked with its
+    // invoice, no due time, marked; the order's hold has ended since.
+    await h.postgres.query("update finance.payment_attempts set status = 'expired', next_check_at = null, last_error = 'MODE_CHANGED' where id = $1", [started.attemptId])
+    await h.postgres.query("update finance.orders set status = 'expired' where id = $1", [placed.id])
+    const unverified = async (): Promise<number> => (await ownerApi.alerts()).unverifiedAttempts as number
+    const erasable = async (): Promise<boolean> => (await h.row('select finance.order_erasable(o) as ok from finance.orders o where o.id = $1', [placed.id])).ok as boolean
+    const before = await unverified()
+    expect(await reasonsFor(started.attemptId)).toEqual(['MODE_CHANGED'])
+    expect(await erasable()).toBe(false)
+    const recheck = (ok: boolean): Promise<unknown> =>
+      h.call('payment_attempt_checked', { p_attempt: started.attemptId, p_source: 'prompt', p_ok: ok, p_provider_status: ok ? 'expired' : null, p_error: ok ? null : 'HTTP_500' })
+    // A recheck the provider does not answer leaves the mark.
+    await recheck(false)
+    expect(await reasonsFor(started.attemptId)).toEqual(['MODE_CHANGED'])
+    expect(await unverified()).toBe(before)
+    // The mode is switched back and the recheck reaches the provider: the invoice expired unpaid.
+    await recheck(true)
+    expect(await h.row('select status, last_error from finance.payment_attempts where id = $1', [started.attemptId])).toEqual({ status: 'expired', last_error: null })
+    expect(await reasonsFor(started.attemptId)).toBeUndefined()
+    expect(await unverified()).toBe(before - 1)
+    expect(await erasable()).toBe(true)
+  })
 })
 
 // --- review_close ----------------------------------------------------------------------------------------------------
@@ -1756,7 +1995,7 @@ describe('locks', () => {
 })
 
 describe('races between staff and the money functions', () => {
-  it('shipping an item against a refund of that same item: no deadlock, and the end state is one of the two valid orders of events', async () => {
+  it('shipping an item against a refund of that same item: no deadlock, and nothing ships for money that is going back, whichever comes first', async () => {
     for (const shipFirst of [true, false]) {
       const variant = await h.physical(4000, 10)
       const p = await h.paid([{ variantId: variant, quantity: 1 }])
@@ -1772,17 +2011,10 @@ describe('races between staff and the money functions', () => {
       expect(refund).toMatchObject({ ok: true, status: 'succeeded' })
       const state = (await fulfilmentOf(item.id)).state
       const mails = await mailsOf(p.id, 'order_shipped')
-      if (shipFirst) {
-        // Shipped, then refunded: it is on its way and refunded.
-        expect(shipped).toMatchObject({ ok: true, changed: 1 })
-        expect(state).toBe('shipped')
-        expect(mails).toHaveLength(1)
-      } else {
-        // Refunded, then refused: nothing shipped for money that went back.
-        expect(shipped).toEqual({ ok: false, code: 'ITEM_REFUNDED', itemIds: [item.id] })
-        expect(state).toBe('preparing')
-        expect(mails).toHaveLength(0)
-      }
+      // Before the refund lands the ship waits for it (REFUND_IN_FLIGHT); after it the item is refunded (ITEM_REFUNDED).
+      expect(shipped).toEqual({ ok: false, code: shipFirst ? 'REFUND_IN_FLIGHT' : 'ITEM_REFUNDED', itemIds: [item.id] })
+      expect(state).toBe('preparing')
+      expect(mails).toHaveLength(0)
       expect((await h.call('payment_state', { p_order_number: p.number, p_access_token_hash: p.hash, p_mode: 'test' })).state).toBe('paid')
       expect((await orderOf(p.id)).status).toBe('paid')
     }

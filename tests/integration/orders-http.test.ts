@@ -436,6 +436,94 @@ describe('recovery over HTTP', () => {
   })
 })
 
+// --- the owner's re-send of a link (FABLE-AUDIT F1-10) ---------------------------------------------------------------------
+
+describe('the owner re-sends an order\'s link through the real admin function', () => {
+  const linkMails = (orderId: string): Promise<Row[]> => h.rows("select * from finance.email_outbox where kind = 'order_link' and payload ->> 'orderId' = $1 order by id", [orderId])
+  const versionOf = async (orderId: string): Promise<number> => (await h.row('select access_token_version from finance.orders where id = $1', [orderId])).access_token_version as number
+
+  it('rotates the link to the next version: the new token opens the order, the old one is refused, and one mail goes to the order\'s address', async () => {
+    const p = await paid([{ variantId: await h.digital(2500), quantity: 1 }])
+    expect((await getOrder(p)).status).toBe(200)
+    // A plain re-send needs no fresh TOTP: an owner at aal1 may ask for it.
+    const owner = await signIn((await h.makeStaff('owner')).email)
+    const resent = await adminCall(owner, { action: 'order-link-reissue', orderId: p.id })
+    expect(resent.status, JSON.stringify(resent.body)).toBe(200)
+    expect(resent.body).toEqual({ ok: true, data: { version: 1, emailChanged: false } })
+
+    // The old link is dead at the real function, and the next version's token, derived as recovery derives it, opens the order.
+    expect((await getOrder(p)).status).toBe(404)
+    const fresh = await orderAccessToken(PEPPER, p.key, 1)
+    const opened = await getOrder({ number: p.number, token: fresh })
+    expect(opened.status, JSON.stringify(opened.body)).toBe(200)
+    expect(await h.row('select access_token_version, access_token_hash from finance.orders where id = $1', [p.id])).toMatchObject({
+      access_token_version: 1,
+      access_token_hash: await orderAccessTokenHash(PEPPER, fresh),
+    })
+    const mails = await linkMails(p.id)
+    expect(mails).toHaveLength(1)
+    expect(mails[0]).toMatchObject({ kind: 'order_link', recipient: p.email.toLowerCase(), payload: { orderId: p.id } })
+    // Neither the token, the order's key nor the address is in the reply.
+    for (const secret of [fresh, p.key, p.email]) expect(JSON.stringify(resent.body)).not.toContain(secret)
+  })
+
+  it('a corrected address needs a fresh TOTP; with one, the mail goes to it, it becomes the order\'s, and only the newest link opens the order', async () => {
+    const p = await paid([{ variantId: await h.digital(2500), quantity: 1 }])
+    const member = await h.makeStaff('owner')
+    const owner = await signIn(member.email)
+    const corrected = uniqueEmail('corrected')
+
+    const refused = await adminCall(owner, { action: 'order-link-reissue', orderId: p.id, email: corrected })
+    expect(refused.status).toBe(403)
+    expect(refused.body).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
+    expect(await versionOf(p.id)).toBe(0)
+    expect(await linkMails(p.id)).toHaveLength(0)
+
+    await stepUp(owner)
+    const readdressed = await adminCall(owner, { action: 'order-link-reissue', orderId: p.id, email: corrected.toUpperCase() })
+    expect(readdressed.status, JSON.stringify(readdressed.body)).toBe(200)
+    expect(readdressed.body).toEqual({ ok: true, data: { version: 1, emailChanged: true } })
+    expect((await h.row('select customer_email from finance.orders where id = $1', [p.id])).customer_email).toBe(corrected)
+    expect((await linkMails(p.id)).map((mail) => mail.recipient)).toEqual([corrected])
+    expect((await getOrder(p)).status).toBe(404)
+    expect((await getOrder({ number: p.number, token: await orderAccessToken(PEPPER, p.key, 1) })).status).toBe(200)
+    // The SQL ran as the owner who asked (its audit row's actor), and the row says that the address changed, never which.
+    const audit = await h.row("select actor, summary from public.audit_events where action = 'order.link_reissued' and entity_id = $1 order by at desc, id desc limit 1", [p.id])
+    expect(audit.actor).toBe(member.userId)
+    expect(audit.summary).toEqual({ orderNumber: p.number, emailChanged: true })
+    expect(JSON.stringify(audit)).not.toContain(corrected)
+
+    // A second re-send moves on to the next version: the first re-sent link dies in turn.
+    expect((await adminCall(owner, { action: 'order-link-reissue', orderId: p.id })).body).toEqual({ ok: true, data: { version: 2, emailChanged: false } })
+    expect((await getOrder({ number: p.number, token: await orderAccessToken(PEPPER, p.key, 1) })).status).toBe(404)
+    expect((await getOrder({ number: p.number, token: await orderAccessToken(PEPPER, p.key, 2) })).status).toBe(200)
+  })
+
+  it('refuses an editor, an order that is not paid and a malformed address, and changes nothing', async () => {
+    const p = await paid([{ variantId: await h.digital(2500), quantity: 1 }])
+    const editor = await adminCall(editorClient, { action: 'order-link-reissue', orderId: p.id })
+    expect(editor.status).toBe(403)
+    expect(editor.body).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+
+    const owner = await signIn((await h.makeStaff('owner')).email)
+    await stepUp(owner)
+    const unpaid = await h.place([{ variantId: await h.digital(2500), quantity: 1 }])
+    const notPaid = await adminCall(owner, { action: 'order-link-reissue', orderId: unpaid.id })
+    expect(notPaid.status).toBe(409)
+    expect(notPaid.body).toMatchObject({ ok: false, error: { code: 'BAD_STATUS' } })
+    const malformed = await adminCall(owner, { action: 'order-link-reissue', orderId: p.id, email: 'not-an-address' })
+    expect(malformed.status).toBe(422)
+    expect(malformed.body).toMatchObject({ ok: false, error: { code: 'INVALID_EMAIL', message: 'تحقق من البريد.' } })
+    const unknown = await adminCall(owner, { action: 'order-link-reissue', orderId: randomUUID() })
+    expect(unknown.status).toBe(404)
+
+    expect(await versionOf(p.id)).toBe(0)
+    expect(await versionOf(unpaid.id)).toBe(0)
+    expect(await linkMails(p.id)).toHaveLength(0)
+    expect((await getOrder(p)).status).toBe(200)
+  })
+})
+
 // --- the return request -----------------------------------------------------------------------------------------------------
 
 describe('the return request over HTTP', () => {

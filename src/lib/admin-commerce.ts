@@ -1,11 +1,12 @@
 // Relative, not `@/`: the unit tests and the variant table config import this file, and the unit config has no alias.
+import type { SettingsStatus } from '../../supabase/functions/_shared/admin.ts'
 import { formatMoney, formatNumber } from './format'
 
 /**
  * The owner's catalog and figures screens (P08 round 11c), the parts that need no React: the Riyadh day
  * (a preorder's delivery date may not be before today; the statistics range is whole days), the checks a
  * paid file passes before any call, the strict parsers of what `variant_admin_info`, the paid-file actions
- * and `stats` answer, and the words the screens say.
+ * and `stats` answer, and the words the screens say, the store settings' «الشراء» box among them.
  *
  * A reply is read key by key, as `admin-orders.ts` does: a key too few, or a value of the wrong type,
  * throws, and the screen then says it could not read the reply, never a half-drawn figure. Extra keys are
@@ -253,6 +254,46 @@ export function parseCommerceStats(value: unknown): CommerceStats {
 /** A sum in halalas as riyals; a negative one keeps its minus on its left in right-to-left text (a left-to-right mark before it). */
 export function signedMoney(halalas: number): string {
   return halalas < 0 ? `‎${formatMoney(halalas)}` : formatMoney(halalas)
+}
+
+// ---------------------------------------------------------------------------
+// The store settings' «الشراء» box (FABLE-AUDIT)
+// ---------------------------------------------------------------------------
+
+/** Why the payment settings are refused, by the reason code `status` names (`paymentsConfig`'s), in a few words. */
+const PAYMENTS_REASONS: Readonly<Record<string, string>> = {
+  NOT_CONFIGURED: 'متغيرات الدفع ناقصة',
+  BAD_MODE: 'وضع الدفع غير صحيح',
+  KEY_MODE_MISMATCH: 'مفتاح Moyasar لا يوافق وضع الدفع',
+  WEAK_WEBHOOK_SECRET: 'سرّ إشعارات Moyasar أقصر من المطلوب',
+  BAD_BASE_URL: 'عنوان Moyasar غير صحيح',
+  BAD_CALLBACK_BASE: 'العنوان العام للدوال غير صحيح',
+  LIVE_ON_LOCAL: 'الوضع الحي غير مسموح على نسخة محلية',
+  EMULATOR_ON_HOSTED: 'مفاتيح المحاكي المحلي على الموقع المنشور',
+  TEST_CODE_REQUIRED: 'رمز الوصول التجريبي ناقص',
+}
+
+/** What `status` says of the payments, in one plain sentence, with the reason of a refusal; nothing beyond it. */
+export function paymentsLine(payments: SettingsStatus['payments']): string {
+  if (!payments.configured) {
+    const reason = payments.reason !== undefined && Object.hasOwn(PAYMENTS_REASONS, payments.reason) ? PAYMENTS_REASONS[payments.reason] : undefined
+    return reason === undefined ? 'الدفع غير مضبوط' : `الدفع غير مضبوط: ${reason}`
+  }
+  if (payments.mode === 'live') return 'الدفع مضبوط: وضع حي'
+  return payments.emulator ? 'الدفع مضبوط: وضع تجريبي، محاكٍ محلي' : 'الدفع مضبوط: وضع تجريبي'
+}
+
+/**
+ * Whether the store takes new orders now (`commerce_settings_get`'s `checkoutOpen`, the cart's own rule, not
+ * the switch alone) and, when it does not, the first reason `checkoutClosedReason` names. «اعتماد السياسات»
+ * comes before the «الشراء» box on that screen, hence «أعلاه».
+ */
+export function checkoutLine(row: { checkoutOpen: boolean; checkoutClosedReason: string | null }): string {
+  if (row.checkoutOpen) return 'الشراء مفتوح'
+  if (row.checkoutClosedReason === 'SELLER_UNSET') return 'الشراء مغلق: بيانات البائع ناقصة'
+  if (row.checkoutClosedReason === 'POLICIES_UNAPPROVED') return 'الشراء مغلق: السياسات تحتاج اعتمادًا (انظر «اعتماد السياسات» أعلاه)'
+  // SWITCH_OFF, or a reason this screen does not know.
+  return 'الشراء مغلق'
 }
 
 /** The figures of the «المتجر» section, one «label: value» line each, in the order the screen draws them. */

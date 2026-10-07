@@ -3,7 +3,8 @@
 /**
  * The checkout screen (P07, P08): the same live `quote` as the cart, shown as
  * the summary the buyer confirms. Digital-only carts see no phone, city or
- * address; physical and signed carts require all three. Policy consent links
+ * address, and send no phone (one typed before the cart changed is dropped);
+ * physical and signed carts require all three. Policy consent links
  * the exact revisions the quote carried; what `create` sends are the revisions
  * this build rendered (`builtRevisions`, from `src/lib/policies.ts`), and while
  * they differ from the quote's the policies are being updated and the button
@@ -50,6 +51,7 @@ import {
   MAX_COUPON,
   normalizeCoupon,
   pendingOrderOf,
+  phoneToSend,
   readIdempotency,
   readPendingOrder,
   readSavedCoupon,
@@ -206,6 +208,11 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
   // A press that Turnstile answered with a failure is over: a later recovery
   // must not submit it without a new press.
   if (turnstileFailed && awaitingToken) setAwaitingToken(false)
+  // A digital-only cart shows no phone field: a number typed while it held a physical line goes, with its error.
+  if (quote !== null && !quote.physical && (phone !== '' || errors.phone !== undefined)) {
+    setPhone('')
+    setErrors((e) => ({ ...e, phone: undefined }))
+  }
   const waiting = awaitingToken && !turnstileFailed
   useEffect(() => {
     if (!ready || !cart) return
@@ -339,7 +346,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
       couponCode: coupon || undefined,
       email: trimmedEmail,
       name,
-      phone: phone.trim() || undefined,
+      phone: phoneToSend(quote.physical, phone),
       policyRevisions: policies.revisions,
       quoteHash: quote.quoteHash,
     }

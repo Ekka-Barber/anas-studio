@@ -11,8 +11,9 @@
  * `message`: ignored), and the token comes from this tab's stored pending
  * order only, and only for the same order number.
  *
- * `paid` is the one state that spends the order here: the cart, the stored
- * order and its idempotency key are cleared, and the order link
+ * A settled state spends the order here (`returnRelease`): the stored order
+ * and its idempotency key are cleared, so the checkout page no longer holds
+ * it; `paid` is the one state that clears the cart too. The order link
  * (`/orders#<number>.<token>`) is shown only when this tab holds the token.
  * An order this tab does not hold clears nothing: a number in the address is
  * no reason to empty anyone's cart. The state sits in one `role="status"`
@@ -29,6 +30,7 @@ import {
   EMPTY_CART,
   readPendingOrder,
   returnOrder,
+  returnRelease,
   VERIFY_SCHEDULE_SECONDS,
   writeCart,
   type ReturnTarget,
@@ -105,8 +107,8 @@ export function PaymentReturn() {
           } else {
             setProblem(null)
             setVerified(outcome.verify)
-            if (outcome.verify.state === 'paid') spend(target, true)
-            else if (outcome.verify.state === 'expired' || outcome.verify.state === 'cancelled') spend(target, false)
+            const release = returnRelease(outcome.verify.state)
+            if (release !== null) spend(target, release === 'cart')
             if (outcome.verify.state !== 'pending') stop()
           }
           if (!live || index === delays.length - 1) setDone(true)

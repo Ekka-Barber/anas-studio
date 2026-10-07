@@ -4,6 +4,7 @@ import { type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, ok as okWith, siteOrigin } from './http.ts'
 import { PAID_BUCKET } from './paid-files.ts'
+import { buyerMode } from './payments.ts'
 import { type PaymentsConfig, paymentsConfig } from './payments/moyasar.ts'
 import { clientKeyHash } from './rate-limit.ts'
 import { downloadToken, downloadTokenHash, orderAccessTokenHash } from './tokens.ts'
@@ -22,12 +23,13 @@ import { downloadToken, downloadTokenHash, orderAccessTokenHash } from './tokens
  *   browser or logged.
  *
  * The signed URL comes from the Storage client on the runtime's own (internal) address; it is rebuilt on
- * the public Storage base of `paymentsConfig()` so a browser can follow it. The download name is added
+ * the public Storage base (`publicStorageBase`) so a browser can follow it. The download name is added
  * here, not by the client library: that one percent-encodes it twice, so an Arabic name would reach
  * the browser as `%D9%83...` text.
  *
  * Order of checks, like `orders`: method → site and pepper → origin → content type → size → JSON →
- * schema → payments configured → database. Every reply carries `Referrer-Policy: no-referrer` and
+ * schema → the payment mode and the public Storage base (neither action calls the provider, so a broken
+ * Moyasar setting does not stop them) → database. Every reply carries `Referrer-Policy: no-referrer` and
  * `Cache-Control: no-store`. A throttle is 429 and anything else a detail-free 500. A token, a storage
  * key and a signed URL are never logged.
  */
@@ -81,6 +83,19 @@ const storageSigner: DownloadSigner = async (storageKey, seconds) => {
 }
 
 /**
+ * The public Storage base a file link is rebuilt on: the working payment configuration's, else built the same
+ * way from `FUNCTIONS_PUBLIC_URL` alone (the Moyasar settings play no part in it); null when that is unusable.
+ */
+function publicStorageBase(config: PaymentsConfig): string | null {
+  if (config.ok) return config.storageBase
+  try {
+    return `${new URL(optionalEnv('FUNCTIONS_PUBLIC_URL') ?? '').origin}/storage/v1`
+  } catch {
+    return null
+  }
+}
+
+/**
  * The signed URL on the public Storage base, with the download name; null when the signer's URL is not a
  * Storage signed-object URL at all.
  */
@@ -129,10 +144,12 @@ export async function handleDownload(request: Request, deps: DownloadDeps = {}):
   const parsed = bodySchema.safeParse(body)
   if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
   const input = parsed.data
-  // The mode both SQL functions are bound to and the storage base a file link is rebuilt on come from the payment
-  // settings; without them there are no orders to serve.
+  // The mode both SQL functions are bound to and the storage base a file link is rebuilt on; without them there are no
+  // orders to serve. Neither needs the Moyasar key, base or webhook secret.
   const config = deps.config ?? paymentsConfig()
-  if (!config.ok) return fail(503, 'UNAVAILABLE', FAILED)
+  const mode = buyerMode(config)
+  const storageBase = publicStorageBase(config)
+  if (!mode || !storageBase) return fail(503, 'UNAVAILABLE', FAILED)
 
   const ipHash = await clientKeyHash(request, pepper)
   let result: SqlReply
@@ -146,13 +163,13 @@ export async function handleDownload(request: Request, deps: DownloadDeps = {}):
         p_item: input.itemId,
         p_download_token_hash: await downloadTokenHash(pepper, minted),
         p_ip_hash: ipHash,
-        p_mode: config.mode,
+        p_mode: mode,
       })) as SqlReply
     } else {
       result = (await rpc('download_redeem', {
         p_download_token_hash: await downloadTokenHash(pepper, input.downloadToken),
         p_ip_hash: ipHash,
-        p_mode: config.mode,
+        p_mode: mode,
       })) as SqlReply
     }
   } catch (error) {
@@ -169,7 +186,7 @@ export async function handleDownload(request: Request, deps: DownloadDeps = {}):
   if (typeof result.storageKey !== 'string' || typeof result.filename !== 'string') return fail(500, 'FAILED', FAILED)
   let url: string | null
   try {
-    url = publicFileUrl(await signer(result.storageKey, SIGNED_SECONDS), config.storageBase, result.filename)
+    url = publicFileUrl(await signer(result.storageKey, SIGNED_SECONDS), storageBase, result.filename)
   } catch {
     return fail(500, 'FAILED', FAILED)
   }

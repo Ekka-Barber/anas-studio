@@ -4,7 +4,7 @@
 // when the idempotency key is reused.
 import { randomUUID } from 'node:crypto'
 
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   addLine,
@@ -36,7 +36,6 @@ import {
   MAX_QUANTITY,
   normalizeCoupon,
   parseCart,
-  readCart,
   readSavedCoupon,
   removeLine,
   removeLines,
@@ -44,11 +43,21 @@ import {
   setDedication,
   setQuantity,
   toApiLines,
-  updateStoredCart,
-  writeCart,
   type CartArea,
   type CartV1,
 } from '../../src/lib/cart'
+
+// The storage bridge keeps the tab's memory cart and a write-failed flag in module state, so the three functions that
+// read or write it come from a fresh copy of the module in every test: each test passes alone and in any order
+// (FABLE-AUDIT T-14). Everything else imported above is pure.
+let fresh: typeof import('../../src/lib/cart')
+beforeEach(async () => {
+  vi.resetModules()
+  fresh = await import('../../src/lib/cart')
+})
+const readCart: typeof fresh.readCart = (...args) => fresh.readCart(...args)
+const writeCart: typeof fresh.writeCart = (...args) => fresh.writeCart(...args)
+const updateStoredCart: typeof fresh.updateStoredCart = (...args) => fresh.updateStoredCart(...args)
 
 const VARIANT_A = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
 const VARIANT_B = '1b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e'
@@ -126,6 +135,26 @@ describe('addLine and the caps', () => {
   it('trims a dedication to 200 characters', () => {
     const withLine = addLine(EMPTY_CART, { variantId: VARIANT_C, quantity: 1, dedication: 'ه'.repeat(300) })
     expect(withLine.lines[0]!.dedication?.length).toBe(200)
+  })
+
+  it('keeps a digital line at one copy: a new line holds 1, and adding it again changes nothing', () => {
+    const once = addLine(EMPTY_CART, { variantId: VARIANT_A, quantity: 5 }, true)
+    expect(once.lines).toEqual([{ variantId: VARIANT_A, quantity: 1 }])
+    expect(addLine(once, { variantId: VARIANT_A, quantity: 1 }, true)).toBe(once)
+    expect(addLine(once, { variantId: VARIANT_A.toUpperCase(), quantity: 3 }, true)).toBe(once)
+    expect(cartCount(addLine(once, { variantId: VARIANT_A, quantity: 1 }, true))).toBe(1)
+    // Any other variant still merges, up to 20.
+    const both = addLine(addLine(once, { variantId: VARIANT_B, quantity: 2 }), { variantId: VARIANT_B, quantity: 2 })
+    expect(both.lines).toEqual([
+      { variantId: VARIANT_A, quantity: 1 },
+      { variantId: VARIANT_B, quantity: 4 },
+    ])
+  })
+
+  it('takes no new digital line into a cart of 50 lines', () => {
+    let full = EMPTY_CART
+    for (let index = 0; index < MAX_LINES; index += 1) full = addLine(full, { variantId: randomUUID(), quantity: 1 })
+    expect(addLine(full, { variantId: VARIANT_A, quantity: 1 }, true)).toBe(full)
   })
 })
 
@@ -450,6 +479,8 @@ describe('P08: the hold\'s clock time and the pending order', () => {
   afterEach(() => vi.unstubAllGlobals())
 
   it('shows the hold\'s end as a 24-hour Riyadh clock time with Latin digits', () => {
+    // Meaningful only where the process is not on Riyadh time: vitest.config.ts runs the unit tests in UTC.
+    expect(new Date('2026-10-02T11:35:00Z').getHours()).toBe(11)
     expect(formatRiyadhTime('2026-10-02T11:35:00+00:00')).toBe('14:35')
     expect(formatRiyadhTime('2026-10-02T21:05:00Z')).toBe('00:05')
     // The database writes microseconds and an offset.

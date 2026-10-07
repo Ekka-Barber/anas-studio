@@ -6,18 +6,24 @@ import { useState, type FormEvent } from 'react'
 import { Mark } from '@/components/weave/Action'
 import { otpDigits } from '@/lib/digits'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { useTurnstile } from '@/lib/turnstile'
 
 import styles from './admin.module.css'
 
-const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 6 أرقام.'
+/** The emailed code's length (`otp_length` in supabase/config.toml). */
+const CODE_LENGTH = 8
+const SENT_MESSAGE = 'إن كان هذا البريد مسجّلًا لدينا فقد أرسلنا إليه رمزًا من 8 أرقام.'
 const RATE_LIMITED_MESSAGE = 'أُرسلت رموز كثيرة في وقت قصير. انتظر قليلًا ثم اطلب رمزًا جديدًا.'
 const OFFLINE_MESSAGE = 'تعذّر الاتصال. تحقق من الشبكة وحاول مرة أخرى.'
+const SEND_FAILED_MESSAGE = 'تعذّر الإرسال الآن. حاول بعد قليل.'
 const BAD_CODE_MESSAGE = 'الرمز غير صحيح أو انتهت صلاحيته.'
 
 /**
- * Passwordless staff sign-in (P03): a 6-digit email code. Step 1 never
- * reveals whether the address is a staff email; only a rate limit varies the
- * message. Google appears only once `NEXT_PUBLIC_AUTH_GOOGLE=on`.
+ * Passwordless staff sign-in (P03): an 8-digit email code, asked for behind
+ * Turnstile, whose token Auth checks (`[auth.captcha]` in supabase/config.toml).
+ * Step 1 never reveals whether the address is a staff email; only a rate
+ * limit, the network or a failure on Auth's side varies the message. Google
+ * appears only once `NEXT_PUBLIC_AUTH_GOOGLE=on`.
  */
 export function SignIn() {
   const router = useRouter()
@@ -27,6 +33,13 @@ export function SignIn() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const {
+    box: turnstileBox,
+    token: captchaToken,
+    failed: turnstileFailed,
+    reset: resetTurnstile,
+    available: turnstileAvailable,
+  } = useTurnstile('admin-sign-in')
 
   async function submitEmail(event: FormEvent) {
     event.preventDefault()
@@ -35,8 +48,10 @@ export function SignIn() {
     const supabase = getSupabaseBrowserClient()
     const { error: sendError } = await supabase.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: false },
+      options: { shouldCreateUser: false, captchaToken },
     })
+    // A token is accepted once, whatever the answer was: the next request needs a fresh one.
+    resetTurnstile()
     setBusy(false)
     // A request that never reached the server has no HTTP status; it says
     // nothing about the address, so it may be told apart from the masked answers.
@@ -46,6 +61,12 @@ export function SignIn() {
     }
     if (sendError?.status === 429) {
       setMessage(RATE_LIMITED_MESSAGE)
+      return
+    }
+    // A failure on Auth's side (the mail could not be sent) says nothing about
+    // the address either, and no code is on its way: the step stays.
+    if (sendError?.status && sendError.status >= 500) {
+      setMessage(SEND_FAILED_MESSAGE)
       return
     }
     setMessage(SENT_MESSAGE)
@@ -103,7 +124,20 @@ export function SignIn() {
               onChange={(event) => setEmail(event.target.value)}
             />
           </div>
-          <button type="submit" className={styles.button} disabled={busy}>
+          {/* The button waits for Turnstile's token; without the widget (no
+              site key, or its script failed) it stays off and says why. */}
+          <div ref={turnstileBox} />
+          {!turnstileAvailable && (
+            <p className={styles.error} role="note">
+              التحقق غير متاح حاليًا.
+            </p>
+          )}
+          {turnstileFailed && (
+            <p className={styles.error} role="note">
+              تعذّر تحميل التحقق؛ حدّث الصفحة.
+            </p>
+          )}
+          <button type="submit" className={styles.button} disabled={busy || !captchaToken}>
             أرسل الرمز
           </button>
           {process.env.NEXT_PUBLIC_AUTH_GOOGLE === 'on' && (
@@ -127,7 +161,7 @@ export function SignIn() {
               required
               autoFocus
               value={code}
-              onChange={(event) => setCode(otpDigits(event.target.value))}
+              onChange={(event) => setCode(otpDigits(event.target.value, CODE_LENGTH))}
             />
           </div>
           <button type="submit" className={styles.button} disabled={busy}>

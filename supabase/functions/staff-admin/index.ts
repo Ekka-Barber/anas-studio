@@ -132,8 +132,19 @@ Deno.serve(async (req) => {
       // RLS already denies a revoked member on the next query; the ban also
       // stops sign-in and refresh-token use.
       const banError = active ? null : (await admin.auth.admin.updateUserById(userId, { ban_duration: BAN_FOREVER })).error
-      const auditError = await audit(active ? 'staff.restore' : 'staff.revoke', userId, { banApplied: !banError })
+      // A ban that failed puts the member back to active, so the revoke stays
+      // on the screen and «حاول مرة أخرى» can be followed.
+      if (banError) await admin.from('staff').update({ active: true }).eq('user_id', userId)
+      // Once banned, the member's sessions are ended too: a later restore lifts
+      // the ban, and must not bring back a session still open somewhere.
+      const sessionsEnded = active || banError ? null : !(await admin.rpc('staff_sessions_end', { p_user: userId })).error
+      const auditError = await audit(
+        active ? 'staff.restore' : 'staff.revoke',
+        userId,
+        sessionsEnded === null ? { banApplied: !banError } : { banApplied: true, sessionsEnded },
+      )
       if (banError) return fail(500, 'BAN_FAILED', 'حُدّثت الحالة لكن تعذّر إيقاف الدخول. حاول مرة أخرى.')
+      if (sessionsEnded === false) return fail(500, 'SESSIONS_FAILED', 'أُوقف الدخول لكن تعذّر إنهاء الجلسات المفتوحة. حاول مرة أخرى.')
       if (auditError) return auditFailed()
       return ok({ userId, active })
     }

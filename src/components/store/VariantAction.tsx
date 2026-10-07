@@ -125,6 +125,7 @@ export function VariantAction({
   price,
   preorder,
   privacyRevision,
+  digital = false,
 }: {
   variantId: string
   /** «<product>: <variant>», for the controls' accessible names. */
@@ -135,6 +136,8 @@ export function VariantAction({
   preorder: { shipsOn: string; sentence: string; note: string } | null
   /** The privacy policy revision this build rendered, or null while none is published. */
   privacyRevision: number | null
+  /** A digital variant (the build's `fulfillment`): one copy, so its add control has no quantity. */
+  digital?: boolean
 }) {
   // Null: no information yet.
   const [states, setStates] = useState<Availability | null>(null)
@@ -166,7 +169,7 @@ export function VariantAction({
           <AvailabilityForm variantId={variantId} label={label} privacyRevision={privacyRevision} />
         </>
       ) : (
-        <AddToCart variantId={variantId} label={label} preorder={view === 'preorder'} />
+        <AddToCart variantId={variantId} label={label} preorder={view === 'preorder'} digital={digital} />
       )}
     </>
   )

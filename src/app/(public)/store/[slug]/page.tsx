@@ -102,6 +102,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                     variantId={variant.id}
                     label={`${product.title}: ${variant.title}`}
                     price={formatMoney(variant.priceHalalas)}
+                    digital={variant.fulfillment === 'digital'}
                     preorder={
                       variant.preorder && {
                         shipsOn: variant.preorder.shipsOn,

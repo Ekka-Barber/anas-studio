@@ -71,7 +71,8 @@ async function addFixtures(page: Page, lines: Array<{ row: string; quantity: num
   await page.goto(`/store/${slug}`)
   for (const line of lines) {
     const row = page.locator('li', { hasText: line.row })
-    await row.getByLabel('الكمية').fill(String(line.quantity))
+    // A digital row has no quantity field (one copy); every other row starts at 1.
+    if (line.quantity !== 1) await row.getByLabel('الكمية').fill(String(line.quantity))
     await row.getByRole('button', { name: 'أضف إلى السلة' }).click()
     await expect(row.getByText('أُضيف إلى السلة.')).toBeVisible()
   }
@@ -390,9 +391,11 @@ test('the cart persists across reload, follows the live quote and removes a line
   await expect(totalRow(page, 'الإجمالي')).toContainText('59.60 ر.س')
 
   await page.reload()
-  // The quantity field is named after its line («الكمية: <product>: <variant>», X3.11).
+  // The quantity field is named after its line («الكمية: <product>: <variant>», X3.11). A digital line is one copy:
+  // it shows its one copy and no quantity control.
   await expect(paper.getByLabel(/^الكمية/)).toHaveValue('2')
-  await expect(ebook.getByLabel(/^الكمية/)).toHaveValue('1')
+  await expect(ebook).toContainText('× 1')
+  await expect(ebook.getByLabel(/^الكمية/)).toHaveCount(0)
 
   // A physical line needs a city; choosing one adds its fee.
   await expect(page.getByText('اختر مدينة التوصيل.')).toBeVisible()
@@ -411,15 +414,21 @@ test('the cart persists across reload, follows the live quote and removes a line
 })
 
 test('a digital-only cart shows no city; the coupon applies and the discount shows', async ({ page }) => {
-  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 2 }])
+  // The e-book is one copy (the checkout refuses any other quantity): no quantity field, and a second add changes nothing.
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  const ebookRow = page.locator('li', { hasText: 'النسخة الإلكترونية' })
+  await expect(ebookRow.getByLabel('الكمية')).toHaveCount(0)
+  await ebookRow.getByRole('button', { name: 'أضف إلى السلة' }).click()
+  await expect(ebookRow.getByText('الكتاب الرقمي في سلتك.')).toBeVisible()
   await page.goto('/cart')
-  await expect(totalRow(page, 'الإجمالي')).toContainText('24.80 ر.س')
+  await expect(page.locator('li', { hasText: 'النسخة الإلكترونية' })).toContainText('12.40 ر.س × 1')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
   await expect(page.getByLabel('مدينة التوصيل')).toHaveCount(0)
 
   await page.getByLabel('كود الخصم').fill(couponCode)
   await page.getByRole('button', { name: 'تطبيق' }).click()
-  await expect(totalRow(page, 'الخصم')).toContainText('2.48 ر.س')
-  await expect(totalRow(page, 'الإجمالي')).toContainText('22.32 ر.س')
+  await expect(totalRow(page, 'الخصم')).toContainText('1.24 ر.س')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('11.16 ر.س')
 })
 
 test('a signed line gets its dedication field in the cart', async ({ page }) => {
@@ -1005,8 +1014,9 @@ test('the return page tells a throttle from a lost connection from an unknown or
 })
 
 // The state is the function's to say (what settles each one is proven by the integration tests); the page has to
-// word it and treat the order right: an order that ended is forgotten and the cart kept for another try, any other
-// stays, and a state that is final offers no refresh.
+// word it and treat the order right: every settled state forgets the order (so the checkout page no longer shows it)
+// and keeps the cart for another try, an order that ended offers the way back to the cart, and a state that is final
+// offers no refresh.
 for (const [state, text, ended] of [
   ['needs_resolution', 'وصلتنا دفعتك ونراجع طلبك؛ سنتواصل معك عبر البريد.', false],
   ['review', 'وصلتنا دفعتك ونراجع طلبك؛ سنتواصل معك عبر البريد.', false],
@@ -1014,7 +1024,7 @@ for (const [state, text, ended] of [
   ['expired', 'انتهت مدة حجز الطلب.', true],
   ['cancelled', 'أُلغي الطلب.', true],
 ] as const) {
-  test(`the return page words a ${state} order, and ${ended ? 'forgets it, keeping the cart' : 'keeps it'}`, async ({ page }) => {
+  test(`the return page words a ${state} order, and forgets it, keeping the cart`, async ({ page }) => {
     await page.route('**/functions/v1/payments', async (route) => {
       if (route.request().method() !== 'POST') return route.continue()
       return route.fulfill({
@@ -1044,11 +1054,11 @@ for (const [state, text, ended] of [
     await expect(page.getByRole('button', { name: 'تحديث' })).toHaveCount(0)
     if (ended) {
       await expect(page.getByRole('link', { name: 'العودة إلى السلة' })).toHaveAttribute('href', '/cart')
-      await expect.poll(() => kept(page, PENDING_KEY)).toBeNull()
     } else {
       await expect(page.getByRole('link', { name: 'العودة إلى السلة' })).toHaveCount(0)
-      expect(await kept(page, PENDING_KEY)).not.toBeNull()
     }
+    // Every settled state releases this tab's order (a payment under review or refunded included).
+    await expect.poll(() => kept(page, PENDING_KEY)).toBeNull()
     // Only a paid order empties the cart.
     expect(await page.evaluate((key) => localStorage.getItem(key), CART_KEY)).toContain('"quantity":1')
   })

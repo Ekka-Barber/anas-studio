@@ -90,10 +90,33 @@ const recordedLabels = (page: Page) => page.evaluate(() => (window as unknown as
 test.describe('the book preview', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('the published preview is the approved export, byte for byte', () => {
+  test('the published preview is the approved export, byte for byte, and no address or phone number is in it', async () => {
     const bytes = readFileSync(path.resolve('public/book/khous-preview.pdf'))
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(manifest.output.sha256)
-    expect(bytes.includes(Buffer.from('@gmail'))).toBe(false)
+    // The page text sits in compressed streams, so it is read as a visitor's reader reads it (pdf.js, like
+    // tests/unit/reader-mapping.test.ts), not searched for in the raw bytes (FABLE-AUDIT T-18).
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes), verbosity: 0 }).promise
+    let text = ''
+    for (let n = 1; n <= doc.numPages; n += 1) {
+      const content = await (await doc.getPage(n)).getTextContent()
+      text += `${content.items.flatMap((item) => ('str' in item ? [item.str] : [])).join('')}\n`
+    }
+    const { info, metadata } = await doc.getMetadata()
+    await doc.loadingTask.destroy()
+    // The text really was read, so the checks below can fail.
+    expect(text.length).toBeGreaterThan(1000)
+    // Arabic-Indic and Persian digits count too, and so does a number written in groups.
+    const latinDigits = (source: string) => source.replace(/[٠-٩۰-۹]/g, (digit) => String(digit.charCodeAt(0) - (digit >= '۰' ? 0x6f0 : 0x660)))
+    for (const [label, source] of [
+      ['the page text', text],
+      ['the document info', JSON.stringify(info ?? {})],
+      ['the XMP metadata', String(metadata?.getRaw() ?? '')],
+    ] as const) {
+      expect(source, `${label}: an e-mail address`).not.toContain('@')
+      const digits = latinDigits(source).replace(/(?<=\d)[\s.-]+(?=\d)/g, '')
+      expect(digits, `${label}: a Saudi mobile number`).not.toMatch(/(?<!\d)(?:\+?966|0)5\d{8}(?!\d)/)
+    }
   })
 
   test('closed, it loads nothing; open, it fetches only the preview and reads right to left', async ({ page }) => {

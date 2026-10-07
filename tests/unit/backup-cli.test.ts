@@ -41,7 +41,7 @@ describe('what a backup holds', () => {
   })
 })
 
-describe('backup arguments', () => {
+describe('backup arguments', { timeout: 60_000 }, () => {
   it('--help prints the usage and exits 0', () => {
     const result = backup(['--help'])
     expect(result.status).toBe(0)

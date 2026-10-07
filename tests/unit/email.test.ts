@@ -106,20 +106,38 @@ describe('sendEmail with Resend', () => {
     expect(outcome).toEqual({ outcome: 'permanent', error: 'IDEMPOTENCY_CONFLICT' })
   })
 
-  it('429 (quota / rate limit) is a retry', async () => {
-    const { outcome } = await viaResend({ name: 'rate_limit_exceeded' }, 429)
-    expect(outcome).toEqual({ outcome: 'retry', error: 'RATE_LIMIT' })
+  // FABLE-AUDIT T-12: the outbox stops the run and gives the attempt back only on QUOTA, so the quota names must never
+  // read as a plain rate limit (or the reverse).
+  it.each([
+    ['daily_quota_exceeded', 'QUOTA', 'You have reached your daily email sending quota.'],
+    ['monthly_quota_exceeded', 'QUOTA', 'You have reached your monthly email sending quota.'],
+    ['rate_limit_exceeded', 'RATE_LIMIT', 'Too many requests. Please limit the number of requests per second.'],
+  ])('429 %s is a retry as %s', async (name, error, message) => {
+    const { outcome } = await viaResend({ statusCode: 429, name, message }, 429)
+    expect(outcome).toEqual({ outcome: 'retry', error })
   })
 
-  it('other 4xx (400, 403) are permanent', async () => {
+  it('other 4xx (400, 404, 422) are permanent', async () => {
     expect((await viaResend({ name: 'validation_error' }, 400)).outcome).toEqual({
       outcome: 'permanent',
       error: 'HTTP_400',
     })
-    expect((await viaResend({ name: 'validation_error' }, 403)).outcome).toEqual({
-      outcome: 'permanent',
-      error: 'HTTP_403',
+    expect((await viaResend({ name: 'not_found' }, 404)).outcome).toEqual({ outcome: 'permanent', error: 'HTTP_404' })
+    expect((await viaResend({ name: 'validation_error' }, 422)).outcome).toEqual({ outcome: 'permanent', error: 'HTTP_422' })
+  })
+
+  // FABLE-AUDIT F1-4: the account refused the call. Permanent, every queued mail was exhausted on its first attempt.
+  it('403 validation_error about the domain is the account\'s refusal: a retry as PROVIDER_CONFIG, never permanent', async () => {
+    const unverified = { statusCode: 403, name: 'validation_error', message: 'The anas.studio domain is not verified. Please, add and verify your domain.' }
+    expect((await viaResend(unverified, 403)).outcome).toEqual({ outcome: 'retry', error: 'PROVIDER_CONFIG' })
+  })
+
+  it('401 (a missing or revoked key) is PROVIDER_CONFIG too', async () => {
+    expect((await viaResend({ statusCode: 401, name: 'missing_api_key', message: 'Missing API key in the authorization header.' }, 401)).outcome).toEqual({
+      outcome: 'retry',
+      error: 'PROVIDER_CONFIG',
     })
+    expect((await viaResend({ name: 'restricted_api_key' }, 401)).outcome).toEqual({ outcome: 'retry', error: 'PROVIDER_CONFIG' })
   })
 
   it('5xx (500, 503) are retries — the same idempotency key keeps them safe', async () => {
@@ -277,6 +295,28 @@ describe('renderContactNotice', () => {
     expect(text).not.toMatch(/[\r\u2028\u2029]/u)
   })
 
+  it('drops the visitor\'s own embeddings, overrides and isolates from every value, so none can reverse the rest of its line (F1-6)', () => {
+    const RLO = String.fromCharCode(0x202e)
+    const controls = [0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069].map((code) => String.fromCharCode(code))
+    const OPEN = String.fromCharCode(0x2068)
+    const CLOSE = String.fromCharCode(0x2069)
+    const { text } = renderContactNotice({
+      ...data,
+      name: `${RLO}fdp.exe`,
+      email: `guest${RLO}@example.com`,
+      message: `سطر ${controls.join('')}أول\nsecond${RLO} line`,
+    })
+    expect(text).toContain(`الاسم: ${OPEN}fdp.exe${CLOSE}`)
+    expect(text).toContain(`البريد: ${OPEN}guest@example.com${CLOSE}`)
+    expect(text).toContain(`${OPEN}سطر أول${CLOSE}`)
+    expect(text).toContain(`${OPEN}second line${CLOSE}`)
+    expect(text).not.toContain(RLO)
+    // Only our own isolates are left, one pair per value.
+    const ours = text.replaceAll(OPEN, '').replaceAll(CLOSE, '')
+    for (const control of controls) expect(ours).not.toContain(control)
+    expect(text.split(OPEN).length).toBe(text.split(CLOSE).length)
+  })
+
   it('is the whole inbox: no admin link, a hint to answer by Reply (D31)', () => {
     const { text, subject } = renderContactNotice(data)
     expect(text).not.toContain('/admin')
@@ -379,22 +419,34 @@ describe('renderReceipt', () => {
     expect(live.text).not.toContain('تجريبي')
   })
 
-  it.each(['paid_needs_resolution', 'refunded'])(
-    'an order that is %s says the payment arrived and the order is being reviewed, and promises nothing else',
-    (status) => {
-      const { subject, text } = renderReceipt(orderData({ status }), SITE, TOKEN)
-      expect(subject).toBe(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')}`)
-      expect(text).toContain(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')} بمبلغ 88.00 ${SAR}، ونراجع الطلب الآن.`)
-      // No line, no delivery, no file, no shipping, and not called a receipt.
-      for (const promise of ['كتاب الورد', 'التسليم', 'الملف', 'شحن', 'إيصال', 'التوصيل', 'المجموع']) {
-        expect(`${subject}\n${text}`).not.toContain(promise)
-      }
-      expect(text).toContain(LINK)
-    },
-  )
+  it('an order that is paid_needs_resolution says the payment arrived and the order is being reviewed, and promises nothing else', () => {
+    const { subject, text } = renderReceipt(orderData({ status: 'paid_needs_resolution' }), SITE, TOKEN)
+    expect(subject).toBe(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')}`)
+    expect(text).toContain(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')} بمبلغ 88.00 ${SAR}، ونراجع الطلب الآن.`)
+    // No line, no delivery, no file, no shipping, and not called a receipt.
+    for (const promise of ['كتاب الورد', 'التسليم', 'الملف', 'شحن', 'إيصال', 'التوصيل', 'المجموع']) {
+      expect(`${subject}\n${text}`).not.toContain(promise)
+    }
+    expect(text).toContain(LINK)
+  })
 
-  it('is never called a tax invoice and states no tax (D34), paid or under review', () => {
-    for (const status of ['paid', 'paid_needs_resolution']) {
+  it('an order already refunded says the payment arrived and went back, never that it is being reviewed, and promises nothing else (F1-5)', () => {
+    const { subject, text } = renderReceipt(orderData({ status: 'refunded' }), SITE, TOKEN)
+    expect(subject).toBe(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')} وأُعيد المبلغ`)
+    expect(text).toContain(`وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')} بمبلغ 88.00 ${SAR}، وقد أُعيد المبلغ إليك؛ لا يلزمك شيء.`)
+    expect(text).not.toContain('نراجع')
+    for (const promise of ['كتاب الورد', 'التسليم', 'الملف', 'شحن', 'إيصال', 'التوصيل', 'المجموع']) {
+      expect(`${subject}\n${text}`).not.toContain(promise)
+    }
+    expect(text).toContain(`البائع: ${isolated('مؤسسة الورد')}`)
+    expect(text).toContain(LINK)
+    // A refunded test order is labelled like every other buyer mail.
+    const test = renderReceipt(orderData({ status: 'refunded', environment: 'test' }), SITE, TOKEN)
+    expect(test.subject).toBe(`(تجريبي) وصلتنا دفعتك للطلب رقم ${isolated('ABCD2345')} وأُعيد المبلغ`)
+  })
+
+  it('is never called a tax invoice and states no tax (D34), paid, under review or refunded', () => {
+    for (const status of ['paid', 'paid_needs_resolution', 'refunded']) {
       const { subject, text } = renderReceipt(orderData({ status }), SITE, TOKEN)
       expect(`${subject}\n${text}`).not.toMatch(/ضريب|فاتورة|VAT|tax/iu)
     }
@@ -477,9 +529,21 @@ describe('the notification mail', () => {
   it('availability: the product link and the unsubscribe link', () => {
     const { subject, text } = renderAvailability(data, SITE, TOKEN)
     expect(subject).toBe(`توفّر ${isolated('كتاب الورد')}`)
+    expect(text).toContain(`توفّر ${isolated('كتاب الورد')} (${isolated('نسخة موقّعة')}) الذي طلبت أن نخبرك عنه.`)
     expect(text).toContain(`${SITE}/store/rose-book`)
     expect(text).toContain(`${SITE}/notify/unsubscribe#${TOKEN}`)
     expect(text).not.toContain('/notify/confirm')
+    // A variant that is not a preorder, said so or not, is back in stock.
+    expect(renderAvailability({ ...data, preorder: false }, SITE, TOKEN).subject).toBe(`توفّر ${isolated('كتاب الورد')}`)
+  })
+
+  it('availability of a preorder: open for preorder, never «توفّر»; the rest is the same (F1-7)', () => {
+    const { subject, text } = renderAvailability({ ...data, preorder: true }, SITE, TOKEN)
+    expect(subject).toBe(`أصبح متاحًا للطلب المسبق ${isolated('كتاب الورد')}`)
+    expect(text).toContain(`أصبح متاحًا للطلب المسبق ${isolated('كتاب الورد')} (${isolated('نسخة موقّعة')}) الذي طلبت أن نخبرك عنه.`)
+    expect(`${subject}\n${text}`).not.toContain('توفّر')
+    expect(text).toContain(`${SITE}/store/rose-book`)
+    expect(text).toContain(`${SITE}/notify/unsubscribe#${TOKEN}`)
   })
 
   it('a slug is encoded into the product link', () => {
@@ -512,6 +576,24 @@ describe('renderOwnerAlert', () => {
     [{ alert: 'refund_mismatch', orderNumber: 'ABCD2345', amount: 1000 }, [isolated('ABCD2345'), `10.00 ${SAR}`]],
     [{ alert: 'refund_unverified', orderNumber: 'ABCD2345', amount: 1000 }, [isolated('ABCD2345'), `10.00 ${SAR}`]],
     [{ alert: 'refund_total_decreased', orderNumber: 'ABCD2345', amount: 1000 }, [isolated('ABCD2345'), `10.00 ${SAR}`]],
+    [
+      { alert: 'attempt_mode_changed', orderNumber: 'ABCD2345' },
+      [
+        `تغيّر وضع الدفع (تجريبي/حقيقي) بينما كانت دفعة الطلب ${isolated('ABCD2345')} قيد التنفيذ؛ راجعها في لوحة بوابة الدفع وفي شاشة المطابقة.`,
+      ],
+    ],
+    [
+      { alert: 'refund_mode_changed', orderNumber: 'ABCD2345' },
+      [
+        `تغيّر وضع الدفع (تجريبي/حقيقي) بينما كان استرداد الطلب ${isolated('ABCD2345')} قيد التنفيذ؛ راجعه في لوحة بوابة الدفع وفي شاشة المطابقة.`,
+      ],
+    ],
+    [
+      { alert: 'payment_create_refused', error: 'CREATE_REFUSED_401' },
+      [
+        `رفضت بوابة الدفع إنشاء فاتورة (${isolated('CREATE_REFUSED_401')}). تحقق من مفتاح الدفع ووضعه في إعدادات الدوال؛ لا يستطيع أي مشترٍ الدفع حتى يُصلح ذلك.`,
+      ],
+    ],
   ]
 
   it.each(alerts)('%j: its facts, and the admin link', (alert, facts) => {
@@ -524,6 +606,21 @@ describe('renderOwnerAlert', () => {
   it('a different text for each alert type', () => {
     const subjects = alerts.map(([alert]) => renderOwnerAlert(alert, SITE).subject)
     expect(new Set(subjects).size).toBe(alerts.length)
+  })
+
+  it('the three alert kinds of the payment audit have their own subjects (F1-17)', () => {
+    expect(renderOwnerAlert({ alert: 'attempt_mode_changed', orderNumber: 'ABCD2345' }, SITE).subject).toBe('تنبيه: دفعة من وضع آخر تحتاج متابعة')
+    expect(renderOwnerAlert({ alert: 'refund_mode_changed', orderNumber: 'ABCD2345' }, SITE).subject).toBe('تنبيه: استرداد من وضع آخر يحتاج متابعة')
+    expect(renderOwnerAlert({ alert: 'payment_create_refused', error: 'CREATE_REFUSED_401' }, SITE).subject).toBe('تنبيه: بوابة الدفع ترفض إنشاء الفواتير')
+  })
+
+  it('what alert_email_data answers today for those kinds, the code alone, still reads: an unknown order and an unknown error (F1-17)', () => {
+    const mode = renderOwnerAlert({ alert: 'attempt_mode_changed' }, SITE)
+    expect(mode.subject).toBe('تنبيه: دفعة من وضع آخر تحتاج متابعة')
+    expect(mode.text).toContain('دفعة الطلب غير معروف قيد التنفيذ')
+    const refused = renderOwnerAlert({ alert: 'payment_create_refused' }, SITE)
+    expect(refused.text).toContain('رفضت بوابة الدفع إنشاء فاتورة (غير معروف).')
+    for (const { text } of [mode, refused]) expect(text).not.toMatch(/null|undefined/u)
   })
 
   it('an alert it does not know, or one with no code, gets a generic line with its code', () => {
@@ -578,6 +675,7 @@ describe('values a buyer, the catalog or the provider supplied', () => {
     status: HOSTILE,
     eventType: HOSTILE,
     paymentId: HOSTILE,
+    error: HOSTILE,
   }
   const ALERT_TYPES = [
     'low_stock',
@@ -591,6 +689,9 @@ describe('values a buyer, the catalog or the provider supplied', () => {
     'refund_mismatch',
     'refund_unverified',
     'refund_total_decreased',
+    'attempt_mode_changed',
+    'refund_mode_changed',
+    'payment_create_refused',
     HOSTILE,
   ]
 
@@ -599,12 +700,14 @@ describe('values a buyer, the catalog or the provider supplied', () => {
     return [
       renderReceipt(order, SITE, TOKEN),
       renderReceipt({ ...order, status: 'paid_needs_resolution' }, SITE, TOKEN),
+      renderReceipt({ ...order, status: 'refunded' }, SITE, TOKEN),
       renderOrderLink(order, SITE, TOKEN),
       renderOrderReady(order, order.lines, SITE, TOKEN),
       renderOrderShipped(order, { carrier: HOSTILE, tracking: HOSTILE, itemIds: order.lines.map((line) => line.itemId) }, SITE, TOKEN),
       renderOrderRefunded(order, { amount: 100 }, SITE, TOKEN),
       renderNotifyConfirm(hostileNotify, SITE, TOKEN),
       renderAvailability(hostileNotify, SITE, TOKEN),
+      renderAvailability({ ...hostileNotify, preorder: true }, SITE, TOKEN),
       ...ALERT_TYPES.map((alert) => renderOwnerAlert({ ...hostileAlert, alert }, SITE)),
     ]
   }

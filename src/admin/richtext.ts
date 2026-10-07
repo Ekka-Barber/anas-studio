@@ -21,11 +21,22 @@ const text = z.looseObject({
   format: z.number().int().min(0).max(2047).default(0),
 })
 const linebreak = z.looseObject({ type: z.literal('linebreak') })
-/** One rule for a link's address: the editor checks it while typing, the schema when publishing. */
-export const httpsUrl = z.url({ protocol: /^https$/ }).max(2000)
+/**
+ * One rule for a link's address: the editor checks it while typing, the
+ * schema when publishing, and the public renderer before it draws a link.
+ * Exactly a lowercase `https://` or `http://` with a host, or `mailto:`, that
+ * the URL parser reads; a spelling browsers would also follow (`HTTPS://…`,
+ * `https:host`) is refused here rather than saved and then drawn as plain
+ * text (CLIENT-SEC-07).
+ */
+export const linkUrlSchema = z
+  .string()
+  .max(2000)
+  .regex(/^(?:https?:\/\/[^\s/?#]+(?:[/?#]\S*)?|mailto:\S+)$/)
+  .refine((url) => URL.canParse(url))
 const link = z.looseObject({
   type: z.literal('link'),
-  url: httpsUrl,
+  url: linkUrlSchema,
   children,
 })
 const paragraph = z.looseObject({ type: z.literal('paragraph'), children })

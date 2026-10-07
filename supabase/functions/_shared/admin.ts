@@ -49,6 +49,14 @@
  *   PAYMENTS_NOT_CONFIGURED) while the payment settings are not working, and
  *   (422 NOT_READY) until the seller is named and the policies approved; a
  *   stale version answers 409. Turning it off is always allowed.
+ * - `order-link-reissue` (owner; a fresh TOTP only when `email` is given;
+ *   FABLE-AUDIT): re-sends an order's link, rotated to the next version, to the
+ *   order's address or to a corrected one (`email`). The order's key and link
+ *   version are read with `order_email_data`, the next version's token is
+ *   derived from them as recovery derives it, and only its peppered hash goes
+ *   to `order_link_reissue`, which runs as the caller (the SQL checks the owner
+ *   itself), kills the old link and queues the mail. Answers `{version,
+ *   emailChanged}`.
  * - `paid-file-ticket` and `paid-file-complete` (owner; P08 round 7): the paid
  *   file of a digital variant. The ticket is a signed upload URL under
  *   `incoming/<ticket>` in the private `paid-files` bucket; the completion checks
@@ -66,11 +74,12 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 
 import { commerceCheckoutSetSchema, commercePoliciesApproveSchema, commerceSettingsSaveSchema } from './commerce-settings.ts'
-import { type Rpc, serviceClient, serviceRpc } from './db.ts'
+import { toAsciiAddress } from './contact.ts'
+import { callerRpc, type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { disputeRecord } from './disputes.ts'
 import { emailProvider } from './email.ts'
 import { LOCAL_HOSTS, optionalEnv } from './env.ts'
-import { corsHeaders, fail as failWith, NO_STORE } from './http.ts'
+import { boundedText, corsHeaders, fail as failWith, NO_STORE } from './http.ts'
 import {
   HEAD_READ_BYTES,
   originalKey,
@@ -88,6 +97,7 @@ import { paymentsConfig, type PaymentsConfigReason } from './payments/moyasar.ts
 import { refundCreate, refundRecheck, refundRecordExternal } from './refunds.ts'
 import { ownerStats, type OwnerStats } from './stats.ts'
 import { type StaffIdentity, type StaffResolver, staffFromRequest } from './staff.ts'
+import { orderAccessToken, orderAccessTokenHash } from './tokens.ts'
 import { TEST_SECRETS } from './turnstile.ts'
 
 export const PRIVATE_BUCKET = 'media-private'
@@ -118,6 +128,8 @@ export interface AdminDeps {
   payments?: PaymentDeps
   /** Only tests set it; otherwise the paid-file actions use the `paid-files` bucket of Supabase Storage. */
   paidFiles?: PaidFileStore
+  /** Only tests set it; otherwise the caller's own client (`callerRpc`), for the SQL that checks the caller itself. */
+  asCaller?: Rpc
 }
 
 export function storageStore(): MediaStore {
@@ -190,8 +202,9 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
   }
   if (!staff) return fail(401, 'UNAUTHENTICATED', 'سجّل الدخول أولًا.')
 
-  const text = await request.text()
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
+  // The bounded read refuses an oversized body, declared or streamed, before it is ever held whole.
+  const text = await boundedText(request, MAX_BODY_BYTES)
+  if (text === null) return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
   let body: Record<string, unknown>
   try {
     const parsed = JSON.parse(text) as unknown
@@ -220,6 +233,11 @@ export async function handleAdmin(request: Request, deps: AdminDeps = defaultDep
     case 'payment-recheck':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       return paymentRecheck(deps, staff.userId, body.attemptId)
+    case 'order-link-reissue':
+      if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+      // A plain re-send goes to the address the order has; another address needs a fresh TOTP, like the money actions.
+      if (body.email !== undefined && !staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
+      return orderLinkReissue(deps, deps.asCaller ?? callerRpc(request.headers.get('authorization') ?? ''), body)
     case 'refund-create':
       if (staff.role !== 'owner') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
       if (!staff.recentTotp) return fail(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
@@ -388,11 +406,17 @@ async function mediaComplete(deps: AdminDeps, actor: string, ticketId: unknown):
   }
 
   // 3. Record the media row with the original's MD5 (hex, computed from the
-  //    bytes checked above); if the database refuses, undo everything.
+  //    bytes checked above). Only a refusal the function raised (a SQLSTATE
+  //    that `sqlErrorToHttp` knows) proves no row was written: then everything
+  //    is undone. Any other failure (the network, a timeout, an unknown code)
+  //    may have committed the row, so its objects stay: an orphan object is
+  //    cheaper than a media row that points at nothing. The daily sweep takes
+  //    only the quarantine parts; the promoted ones of a row that was not
+  //    written stay.
   try {
     await rpc('media_complete', { p_actor: actor, p_ticket: ticketId, p_original_md5: originalMd5 })
   } catch (error) {
-    await cleanupAll()
+    if (sqlErrorToHttp((error as { code?: string } | null)?.code)) await cleanupAll()
     return sqlFail(error)
   }
 
@@ -523,6 +547,61 @@ async function paymentRecheck(deps: AdminDeps, actor: string, attemptId: unknown
     // The SQL rechecks the owner: one revoked a moment ago is refused there.
     if ((error as { code?: string } | null)?.code === '42501') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
     return sqlFail(error)
+  }
+}
+
+const orderLinkReissueSchema = z.strictObject({
+  action: z.literal('order-link-reissue'),
+  orderId: z.string().regex(UUID),
+  // Normalized like checkout's address (lower case, an international domain in its ASCII form); the SQL checks the shape.
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(254)
+    .transform((email) => toAsciiAddress(email))
+    .optional(),
+})
+
+/** `order_link_reissue`'s refusals: a stable code, a short Arabic message. */
+const LINK_REFUSALS: Record<string, [status: number, message: string]> = {
+  NOT_FOUND: [404, 'لم نجد هذا الطلب.'],
+  BAD_STATUS: [409, 'لا يُرسل رابط لطلب لم يُدفع.'],
+  VERSION_MISMATCH: [409, 'تغيّر الطلب؛ أعد التحميل.'],
+  INVALID_EMAIL: [422, 'تحقق من البريد.'],
+}
+
+/**
+ * FABLE-AUDIT: the owner re-sends an order's link. The role and, with an
+ * address, the step-up checks ran in `handleAdmin`. The order's key and link
+ * version come from `order_email_data` (the service client); the next
+ * version's token is derived from them as recovery derives it
+ * (`recoveryItems`), and only its peppered hash reaches `order_link_reissue`,
+ * called as the owner: a version that is no longer the next answers 409.
+ */
+async function orderLinkReissue(deps: AdminDeps, asCaller: Rpc, body: Record<string, unknown>): Promise<Response> {
+  const parsed = orderLinkReissueSchema.safeParse(body)
+  if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
+  const pepper = optionalEnv('TOKEN_HASH_PEPPER')
+  if (!pepper) return fail(503, 'UNAVAILABLE', 'تعذّر إكمال الإجراء.')
+  const { orderId, email } = parsed.data
+  try {
+    const order = (await deps.rpc('order_email_data', { p_order: orderId })) as { idempotencyKey?: unknown; tokenVersion?: unknown } | null
+    if (typeof order?.idempotencyKey !== 'string' || typeof order.tokenVersion !== 'number') return fail(404, 'NOT_FOUND', 'لم نجد هذا الطلب.')
+    const version = order.tokenVersion + 1
+    const reply = (await asCaller('order_link_reissue', {
+      p_order: orderId,
+      p_version: version,
+      p_token_hash: await orderAccessTokenHash(pepper, await orderAccessToken(pepper, order.idempotencyKey, version)),
+      p_email: email ?? null,
+    })) as { ok?: boolean; code?: string; version?: unknown; emailChanged?: unknown } | null
+    if (reply?.ok === true) return ok({ version: reply.version, emailChanged: reply.emailChanged })
+    const refused = LINK_REFUSALS[reply?.code ?? '']
+    return refused ? fail(refused[0], reply!.code!, refused[1]) : fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
+  } catch (error) {
+    // The SQL rechecks the owner: one revoked a moment ago is refused there.
+    if ((error as { code?: string } | null)?.code === '42501') return fail(403, 'FORBIDDEN', 'هذا الإجراء للمالك فقط.')
+    return fail(500, 'FAILED', 'تعذّر إكمال الإجراء.')
   }
 }
 

@@ -5,6 +5,7 @@ import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
 import { optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, ok as okWith, siteOrigin } from './http.ts'
+import { buyerMode } from './payments.ts'
 import { type PaymentsConfig, paymentsConfig } from './payments/moyasar.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
 import { orderAccessToken, orderAccessTokenHash } from './tokens.ts'
@@ -23,8 +24,9 @@ import { isTurnstileUnavailable, type TurnstileResult, verifyTurnstile } from '.
  * - `return-request` files the buyer's return request for shipped goods (`return_request_create`).
  *
  * Order of checks, like `checkout`: method → site and pepper → origin → content type → size → JSON →
- * schema → payments configured (the mode every SQL function is bound to) → (recover) Turnstile →
- * database. A SQL refusal is mapped below to a status and a short Arabic message; SQLSTATE 54000 is a
+ * schema → the payment mode every SQL function is bound to (`buyerMode`: no action here calls the
+ * provider, so a broken Moyasar setting does not stop them) → (recover) Turnstile → database. A SQL
+ * refusal is mapped below to a status and a short Arabic message; SQLSTATE 54000 is a
  * throttle (429) and anything else a detail-free 500. Every reply carries `Referrer-Policy:
  * no-referrer` and `Cache-Control: no-store`. A body, an email, a token or an address is never logged.
  */
@@ -162,9 +164,9 @@ export async function handleOrders(request: Request, deps: OrdersDeps = {}): Pro
   const parsed = bodySchema.safeParse(body)
   if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
   const input = parsed.data
-  // Every SQL function of the order page is bound to the configured mode; without payments there are no orders.
-  const config = deps.config ?? paymentsConfig()
-  if (!config.ok) return fail(503, 'UNAVAILABLE', FAILED)
+  // Every SQL function of the order page is bound to the payment mode; without one there are no orders.
+  const mode = buyerMode(deps.config ?? paymentsConfig())
+  if (!mode) return fail(503, 'UNAVAILABLE', FAILED)
 
   /** A database call; a throttle is 429 and any other failure a detail-free 500. */
   const call = async (fn: string, args: Record<string, unknown>): Promise<unknown | Response> => {
@@ -196,7 +198,7 @@ export async function handleOrders(request: Request, deps: OrdersDeps = {}): Pro
     }
     const ipHash = await clientKeyHash(request, pepper)
     // Both calls on every request, with an empty list on a miss: the work and the reply are the same whatever the address has.
-    const listed = await call('order_recover_list', { p_ip_hash: ipHash, p_email: input.email, p_mode: config.mode })
+    const listed = await call('order_recover_list', { p_ip_hash: ipHash, p_email: input.email, p_mode: mode })
     if (listed instanceof Response) return listed
     if (!Array.isArray(listed)) return fail(500, 'FAILED', FAILED)
     const applied = await call('order_recover_apply', { p_ip_hash: ipHash, p_items: await recoveryItems(pepper, listed as RecoverableOrder[]) })
@@ -212,7 +214,7 @@ export async function handleOrders(request: Request, deps: OrdersDeps = {}): Pro
       p_order_number: input.orderNumber,
       p_access_token_hash: tokenHash,
       p_ip_hash: ipHash,
-      p_mode: config.mode,
+      p_mode: mode,
     })
     if (result instanceof Response) return result
     const view = result as SqlReply
@@ -231,7 +233,7 @@ export async function handleOrders(request: Request, deps: OrdersDeps = {}): Pro
     p_items: input.items,
     p_reason: input.reason,
     p_ip_hash: ipHash,
-    p_mode: config.mode,
+    p_mode: mode,
   })
   if (result instanceof Response) return result
   const created = result as SqlReply

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import fixture from '../../content/initial-content.json'
 import { noteFor } from '../../src/content/media-notes'
-import { getContactPage, getHomeDoors, getJournalName, mediaById, replaceMediaIds } from '../../src/lib/content'
+import { getContactPage, getHomeDoors, getJournalName, mediaById, readAllRows, replaceMediaIds } from '../../src/lib/content'
 import { parseMediaRef } from '../../src/lib/media-ref'
 
 beforeEach(() => {
@@ -100,5 +100,38 @@ describe('getHomeDoors and getContactPage (F2-PAGES)', () => {
     site({ nav: fixture.nav, footer: fixture.footer, home })
     await expect(getHomeDoors()).rejects.toThrow('site_settings/site is missing home.doors')
     await expect(getContactPage()).rejects.toThrow('site_settings/site is missing contactPage')
+  })
+})
+
+describe('readAllRows (DB-CORE-08)', () => {
+  it('reads page after page until a short one, so PostgREST’s 1,000-row cap drops nothing', async () => {
+    const asked: URLSearchParams[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const params = new URL(url).searchParams
+        asked.push(params)
+        const rows = params.get('offset') === '0' ? 1000 : 3
+        return Response.json(Array.from({ length: rows }, (_, i) => ({ doc_id: `${params.get('offset')}-${i}` })))
+      }),
+    )
+    const rows = await readAllRows('published_documents', new URLSearchParams({ collection: 'eq.posts', order: 'doc_id.asc' }))
+    expect(rows).toHaveLength(1003)
+    expect(rows.at(-1)).toEqual({ doc_id: '1000-2' })
+    expect(asked.map((params) => [params.get('limit'), params.get('offset')])).toEqual([
+      ['1000', '0'],
+      ['1000', '1000'],
+    ])
+    // Each page asks the same question, in the same order.
+    for (const params of asked) expect([params.get('collection'), params.get('order')]).toEqual(['eq.posts', 'doc_id.asc'])
+  })
+
+  it('fails the build on a refused page instead of keeping the rows before it', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => (++calls === 1 ? Response.json(Array.from({ length: 1000 }, () => ({}))) : new Response(null, { status: 503 }))),
+    )
+    await expect(readAllRows('products', new URLSearchParams({ order: 'id.asc' }))).rejects.toThrow('Failed to fetch products: 503')
   })
 })

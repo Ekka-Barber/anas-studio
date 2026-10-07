@@ -1,6 +1,7 @@
 // The `staff-admin` Edge Function (P03, D13): owner-only, step-up-gated
 // invite/set_role/set_active. Real JWTs, a real TOTP step-up and a real
 // email-code sign-in, all against the local stack.
+import { Client } from 'pg'
 import { describe, expect, it } from 'vitest'
 
 import { anonClient, callStaffAdmin, createStaff, serviceClient, signIn, stepUp, uniqueEmail } from './support'
@@ -101,6 +102,80 @@ describe('staff-admin', { timeout: 20_000 }, () => {
     const restore = await callStaffAdmin(ownerClient, { action: 'set_active', userId: member.userId, active: true })
     expect(restore.status).toBe(200)
     await expect(signIn(member.email)).resolves.toBeTruthy()
+  })
+
+  // FABLE-AUDIT M1b: revoking a member never ended their sessions; the function the revoke runs ends them.
+  it('staff_sessions_end ends every session of a member for the server, and an owner\'s own token cannot run it', async () => {
+    const owner = await createStaff('owner')
+    const ownerClient = await signIn(owner.email)
+    const member = await createStaff('editor')
+    const memberClient = await signIn(member.email)
+    const postgres = new Client({ connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+    await postgres.connect()
+    try {
+      const count = async (sql: string, userId: string): Promise<number> => (await postgres.query<{ n: number }>(sql, [userId])).rows[0]!.n
+      const sessions = (userId: string): Promise<number> => count('select count(*)::int as n from auth.sessions where user_id = $1', userId)
+      const tokens = (userId: string): Promise<number> => count('select count(*)::int as n from auth.refresh_tokens where user_id = $1', userId)
+      const can = async (role: string): Promise<boolean> =>
+        (await postgres.query<{ ok: boolean }>("select has_function_privilege($1, 'public.staff_sessions_end(uuid)', 'execute') as ok", [role])).rows[0]!.ok
+      expect(await can('service_role')).toBe(true)
+      for (const role of ['authenticated', 'anon']) expect(await can(role), role).toBe(false)
+      expect(await sessions(member.userId)).toBe(1)
+      expect(await tokens(member.userId)).toBeGreaterThan(0)
+
+      // An owner's own token cannot run it: it is the server's alone, and nothing ends.
+      const refused = await ownerClient.rpc('staff_sessions_end', { p_user: member.userId })
+      expect(refused.error?.code).toBe('42501')
+      expect(await sessions(member.userId)).toBe(1)
+
+      const ended = await serviceClient.rpc('staff_sessions_end', { p_user: member.userId })
+      expect(ended.error).toBeNull()
+      expect(ended.data).toBe(1)
+      expect(await sessions(member.userId)).toBe(0)
+      expect(await tokens(member.userId)).toBe(0)
+      // The member's refresh token renews nothing any more; the owner's own session is untouched.
+      expect((await memberClient.auth.refreshSession()).error).not.toBeNull()
+      expect(await sessions(owner.userId)).toBe(1)
+    } finally {
+      await postgres.end()
+    }
+  })
+
+  // FABLE-AUDIT F1-8: the revoke itself ends the member's sessions once the ban holds, so a later restore (which lifts
+  // the ban) cannot bring back a session left open somewhere.
+  it('set_active revoking a signed-in editor ends every session of theirs, and the audit row says the ban and the end both held', async () => {
+    const owner = await createStaff('owner')
+    const ownerClient = await signIn(owner.email)
+    await stepUp(ownerClient)
+    const member = await createStaff('editor')
+    const memberClient = await signIn(member.email)
+    const postgres = new Client({ connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+    await postgres.connect()
+    try {
+      const count = async (sql: string): Promise<number> => (await postgres.query<{ n: number }>(sql, [member.userId])).rows[0]!.n
+      const sessions = (): Promise<number> => count('select count(*)::int as n from auth.sessions where user_id = $1')
+      expect(await sessions()).toBe(1)
+
+      const revoke = await callStaffAdmin(ownerClient, { action: 'set_active', userId: member.userId, active: false })
+      expect(revoke.status, JSON.stringify(revoke.reply)).toBe(200)
+      expect(revoke.reply).toEqual({ ok: true, data: { userId: member.userId, active: false } })
+      expect(await sessions()).toBe(0)
+      expect(await count('select count(*)::int as n from auth.refresh_tokens where user_id = $1::text')).toBe(0)
+      const audit = await postgres.query<{ summary: unknown }>(
+        "select summary from public.audit_events where action = 'staff.revoke' and entity_id = $1 order by at desc, id desc limit 1",
+        [member.userId],
+      )
+      expect(audit.rows[0]?.summary).toEqual({ banApplied: true, sessionsEnded: true })
+      // The member's refresh token renews nothing; the owner, whose session was not touched, can still restore them.
+      expect((await memberClient.auth.refreshSession()).error).not.toBeNull()
+      const restore = await callStaffAdmin(ownerClient, { action: 'set_active', userId: member.userId, active: true })
+      expect(restore.status, JSON.stringify(restore.reply)).toBe(200)
+      // Restored, the member signs in again with a new session; the old one stays ended.
+      await expect(signIn(member.email)).resolves.toBeTruthy()
+      expect(await sessions()).toBe(1)
+    } finally {
+      await postgres.end()
+    }
   })
 
   it('refuses to remove the last active owner', async () => {

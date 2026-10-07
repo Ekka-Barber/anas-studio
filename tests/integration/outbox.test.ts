@@ -9,7 +9,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { createStaff, serviceRoleDb, signIn } from './support'
+import { anonClient, createStaff, serviceRoleDb, signIn } from './support'
 
 let app: Client
 let postgres: Client
@@ -224,6 +224,31 @@ describe('claiming', () => {
     expect((await rowState(row.id)).status).toBe('suppressed')
   })
 
+  it('a contact notice or an owner alert to a suppressed address is still claimed: staff mail is never held back by the list', async () => {
+    await parkOthers()
+    const owner = await createStaff('owner')
+    const member = await createStaff('operations')
+    const notice = await insertRow({ label: 'suppressed-notice', kind: 'contact_notice', recipient: member.email })
+    const alert = await insertRow({ label: 'suppressed-alert', kind: 'owner_alert', priority: 0, recipient: owner.email })
+    // A buyer's mail to the same suppressed address is still held back.
+    const receipt = await insertRow({ label: 'suppressed-receipt', recipient: owner.email })
+    const hashes = [member.email, owner.email].map((email) => createHash('sha256').update(email).digest('hex'))
+    await postgres.query("insert into finance.email_suppressions (recipient_hash, reason) select unnest($1::text[]), 'manual'", [hashes])
+    try {
+      const claimed = await claim(10)
+      const ids = claimed.map((r) => r.id)
+      expect(ids).toEqual(expect.arrayContaining([notice.id, alert.id]))
+      expect(ids).not.toContain(receipt.id)
+      expect((await rowState(receipt.id)).status).toBe('suppressed')
+      for (const row of claimed) {
+        expect((await rowState(row.id)).status).toBe('sending')
+        await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
+      }
+    } finally {
+      await postgres.query('delete from finance.email_suppressions where recipient_hash = any($1::text[])', [hashes])
+    }
+  })
+
   it('a contact notice for a member who is no longer an active owner or operations is exhausted, never sent (S03.5)', async () => {
     await parkOthers()
     // The last-owner guard refuses any staff update while no owner is active,
@@ -356,6 +381,30 @@ describe('outbox_result: quota and early delivery events', () => {
     expect(wait.rows[0]!.ok).toBe(true)
   })
 
+  it('a PROVIDER_CONFIG retry (a revoked key, an unverified domain) gives the attempt back and waits 15 minutes; it never exhausts the row', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'provider-config' })
+    // More refusals than max_attempts: an ordinary retry would be exhausted by now.
+    for (let i = 0; i < 10; i += 1) {
+      await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+      const claimed = await claim(1)
+      expect(claimed.map((r) => r.id)).toEqual([row.id])
+      expect(await result(row.id, claimed[0]!.lease_id, 'retry', null, 'PROVIDER_CONFIG')).toBe(true)
+    }
+    expect(await rowState(row.id)).toMatchObject({ status: 'pending', attempts: 0, last_error: 'PROVIDER_CONFIG' })
+    const wait = (
+      await postgres.query<{ minutes: string; first_attempt_at: Date | null }>(
+        'select extract(epoch from (next_at - now())) / 60 as minutes, first_attempt_at from finance.email_outbox where id = $1',
+        [row.id],
+      )
+    ).rows[0]!
+    expect(Number(wait.minutes)).toBeGreaterThan(14)
+    expect(Number(wait.minutes)).toBeLessThanOrEqual(15)
+    // Nothing reached the provider, so no idempotency window has started.
+    expect(wait.first_attempt_at).toBeNull()
+    await postgres.query('delete from finance.email_outbox where id = $1', [row.id])
+  })
+
   it('a QUOTA refusal of the first attempt starts no idempotency window: a long wait does not age a later uncertain send (AUDIT-2)', async () => {
     await parkOthers()
     const row = await insertRow({ label: 'quota-window' })
@@ -485,7 +534,7 @@ describe('a delivery event from a webhook transaction that overlaps the accept',
 })
 
 describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts sources)', () => {
-  it('at quota − reserve only priority 0 (receipts) still goes, so sign-in codes keep the reserve; at the quota nothing is claimed', async () => {
+  it('at quota − reserve only priority 0 (receipts) still goes; five sends before the quota it stops too, so sign-in codes keep a floor; at the quota nothing is claimed', async () => {
     await parkOthers()
     const todayCount = async () =>
       (await postgres.query('select count(*)::int as n from finance.email_outbox where sent_at >= date_trunc(\'day\', now())')).rows[0]!.n
@@ -513,18 +562,33 @@ describe('quota (free plan: 100/day, reserve 20 — see src/lib/outbox.ts source
     expect((await rowState(low.id)).status).toBe('pending')
     for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
 
-    // Fill to exactly the quota: nothing is claimed at all, not even a
-    // priority-0 row (only the hard `v_sent_today < p_daily_quota` clause
-    // holds that one back; the reserve clause exempts priority 0).
+    /** Sent rows of today up to `total` sends. */
+    const fill = async (label: string, total: number): Promise<void> => {
+      await postgres.query(
+        `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, sent_at, provider_id)
+         select '${MY_PREFIX}' || $2::text || '-' || g, 'contact_notice', 1, $2::text || '@example.com', '{}'::jsonb, 'sent', now(), $2::text || g
+         from generate_series(1, $1) as g`,
+        [total - (await todayCount()), label],
+      )
+      expect(await todayCount()).toBe(total)
+    }
+
+    // Six sends before the quota a receipt still goes; with it sent, five are left, and those are the sign-in codes'
+    // (the Resend account also sends Supabase Auth's codes, which the outbox never sees): priority 0 waits too.
+    await fill('quota94', 94)
+    const last = await insertRow({ label: 'quota-p0-last', priority: 0 })
+    claimed = await claim(10)
+    expect(claimed.map((r) => r.id)).toEqual([last.id])
+    for (const row of claimed) await result(row.id, row.lease_id, 'accepted', 'test-provider-id')
+    expect(await todayCount()).toBe(95)
     const blocked = await insertRow({ label: 'quota-p0-blocked', priority: 0 })
-    const nowSent = await todayCount()
-    await postgres.query(
-      `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, sent_at, provider_id)
-       select '${MY_PREFIX}quota100-' || g, 'contact_notice', 1, 'quota100@example.com', '{}'::jsonb, 'sent', now(), 'r' || g
-       from generate_series(1, $1) as g`,
-      [100 - nowSent],
-    )
-    expect(await todayCount()).toBe(100)
+    claimed = await claim(10)
+    expect(claimed).toEqual([])
+    expect((await rowState(blocked.id)).status).toBe('pending')
+    expect((await rowState(low.id)).status).toBe('pending')
+
+    // Fill to exactly the quota: still nothing at all.
+    await fill('quota100', 100)
     claimed = await claim(10)
     expect(claimed).toEqual([])
     expect((await rowState(blocked.id)).status).toBe('pending')
@@ -634,6 +698,123 @@ describe('operations views through real JWTs', () => {
     ])
     const { error } = await client.rpc('outbox_replay', { p_id: Number(row.id), p_accept_duplicate_risk: true })
     expect(error?.code).toBe('23514')
+  })
+
+  // FABLE-AUDIT M2-11 (VENDOR-PAY-04): a mail Resend accepted and then reported `email.failed` reached nobody.
+  it('replays a sent mail the provider reports failed: a new key, a new window, the failure cleared; past 23 hours only with the duplicate risk; no other sent mail', async () => {
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    // Accepted, then failed: what `email_event_record` leaves on the row. Parked a day ahead while the test looks at it.
+    const failed = async (label: string, firstAttempt: string): Promise<Inserted> => {
+      const row = await insertRow({ label, status: 'sent' })
+      await postgres.query(
+        `update finance.email_outbox set delivery = 'failed', provider_id = $2, attempts = 1, sent_at = now() - $3::interval,
+           first_attempt_at = now() - $3::interval, next_at = now() + interval '1 day' where id = $1`,
+        [row.id, `failed-${row.id}`, firstAttempt],
+      )
+      return row
+    }
+    const state = async (id: string): Promise<Record<string, unknown>> =>
+      (await postgres.query('select status, attempts, idempotency_key, first_attempt_at, delivery, last_error from finance.email_outbox where id = $1', [id])).rows[0]!
+
+    const recent = await failed('replay-failed', '1 hour')
+    expect((await client.rpc('outbox_replay', { p_id: Number(recent.id), p_accept_duplicate_risk: false })).error).toBeNull()
+    const replayed = await state(recent.id)
+    expect(replayed).toMatchObject({ status: 'pending', attempts: 0, first_attempt_at: null, delivery: null, last_error: null })
+    // A new key inside the provider's 24 hours: the old one would only answer the stored, failed result.
+    expect(replayed.idempotency_key).not.toBe(recent.idempotency_key)
+    const audit = await postgres.query<{ summary: Record<string, unknown> }>(
+      "select summary from public.audit_events where action = 'email.replay' and entity = 'email_outbox' and entity_id = $1",
+      [recent.id],
+    )
+    expect(audit.rows.map((entry) => entry.summary)).toEqual([{ status: 'sent', acceptedDuplicateRisk: false }])
+
+    // Past the 23 hours the duplicate risk must be accepted, as for any replay.
+    const old = await failed('replay-failed-old', '24 hours')
+    expect((await client.rpc('outbox_replay', { p_id: Number(old.id), p_accept_duplicate_risk: false })).error?.code).toBe('55000')
+    expect(await state(old.id)).toMatchObject({ status: 'sent', delivery: 'failed' })
+    expect((await client.rpc('outbox_replay', { p_id: Number(old.id), p_accept_duplicate_risk: true })).error).toBeNull()
+    expect(await state(old.id)).toMatchObject({ status: 'pending', delivery: null, first_attempt_at: null })
+    expect((await state(old.id)).idempotency_key).not.toBe(old.idempotency_key)
+
+    // A sent mail the provider did not report failed is not replayed: no word yet, delivered, bounced, complained, delayed.
+    for (const delivery of [null, 'delivered', 'bounced', 'complained', 'delayed']) {
+      const row = await insertRow({ label: `replay-sent-${delivery ?? 'none'}`, status: 'sent' })
+      await postgres.query("update finance.email_outbox set delivery = $2, first_attempt_at = now(), next_at = now() + interval '1 day' where id = $1", [row.id, delivery])
+      expect((await client.rpc('outbox_replay', { p_id: Number(row.id), p_accept_duplicate_risk: true })).error?.code, String(delivery)).toBe('55000')
+      expect(await state(row.id), String(delivery)).toMatchObject({ status: 'sent', delivery })
+    }
+  })
+})
+
+// FABLE-AUDIT M2-14 (OPS-PRIVACY-18): a mail a person found delivered, or that no longer matters, is closed for good.
+describe('outbox_close', () => {
+  it('closes an uncertain or an exhausted mail: CLOSED_BY_STAFF, out of the attention list, never claimed or replayed, one audit row; any other status is BAD_STATUS', async () => {
+    const owner = await createStaff('owner')
+    const ownerClient = await signIn(owner.email)
+    const operations = await createStaff('operations')
+    const opsClient = await signIn(operations.email)
+    // Not due while the test looks at them, so the minute's dispatcher leaves them alone.
+    const parked = async (label: string, status: string): Promise<Inserted> => {
+      const row = await insertRow({ label, status })
+      await postgres.query(
+        "update finance.email_outbox set next_at = now() + interval '1 day', first_attempt_at = now() - interval '1 hour', attempts = 1 where id = $1",
+        [row.id],
+      )
+      return row
+    }
+    try {
+      const uncertain = await parked('close-uncertain', 'uncertain')
+      const exhausted = await parked('close-exhausted', 'exhausted')
+      const listed = async (): Promise<number[]> => {
+        const { data, error } = await ownerClient.rpc('outbox_attention')
+        expect(error).toBeNull()
+        return (data as Array<{ id: number }>).map((entry) => entry.id)
+      }
+      expect(await listed()).toEqual(expect.arrayContaining([Number(uncertain.id), Number(exhausted.id)]))
+
+      expect((await ownerClient.rpc('outbox_close', { p_id: Number(uncertain.id) })).data).toEqual({ ok: true, id: Number(uncertain.id), status: 'closed' })
+      expect((await opsClient.rpc('outbox_close', { p_id: Number(exhausted.id) })).data).toEqual({ ok: true, id: Number(exhausted.id), status: 'closed' })
+      for (const [row, member, was] of [
+        [uncertain, owner, 'uncertain'],
+        [exhausted, operations, 'exhausted'],
+      ] as const) {
+        expect(await rowState(row.id), was).toMatchObject({ status: 'closed', last_error: 'CLOSED_BY_STAFF' })
+        const audit = await postgres.query(
+          "select actor, summary from public.audit_events where action = 'email.closed' and entity = 'email_outbox' and entity_id = $1",
+          [row.id],
+        )
+        expect(audit.rows, was).toEqual([{ actor: member.userId, summary: { status: was } }])
+      }
+      // Out of the list, so out of the home's count of what needs a person, whatever a delivery report says of it.
+      await postgres.query("update finance.email_outbox set delivery = 'bounced' where id = $1", [exhausted.id])
+      const after = await listed()
+      expect(after).not.toContain(Number(uncertain.id))
+      expect(after).not.toContain(Number(exhausted.id))
+
+      // Due again and inside its window, the closed row is never claimed, and never replayed.
+      await postgres.query("update finance.email_outbox set next_at = now() - interval '1 minute' where id = $1", [uncertain.id])
+      await parkOthers()
+      expect((await claim(10)).map((row) => row.id)).not.toContain(uncertain.id)
+      expect((await rowState(uncertain.id)).status).toBe('closed')
+      expect((await ownerClient.rpc('outbox_replay', { p_id: Number(uncertain.id), p_accept_duplicate_risk: true })).error?.code).toBe('55000')
+
+      // A closed mail again, every other status and an unknown id are refused, and nothing changes.
+      expect((await ownerClient.rpc('outbox_close', { p_id: Number(uncertain.id) })).data).toEqual({ ok: false, code: 'BAD_STATUS', status: 'closed' })
+      for (const status of ['pending', 'sending', 'sent', 'suppressed']) {
+        const row = await parked(`close-${status}`, status)
+        expect((await ownerClient.rpc('outbox_close', { p_id: Number(row.id) })).data, status).toEqual({ ok: false, code: 'BAD_STATUS', status })
+        expect((await rowState(row.id)).status, status).toBe(status)
+      }
+      expect((await ownerClient.rpc('outbox_close', { p_id: 0 })).data).toEqual({ ok: false, code: 'NOT_FOUND' })
+
+      // An editor may not, nor anon.
+      const editor = await createStaff('editor')
+      expect((await (await signIn(editor.email)).rpc('outbox_close', { p_id: Number(exhausted.id) })).error?.code).toBe('42501')
+      expect((await anonClient().rpc('outbox_close', { p_id: Number(exhausted.id) })).error?.code).toBe('42501')
+    } finally {
+      await postgres.query('delete from finance.email_outbox where dedupe_key like $1', [`${MY_PREFIX}close-%`])
+    }
   })
 })
 

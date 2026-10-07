@@ -21,7 +21,8 @@ jobs:
     name: install, lint, typecheck, test, static export
     # Pinned image, not `ubuntu-latest`: the runner is part of the build inputs.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The database step below adds several minutes to the build.
+    timeout-minutes: 45
 
     steps:
       # Actions are pinned to commit SHAs, not tags: a tag can be moved to point
@@ -108,7 +109,24 @@ jobs:
       - name: Public JavaScript budget
         run: pnpm check:budgets
 
-# Not run here, and deliberately so: `pnpm test:db` and `pnpm test:e2e`. They
-# need the whole local stack (Edge Functions, Storage, Mailpit) and a
-# browser; that proof runs locally against the disposable Docker stack (see
-# docs/development.md) and on the hosted deployment.
+      # The database invariants (RLS and grants, the checkout, payment, refund
+      # and order SQL, the audit trail) against the stack started above. Every
+      # integration file runs except the eight that call a served Edge Function:
+      # this job starts no edge runtime, no Mailpit and no Moyasar emulator.
+      - name: Database invariants (the files that need no edge runtime)
+        run: pnpm exec vitest run --mode db --exclude "tests/integration/{staff-admin,checkout-http,disputes-http,notify-http,orders-http,payment-http,refunds-http,order-emails}.test.ts"
+        env:
+          TEST_ENV: local
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+# What runs where. Here, on every push: the unit tests, the static export and
+# its checks, and every database integration file except the eight above,
+# against the local stack this job starts (Postgres, the Data API, Auth,
+# Storage). Only locally, against the whole disposable Docker stack (see
+# docs/development.md): those eight HTTP files (staff-admin, checkout-http,
+# disputes-http, notify-http, orders-http, payment-http, refunds-http,
+# order-emails), which need the edge runtime, and the Playwright suites
+# (`pnpm test:e2e`), which also need Mailpit, the Moyasar emulator and a
+# browser. Nothing runs against the hosted site: vitest.config.ts refuses a
+# database that is not local, and the specs refuse a `supabase status` that
+# is not local.

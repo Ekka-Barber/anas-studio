@@ -149,11 +149,13 @@ describe('admin function: stats', () => {
       ['customers', 'disputes', 'environment', 'grossPaid', 'netCollected', 'paidOrders', 'refundsConfirmed', 'review'].sort(),
     )
     expect(before.environment).toBe('test')
-    // A review payment that arrives now is in the default range at once: the ledger is not cached.
+    // A review payment that arrives now is in the default range at once: the ledger is not cached. It is dated a minute
+    // back (FABLE-AUDIT M2-15): the range ends at this host's clock and the row's date is the database container's, whose
+    // clock drifts a little from the host's, so a row dated at the database's now could fall just past the range's end.
     const paymentId = randomUUID()
     await h.postgres.query(
-      `insert into finance.payment_reviews (provider_payment_id, environment, amount_halalas, currency, provider_status, reason)
-       values ($1, 'test', 1234, 'SAR', 'paid', 'UNMAPPED_INVOICE')`,
+      `insert into finance.payment_reviews (provider_payment_id, environment, amount_halalas, currency, provider_status, reason, created_at)
+       values ($1, 'test', 1234, 'SAR', 'paid', 'UNMAPPED_INVOICE', now() - interval '1 minute')`,
       [paymentId],
     )
     reviewsToClose.push(paymentId)
@@ -1017,22 +1019,61 @@ describe('dispute_record', () => {
     expect(revoked).toEqual([{ revoked: true, revoke_reason: 'refund' }, { revoked: true, revoke_reason: 'refund' }])
   })
 
-  it('fulfillment_stopped needs named items still being prepared, and is only recorded', async () => {
+  it('fulfillment_stopped needs named items still being prepared, and stops their shipping until a later row of the dispute lifts it', async () => {
     const target = await order()
+    // Operations work the orders through their own session; the order screen's flag is for them too.
+    const staff = await signIn(operations.email)
+    const rpc = async (fn: string, args: Record<string, unknown> = {}): Promise<any> => {
+      const { data, error } = await staff.rpc(fn, args)
+      expect(error, `${fn}: ${JSON.stringify(error)}`).toBeNull()
+      return data
+    }
+    const ship = (): Promise<any> =>
+      rpc('fulfillment_update', { p_order: target.p.id, p_item_ids: [target.physical], p_state: 'shipped', p_carrier: 'SMSA', p_tracking: 'T-2', p_dedication_done: null })
+    const linesToShip = async (): Promise<number> => (await h.row('select finance.order_lines_to_ship($1) as n', [target.p.id])).n as number
+    const listed = async (): Promise<boolean> =>
+      ((await rpc('orders_list', { p_filter: 'to_ship', p_query: target.p.number, p_before: null, p_limit: 50 })).rows as Row[]).some((row) => row.id === target.p.id)
+    const toShip = async (): Promise<number> => (await rpc('orders_alerts')).toShip as number
+    const stopped = async (): Promise<unknown> =>
+      ((await rpc('order_detail', { p_order: target.p.id })).items as Row[]).find((entry) => entry.id === target.physical)!.stopped
+    expect(await linesToShip()).toBe(1)
+    expect(await listed()).toBe(true)
+    expect(await stopped()).toBe(false)
+    const shipping = await toShip()
     const before = await snapshot(target.p)
+
+    const providerRef = ref('STOP')
     const reply = await rec({
       p_kind: 'chargeback',
-      p_provider_ref: ref('STOP'),
+      p_provider_ref: providerRef,
       p_attempt: target.p.attemptId,
       p_decision: 'fulfillment_stopped',
       p_item_ids: uuids([target.physical]),
     })
     expect(reply).toMatchObject({ ok: true, dispute: { decision: 'fulfillment_stopped', itemIds: [target.physical] } })
-    // Nothing moved: the item is still being prepared and can still be shipped, and nothing else of the order changed.
+    // Recording it writes nothing of the order: the item is still being prepared, and nothing else changed.
     expect(await snapshot(target.p)).toEqual(before)
-    expect((await fulfilment(target.physical)).state).toBe('preparing')
+    // But it is not shipped while the dispute says so, and no list counts it as to ship.
+    expect(await ship()).toEqual({ ok: false, code: 'FULFILLMENT_STOPPED', itemIds: [target.physical] })
+    expect(await snapshot(target.p)).toEqual(before)
+    expect(await linesToShip()).toBe(0)
+    expect(await listed()).toBe(false)
+    expect(await toShip()).toBe(shipping - 1)
+    // Operations see why on the order screen; the disputes themselves stay the owner's.
+    expect(await stopped()).toBe(true)
+    expect('disputes' in (await rpc('order_detail', { p_order: target.p.id }))).toBe(false)
+
+    // A later row of the same dispute with another decision lifts it: the item is to ship again, and ships.
+    expect(
+      await rec({ p_kind: 'chargeback', p_provider_ref: providerRef, p_follows: 1, p_attempt: target.p.attemptId, p_direction: 'for_seller', p_decision: 'none' }),
+    ).toMatchObject({ ok: true, dispute: { seq: 2, decision: 'none' } })
+    expect(await stopped()).toBe(false)
+    expect(await linesToShip()).toBe(1)
+    expect(await listed()).toBe(true)
+    expect(await toShip()).toBe(shipping)
+    expect(await ship()).toEqual({ ok: true, changed: 1, itemIds: [target.physical] })
+    expect((await fulfilment(target.physical)).state).toBe('shipped')
     // Once it has shipped, it is no longer something to stop.
-    await h.postgres.query("update finance.fulfillments set state = 'shipped', carrier = 'SMSA', tracking = 'T-2', shipped_at = now() where order_item_id = $1", [target.physical])
     expect(
       await rec({ p_kind: 'chargeback', p_provider_ref: ref('STOP'), p_attempt: target.p.attemptId, p_decision: 'fulfillment_stopped', p_item_ids: uuids([target.physical]) }),
     ).toEqual({ ok: false, code: 'INVALID_ITEMS' })
@@ -1051,6 +1092,52 @@ describe('dispute_record', () => {
     }
     expect(await snapshot(target.p)).toEqual(before)
     expect(await h.rows('select * from finance.entitlements where order_id = $1 order by id', [target.p.id])).toEqual(entitlements)
+  })
+
+  it('entitlement_kept after entitlement_revoked gives back what the dispute revoked: the download works again, but not for an item refunded in full meanwhile', async () => {
+    const target = await order()
+    const chargeback = { p_kind: 'chargeback', p_provider_ref: ref('KEPT'), p_attempt: target.p.attemptId }
+    expect(await rec({ ...chargeback, p_decision: 'entitlement_revoked', p_item_ids: uuids([target.a, target.b]) })).toMatchObject({ ok: true })
+    expect((await issue(target.p, target.a)).reply).toEqual({ ok: false, code: 'NOT_FOUND' })
+    // Won by the seller (which lets a refund through again), and the buyer is refunded one of the two books in full.
+    expect(await rec({ ...chargeback, p_follows: 1, p_direction: 'for_seller', p_resolution: 'ربحنا النزاع' })).toMatchObject({ ok: true, dispute: { seq: 2 } })
+    const b = target.p.items.find((entry) => entry.id === target.b)!
+    const key = randomUUID()
+    const asked = await h.call('refund_request', {
+      p_actor: owner.userId,
+      p_order: target.p.id,
+      p_attempt: target.p.attemptId,
+      p_review_payment: null,
+      p_amount: b.paid,
+      p_reason: 'استرداد كتاب',
+      p_allocation: { items: [{ itemId: b.id, amount: b.paid }] },
+      p_idempotency_key: key,
+      p_request_hash: sha256(`hash:${key}`),
+      p_return: null,
+      p_provider_refunded: 0,
+    })
+    expect(asked, JSON.stringify(asked)).toMatchObject({ ok: true, state: 'new' })
+    expect(await h.call('refund_result', { p_refund: asked.refundId, p_outcome: 'succeeded', p_provider_refunded: b.paid, p_error: null })).toMatchObject({
+      ok: true,
+      status: 'succeeded',
+    })
+
+    // The files are kept after all: the one revoked for the dispute comes back, the one refunded in full stays revoked.
+    const kept = await rec({ ...chargeback, p_follows: 2, p_direction: 'for_seller', p_decision: 'entitlement_kept' })
+    expect(kept).toMatchObject({ ok: true, duplicate: false, dispute: { seq: 3, decision: 'entitlement_kept', itemIds: [] } })
+    expect(await entitlement(target.a)).toMatchObject({ revoked_at: null, revoke_reason: null })
+    expect((await issue(target.p, target.a)).reply).toMatchObject({ ok: true })
+    expect(await entitlement(target.b)).toMatchObject({ revoke_reason: 'dispute' })
+    expect((await entitlement(target.b)).revoked_at).not.toBeNull()
+    expect((await issue(target.p, target.b)).reply).toEqual({ ok: false, code: 'NOT_FOUND' })
+    const rows = await audits(kept.dispute.id)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]!.summary).toEqual({ reference: chargeback.p_provider_ref, amount: 1000, kind: 'chargeback', decision: 'entitlement_kept', restored: 1 })
+    // A repeat of the row answers it and gives nothing back twice.
+    const restoredAt = await entitlement(target.a)
+    expect(await rec({ ...chargeback, p_follows: 2, p_direction: 'for_seller', p_decision: 'entitlement_kept' })).toMatchObject({ ok: true, duplicate: true })
+    expect(await entitlement(target.a)).toEqual(restoredAt)
+    expect(await audits(kept.dispute.id)).toHaveLength(1)
   })
 
   it('never creates a refund and never changes an attempt, an order\'s status or stock, whatever it records', async () => {

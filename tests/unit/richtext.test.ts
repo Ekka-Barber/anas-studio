@@ -88,14 +88,14 @@ describe('RichText renderer', () => {
     expect(html).toContain('<li><span>عنصر</span></li>')
   })
 
-  it('drops a non-https link but keeps its text', () => {
+  it('drops a link the rule refuses but keeps its text', () => {
     const doc = {
       root: {
         type: 'root',
         children: [
           {
             type: 'paragraph',
-            children: [{ type: 'link', url: 'http://example.com', children: [{ type: 'text', text: 'نص', format: 0 }] }],
+            children: [{ type: 'link', url: 'HTTPS://example.com', children: [{ type: 'text', text: 'نص', format: 0 }] }],
           },
         ],
       },
@@ -124,5 +124,40 @@ describe('RichText renderer', () => {
     expect(html).toBe(
       '<ul><li><span>one</span><ol><li><span>a</span></li></ol></li><li><span>two</span></li></ul>',
     )
+  })
+})
+
+describe('a link follows one rule in the editor, the schema and the renderer (CLIENT-SEC-07)', () => {
+  const linked = (url: string) => ({
+    root: {
+      type: 'root',
+      children: [{ type: 'paragraph', children: [{ type: 'link', url, children: [{ type: 'text', text: 'نص', format: 0 }] }] }],
+    },
+  })
+  const html = (url: string) => renderToStaticMarkup(RichText({ document: linked(url) as never }))
+
+  it.each(['https://example.com', 'http://example.com/path?q=1#part', 'mailto:anas@example.com'])(
+    'accepts %s, and the page links to it',
+    (url) => {
+      expect(richTextSchema.safeParse(linked(url)).success).toBe(true)
+      expect(html(url)).toContain(`<a href="${url}" rel="noopener noreferrer">`)
+    },
+  )
+
+  it.each([
+    'HTTPS://example.com',
+    'Http://example.com',
+    'https:example.com',
+    'https:/example.com',
+    'https://',
+    'https://exa mple.com',
+    'https://[',
+    '//example.com',
+    'ftp://example.com',
+    'javascript:alert(1)',
+  ])('refuses %s, and the page draws its text with no link', (url) => {
+    expect(richTextSchema.safeParse(linked(url)).success).toBe(false)
+    expect(html(url)).not.toContain('<a ')
+    expect(html(url)).toContain('نص')
   })
 })

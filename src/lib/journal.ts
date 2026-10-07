@@ -11,8 +11,7 @@ import { z } from 'zod'
 import { postSchema, taxonomySchema } from '../admin/collections'
 import type { RichTextDocument } from '../admin/richtext'
 
-import { mediaById, replaceMediaIds, type MediaLookup } from './content'
-import { requireEnv } from './env'
+import { mediaById, readAllRows, replaceMediaIds, type MediaLookup } from './content'
 import { collectMediaIds, MEDIA_ORIGIN } from './media-ref'
 
 export interface JournalPost {
@@ -32,12 +31,9 @@ export interface JournalPost {
 const rowSchema = z.object({ doc_id: z.string(), data: z.unknown(), first_published_at: z.string() })
 
 async function published(collection: 'posts' | 'taxonomies') {
-  const params = new URLSearchParams({ collection: `eq.${collection}`, select: 'doc_id,data,first_published_at' })
-  const response = await fetch(`${requireEnv('NEXT_PUBLIC_SUPABASE_URL')}/rest/v1/published_documents?${params}`, {
-    headers: { apikey: requireEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY') },
-  })
-  if (!response.ok) throw new Error(`Failed to fetch ${collection}: ${response.status}`)
-  return z.array(rowSchema).parse(await response.json())
+  // Every row, page by page; a document id is unique within its collection, so the pages neither skip nor repeat.
+  const params = new URLSearchParams({ collection: `eq.${collection}`, select: 'doc_id,data,first_published_at', order: 'doc_id.asc' })
+  return z.array(rowSchema).parse(await readAllRows('published_documents', params))
 }
 
 type PostData = z.infer<typeof postSchema>

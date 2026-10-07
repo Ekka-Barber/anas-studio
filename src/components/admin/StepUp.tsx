@@ -8,6 +8,15 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import styles from './admin.module.css'
 
 /**
+ * What a failed check says, by its HTTP status: a request that never reached
+ * Auth has none, 429 is Auth's limit on MFA attempts, anything else is the code.
+ */
+export function stepUpError(status: number | undefined): string {
+  if (!status) return 'تعذّر الاتصال. حاول مرة أخرى.'
+  return status === 429 ? 'محاولات كثيرة. انتظر دقيقة ثم حاول.' : 'الرمز غير صحيح.'
+}
+
+/**
  * Owner step-up (D13): a native `<dialog>` that verifies a fresh TOTP code
  * against the owner's already-enrolled factor, then hands control back to
  * the caller, which retries the original `staff-admin` call once.
@@ -43,7 +52,7 @@ export function StepUp({
     const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({ factorId, code })
     setBusy(false)
     if (verifyError) {
-      setError('الرمز غير صحيح.')
+      setError(stepUpError(verifyError.status))
       return
     }
     setCode('')

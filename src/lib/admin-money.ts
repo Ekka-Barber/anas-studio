@@ -6,6 +6,7 @@ import {
   parseDisputeReply,
   parsePaymentRecheckReply,
   parseRefundReply,
+  parseReissueReply,
   type OrderDetail,
 } from './admin-orders'
 import { formatMoney, formatNumber, formatRiyadh } from './format'
@@ -30,6 +31,8 @@ export const REREAD_FAILED = 'تعذّر تحديث الصفحة؛ قد لا ت�
 export const REFUND_UNCERTAIN = 'أُرسل الاسترداد ولم يتأكد بعد؛ تتحقق منه المطابقة خلال دقائق.'
 export const REFUND_FAILED = 'رفضت بوابة الدفع الاسترداد؛ لم يُخصم شيء.'
 export const REFUND_WARNING = 'سيُعاد المبلغ إلى وسيلة دفع العميل عبر Moyasar، ولا يمكن التراجع عنه.'
+/** `refund_request`'s CHARGEBACK_RECORDED, which the function words only generically. */
+export const CHARGEBACK_RECORDED = 'سُجّل استرجاع بنكي على هذه الدفعة؛ لا يمكن الاسترداد منها.'
 export const EXTERNAL_SENTENCE = 'سجّل هنا استردادًا أو إلغاءً تمّ من لوحة Moyasar؛ يُقرأ المبلغ من Moyasar نفسها.'
 export const DISMISS_SENTENCE = 'بعد مراجعتها في لوحة Moyasar.'
 export const EMPTY_LIST = 'لا شيء هنا.'
@@ -43,6 +46,7 @@ const NEEDS_ENROLLMENT = 'يلزم تفعيل تطبيق المصادقة أول
 // What the forms say when they refuse before any call (the function's own refusals are shown as it words them).
 export const AMOUNT_INVALID = 'أدخل مبلغًا صحيحًا بالريال، مثل 69 أو 69.50.'
 export const AMOUNT_ABOVE = 'المبلغ أكبر من المتبقي.'
+export const TOTAL_ABOVE = 'المجموع أكبر من المتبقي في الدفعة.'
 export const NEEDS_AMOUNT = 'أدخل مبلغًا لعنصر أو للشحن.'
 export const NEEDS_AMOUNT_REVIEW = 'أدخل المبلغ.'
 export const NEEDS_REFUND_REASON = 'اكتب سبب الاسترداد في 300 حرف أو أقل.'
@@ -98,14 +102,31 @@ export function shippingLeft(
   return Math.max(0, order.shipping - taken)
 }
 
-/** An order's refund form: one field for each line with something left (its total less what was refunded of it), and the shipping when some is left. */
-export function orderRefundFields(detail: Pick<OrderDetail, 'order' | 'items' | 'refunds'>): RefundField[] {
+/**
+ * What the paying attempt can still give back: what it captured less every succeeded refund of it, those recorded
+ * from Moyasar's dashboard included (they allocate no line, so no line's remainder shows them). The rule of
+ * `refund_request`'s EXCEEDS_BALANCE.
+ */
+export function attemptBalance(detail: Pick<OrderDetail, 'attempts' | 'refunds'>, attemptId: string): number {
+  const captured = detail.attempts.find((attempt) => attempt.id === attemptId)?.captured ?? 0
+  const confirmed = detail.refunds.reduce(
+    (total, refund) => (refund.attemptId === attemptId && refund.status === 'succeeded' ? total + refund.amount : total),
+    0,
+  )
+  return Math.max(0, captured - confirmed)
+}
+
+/**
+ * An order's refund form: one field for each line with something left (its total less what was refunded of it), and
+ * the shipping when some is left. No field offers more than `cap`, what the paying attempt can still give back.
+ */
+export function orderRefundFields(detail: Pick<OrderDetail, 'order' | 'items' | 'refunds'>, cap = Number.POSITIVE_INFINITY): RefundField[] {
   const fields: RefundField[] = []
   for (const item of detail.items) {
-    const remainder = item.total - item.refunded
+    const remainder = Math.min(item.total - item.refunded, cap)
     if (remainder > 0) fields.push({ key: item.id, itemId: item.id, label: itemName(item), remainder })
   }
-  const shipping = shippingLeft(detail.order, detail.refunds)
+  const shipping = Math.min(shippingLeft(detail.order, detail.refunds), cap)
   if (shipping > 0) fields.push({ key: SHIPPING_KEY, itemId: null, label: 'الشحن', remainder: shipping })
   return fields
 }
@@ -153,10 +174,12 @@ export function readAmount(text: string, remainder: number): AmountRead {
 /** The sum of integers. */
 export const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0)
 
-/** The sentence that refuses a refund before the confirmation, or null when it may go on. */
-export function refundProblem(reads: readonly AmountRead[], reason: string, review: boolean): string | null {
+/** The sentence that refuses a refund before the confirmation, or null when it may go on; `cap` is what the paying attempt can still give back. */
+export function refundProblem(reads: readonly AmountRead[], reason: string, review: boolean, cap = Number.POSITIVE_INFINITY): string | null {
   for (const read of reads) if (read.problem !== null) return AMOUNT_PROBLEMS[read.problem]
-  if (sum(reads.map((read) => read.halalas)) === 0) return review ? NEEDS_AMOUNT_REVIEW : NEEDS_AMOUNT
+  const total = sum(reads.map((read) => read.halalas))
+  if (total === 0) return review ? NEEDS_AMOUNT_REVIEW : NEEDS_AMOUNT
+  if (total > cap) return TOTAL_ABOVE
   const text = clean(reason)
   if (text === '' || text.length > 300) return NEEDS_REFUND_REASON
   return null
@@ -299,6 +322,7 @@ export function readRefundReply(result: FunctionResult<unknown>, external = fals
     if (refusal === null) return reading('alert', BAD_REPLY, { keep: true })
     const { code, message } = refusal
     if (code === CANCELLED) return null
+    if (code === 'CHARGEBACK_RECORDED') return reading('alert', CHARGEBACK_RECORDED)
     return reading('alert', message || GENERIC, { keep: UNKNOWN_CODES.has(code) || code === NOT_ENROLLED, ahead: code === 'PROVIDER_AHEAD' })
   }
   let refund: ReturnType<typeof parseRefundReply>
@@ -340,6 +364,42 @@ export function readDisputeReply(result: FunctionResult<unknown>): (Reported & {
     return { line: 'status', text: parseDisputeReply(result.data).duplicate ? DISPUTE_DUPLICATE : DISPUTE_RECORDED, done: true }
   } catch {
     return { line: 'alert', text: BAD_REPLY, done: false }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The order's link, sent again
+// ---------------------------------------------------------------------------
+
+export const REISSUE_CONFIRM = 'سيُغيّر بريد الطلب ويُبطل الرابط القديم. متابعة؟'
+export const REISSUED = 'أُرسل رابط جديد إلى عنوان الطلب.'
+export const REISSUED_NEW_EMAIL = 'غُيّر البريد وأُرسل رابط جديد.'
+/** This screen's words for `order-link-reissue`'s refusals; any other keeps the function's own. */
+const REISSUE_REFUSALS: Readonly<Record<string, string>> = {
+  VERSION_MISMATCH: 'تغيّر الطلب؛ أعد التحميل.',
+  INVALID_EMAIL: 'تحقق من البريد.',
+  BAD_STATUS: 'لا يمكن إرسال رابط لهذا الطلب في حالته.',
+}
+
+/** The body of `order-link-reissue`: the order, and a new address only when one is typed (trimmed; the function lower-cases it and checks its shape). */
+export function reissueBody(orderId: string, email: string): Record<string, unknown> {
+  const address = email.trim()
+  return { action: 'order-link-reissue', orderId, ...(address === '' ? {} : { email: address }) }
+}
+
+/** What `order-link-reissue` answered: a new link sent to the order's address or to the new one, or a refusal. `null` when the owner closed the code dialog. */
+export function readReissueReply(result: FunctionResult<unknown>): Reported | null {
+  if (!result.ok) {
+    const refusal = refusalOf(result)
+    if (refusal === null) return { line: 'alert', text: BAD_REPLY }
+    if (refusal.code === CANCELLED) return null
+    const own = Object.hasOwn(REISSUE_REFUSALS, refusal.code) ? REISSUE_REFUSALS[refusal.code] : undefined
+    return { line: 'alert', text: own ?? (refusal.message || GENERIC) }
+  }
+  try {
+    return { line: 'status', text: parseReissueReply(result.data).emailChanged ? REISSUED_NEW_EMAIL : REISSUED }
+  } catch {
+    return { line: 'alert', text: BAD_REPLY }
   }
 }
 

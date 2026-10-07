@@ -1,15 +1,20 @@
 // AUDIT-2 R06: the admin shell's width and draft rules, the one-time code
 // digit folding, the owner home's job and publish-failure lines, and the
 // customer phone rule the form now states before the database does.
+// FABLE-AUDIT F2b: the payment reconciliation's job line, the team screen's
+// success sentences and the step-up dialog's failure sentences.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { customersConfig } from '../../src/admin/tables/customers'
 import { emailWaiting, jobProblem, publishFailures } from '../../src/components/admin/AdminHome'
 import { clearDrafts, isWidePath } from '../../src/components/admin/AdminShell'
+import { stepUpError } from '../../src/components/admin/StepUp'
+import { doneText } from '../../src/components/admin/TeamView'
 import { otpDigits } from '../../src/lib/digits'
 
-// AdminHome and AdminShell import through the `@/` alias, which the unit config does not resolve.
+// AdminHome, AdminShell, StepUp and TeamView import through the `@/` alias, which the unit config does not resolve.
 vi.mock('@/admin/collections', () => ({ COLLECTION_LABELS: {} }))
+vi.mock('@/lib/digits', () => ({ otpDigits: String }))
 vi.mock('@/lib/format', () => ({ formatNumber: String, formatRiyadh: String }))
 vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowserClient: () => ({}) }))
 vi.mock('@/lib/supabase/functions', () => ({ callFunction: async () => ({}), documentHref: () => '' }))
@@ -83,6 +88,46 @@ describe('the owner home job lines', () => {
     expect(jobProblem('site_build', run('skipped', 'NO_HOOK', 'site_build'), null)).toContain('رابط بناء الموقع')
     expect(jobProblem('site_build', run('skipped', undefined, 'site_build'), null)).toBeNull()
     expect(jobProblem('site_build', run('ok', undefined, 'site_build'), null)).toBeNull()
+  })
+
+  it('warns when payment work has waited more than 10 minutes with no reconciliation run inside them, by the email job\'s rule', () => {
+    const STALE = 'مدفوعات تنتظر المطابقة منذ أكثر من 10 دقائق. تأكد من الجدولة.'
+    const payments = (status: string, reason?: string) => run(status, reason, 'payments_reconcile')
+    // Nothing due, or due for less than 10 minutes: healthy, whatever the last run was.
+    expect(jobProblem('payments_reconcile', undefined, null)).toBeNull()
+    expect(jobProblem('payments_reconcile', { ...payments('ok'), finished_at: ago(600) }, null)).toBeNull()
+    expect(jobProblem('payments_reconcile', undefined, ago(5))).toBeNull()
+    // Due for 15 minutes: a run that finished a minute ago is alive; none, or one older than 10 minutes, is not.
+    expect(jobProblem('payments_reconcile', payments('ok'), ago(15))).toBeNull()
+    expect(jobProblem('payments_reconcile', payments('partial'), ago(15))).toBeNull()
+    expect(jobProblem('payments_reconcile', undefined, ago(15))).toBe(STALE)
+    expect(jobProblem('payments_reconcile', { ...payments('ok'), finished_at: ago(20) }, ago(15))).toBe(STALE)
+  })
+
+  it('says the reconciliation is stopped while the payments are not configured, whether or not work is due', () => {
+    const OFF = 'الدفع غير مضبوط؛ المطابقة متوقفة.'
+    const skipped = run('skipped', 'PAYMENTS_NOT_CONFIGURED', 'payments_reconcile')
+    expect(jobProblem('payments_reconcile', skipped, null)).toBe(OFF)
+    expect(jobProblem('payments_reconcile', skipped, ago(15))).toBe(OFF)
+    expect(jobProblem('payments_reconcile', { ...skipped, finished_at: ago(600) }, ago(15))).toBe(OFF)
+    // Another reason, or none, is no such sentence.
+    expect(jobProblem('payments_reconcile', run('skipped', undefined, 'payments_reconcile'), null)).toBeNull()
+  })
+})
+
+describe('the team screen and the step-up dialog', () => {
+  it('says each success on the status line', () => {
+    expect(doneText({ action: 'invite', email: 'a@b.sa', displayName: 'س', role: 'editor' })).toBe('أُرسلت الدعوة.')
+    expect(doneText({ action: 'set_role', userId: 'x', role: 'operations' })).toBe('غُيّر الدور.')
+    expect(doneText({ action: 'set_active', userId: 'x', active: false })).toBe('أُوقف العضو.')
+    expect(doneText({ action: 'set_active', userId: 'x', active: true })).toBe('استُعيد العضو.')
+  })
+
+  it('tells a lost connection and Auth\'s attempt limit from a wrong code', () => {
+    expect(stepUpError(undefined)).toBe('تعذّر الاتصال. حاول مرة أخرى.')
+    expect(stepUpError(0)).toBe('تعذّر الاتصال. حاول مرة أخرى.')
+    expect(stepUpError(429)).toBe('محاولات كثيرة. انتظر دقيقة ثم حاول.')
+    for (const status of [400, 401, 422, 500]) expect(stepUpError(status), String(status)).toBe('الرمز غير صحيح.')
   })
 })
 

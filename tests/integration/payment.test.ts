@@ -157,7 +157,7 @@ afterAll(async () => {
     [startedAt],
   )
   await postgres.query("delete from finance.email_outbox where kind = 'owner_alert' and created_at >= $1", [startedAt])
-  await postgres.query("delete from finance.email_outbox where kind = 'receipt' and payload ->> 'orderId' = any($1::text[])", [created.orders])
+  await postgres.query("delete from finance.email_outbox where kind in ('receipt', 'order_refunded') and payload ->> 'orderId' = any($1::text[])", [created.orders])
   if (settingsSaved) {
     await postgres.query(
       `update finance.commerce_settings set checkout_enabled = $1, seller_legal_name = $2, seller_address = $3,
@@ -437,6 +437,7 @@ const HELPERS = [
   'payment_view',
   'order_try_commit',
   'disputes_immutable',
+  'payments_due_since',
 ]
 
 describe('grants and access', () => {
@@ -1037,6 +1038,51 @@ describe('payment_attempt_close', () => {
     expect(await attemptOf(begun.attemptId)).toMatchObject({ status: 'failed', last_error: 'PROVIDER_REFUSED', next_check_at: null })
     expect(await close(randomUUID(), 'failed')).toEqual({ ok: false, code: 'NOT_FOUND' })
   })
+
+  it('a creation the provider refused alerts the owners once a UTC day, with the first refusal\'s attempt, order and code; a throttle, another code or a refused move alerts nothing', async () => {
+    const placed = await plain()
+    // One transaction of the superuser, rolled back: an alert another run left today cannot hide this one.
+    await postgres.query('begin')
+    try {
+      const day = (await row("select to_char(now() at time zone 'UTC', 'YYYY-MM-DD') as d")).d as string
+      const clearDay = (): Promise<unknown> =>
+        postgres.query("delete from finance.email_outbox where kind = 'owner_alert' and dedupe_key like $1", [`payment_create_refused:${day}:%`])
+      const closeNew = async (error: string): Promise<{ attempt: string; answer: any }> => {
+        const attempt = await insertAttempt(placed.id, 'creating')
+        return { attempt, answer: (await row('select public.payment_attempt_close($1, $2, $3) as r', [attempt, 'failed', error])).r }
+      }
+      await clearDay()
+      const first = await closeNew('CREATE_REFUSED_401')
+      expect(first.answer).toEqual({ ok: true, status: 'failed' })
+      expect(await attemptOf(first.attempt)).toMatchObject({ status: 'failed', last_error: 'CREATE_REFUSED_401', next_check_at: null })
+      const queued = await rows('select kind, priority, payload from finance.email_outbox where dedupe_key like $1', [`payment_create_refused:${day}:%`])
+      expect(queued).toHaveLength(await owners())
+      for (const alert of queued) {
+        expect(alert).toEqual({
+          kind: 'owner_alert',
+          priority: 0,
+          payload: { alert: 'payment_create_refused', attemptId: first.attempt, orderId: placed.id, error: 'CREATE_REFUSED_401' },
+        })
+      }
+      // A second refusal the same day adds nothing: one alert a day, the first one's.
+      expect((await closeNew('CREATE_REFUSED')).answer).toEqual({ ok: true, status: 'failed' })
+      expect(await alerts('payment_create_refused', day)).toBe(await owners())
+
+      // A throttle and another code alert nothing, nor does a refusal on a move that is not allowed.
+      await clearDay()
+      for (const error of ['CREATE_RATE_LIMITED', 'PROVIDER_REFUSED']) {
+        expect((await closeNew(error)).answer, error).toEqual({ ok: true, status: 'failed' })
+      }
+      const pending = await insertAttempt(placed.id, 'pending', { provider_invoice_id: randomUUID() })
+      expect((await row('select public.payment_attempt_close($1, $2, $3) as r', [pending, 'failed', 'CREATE_REFUSED_400'])).r).toEqual({
+        ok: false,
+        code: 'BAD_TRANSITION',
+      })
+      expect(await alerts('payment_create_refused', day)).toBe(0)
+    } finally {
+      await postgres.query('rollback')
+    }
+  })
 })
 
 // --- apply_verified_payment: the decision table ----------------------------------
@@ -1355,17 +1401,40 @@ describe('apply_verified_payment: the first verified payment', () => {
     expect(JSON.stringify(audit.summary)).not.toContain('@')
   })
 
-  it('a payment already refunded at the provider counts as charged and raises the external_refund alert; a void and a later refund raise theirs', async () => {
-    const started = await start(await plain())
-    const total = started.placed.total
-    expect(await apply(started, { status: 'refunded', refunded: total })).toEqual({ outcome: 'paid', orderNumber: started.placed.number })
-    expect(await attemptOf(started.attemptId)).toMatchObject({ status: 'paid', captured_halalas: total, provider_status: 'refunded', provider_refunded_halalas: total })
+  it('a payment already refunded in full at the provider when it is first verified is a review payment, never fulfilled; a void and a later refund raise their alerts', async () => {
+    const variant = await physical(6900, 5)
+    const placed = await place([{ variantId: variant, quantity: 1 }])
+    const started = await start(placed)
+    const total = placed.total
+    const reviewed = { outcome: 'review', reason: 'REFUNDED_BEFORE_SETTLE', orderNumber: placed.number }
+    expect(await apply(started, { status: 'refunded', refunded: total })).toEqual(reviewed)
+    // The attempt is review with the payment id and no further check; the order is not touched: nothing is committed,
+    // decremented, shipped or receipted for money that went back.
+    expect(await attemptOf(started.attemptId)).toMatchObject({
+      status: 'review',
+      provider_payment_id: started.paymentId,
+      captured_halalas: null,
+      provider_status: 'refunded',
+      provider_refunded_halalas: total,
+      next_check_at: null,
+    })
+    expect((await orderOf(placed.id)).status).toBe('pending_payment')
+    expect(await stockOf(variant)).toBe(5)
+    expect(await row('select state from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ state: 'held' })
+    expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id])).toBe(0)
+    expect(await receipts(placed.id)).toHaveLength(0)
+    expect(
+      await row('select reason, amount_halalas, provider_refunded_halalas, attempt_id, order_id from finance.payment_reviews where provider_payment_id = $1', [started.paymentId]),
+    ).toEqual({ reason: 'REFUNDED_BEFORE_SETTLE', amount_halalas: total, provider_refunded_halalas: total, attempt_id: started.attemptId, order_id: placed.id })
     const everyOwner = await owners()
-    expect(await alerts('external_refund', `${started.attemptId}:${total}`)).toBe(everyOwner)
+    expect(await alerts('payment_review', started.paymentId)).toBe(everyOwner)
+    expect(await alerts('external_refund', `${started.attemptId}:${total}`)).toBe(0)
     expect(await alerts('provider_status', `${started.attemptId}:refunded`)).toBe(0)
     // The same facts again change nothing and add no alert.
-    expect(await apply(started, { status: 'refunded', refunded: total })).toEqual({ outcome: 'already_paid', orderNumber: started.placed.number })
-    expect(await alerts('external_refund', `${started.attemptId}:${total}`)).toBe(everyOwner)
+    expect(await apply(started, { status: 'refunded', refunded: total })).toEqual(reviewed)
+    expect(await alerts('payment_review', started.paymentId)).toBe(everyOwner)
+    expect(await count('select count(*)::int as n from finance.payment_reviews where provider_payment_id = $1', [started.paymentId])).toBe(1)
+    expect(await stockOf(variant)).toBe(5)
 
     // The provider's total only grows: a stale lower one is ignored, a higher one is alerted once more.
     const partial = await start(await place([{ variantId: await digital(10_000), quantity: 1 }]))
@@ -1389,6 +1458,46 @@ describe('apply_verified_payment: the first verified payment', () => {
     expect(await count('select count(*)::int as n from finance.payment_reviews where attempt_id = $1', [partial.attemptId])).toBe(0)
     expect(await alerts('provider_status', `${partial.attemptId}:captured`)).toBe(everyOwner)
     expect((await orderOf(partial.placed.id)).status).toBe('paid')
+  })
+
+  it('a payment refunded in part at the provider before it settled is committed, and that refund is recorded from the provider\'s total: the ledger equals the provider, one refund mail, no alert', async () => {
+    const placed = await place([{ variantId: await digital(10_000), quantity: 1 }])
+    const started = await start(placed)
+    // A partial refund leaves the payment's status as it was; only a full one makes it refunded.
+    expect(await apply(started, { refunded: 2500 })).toEqual({ outcome: 'paid', orderNumber: placed.number })
+    expect((await orderOf(placed.id)).status).toBe('paid')
+    expect(await attemptOf(started.attemptId)).toMatchObject({ status: 'paid', captured_halalas: placed.total, provider_status: 'paid', provider_refunded_halalas: 2500 })
+    const refunds = await rows('select * from finance.refunds where attempt_id = $1', [started.attemptId])
+    expect(refunds).toHaveLength(1)
+    const refund = refunds[0]!
+    expect(refund).toMatchObject({
+      order_id: placed.id,
+      review_payment_id: null,
+      amount_halalas: 2500,
+      status: 'succeeded',
+      source: 'provider_dashboard',
+      provider_refunded_before: 0,
+      provider_refunded_after: 2500,
+      allocation: {},
+      requested_by: null,
+      error: null,
+      next_check_at: null,
+    })
+    expect(refund.succeeded_at).not.toBeNull()
+    // The ledger equals the provider: no external_refund alert is left to raise.
+    expect(await alerts('external_refund', `${started.attemptId}:2500`)).toBe(0)
+    // One receipt and one refund mail; an unallocated partial refund revokes nothing.
+    expect(await receipts(placed.id)).toHaveLength(1)
+    const mails = (): Promise<Row[]> =>
+      rows("select dedupe_key from finance.email_outbox where kind = 'order_refunded' and payload ->> 'orderId' = $1", [placed.id])
+    expect(await mails()).toEqual([{ dedupe_key: `order_refunded:${refund.id}` }])
+    expect(await row('select revoked_at from finance.entitlements where order_id = $1', [placed.id])).toEqual({ revoked_at: null })
+    const audit = await row("select actor, summary from public.audit_events where action = 'refund.external' and entity_id = $1", [refund.id])
+    expect(audit).toEqual({ actor: null, summary: { amount: 2500, source: 'provider_dashboard', orderNumber: placed.number, attemptId: started.attemptId } })
+    // A replay records nothing more: no second refund, no second mail.
+    expect(await apply(started, { refunded: 2500 })).toEqual({ outcome: 'already_paid', orderNumber: placed.number })
+    expect(await count('select count(*)::int as n from finance.refunds where attempt_id = $1', [started.attemptId])).toBe(1)
+    expect(await mails()).toHaveLength(1)
   })
 
   it('replays: already_paid, with nothing duplicated; a failed sibling payment on a paid attempt does not overwrite its provider columns', async () => {
@@ -1419,12 +1528,12 @@ describe('apply_verified_payment: the first verified payment', () => {
 // --- settles once ----------------------------------------------------------------
 
 describe('a payment settles once', () => {
-  /** An order of every kind of line, so one settle has something of each to duplicate. */
+  /** An order of every kind of line, so one settle has something of each to duplicate. A digital line is one copy (M1b-6). */
   async function everyKind() {
     const coupon = await makeCoupon({ percentBp: 1000, usageLimit: 20 })
     const digitals = [await digital(3500), await digital(1500)]
     const shelves = [await physical(6900, 20), await physical(2500, 20)]
-    const lines = [...digitals, ...shelves].map((variantId) => ({ variantId, quantity: 2 }))
+    const lines = [...digitals.map((variantId) => ({ variantId, quantity: 1 })), ...shelves.map((variantId) => ({ variantId, quantity: 2 }))]
     return { placed: await place(lines, { couponCode: coupon.code }), digitals, shelves }
   }
   async function expectSettledOnce(placed: Placed, started: Started, shelves: string[]) {
@@ -1661,15 +1770,62 @@ describe('a payment after the hold ended', () => {
     expect(await count('select finance.preorder_committed($1) as n', [variant])).toBe(1)
   })
 
-  it('a reservation flagged as a preorder decides by capacity even when the variant is no longer one; a stocked line flagged otherwise uses stock', async () => {
+  it('a reservation flagged as a preorder on a variant that is no longer one is judged by stock: paid, the stock decremented, the reservation a stocked unit', async () => {
     const variant = await physical(6900, 5)
     const placed = await place([{ variantId: variant, quantity: 2 }])
     const started = await start(placed)
     await postgres.query('update finance.inventory_reservations set preorder = true where order_id = $1', [placed.id])
-    // The variant has no capacity (null): the reservation's own flag is what counts, so it fails.
-    expect(await apply(started)).toMatchObject({ outcome: 'paid_needs_resolution' })
-    expect(await stockOf(variant)).toBe(5)
+    // The variant has no capacity (null) and is not a preorder: its stock decides, and the 5 units are there.
+    expect(await apply(started)).toEqual({ outcome: 'paid', orderNumber: placed.number })
+    expect((await orderOf(placed.id)).status).toBe('paid')
+    expect(await stockOf(variant)).toBe(3)
+    expect(await row('select state, preorder from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ state: 'committed', preorder: false })
     expect(await count('select finance.availability($1) as n', [variant])).toBe(3)
+    expect(await count('select finance.preorder_committed($1) as n', [variant])).toBe(0)
+  })
+
+  /** A physical variant that is a preorder (no stock yet), with an order holding 2 of it and that order's pending invoice. */
+  async function preorderHold(): Promise<{ variant: string; placed: Placed; started: Started }> {
+    const variant = await physical(6900, 0)
+    await postgres.query(
+      "update public.product_variants set preorder = true, preorder_capacity = 3, preorder_ships_on = '2030-01-01', preorder_note = 'يصلك بعد الطباعة' where id = $1",
+      [variant],
+    )
+    const placed = await place([{ variantId: variant, quantity: 2 }])
+    expect(await row('select preorder from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ preorder: true })
+    return { variant, placed, started: await start(placed) }
+  }
+  /** What the owner's variant form saves when the preorder is switched off: the capacity, date and note cleared, the copies counted in. */
+  const switchOff = (variant: string, stock: number): Promise<unknown> =>
+    postgres.query(
+      'update public.product_variants set preorder = false, preorder_capacity = null, preorder_ships_on = null, preorder_note = null, stock = $2 where id = $1',
+      [variant, stock],
+    )
+
+  it('a preorder hold paid after the owner switched the preorder off is paid from the stock now there', async () => {
+    const { variant, placed, started } = await preorderHold()
+    await switchOff(variant, 4)
+    expect(await apply(started)).toEqual({ outcome: 'paid', orderNumber: placed.number })
+    expect((await orderOf(placed.id)).status).toBe('paid')
+    expect(await stockOf(variant)).toBe(2)
+    const stockAudit = await row("select summary from public.audit_events where entity = 'product_variants' and entity_id = $1 order by id desc limit 1", [variant])
+    expect(stockAudit.summary.changes.stock).toEqual({ from: 4, to: 2 })
+    expect(await row('select state, preorder from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ state: 'committed', preorder: false })
+    expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id])).toBe(1)
+    expect(await alerts('needs_resolution', placed.id)).toBe(0)
+    // What the buyer was shown stays on the order's line.
+    expect(await row('select preorder, preorder_note from finance.order_items where order_id = $1', [placed.id])).toEqual({ preorder: true, preorder_note: 'يصلك بعد الطباعة' })
+  })
+
+  it('a preorder hold whose variant was switched off with too few copies is kept for resolution, as any stocked line is', async () => {
+    const { variant, placed, started } = await preorderHold()
+    await switchOff(variant, 1)
+    expect(await apply(started)).toEqual({ outcome: 'paid_needs_resolution', orderNumber: placed.number })
+    expect((await orderOf(placed.id)).status).toBe('paid_needs_resolution')
+    expect(await stockOf(variant)).toBe(1)
+    expect(await row('select state, preorder from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ state: 'held', preorder: true })
+    expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id])).toBe(0)
+    expect(await alerts('needs_resolution', placed.id)).toBe(await owners())
   })
 
   it('finance.order_try_commit skips a line that is fully refunded: nothing is committed, granted or shipped for it', async () => {
@@ -2142,7 +2298,7 @@ describe('payment_check_begin, payment_state and payment_callback_begin', () => 
     for (let i = 0; i < 3; i += 1) expect((await state({ number: 'ZZZZ2222', hash: ZERO })).state).toBe('unknown')
   })
 
-  it('callback: a check for a known invoice, {} for an unknown one, {} within 5 seconds and {} when throttled (never an error)', async () => {
+  it('callback: a check for a known invoice, {} for an unknown one, {} within 5 seconds and {} when the invoice is throttled, never by the caller\'s address (never an error)', async () => {
     const started = await start(await plain())
     expect(await callback(started.invoiceId)).toEqual({ check: { attemptId: started.attemptId, providerInvoiceId: started.invoiceId } })
     expect(await callback(started.invoiceId)).toEqual({})
@@ -2155,12 +2311,37 @@ describe('payment_check_begin, payment_state and payment_callback_begin', () => 
     expect(await apply(started)).toMatchObject({ outcome: 'paid' })
     expect(await callback(started.invoiceId)).toEqual({})
 
+    // The throttle is the invoice's, 20 an hour, never the caller's address: the provider's server sends every shop's
+    // callbacks from a few addresses, so 61 invoices from one address in one hour are all asked about.
     const hash = ipHash()
-    for (let i = 0; i < 60; i += 1) expect(await callback(randomUUID(), { p_ip_hash: hash })).toEqual({})
-    const waiting = await start(await plain())
-    expect(await callback(waiting.invoiceId, { p_ip_hash: hash })).toEqual({})
+    const many = await plain()
+    const invoices: Array<{ attemptId: string; invoiceId: string }> = []
+    for (let i = 0; i < 61; i += 1) {
+      const invoiceId = randomUUID()
+      // Closed attempts whose invoice expired an hour ago are still worth asking about (a late payment).
+      invoices.push({ attemptId: await insertAttempt(many.id, 'expired', { provider_invoice_id: invoiceId }, '-1 hour'), invoiceId })
+    }
+    for (const { attemptId, invoiceId } of invoices) {
+      expect(await callback(invoiceId, { p_ip_hash: hash })).toEqual({ check: { attemptId, providerInvoiceId: invoiceId } })
+    }
+    expect(await count("select count(*)::int as n from finance.rate_limits where bucket like 'payment-callback:%' and key_hash = $1", [hash])).toBe(0)
+    // One invoice: 20 an hour (each call past the 5 seconds), then {} with nothing fetched, whatever the address.
+    const waiting = invoices[0]!
+    const again = async (): Promise<any> => {
+      await postgres.query('update finance.payment_attempts set fetched_at = null where id = $1', [waiting.attemptId])
+      return callback(waiting.invoiceId)
+    }
+    for (let i = 1; i < 20; i += 1) expect(await again(), `call ${i + 1}`).toEqual({ check: { attemptId: waiting.attemptId, providerInvoiceId: waiting.invoiceId } })
+    expect(await again()).toEqual({})
     expect((await attemptOf(waiting.attemptId)).fetched_at).toBeNull()
-    expect(await callback(waiting.invoiceId, { p_ip_hash: ipHash() })).toMatchObject({ check: { attemptId: waiting.attemptId } })
+    // Another invoice is not held back by it.
+    const other = invoices[1]!
+    await postgres.query('update finance.payment_attempts set fetched_at = null where id = $1', [other.attemptId])
+    expect(await callback(other.invoiceId)).toEqual({ check: { attemptId: other.attemptId, providerInvoiceId: other.invoiceId } })
+    // A made-up invoice id is answered before the throttle, so it writes nothing.
+    const madeUp = randomUUID()
+    expect(await callback(madeUp)).toEqual({})
+    expect(await count("select count(*)::int as n from finance.rate_limits where bucket = 'payment-callback:invoice' and key_hash = $1", [sha256(madeUp)])).toBe(0)
   })
 })
 
@@ -2171,6 +2352,12 @@ describe('payment_reconcile_claim', () => {
 
   it('claims only the due attempts of the mode, leases them for two minutes, and turns a creating row older than 30 seconds into uncertain', async () => {
     await parkAll()
+    const unverified = async (): Promise<number> => {
+      const { data, error } = await ownerClient.rpc('orders_alerts')
+      expect(error).toBeNull()
+      return (data as Row).unverifiedAttempts as number
+    }
+    const unverifiedBefore = await unverified()
     const stale = await plain()
     const creating = (await begin(stale)).attemptId
     await postgres.query("update finance.payment_attempts set created_at = now() - interval '2 minutes', next_check_at = now() - interval '1 minute' where id = $1", [creating])
@@ -2179,6 +2366,8 @@ describe('payment_reconcile_claim', () => {
     const notDue = await start(await plain())
     const live = await start(await place([{ variantId: await digital(), quantity: 1 }], { environment: 'live' }), 'live')
     await postgres.query("update finance.payment_attempts set next_check_at = now() - interval '1 minute' where id = $1", [live.attemptId])
+    // A closed attempt of that mode, due for the last check of its invoice: no buyer can pay it any more.
+    const liveClosed = await insertAttempt(live.placed.id, 'expired', { provider_invoice_id: randomUUID(), environment: 'live' }, '-1 hour', '-1 minute')
 
     const claimed = await claim()
     expect(claimed.events).toEqual([])
@@ -2211,13 +2400,44 @@ describe('payment_reconcile_claim', () => {
     // Work of the other mode cannot be checked with this key: the claim parked it (no due time, marked), so it
     // neither wakes the job every minute nor blocks the retention purge, and a claim of that mode finds nothing.
     expect(await attemptOf(live.attemptId)).toMatchObject({ status: 'expired', next_check_at: null, last_error: 'MODE_CHANGED' })
+    expect(await attemptOf(liveClosed)).toMatchObject({ status: 'expired', next_check_at: null, last_error: 'MODE_CHANGED' })
     expect((await claim('live')).attempts).toEqual([])
+    // A person settles it at the provider, so the owners are told about the attempt a buyer could still have paid (the
+    // closed one only waits for its last check), once.
+    expect(await alerts('attempt_mode_changed', live.attemptId)).toBe(await owners())
+    expect(await row('select kind, payload from finance.email_outbox where dedupe_key like $1 limit 1', [`attempt_mode_changed:${live.attemptId}:%`])).toEqual({
+      kind: 'owner_alert',
+      payload: { alert: 'attempt_mode_changed', attemptId: live.attemptId, orderId: live.placed.id },
+    })
+    expect(await alerts('attempt_mode_changed', liveClosed)).toBe(0)
+    // The reconciliation screen lists both with the reason MODE_CHANGED, and the admin home counts both.
+    const reconciliation = await ownerClient.rpc('reconciliation_list')
+    expect(reconciliation.error).toBeNull()
+    const reasonsOf = (id: string): unknown => ((reconciliation.data as Row).attempts as Row[]).find((entry) => entry.id === id)?.reasons
+    expect(reasonsOf(live.attemptId)).toEqual(['MODE_CHANGED'])
+    expect(reasonsOf(liveClosed)).toEqual(['MODE_CHANGED'])
+    expect(await unverified()).toBe(unverifiedBefore + 2)
+    // The retention purge and a buyer's erase keep the order while it is marked: once its hold ended it would otherwise
+    // be erasable (checked in a transaction that is rolled back).
+    await postgres.query('begin')
+    try {
+      const erasable = async (): Promise<boolean> =>
+        (await row('select finance.order_erasable(o) as ok from finance.orders o where o.id = $1', [live.placed.id])).ok as boolean
+      await postgres.query("update finance.orders set status = 'expired' where id = $1", [live.placed.id])
+      expect(await erasable()).toBe(false)
+      await postgres.query('update finance.payment_attempts set last_error = null where order_id = $1', [live.placed.id])
+      expect(await erasable()).toBe(true)
+    } finally {
+      await postgres.query('rollback')
+    }
     // Two runs at once never take the same row.
     for (const id of [pending.attemptId, creating]) {
       await postgres.query("update finance.payment_attempts set next_check_at = now() - interval '1 minute' where id = $1", [id])
     }
     const both = await Promise.all([claim('test', pool[0]), claim('test', pool[1]), claim('test', pool[2])])
     expect(both.flatMap((c) => c.attempts.map((a: any) => a.attemptId)).sort()).toEqual([pending.attemptId, creating].sort())
+    // Still one alert: a parked row is not due again.
+    expect(await alerts('attempt_mode_changed', live.attemptId)).toBe(await owners())
   })
 
   it('reports an order that is already paid, so the job can cancel the other invoice', async () => {
@@ -2290,7 +2510,12 @@ describe('payment_reconcile_claim', () => {
     const later = await insertAttempt(base.id, 'paid', { provider_payment_id: randomUUID() })
     await postgres.query(`insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, next_check_at) values ($1, $2, 100, 'لاحقًا', 'submitting', now() + interval '1 hour')`, [base.id, later])
     const otherMode = await insertAttempt(base.id, 'paid', { provider_payment_id: randomUUID(), environment: 'live' })
-    await postgres.query(`insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, next_check_at) values ($1, $2, 100, 'وضع آخر', 'submitting', now() - interval '1 hour')`, [base.id, otherMode])
+    const otherModeRefund = (
+      await row(
+        `insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, next_check_at) values ($1, $2, 100, 'وضع آخر', 'submitting', now() - interval '1 hour') returning id`,
+        [base.id, otherMode],
+      )
+    ).id as string
 
     const first = await claim()
     expect(first.attempts.map((a: any) => a.attemptId)).toEqual(attempts.slice(0, 10))
@@ -2322,6 +2547,68 @@ describe('payment_reconcile_claim', () => {
     )
     expect(parked).toMatchObject({ status: 'submitting', next_check_at: null, error: 'MODE_CHANGED' })
     expect((await claim('live')).refunds).toEqual([])
+    // The owners are told once, and the owner's reconciliation screen lists it among the refunds in flight.
+    expect(await alerts('refund_mode_changed', otherModeRefund)).toBe(await owners())
+    expect((await row('select payload from finance.email_outbox where dedupe_key like $1 limit 1', [`refund_mode_changed:${otherModeRefund}:%`])).payload).toEqual({
+      alert: 'refund_mode_changed',
+      refundId: otherModeRefund,
+      orderId: base.id,
+    })
+    const reconciliation = await ownerClient.rpc('reconciliation_list')
+    expect(reconciliation.error).toBeNull()
+    expect(((reconciliation.data as Row).refunds as Row[]).find((entry) => entry.id === otherModeRefund)).toMatchObject({ status: 'submitting', error: 'MODE_CHANGED' })
+  })
+})
+
+describe('payments_due_since', () => {
+  it('is null when nothing is due, else the earliest due time of an attempt, an event or a refund in flight; an owner and operations read it, an editor and anon are refused', async () => {
+    const placed = await plain()
+    // One transaction of the superuser, rolled back: every due row of the three kinds pushed a month out stands for a
+    // clean database.
+    await postgres.query('begin')
+    try {
+      await postgres.query("update finance.payment_attempts set next_check_at = now() + interval '30 days' where next_check_at is not null")
+      await postgres.query("update finance.payment_events set next_check_at = now() + interval '30 days' where next_check_at is not null")
+      await postgres.query("update finance.refunds set next_check_at = now() + interval '30 days' where next_check_at is not null")
+      /** The answer, and how many seconds before the transaction's now() it is. */
+      const dueSince = async (): Promise<{ t: Date | null; ago: number }> => {
+        const found = await row('select finance.payments_due_since() as t, extract(epoch from (now() - finance.payments_due_since())) as ago')
+        return { t: found.t as Date | null, ago: Number(found.ago) }
+      }
+      expect((await dueSince()).t).toBeNull()
+      // Scheduled but not due yet: still nothing.
+      await insertAttempt(placed.id, 'pending', { provider_invoice_id: randomUUID() }, '20 minutes', '5 minutes')
+      expect((await dueSince()).t).toBeNull()
+      // An attempt due 5 minutes ago.
+      await insertAttempt(placed.id, 'expired', { provider_invoice_id: randomUUID() }, '-1 hour', '-5 minutes')
+      expect((await dueSince()).ago).toBe(300)
+      // A webhook event due 10 minutes ago is earlier.
+      await postgres.query("insert into finance.payment_events (event_id, type, next_check_at) values ($1, 'payment_paid', now() - interval '10 minutes')", [
+        `${EVENT_PREFIX}due-since`,
+      ])
+      expect((await dueSince()).ago).toBe(600)
+      // A settled refund never counts, however long ago it was due; one in flight due 15 minutes ago is the earliest.
+      const paid = await insertAttempt(placed.id, 'paid', { provider_payment_id: randomUUID() })
+      const refund = (status: string, ago: string): Promise<unknown> =>
+        postgres.query(
+          `insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, next_check_at) values ($1, $2, 100, 'اختبار', $3, now() - $4::interval)`,
+          [placed.id, paid, status, ago],
+        )
+      await refund('succeeded', '1 day')
+      expect((await dueSince()).ago).toBe(600)
+      await refund('uncertain', '15 minutes')
+      expect((await dueSince()).ago).toBe(900)
+    } finally {
+      await postgres.query('rollback')
+    }
+    // The admin home reads it through the public function, behind the owner or operations check.
+    for (const client of [ownerClient, operationsClient]) {
+      const { data, error } = await client.rpc('payments_due_since')
+      expect(error).toBeNull()
+      expect(data === null || !Number.isNaN(Date.parse(data as string))).toBe(true)
+    }
+    expect((await editorClient.rpc('payments_due_since')).error?.code).toBe('42501')
+    expect((await anonClient().rpc('payments_due_since')).error?.code).toBe('42501')
   })
 })
 

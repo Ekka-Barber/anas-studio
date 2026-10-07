@@ -106,6 +106,42 @@ describe('commerce_settings_get', () => {
     })
     expect((await anonClient().rpc('commerce_settings_get')).error).toBeTruthy()
   })
+
+  // FABLE-AUDIT M1b: a policy published after the approval closes the store while the switch still says on, so the
+  // admin reads whether checkout is really open, by the cart's own rule, and why it is not.
+  it('says whether checkout is open by the cart\'s own rule, and why not: the switch, then the seller, then the policies', async () => {
+    const owner = await createStaff('owner')
+    type State = { enabled: boolean; name: string | null; registration: string | null; policies: Record<string, number> }
+    const open: State = { enabled: true, name: 'بائع', registration: 'REG-1', policies: { store: 1, delivery: 1, refund: 1 } }
+    const cases: Array<[string, State, string | null]> = [
+      ['everything set', open, null],
+      ['the switch off', { ...open, enabled: false }, 'SWITCH_OFF'],
+      ['the switch off and nothing else set either', { enabled: false, name: null, registration: null, policies: {} }, 'SWITCH_OFF'],
+      ['no seller name', { ...open, name: null }, 'SELLER_UNSET'],
+      ['no registration', { ...open, registration: null }, 'SELLER_UNSET'],
+      ['no seller and no approved policies', { ...open, registration: null, policies: {} }, 'SELLER_UNSET'],
+      ['a policy published since the approval', { ...open, policies: {} }, 'POLICIES_UNAPPROVED'],
+    ]
+    await rolledBack(serviceDb, async () => {
+      for (const [label, state, reason] of cases) {
+        await serviceDb.query('set local role postgres')
+        await serviceDb.query(
+          'update finance.commerce_settings set checkout_enabled = $1, seller_legal_name = $2, seller_registration = $3, policy_revisions = $4::jsonb where id = 1',
+          [state.enabled, state.name, state.registration, JSON.stringify(state.policies)],
+        )
+        // What the cart is told, as the checkout function asks (an empty cart still says whether the store is open).
+        await serviceDb.query('set local role service_role')
+        const quoted = (await serviceDb.query<{ r: { checkoutEnabled: boolean } }>("select public.checkout_quote($1, '[]'::jsonb, null, null) as r", ['c'.repeat(64)])).rows[0]!.r
+        // What the owner's settings screen reads.
+        await serviceDb.query('set local role authenticated')
+        await serviceDb.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: owner.userId, role: 'authenticated' })])
+        const settings = (await serviceDb.query<{ r: Record<string, unknown> }>('select public.commerce_settings_get() as r')).rows[0]!.r
+        await serviceDb.query('set local role service_role')
+        expect(settings, label).toMatchObject({ checkoutOpen: reason === null, checkoutClosedReason: reason })
+        expect(settings.checkoutOpen, label).toBe(quoted.checkoutEnabled)
+      }
+    })
+  })
 })
 
 describe('commerce_settings_save', () => {

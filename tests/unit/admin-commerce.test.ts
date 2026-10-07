@@ -1,11 +1,13 @@
 // P08 round 11c: the parts of the variant form's commerce panel and of the statistics screen that need no
 // React (src/lib/admin-commerce.ts): the Riyadh day, the checks a paid file passes before any call, the
 // range of days sent to `stats`, the size wording, the strict parsers of what `variant_admin_info`, the
-// paid-file actions and `owner_commerce_stats` answer, and the sentences.
+// paid-file actions and `owner_commerce_stats` answer, and the sentences. FABLE-AUDIT F2b adds the store
+// settings' «الشراء» box: the payments line with its reason, and whether the store takes orders now.
 import { describe, expect, it } from 'vitest'
 
 import { PAID_FILE_MAX_BYTES as SERVER_MAX_BYTES } from '../../supabase/functions/_shared/paid-files.ts'
 import {
+  checkoutLine,
   checkPaidFile,
   COMMERCE_NOTE,
   commerceLines,
@@ -24,6 +26,7 @@ import {
   parseUploadDone,
   parseUploadTicket,
   parseVariantInfo,
+  paymentsLine,
   RANGE_REVERSED,
   RANGE_TOO_LONG,
   riyadhToday,
@@ -375,5 +378,44 @@ describe('the commerce lines and the sentence', () => {
     expect(COMMERCE_NOTE).toBe(
       'الصافي هنا هو إجمالي المدفوع ناقص الاستردادات المؤكدة. لا يشمل رسوم بوابة الدفع ولا الاعتراضات ولا توقيت التحويل، وليس نقدًا مُسوّى في البنك ولا ربحًا.',
     )
+  })
+})
+
+describe('the «الشراء» box of the store settings', () => {
+  it('says the payments state, and why they are not configured, by the reason `status` names', () => {
+    expect(paymentsLine({ configured: true, mode: 'live', emulator: false })).toBe('الدفع مضبوط: وضع حي')
+    expect(paymentsLine({ configured: true, mode: 'test', emulator: true })).toBe('الدفع مضبوط: وضع تجريبي، محاكٍ محلي')
+    expect(paymentsLine({ configured: true, mode: 'test', emulator: false })).toBe('الدفع مضبوط: وضع تجريبي')
+    const reasons = {
+      NOT_CONFIGURED: 'متغيرات الدفع ناقصة',
+      BAD_MODE: 'وضع الدفع غير صحيح',
+      KEY_MODE_MISMATCH: 'مفتاح Moyasar لا يوافق وضع الدفع',
+      WEAK_WEBHOOK_SECRET: 'سرّ إشعارات Moyasar أقصر من المطلوب',
+      BAD_BASE_URL: 'عنوان Moyasar غير صحيح',
+      BAD_CALLBACK_BASE: 'العنوان العام للدوال غير صحيح',
+      LIVE_ON_LOCAL: 'الوضع الحي غير مسموح على نسخة محلية',
+      EMULATOR_ON_HOSTED: 'مفاتيح المحاكي المحلي على الموقع المنشور',
+      TEST_CODE_REQUIRED: 'رمز الوصول التجريبي ناقص',
+    } as const
+    for (const [reason, words] of Object.entries(reasons)) {
+      expect(paymentsLine({ configured: false, reason: reason as keyof typeof reasons, emulator: false }), reason).toBe(`الدفع غير مضبوط: ${words}`)
+    }
+    // No reason, or one this screen does not know: the plain sentence, never the code and never blank.
+    expect(paymentsLine({ configured: false, emulator: false })).toBe('الدفع غير مضبوط')
+    const unknown = { configured: false, reason: 'SOMETHING_NEW', emulator: false } as unknown as Parameters<typeof paymentsLine>[0]
+    expect(paymentsLine(unknown)).toBe('الدفع غير مضبوط')
+    expect(paymentsLine({ ...unknown, reason: 'constructor' } as unknown as Parameters<typeof paymentsLine>[0])).toBe('الدفع غير مضبوط')
+  })
+
+  it('says whether the store takes orders now, not the switch alone, and the first reason it does not', () => {
+    expect(checkoutLine({ checkoutOpen: true, checkoutClosedReason: null })).toBe('الشراء مفتوح')
+    expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: 'SWITCH_OFF' })).toBe('الشراء مغلق')
+    expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: 'SELLER_UNSET' })).toBe('الشراء مغلق: بيانات البائع ناقصة')
+    expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: 'POLICIES_UNAPPROVED' })).toBe(
+      'الشراء مغلق: السياسات تحتاج اعتمادًا (انظر «اعتماد السياسات» أعلاه)',
+    )
+    // A reason this screen does not know, or none, still says closed: never «مفتوح» on a closed store.
+    expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: 'SOMETHING_NEW' })).toBe('الشراء مغلق')
+    expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: null })).toBe('الشراء مغلق')
   })
 })

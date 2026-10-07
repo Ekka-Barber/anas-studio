@@ -3,7 +3,9 @@
 // project (Cloudflare replaces any client value), else the hop the last
 // proxy appended to `x-forwarded-for`. Trusting a client-chosen value would
 // let a caller rotate the throttle bucket freely, or fill a victim's.
-import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
+
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { clientKeyHash, requestIp, throttleAddress } from '../../supabase/functions/_shared/rate-limit.ts'
 
@@ -56,5 +58,33 @@ describe('throttleAddress', () => {
     expect(await clientKeyHash(from('2001:db8:1:2:ffff:ffff:ffff:ffff'), 'pepper')).toBe(a)
     expect(await clientKeyHash(from('2001:db8:1:9::1'), 'pepper')).not.toBe(a)
     expect(requestIp(from('2001:db8:1:2::1'))).toBe('2001:db8:1:2::1')
+  })
+})
+
+// FABLE-AUDIT T-13: what reaches finance.rate_limits is sha256(pepper:utc-date:address). Without the pepper the hash of
+// an address could be looked up; without the date one key would follow a visitor across days.
+describe('clientKeyHash', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const ip = '198.51.100.7'
+  const visitor = () => requestWith({ 'cf-connecting-ip': ip })
+
+  it('changes with the pepper and with the UTC date, and is never the address', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-07T10:00:00Z'))
+    const key = await clientKeyHash(visitor(), 'pepper-a')
+    expect(await clientKeyHash(visitor(), 'pepper-a')).toBe(key)
+    expect(await clientKeyHash(visitor(), 'pepper-b')).not.toBe(key)
+    // The last second of the same UTC day (already the next day in Riyadh) keeps the key; the next UTC day changes it.
+    vi.setSystemTime(new Date('2026-10-07T23:59:59Z'))
+    expect(await clientKeyHash(visitor(), 'pepper-a')).toBe(key)
+    vi.setSystemTime(new Date('2026-10-08T00:00:00Z'))
+    expect(await clientKeyHash(visitor(), 'pepper-a')).not.toBe(key)
+    // A digest, not the address: hex only, without the address in it, and not the address's bare hash either.
+    expect(key).toMatch(/^[0-9a-f]{64}$/)
+    expect(key).not.toContain(ip)
+    expect(key).not.toBe(createHash('sha256').update(ip).digest('hex'))
   })
 })

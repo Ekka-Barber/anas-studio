@@ -20,16 +20,25 @@ type Member = {
   has_totp: boolean
   created_at: string
 }
+/** What a successful action says on the screen's status line. */
+export function doneText(body: Record<string, unknown>): string {
+  if (body.action === 'invite') return 'أُرسلت الدعوة.'
+  if (body.action === 'set_role') return 'غُيّر الدور.'
+  return body.active === true ? 'استُعيد العضو.' : 'أُوقف العضو.'
+}
+
 /**
  * Owner-only team directory and actions (P03). Every mutation goes through
  * the `staff-admin` Edge Function; a `STEP_UP_REQUIRED` reply opens a fresh
- * TOTP challenge and the same action retries exactly once.
+ * TOTP challenge and the same action retries exactly once. A success is said
+ * on the status line, a refusal in the function's own words on the alert line.
  */
 export function TeamView() {
   const staffRole = useStaffRole()
   const [members, setMembers] = useState<Member[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [done, setDone] = useState('')
   const [needsEnrollment, setNeedsEnrollment] = useState(false)
   const [busy, setBusy] = useState(false)
   const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown> } | null>(null)
@@ -72,10 +81,12 @@ export function TeamView() {
   async function runAction(body: Record<string, unknown>): Promise<boolean> {
     setBusy(true)
     setActionError(null)
+    setDone('')
     setNeedsEnrollment(false)
     const result = await callFunction<unknown>('staff-admin', body)
     setBusy(false)
     if (result.ok) {
+      setDone(doneText(body))
       await loadDirectory()
       return true
     }
@@ -102,9 +113,11 @@ export function TeamView() {
     setStepUp(null)
     setBusy(true)
     setActionError(null)
+    setDone('')
     const result = await callFunction<unknown>('staff-admin', body)
     setBusy(false)
     if (result.ok) {
+      setDone(doneText(body))
       if (body.action === 'invite') clearInvite()
     } else {
       setActionError(result.error.message)
@@ -285,6 +298,10 @@ export function TeamView() {
         </button>
       </form>
 
+      {/* Always mounted, so a success is announced when it is written. */}
+      <p role="status" className={styles.message}>
+        {done}
+      </p>
       {needsEnrollment && (
         <p role="alert" className={styles.error}>
           يلزم تفعيل تطبيق المصادقة أولًا. اذهب إلى <Link href="/admin/security">صفحة الأمان</Link>.

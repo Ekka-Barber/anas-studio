@@ -10,15 +10,17 @@
  * the owner approves the published policy revisions, listed here with their
  * names and version numbers, and the checkout policy is what he approved.
  * P08 adds «الشراء»: the payments status the `admin` function's `status`
- * action reports (names and booleans, never a key) and the owner's checkout
- * switch (`commerce-checkout-set`), through the same dialog. There is no tax
- * field of any kind (D34): prices are what the buyer pays. Existing admin CSS
- * classes, plus one rule for the «الشراء» box.
+ * action reports (names and booleans, never a key, and the reason of a
+ * refusal), whether the store takes new orders now (`checkoutOpen`, and why
+ * not) and the owner's checkout switch (`commerce-checkout-set`), through the
+ * same dialog. There is no tax field of any kind (D34): prices are what the
+ * buyer pays. Existing admin CSS classes, plus one rule for the «الشراء» box.
  */
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { POLICY_DOC_LABELS, type PolicyDocId } from '@/admin/collections/policies'
+import { checkoutLine, paymentsLine } from '@/lib/admin-commerce'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
@@ -32,6 +34,8 @@ type PaymentsStatus = SettingsStatus['payments']
 
 type CommerceRow = {
   checkoutEnabled: boolean
+  checkoutOpen: boolean
+  checkoutClosedReason: string | null
   currency: string
   version: number
   configuredAt: string | null
@@ -54,13 +58,6 @@ const orNull = (value: string): string | null => (value.trim() === '' ? null : v
 function policyName(kind: string, revision: unknown): string {
   const label = POLICY_DOC_LABELS[kind as PolicyDocId] ?? kind
   return `${label}: نسخة ${String(revision)}`
-}
-
-/** What `status` says of the payments, in one plain sentence; nothing beyond it. */
-function paymentsLine(payments: PaymentsStatus): string {
-  if (!payments.configured) return 'الدفع غير مضبوط'
-  if (payments.mode === 'live') return 'الدفع مضبوط: وضع حي'
-  return payments.emulator ? 'الدفع مضبوط: وضع تجريبي، محاكٍ محلي' : 'الدفع مضبوط: وضع تجريبي'
 }
 
 export function CommerceSettingsForm() {
@@ -248,7 +245,7 @@ export function CommerceSettingsForm() {
         <p className={styles.message}>
           {payments === 'loading' ? 'يحمّل...' : payments === 'failed' ? 'تعذّر قراءة حالة الدفع.' : paymentsLine(payments)}
         </p>
-        <p>{row.checkoutEnabled ? 'الشراء مفتوح' : 'الشراء مغلق'}</p>
+        <p>{checkoutLine(row)}</p>
         <p className={styles.message}>يتحكم المفتاح في استقبال الطلبات الجديدة فقط؛ الطلبات القائمة تُدفع وتُلغى كما هي.</p>
         <div className={styles.row}>
           <button

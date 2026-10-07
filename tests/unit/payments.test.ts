@@ -173,6 +173,9 @@ const hook = (body: unknown = webhookBody()) => handlePayments(post('/webhook', 
 const verifyPost = (body: unknown, headers: Record<string, string> = { origin: SITE }, over: Partial<PaymentDeps> = {}) =>
   handlePayments(post('', body, headers), deps(over))
 const json = async (response: Response): Promise<Record<string, any>> => (await response.json()) as Record<string, any>
+/** The webhook's one log line, silenced here: a refusal leaves its code and nothing else (F1-2). */
+const quietWarn = () => vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+const REFUSED = 'payments: webhook refused'
 
 /** The provider holds a paid payment on the invoice, and the SQL settles it. */
 function providerPaid(outcome: unknown = { outcome: 'paid', orderNumber: ORDER_NUMBER }): void {
@@ -197,40 +200,53 @@ const normalizedPayment = {
 // ---- the webhook --------------------------------------------------------------------------------------------
 
 describe('the webhook: the gates', () => {
-  it('does not exist (404, nothing called) while payments are not configured', async () => {
+  it('does not exist (404, nothing called, nothing logged) while payments are not configured', async () => {
+    const warn = quietWarn()
     for (const name of ['MOYASAR_API_BASE_URL', 'MOYASAR_SECRET_KEY', 'MOYASAR_WEBHOOK_SECRET', 'PAYMENTS_MODE', 'FUNCTIONS_PUBLIC_URL']) {
       vi.stubEnv(name, '')
     }
     const response = await handlePayments(post('/webhook', webhookBody()))
     expect(response.status).toBe(404)
     expect(calls).toHaveLength(0)
+    expect(warn).not.toHaveBeenCalled()
   })
 
-  it('a method other than POST is 405', async () => {
+  it('a method other than POST is 405, and the refusal is logged with its code', async () => {
+    const warn = quietWarn()
     const response = await handlePayments(new Request(`${FUNCTION}/webhook`, { method: 'GET' }), deps())
     expect(response.status).toBe(405)
     expect(calls).toHaveLength(0)
+    expect(warn.mock.calls).toEqual([[REFUSED, 'METHOD_NOT_ALLOWED']])
   })
 
   it('a body over 256 KiB is 413, declared or streamed, and nothing is called', async () => {
+    const warn = quietWarn()
     const streamed = await hook('x'.repeat(262_145))
     expect(streamed.status).toBe(413)
     const declared = await handlePayments(post('/webhook', '{}', { 'content-length': '300000' }), deps())
     expect(declared.status).toBe(413)
     expect(calls).toHaveLength(0)
+    expect(warn.mock.calls).toEqual([
+      [REFUSED, 'TOO_LARGE'],
+      [REFUSED, 'TOO_LARGE'],
+    ])
   })
 
-  it('a body just under the limit is read', async () => {
+  it('a body just under the limit is read, and nothing is logged', async () => {
+    const warn = quietWarn()
     const response = await hook(JSON.stringify(webhookBody({ type: 'balance_transferred', data: { pad: 'x'.repeat(200_000) } })))
     expect(response.status).toBe(200)
     expect(called('payment_event_record')).toHaveLength(1)
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('unparseable JSON is 400', async () => {
+    const warn = quietWarn()
     const response = await hook('{nope')
     expect(response.status).toBe(400)
     expect((await json(response)).error.code).toBe('BAD_JSON')
     expect(calls).toHaveLength(0)
+    expect(warn.mock.calls).toEqual([[REFUSED, 'BAD_JSON']])
   })
 
   it.each([
@@ -245,10 +261,12 @@ describe('the webhook: the gates', () => {
     ['no live', webhookBody({ live: undefined })],
     ['a string live', webhookBody({ live: 'false' })],
   ])('refuses %s with 422 before anything is recorded', async (_label, body) => {
+    const warn = quietWarn()
     const response = await hook(body)
     expect(response.status).toBe(422)
     expect(calls).toHaveLength(0)
     expect(providerCalls()).toBe(0)
+    expect(warn.mock.calls).toEqual([[REFUSED, 'INVALID']])
   })
 
   it.each([
@@ -257,11 +275,15 @@ describe('the webhook: the gates', () => {
     ['the secret truncated', WEBHOOK_SECRET.slice(0, -1)],
     ['an empty secret_token', ''],
     ['the secret key instead of the webhook secret', SECRET_KEY],
-  ])('%s is 401: nothing is stored, nothing is fetched', async (_label, secret) => {
+  ])('%s is 401: nothing is stored, nothing is fetched, and it warns once with the code alone', async (_label, secret) => {
+    const warn = quietWarn()
     const response = await hook(webhookBody({ secret_token: secret }))
     expect(response.status).toBe(401)
     expect(calls).toHaveLength(0)
     expect(providerCalls()).toBe(0)
+    // A refused webhook leaves a trace (F1-2): one line, the code, never the body or the token.
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(REFUSED, 'UNAUTHORIZED')
   })
 })
 
@@ -806,9 +828,12 @@ describe('startPayment: a new attempt', () => {
     expect(await startPayment(deps(), INPUT)).toEqual({ kind: 'ok', order, payment: { state: 'preparing' } })
   })
 
+  // A refusal's code keeps the provider's HTTP status when the reply carried one (the owners' alert shows it).
   it.each([
-    ['a 4xx', bad('refused', 400), 'CREATE_REFUSED'],
-    ['a 404', bad('not_found', 404), 'CREATE_REFUSED'],
+    ['a 4xx', bad('refused', 400), 'CREATE_REFUSED_400'],
+    ['a 401', bad('refused', 401), 'CREATE_REFUSED_401'],
+    ['a 404', bad('not_found', 404), 'CREATE_REFUSED_404'],
+    ['a refusal without a status', bad('refused'), 'CREATE_REFUSED'],
     ['a 429', bad('rate_limited', 429), 'CREATE_RATE_LIMITED'],
   ])('%s closes the attempt failed and answers unavailable', async (_label, result, error) => {
     reply('payment_attempt_begin', NEW)
@@ -1062,7 +1087,7 @@ describe('settleInvoice', () => {
   const second = '22222222-2222-4222-8222-222222222222'
   const third = '33333333-3333-4333-8333-333333333333'
 
-  it('applies every charged payment the invoice lists, each fetched on its own', async () => {
+  it('applies every charged or voided payment the invoice lists, each fetched on its own', async () => {
     const listed = [
       { id: PAYMENT_ID, status: 'failed' },
       { id: second, status: 'paid' },
@@ -1077,9 +1102,22 @@ describe('settleInvoice', () => {
     client.fetchPayment.mockImplementation(async (id: string) => good(paymentOf({ id, status: listed.find((p) => p.id === id)!.status })))
     reply('apply_verified_payment', { outcome: 'not_paid' })
     const report = await settleInvoice(deps(), ATTEMPT, INVOICE_ID, 'job')
-    expect(client.fetchPayment.mock.calls.map(([id]) => id)).toEqual([second, third, listed[3]!.id])
-    expect(called('apply_verified_payment').map((call) => (call.args.p_payment as { id: string }).id)).toEqual([second, third, listed[3]!.id])
-    expect(report).toEqual({ outcomes: ['not_paid', 'not_paid', 'not_paid'], error: null })
+    // The voided one (F1-3) goes too: it settles nothing, but the void of a paying payment must reach the SQL's alert.
+    const applied = [second, third, listed[3]!.id, listed[7]!.id]
+    expect(client.fetchPayment.mock.calls.map(([id]) => id)).toEqual(applied)
+    expect(called('apply_verified_payment').map((call) => (call.args.p_payment as { id: string }).id)).toEqual(applied)
+    expect(report).toEqual({ outcomes: ['not_paid', 'not_paid', 'not_paid', 'not_paid'], error: null })
+  })
+
+  it('passes a voided payment on to the SQL with its fetched status, so the owner\'s recheck reaches the provider_status alert (F1-3)', async () => {
+    // The paying payment of a paid attempt, voided at the provider since.
+    client.fetchInvoice.mockResolvedValue(good(invoiceOf({ status: 'paid', payments: [{ id: PAYMENT_ID, status: 'voided' }] })))
+    client.fetchPayment.mockResolvedValue(good(paymentOf({ status: 'voided' })))
+    reply('apply_verified_payment', { outcome: 'not_paid' })
+    const report = await settleInvoice(deps(), ATTEMPT, INVOICE_ID, 'prompt')
+    expect(client.fetchPayment.mock.calls).toEqual([[PAYMENT_ID]])
+    expect(called('apply_verified_payment').map((call) => call.args.p_payment)).toEqual([{ ...normalizedPayment, status: 'voided' }])
+    expect(report.outcomes).toEqual(['not_paid'])
   })
 
   it('applies the charged payments oldest first, whatever order the provider lists them in; one with no time goes last', async () => {
@@ -1732,7 +1770,7 @@ describe('the payments_reconcile job through the outbox function', () => {
 // ---- what the doubles never receive -------------------------------------------------------------------------
 
 describe('secrets, tokens and bodies', () => {
-  it('no flow hands the database or the provider a secret, a key, a clear token or a body, and nothing is logged', async () => {
+  it('no flow hands the database or the provider a secret, a key, a clear token or a body, and nothing is logged but the code of the refused webhook', async () => {
     const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((method) => vi.spyOn(console, method).mockImplementation(() => undefined))
     const TOKEN = 'L'.repeat(43)
     const raw = JSON.stringify(webhookBody({ data: { id: PAYMENT_ID, status: 'paid', source: { number: '4201XXXXXXXX1010', message: 'APPROVED' } } }))
@@ -1751,12 +1789,15 @@ describe('secrets, tokens and bodies', () => {
     reply('payment_reconcile_claim', { attempts: [{ attemptId: ATTEMPT, status: 'pending', providerInvoiceId: INVOICE_ID, orderPaid: false, createdAt: ago(1), amount: TOTAL, currency: 'SAR' }], events: [], refunds: [] })
     await runPaymentsReconcile(deps())
 
-    const everything = JSON.stringify({ calls, provider: Object.values(client).map((fn) => fn.mock.calls) })
+    const everything = JSON.stringify({ calls, provider: Object.values(client).map((fn) => fn.mock.calls), logs: spies.map((spy) => spy.mock.calls) })
     for (const secret of [WEBHOOK_SECRET, SECRET_KEY, TOKEN, 'forged', '4201XXXXXXXX1010', 'APPROVED', 'account_name']) {
       expect(everything, secret).not.toContain(secret)
     }
     // The payload hash is a hash of the raw body, 64 hex characters, and nothing else of it is kept.
     expect(called('payment_event_record')[0]!.args.p_payload_hash).toBe(sha256(raw))
-    for (const spy of spies) expect(spy).not.toHaveBeenCalled()
+    // The forged webhook's refusal is the one line logged, its code alone (F1-2).
+    const [log, info, warn, error, debug] = spies
+    for (const spy of [log, info, error, debug]) expect(spy).not.toHaveBeenCalled()
+    expect(warn!.mock.calls).toEqual([[REFUSED, 'UNAUTHORIZED']])
   })
 })

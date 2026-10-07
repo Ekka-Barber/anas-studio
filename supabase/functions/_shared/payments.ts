@@ -13,8 +13,10 @@
  *   branch with a recording rpc and a stub client, and no network.
  * - A failed fetch is never read as "not paid": it is recorded as a failure and
  *   the work is tried again later.
- * - Nothing here logs. A body, a token, the webhook secret and a provider id
- *   never leave this module except to the SQL functions and the provider.
+ * - Nothing here logs but one line with the code of a refused webhook
+ *   (`payments: webhook refused`). A body, a token, the webhook secret and a
+ *   provider id never leave this module except to the SQL functions and the
+ *   provider.
  */
 import { z } from 'zod'
 
@@ -29,6 +31,7 @@ import {
   type MoyasarInvoice,
   type MoyasarPayment,
   type MoyasarResult,
+  type PaymentsConfig,
   type PaymentsConfigOk,
 } from './payments/moyasar.ts'
 import { clientKeyHash } from './rate-limit.ts'
@@ -46,8 +49,13 @@ const LIST_PAGES = 5
  * the run would never be recorded; the rows left keep their lease.
  */
 const RUN_BUDGET_MS = 60_000
-/** The payment statuses an invoice's own list sends to `apply_verified_payment`; every one is fetched first. */
+/** The payment statuses that hold money: a canceled invoice that lists one is settled, never closed. */
 const CHARGED = new Set(['paid', 'refunded', 'captured'])
+/**
+ * The payment statuses an invoice's own list sends to `apply_verified_payment`; every one is fetched first. A voided
+ * one holds no money (it settles nothing), but the void of a paying payment must reach the SQL's `provider_status` alert.
+ */
+const APPLIED = new Set([...CHARGED, 'voided'])
 /** The apply outcomes after which the attempt is paid or in review, so no "checked" is recorded. */
 const SETTLED = new Set(['paid', 'already_paid', 'paid_needs_resolution', 'review'])
 const ZERO_HASH = '0'.repeat(64)
@@ -60,6 +68,17 @@ export type PaymentDeps = { rpc: Rpc; client: MoyasarClient; config: PaymentsCon
 export function defaultPaymentDeps(rpc: Rpc = serviceRpc()): PaymentDeps | null {
   const config = paymentsConfig()
   return config.ok ? { rpc, client: moyasarClient(config), config } : null
+}
+
+/**
+ * The mode the buyer's pages bind their SQL functions to (`orders`, `download`). They never call the provider, so a
+ * broken Moyasar key, base or webhook secret must not take the order page, its files, returns and recovery down with
+ * checkout: the working configuration's mode, else `PAYMENTS_MODE` alone when it names one; null while no mode is set.
+ */
+export function buyerMode(config: PaymentsConfig): 'test' | 'live' | null {
+  if (config.ok) return config.mode
+  const mode = optionalEnv('PAYMENTS_MODE')
+  return mode === 'test' || mode === 'live' ? mode : null
 }
 
 const failureCode = (what: 'PAYMENT' | 'INVOICE', result: { kind: string }): string => `${what}_FETCH_${result.kind.toUpperCase()}`
@@ -201,7 +220,9 @@ async function createInvoice(
   }
   // A 4xx or a 429 means nothing was created; anything else (a timeout, a 5xx, an unreadable 2xx) may have been.
   if (created.kind === 'refused' || created.kind === 'not_found' || created.kind === 'rate_limited') {
-    await closeAttempt(deps, begun.attemptId, 'failed', created.kind === 'rate_limited' ? 'CREATE_RATE_LIMITED' : 'CREATE_REFUSED')
+    // A refusal keeps the provider's HTTP status in its code (CREATE_REFUSED_401), which the owners' alert carries.
+    const refused = typeof created.status === 'number' ? `CREATE_REFUSED_${created.status}` : 'CREATE_REFUSED'
+    await closeAttempt(deps, begun.attemptId, 'failed', created.kind === 'rate_limited' ? 'CREATE_RATE_LIMITED' : refused)
     return { state: 'unavailable' }
   }
   await closeAttempt(deps, begun.attemptId, 'uncertain', 'CREATE_UNCERTAIN')
@@ -331,8 +352,8 @@ export type SettleReport = {
 }
 
 /**
- * An attempt's invoice: fetch it, apply every charged payment it lists (each
- * fetched on its own), and, unless one of them settled the attempt, record the
+ * An attempt's invoice: fetch it, apply every charged or voided payment it lists
+ * (each fetched on its own), and, unless one of them settled the attempt, record the
  * check. A failed fetch is a failed check, never "not paid". `source` is `job`
  * (the reconciliation, which backs off) or `prompt` (a callback, a verify or
  * the owner's recheck, which only note the time).
@@ -356,7 +377,7 @@ export async function settleInvoice(deps: PaymentDeps, attemptId: string, invoic
   let error: string | null = null
   const charged: MoyasarPayment[] = []
   for (const listed of invoice.data.payments) {
-    if (!CHARGED.has(listed.status)) continue
+    if (!APPLIED.has(listed.status)) continue
     const payment = await deps.client.fetchPayment(listed.id)
     if (payment.ok) charged.push(payment.data)
     else error ??= failureCode('PAYMENT', payment)
@@ -419,20 +440,25 @@ export async function handlePayments(request: Request, deps?: PaymentDeps): Prom
 async function webhook(request: Request, deps: PaymentDeps | null): Promise<Response> {
   // Unconfigured means the endpoint does not exist.
   if (!deps) return new Response(null, { status: 404 })
-  if (request.method !== 'POST') return failWith(405, 'METHOD_NOT_ALLOWED', NOT_ALLOWED)
+  // A refusal leaves one log line with its code, and nothing else: never the body, the token or any value.
+  const refuse = (status: number, code: string, message: string): Response => {
+    console.warn('payments: webhook refused', code)
+    return failWith(status, code, message)
+  }
+  if (request.method !== 'POST') return refuse(405, 'METHOD_NOT_ALLOWED', NOT_ALLOWED)
   const text = await boundedText(request, MAX_WEBHOOK_BYTES)
-  if (text === null) return failWith(413, 'TOO_LARGE', 'الطلب أطول من المسموح.')
+  if (text === null) return refuse(413, 'TOO_LARGE', 'الطلب أطول من المسموح.')
   let body: unknown
   try {
     body = JSON.parse(text)
   } catch {
-    return failWith(400, 'BAD_JSON', 'تعذّرت قراءة الطلب.')
+    return refuse(400, 'BAD_JSON', 'تعذّرت قراءة الطلب.')
   }
   const parsed = webhookSchema.safeParse(body)
-  if (!parsed.success) return failWith(422, 'INVALID', 'بيانات غير صالحة.')
+  if (!parsed.success) return refuse(422, 'INVALID', 'بيانات غير صالحة.')
   const event = parsed.data
   // Nothing is stored for a caller that does not hold the secret.
-  if (!secretsMatch(event.secret_token, deps.config.webhookSecret)) return failWith(401, 'UNAUTHORIZED', 'تعذّر التحقق من الطلب.')
+  if (!secretsMatch(event.secret_token, deps.config.webhookSecret)) return refuse(401, 'UNAUTHORIZED', 'تعذّر التحقق من الطلب.')
 
   const data = event.data
   const paymentId = typeof data === 'object' && data !== null && 'id' in data && typeof data.id === 'string' ? data.id : null

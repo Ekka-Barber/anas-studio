@@ -8,8 +8,14 @@ import { randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { fitsContactLimit } from '../../src/components/public/contact/ContactForm'
 import { handleContact } from '../../supabase/functions/_shared/contact.ts'
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
+
+// The form imports through the `@/` alias, which the unit config does not
+// resolve; its size check needs neither the button nor Turnstile.
+vi.mock('@/components/weave/Action', () => ({ ActionButton: () => null }))
+vi.mock('@/lib/turnstile', () => ({ useTurnstile: () => ({}) }))
 
 // The database is a recorder: each `contact_submit` call's arguments in order.
 const recorded = { params: [] as unknown[][] }
@@ -143,5 +149,29 @@ describe('contact function origin (D32: the form posts cross-origin)', () => {
     const response = await contactPost(new Request(request.url, { method: 'POST', headers, body: await request.text() }))
     expect(response.status).toBe(403)
     expect(recorded.params).toHaveLength(0)
+  })
+})
+
+describe('the contact form refuses exactly the bodies the function refuses (EF-ACCESS-09)', () => {
+  // A poem: short Arabic lines, each line break written as two characters in the JSON.
+  const poem = (lines: number) => Array.from({ length: lines }, () => 'بيت').join('\n')
+  const fields = (message: string) => ({ name: 'زائر من تبوك', email: 'guest@example.com', message, website: '' })
+  /** The function's answer to those fields with the longest Turnstile token Cloudflare issues (2,048 characters). */
+  const answer = async (message: string) => {
+    const { name, email } = fields(message)
+    const body = JSON.stringify({ name, email, message, submissionKey: randomUUID(), turnstileToken: 'X'.repeat(2048) })
+    const request = new Request('http://127.0.0.1:54321/functions/v1/contact', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', origin: 'http://localhost:3000' },
+      body,
+    })
+    return (await contactPost(request)).status
+  }
+
+  it('agrees with the function at its 8 KiB limit, where the old message-only check let a poem through', async () => {
+    // 750 lines are 5,249 bytes, under the old 5,500-byte message check, yet their body is past 8 KiB.
+    expect(new TextEncoder().encode(poem(750)).length).toBeLessThan(5500)
+    expect([fitsContactLimit(fields(poem(749))), await answer(poem(749))]).toEqual([true, 201])
+    expect([fitsContactLimit(fields(poem(750))), await answer(poem(750))]).toEqual([false, 413])
   })
 })

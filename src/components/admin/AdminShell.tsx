@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 
-import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { forgetStoredSession, getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
 import type { StaffRole } from './TableList'
@@ -129,7 +129,16 @@ export function AdminShell({ children }: { children: ReactNode }) {
     // Unsaved local copies go with the session: say so before they are lost.
     if (hasDrafts() && !window.confirm('لديك تعديلات غير محفوظة على هذا الجهاز، وتسجيل الخروج يحذفها. هل تريد الخروج؟')) return
     clearDrafts()
-    await getSupabaseBrowserClient().auth.signOut()
+    const auth = getSupabaseBrowserClient().auth
+    const { error } = await auth.signOut()
+    if (error) {
+      // A failed sign-out can leave the session stored (an expired token whose
+      // refresh cannot reach Auth), and a local-scope one fails the same way,
+      // so the stored copy goes first; the local sign-out then clears the rest
+      // and tells the other tabs.
+      forgetStoredSession()
+      await auth.signOut({ scope: 'local' })
+    }
     router.replace('/admin/sign-in')
   }
 

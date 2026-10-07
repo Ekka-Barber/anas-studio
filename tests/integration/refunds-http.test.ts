@@ -569,7 +569,8 @@ describe('a refund the provider answers badly', () => {
     const refused = await adminCall(client, body)
     expect(refused.status).toBe(200)
     expect(refused.body.data).toEqual({ refundId: expect.any(String), status: 'failed', amount: 1000 })
-    expect(await refundOf(refused.body.data.refundId)).toMatchObject({ status: 'failed', error: 'REFUND_REFUSED', next_check_at: null })
+    // The refusal keeps the provider's HTTP status in its code (FABLE-AUDIT F1-11), so the owner can tell a 400 from a 401.
+    expect(await refundOf(refused.body.data.refundId)).toMatchObject({ status: 'failed', error: 'REFUND_REFUSED_400', next_check_at: null })
     expect(refundCalls()).toHaveLength(1)
     expect(refundCalls()[0]).toMatchObject({ status: 400 })
     expect(await confirmed(p.attemptId)).toBe(0)

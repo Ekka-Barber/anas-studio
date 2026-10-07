@@ -396,8 +396,12 @@ const customer = async (email: string, name = 'سعد المشتري'): Promise<
   (await row(`insert into public.customers (email, name, phone) values ($1, $2, '966501234567') returning id`, [email, name])).id as string
 
 type Order = { id: string; number: string; accessHash: string; key: string; request: string; session: string }
-/** An order of `customerId`; its email hash is that of `hashOf` (the address by default). */
-async function order(customerId: string, email: string, status: string, hashOf = email): Promise<Order> {
+/**
+ * An order of `customerId`; its email hash is that of `hashOf` (the address by default). Live by default: the accounting
+ * retention of a paid order is the live environment's, and a test-environment order is erasable once it holds no work
+ * (FABLE-AUDIT M2-12), which has its own test.
+ */
+async function order(customerId: string, email: string, status: string, hashOf = email, environment: 'test' | 'live' = 'live'): Promise<Order> {
   const number = orderNumber()
   const accessHash = sha(`access-${randomUUID()}`)
   const request = sha(`request-${randomUUID()}`)
@@ -408,10 +412,10 @@ async function order(customerId: string, email: string, status: string, hashOf =
        city_key, city_name_ar, address, seller, policy_revisions, subtotal_halalas, discount_halalas, shipping_halalas, total_halalas, coupon_code,
        environment, idempotency_key, request_hash, checkout_session, email_hash, status, paid_at, hold_expires_at)
      values ($1, $2, now() + interval '7 days', $3, $4, 'سعد المشتري', '966501234567', 'riyadh', 'الرياض', 'حي النخيل شارع الملك فهد', '{}', '{}',
-       9000, 0, 1000, 10000, null, 'test', $5, $6, $7, finance.recipient_hash($8), $9,
+       9000, 0, 1000, 10000, null, $10, $5, $6, $7, finance.recipient_hash($8), $9,
        case when $9 in ('paid', 'paid_needs_resolution', 'refunded') then now() end, now())
      returning id`,
-    [number, accessHash, customerId, email, key, request, session, hashOf, status],
+    [number, accessHash, customerId, email, key, request, session, hashOf, status, environment],
   )
   return { id: inserted.id as string, number, accessHash, key, request, session }
 }
@@ -438,7 +442,7 @@ async function attempt(
     await row(
       `insert into finance.payment_attempts (order_id, status, amount_halalas, environment, invoice_expires_at, provider_invoice_id,
          provider_payment_id, captured_halalas, paid_at, last_error, next_check_at)
-       values ($1, $2, 10000, 'test', now() - interval '95 days', $3, $4, case when $2 = 'paid' then 10000 end,
+       values ($1, $2, 10000, (select o.environment from finance.orders o where o.id = $1), now() - interval '95 days', $3, $4, case when $2 = 'paid' then 10000 end,
          case when $2 = 'paid' then now() end, $5, case when $6::boolean then now() + interval '1 day' end)
        returning id`,
       [orderId, status, invoice, payment, extra.lastError ?? null, extra.due ?? false],
@@ -847,6 +851,116 @@ describe('privacy_buyer_erase', () => {
       // The customer row stays: its blocked orders are left.
       expect(result.customers).toBe(0)
       expect(await exists('public.customers', buyer)).toBe(true)
+    })
+  })
+
+  // FABLE-AUDIT M2-12 (OPS-PRIVACY-20): sandbox payments are no money, so a test-environment order is not kept for the
+  // accounting retention; the guards for work still attached hold, and a live order is kept as before.
+  it('deletes a test-environment order that holds no work whatever its payment, with every row of it; keeps one with work attached, and a live one', async () => {
+    await rolledBack(async () => {
+      const s = await shelf()
+      const email = addressOf('erase-sandbox')
+      const buyer = await customer(email)
+      const sandbox = (status: string): Promise<Order> => order(buyer, email, status, email, 'test')
+      const reviewOf = async (o: Order, attemptId: string, closed: boolean): Promise<string> => {
+        const paymentId = randomUUID()
+        await postgres.query(
+          `insert into finance.payment_reviews (provider_payment_id, order_id, attempt_id, environment, amount_halalas, currency, provider_status, reason, closed_at, closed_reason)
+           values ($1, $2, $3, 'test', 800, 'SAR', 'paid', 'SECOND_PAYMENT', case when $4 then now() end, case when $4 then 'refunded' end)`,
+          [paymentId, o.id, attemptId, closed],
+        )
+        return paymentId
+      }
+      const dispute = (target: { attempt?: string; review?: string }): Promise<unknown> =>
+        postgres.query(
+          `insert into finance.disputes (kind, provider_ref, seq, attempt_id, review_payment_id, environment, amount_halalas, direction, occurred_on, reason)
+           values ('chargeback', $1, 1, $2, $3, 'test', 1000, 'against_seller', '2026-09-01', 'سبب')`,
+          [`PRIV-${randomUUID()}`, target.attempt ?? null, target.review ?? null],
+        )
+
+      // Paid in the sandbox and settled: a printed line shipped, a digital one granted with a download link, a refund that
+      // settled a received return (the two rows refer to each other), and a second payment in review, refunded and closed.
+      const paid = await sandbox('paid')
+      const printLine = await line(paid.id, s, 1, 'physical')
+      const bookLine = await line(paid.id, s, 2, 'digital')
+      const paying = await attempt(paid.id, 'paid')
+      await postgres.query(
+        `insert into finance.fulfillments (order_id, order_item_id, state, carrier, tracking, shipped_at) values ($1, $2, 'shipped', 'SMSA', 'TRK-1', now())`,
+        [paid.id, printLine],
+      )
+      const entitlement = (await row('insert into finance.entitlements (order_id, order_item_id, variant_id) values ($1, $2, $3) returning id', [paid.id, bookLine, s.digital])).id as string
+      await postgres.query('insert into finance.download_tokens (token_hash, entitlement_id) values ($1, $2)', [sha(`download-${randomUUID()}`), entitlement])
+      const returned = (
+        await row(`insert into finance.return_requests (order_id, items, reason, state) values ($1, $2::jsonb, 'وصل تالفًا', 'received') returning id`, [
+          paid.id,
+          JSON.stringify([{ itemId: printLine, quantity: 1 }]),
+        ])
+      ).id as string
+      const refund = (
+        await row(
+          `insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, source, return_id, succeeded_at)
+           values ($1, $2, 1500, 'سبب', 'succeeded', 'admin', $3, now()) returning id`,
+          [paid.id, paying.id, returned],
+        )
+      ).id as string
+      await postgres.query("update finance.return_requests set state = 'refunded', refund_id = $2 where id = $1", [returned, refund])
+      const review = await reviewOf(paid, paying.id, true)
+      await postgres.query(
+        `insert into finance.refunds (order_id, review_payment_id, amount_halalas, reason, status, source, succeeded_at) values ($1, $2, 800, 'سبب', 'succeeded', 'admin', now())`,
+        [paid.id, review],
+      )
+      // Refunded in the sandbox, and an expired one whose sandbox payment came too late.
+      const refunded = await sandbox('refunded')
+      await attempt(refunded.id, 'paid')
+      const late = await sandbox('expired')
+      await attempt(late.id, 'paid')
+
+      // Kept: sandbox orders with work still attached.
+      const kept: Array<[string, Order]> = []
+      const keep = async (label: string, status: string, make: (o: Order) => Promise<unknown>): Promise<void> => {
+        const o = await sandbox(status)
+        await make(o)
+        kept.push([label, o])
+      }
+      await keep('awaiting the owner\'s resolution', 'paid_needs_resolution', (o) => attempt(o.id, 'paid'))
+      await keep('still open', 'pending_payment', (o) => attempt(o.id, 'pending'))
+      await keep('an attempt in flight', 'paid', async (o) => {
+        await attempt(o.id, 'paid')
+        await attempt(o.id, 'uncertain')
+      })
+      await keep('a check still due', 'paid', (o) => attempt(o.id, 'paid', { due: true }))
+      await keep('an attempt that could not be verified', 'refunded', async (o) => {
+        await attempt(o.id, 'paid')
+        await attempt(o.id, 'expired', { lastError: 'UNVERIFIED' })
+      })
+      await keep('an open review payment', 'paid', async (o) => reviewOf(o, (await attempt(o.id, 'paid')).id, false))
+      await keep('a refund in flight', 'paid', async (o) => {
+        const a = await attempt(o.id, 'paid')
+        await postgres.query(`insert into finance.refunds (order_id, attempt_id, amount_halalas, reason, status, source) values ($1, $2, 500, 'سبب', 'submitting', 'admin')`, [o.id, a.id])
+      })
+      await keep('a dispute on its payment', 'paid', async (o) => dispute({ attempt: (await attempt(o.id, 'paid')).id }))
+      await keep('a dispute on its closed review payment', 'paid', async (o) => dispute({ review: await reviewOf(o, (await attempt(o.id, 'paid')).id, true) }))
+      // And live, paid and settled: the accounting retention.
+      const live = await order(buyer, email, 'paid')
+      await attempt(live.id, 'paid')
+
+      const result = await erase(email)
+      expect(result.orders).toBe(3)
+      for (const gone of [paid, refunded, late]) expect(await exists('finance.orders', gone.id), gone.number).toBe(false)
+      for (const table of ['finance.order_items', 'finance.payment_attempts', 'finance.fulfillments', 'finance.entitlements', 'finance.refunds', 'finance.return_requests', 'finance.payment_reviews']) {
+        expect(await count(`select count(*)::int as n from ${table} where order_id = $1`, [paid.id]), table).toBe(0)
+      }
+      expect(await count('select count(*)::int as n from finance.download_tokens where entitlement_id = $1', [entitlement])).toBe(0)
+      expect(await count('select count(*)::int as n from finance.refunds where review_payment_id = $1 or id = $2', [review, refund])).toBe(0)
+      expect(await count('select count(*)::int as n from finance.payment_reviews where provider_payment_id = $1', [review])).toBe(0)
+      const reasons = byNumber(result.kept)
+      for (const [label, o] of kept) {
+        expect(await exists('finance.orders', o.id), label).toBe(true)
+        expect(reasons[o.number], label).toBeDefined()
+      }
+      expect(reasons[live.number]).toEqual({ orderNumber: live.number, status: 'paid', reason: 'ACCOUNTING_RETENTION' })
+      expect(await exists('finance.orders', live.id)).toBe(true)
+      expect(result.kept).toHaveLength(kept.length + 1)
     })
   })
 

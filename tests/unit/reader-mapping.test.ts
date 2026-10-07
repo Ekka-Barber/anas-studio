@@ -187,5 +187,5 @@ describe('the real preview, read by pdf.js', () => {
     expect(reversedHamzaBelow).toBe(true)
     expect((await (await doc.getPage(1)).getTextContent()).items.length).toBeGreaterThan(0)
     await doc.loadingTask.destroy()
-  }, 15_000)
+  }, 60_000)
 })

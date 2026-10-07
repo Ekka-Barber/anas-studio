@@ -29,7 +29,18 @@ interface AttentionRow {
   replay_needs_confirmation: boolean
 }
 
-const KIND_LABEL: Record<string, string> = { receipt: 'إيصال', contact_notice: 'إشعار رسالة', availability: 'إشعار توفر' }
+/** Every kind `finance.email_outbox` holds (its `email_outbox_kind_check`). */
+const KIND_LABEL: Record<string, string> = {
+  receipt: 'إيصال',
+  contact_notice: 'إشعار رسالة',
+  availability: 'إشعار توفر',
+  order_link: 'رابط الطلب',
+  order_shipped: 'إشعار الشحن',
+  order_refunded: 'إشعار الاسترداد',
+  order_ready: 'الملف جاهز',
+  notify_confirm: 'تأكيد الاشتراك في التوفّر',
+  owner_alert: 'تنبيه للمالك',
+}
 // `sent`: a bounce or complaint arrives on a row that was sent (delivery is set, status is not).
 const STATUS_LABEL: Record<string, string> = { exhausted: 'مستنفد', uncertain: 'غير مؤكد', suppressed: 'محظور', sent: 'أُرسلت' }
 const DELIVERY_LABEL: Record<string, string> = { bounced: 'ارتد', complained: 'شكوى', failed: 'فشل' }

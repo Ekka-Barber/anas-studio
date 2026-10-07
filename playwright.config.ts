@@ -17,9 +17,11 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
 // The specs' own screenshots follow the same rule per package (tests/e2e/shots.ts):
 // a package's evidence folder is written only when ACCEPTANCE_PACKAGE names that package.
 const acceptancePackage = process.env.ACCEPTANCE_PACKAGE
-// The recorded packages: P00-P07, CLEANUP-1, AUDIT-1, AUDIT-2 and DESIGN-B.
-if (acceptancePackage && !/^(P\d{2}|[A-Z]+-(\d+|[A-Z]))$/.test(acceptancePackage)) {
-  throw new Error(`ACCEPTANCE_PACKAGE must look like P06, CLEANUP-1 or DESIGN-B, got "${acceptancePackage}"`)
+// The recorded packages: P00-P08, FOUNDATION-1, CLEANUP-1, AUDIT-1, AUDIT-2,
+// DESIGN-B and FABLE-AUDIT. A name is upper-case words or numbers joined by
+// single hyphens (SITE-STATE-1 too), so it can never leave artifacts/acceptance/.
+if (acceptancePackage && !/^(P\d{2}|[A-Z]+(-[A-Z0-9]+)*)$/.test(acceptancePackage)) {
+  throw new Error(`ACCEPTANCE_PACKAGE must look like P06, CLEANUP-1 or FABLE-AUDIT, got "${acceptancePackage}"`)
 }
 const runDir = acceptancePackage ? `./artifacts/acceptance/${acceptancePackage}` : './test-results'
 
@@ -35,7 +37,9 @@ export default defineConfig({
   expect: { timeout: 20_000 },
   fullyParallel: false,
   workers: 1,
-  forbidOnly: Boolean(process.env.CI),
+  // Always: CI never runs Playwright, so a stray `.only` would otherwise turn a
+  // local acceptance run into a green run of one test. Debug with -g instead.
+  forbidOnly: true,
   retries: 0,
   reporter: [
     ['list'],
