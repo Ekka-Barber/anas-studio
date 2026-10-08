@@ -24,9 +24,12 @@
   X-Frame-Options: DENY
 
 # P02: the book's preview is read on /book; the PDF itself is not a page to
-# index on its own.
+# index on its own. `/book/*` does not match the page `/book`, only the PDF.
+# Its name stays the same when the preview is replaced, so it is cached for a
+# day, like the files below.
 /book/*
   X-Robots-Tag: noindex
+  Cache-Control: public, max-age=86400
 
 # P08: where the payment page sends the buyer back. The order number is in the
 # query, so the page is never indexed, cached or passed on in a Referer.
@@ -47,6 +50,19 @@
   Referrer-Policy: no-referrer
   Cache-Control: no-store
   X-Robots-Tag: noindex
+
+# Fonts, images and brand files are not content-addressed: a file keeps its
+# name when it is replaced (images/v2/anas-portrait-1200.webp is rewritten in
+# place), so a year of `immutable` would serve the old file for a year. A day,
+# then the browser asks again. Never `immutable` for these.
+/fonts/*
+  Cache-Control: public, max-age=86400
+
+/images/*
+  Cache-Control: public, max-age=86400
+
+/brand/*
+  Cache-Control: public, max-age=86400
 
 # Built assets are content-hashed and safe to cache for a year.
 /_next/static/*

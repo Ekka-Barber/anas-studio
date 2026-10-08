@@ -63,7 +63,19 @@ function TextRun({ paras, figure, end = 'l' }: { paras: Para[]; figure?: string 
   )
 }
 
-export function BuiltRoomView({ room }: { room: BuiltRoom }) {
+/**
+ * `backName` and `nextName` are the neighbouring rooms' names on the menu (the page passes them, so a rename
+ * there reaches the doors); the admin's preview passes none and shows the names below.
+ */
+export function BuiltRoomView({
+  room,
+  backName = 'بدأتُ من هنا',
+  nextName = 'مررتُ من هنا',
+}: {
+  room: BuiltRoom
+  backName?: string
+  nextName?: string
+}) {
   const reels = room.media.reels
   const heroFilms = reels.filter((reel) => HERO_FILMS.includes(reel.id))
   const teamFilms = reels.filter((reel) => !HERO_FILMS.includes(reel.id))
@@ -197,7 +209,7 @@ export function BuiltRoomView({ room }: { room: BuiltRoom }) {
           </Band>
         </article>
       </main>
-      <RoomNav back={{ href: '/started', label: 'بدأتُ من هنا' }} next={{ href: '/passed', label: 'مررتُ من هنا' }} nextTone="coral" />
+      <RoomNav back={{ href: '/started', label: backName }} next={{ href: '/passed', label: nextName }} nextTone="coral" />
     </>
   )
 }

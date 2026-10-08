@@ -51,7 +51,19 @@ function splitClosing(paras: Para[]): [Para[], Para[]] {
   return [paras.slice(0, last - 1), paras.slice(last - 1)]
 }
 
-export function ShelfRoomView({ room }: { room: ShelfRoom }) {
+/**
+ * `backName` and `nextName` are the neighbouring rooms' names on the menu (the page passes them, so a rename
+ * there reaches the doors); the admin's preview passes none and shows the names below.
+ */
+export function ShelfRoomView({
+  room,
+  backName = 'مررتُ من هنا',
+  nextName = 'كتبتُ هنا',
+}: {
+  room: ShelfRoom
+  backName?: string
+  nextName?: string
+}) {
   const { thura, moonlightCup: moon, boutique } = room.items
   const thuraSide = thura.photos.find((photo) => photo.id === THURA_SIDE) ?? thura.photos[0]
   const thuraDoor = thura.photos.find((photo) => photo.id === THURA_DOOR) ?? thuraSide
@@ -74,7 +86,17 @@ export function ShelfRoomView({ room }: { room: ShelfRoom }) {
           <ul className={`${layout.lattice} ${shelf.doors}`}>
             <li>
               <a href="#thura" data-tone="aub" className={shelf.door}>
-                {thuraDoor && <Picture id={thuraDoor.id} alt="" sizes="(min-width: 1024px) 33vw, 100vw" className={shelf.doorPicture} />}
+                {thuraDoor && (
+                  // The two doors with a photo are in the first screen (the first is the page's largest paint): never lazy.
+                  <Picture
+                    id={thuraDoor.id}
+                    alt=""
+                    sizes="(min-width: 1024px) 33vw, 100vw"
+                    className={shelf.doorPicture}
+                    loading="eager"
+                    fetchPriority="high"
+                  />
+                )}
                 <span className={shelf.doorFoot}>
                   <span className="t-card">{thura.name}</span>
                   {thura.status && <Tag>{thura.status}</Tag>}
@@ -83,7 +105,7 @@ export function ShelfRoomView({ room }: { room: ShelfRoom }) {
             </li>
             <li>
               <a href="#moonlight" data-tone="saffron" className={shelf.door}>
-                {moonFactory && <Picture id={moonFactory.id} alt="" sizes="(min-width: 1024px) 33vw, 100vw" className={shelf.doorPicture} />}
+                {moonFactory && <Picture id={moonFactory.id} alt="" sizes="(min-width: 1024px) 33vw, 100vw" className={shelf.doorPicture} loading="eager" />}
                 <span className={shelf.doorFoot}>
                   <span className="t-card">{moon.title}</span>
                   <Tag variant="ink">{moon.status}</Tag>
@@ -295,7 +317,7 @@ export function ShelfRoomView({ room }: { room: ShelfRoom }) {
           </Band>
         </article>
       </main>
-      <RoomNav back={{ href: '/passed', label: 'مررتُ من هنا' }} next={{ href: '/book', label: 'كتبتُ هنا' }} nextTone="saffron" />
+      <RoomNav back={{ href: '/passed', label: backName }} next={{ href: '/book', label: nextName }} nextTone="saffron" />
     </>
   )
 }

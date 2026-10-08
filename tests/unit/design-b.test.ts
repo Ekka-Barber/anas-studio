@@ -1,10 +1,17 @@
 // D39 (direction B): the pure pieces the woven pages rely on.
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import content from '../../content/initial-content.json'
 import { classify, posterBlock, splitAfterFirstDisplay, storyPictures, toBlocks } from '../../src/components/public/story/flow'
+import { photoAnnouncement } from '../../src/components/public/scenes/SceneGallery'
 import { typeset } from '../../src/lib/format'
 import { readingTime } from '../../src/lib/journal'
+
+// The gallery imports through the `@/` alias, which the unit config does not resolve:
+// each import is redirected to the real file.
+vi.mock('@/components/weave/Band', async () => import('../../src/components/weave/Band'))
+vi.mock('@/components/weave/Edge', async () => import('../../src/components/weave/Edge'))
+vi.mock('@/components/weave/motion', async () => import('../../src/components/weave/motion'))
 
 describe('a room text becomes B’s rhythm', () => {
   const paras = classify(['a', 'b', 'band', 'c', 'pull', 'd'], ['pull'], ['band'])
@@ -82,5 +89,13 @@ describe('readingTime', () => {
     expect(readingTime(360)).toBe('دقيقتان للقراءة')
     expect(readingTime(900)).toBe('5 دقائق للقراءة')
     expect(readingTime(3600)).toBe('20 دقيقة للقراءة')
+  })
+})
+
+describe('the scenes lightbox announcement (DSN-PAGES-17)', () => {
+  it('says the photo’s place in words, then its caption, instead of a counter read as a slash', () => {
+    expect(photoAnnouncement(3, 19, 'تحميص القهوة في رحى')).toBe('3 من 19: تحميص القهوة في رحى')
+    expect(photoAnnouncement(1, 1, 'ذرى')).toBe('1 من 1: ذرى')
+    expect(photoAnnouncement(12, 19, 'ذرى')).not.toContain('/')
   })
 })

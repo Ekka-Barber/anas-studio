@@ -64,12 +64,15 @@ export function HomeView({ home, doors, book }: { home: HomeContent; doors: Home
           <p className="t-read" {...enter(700)}>
             <Lines text={home.intro} />
           </p>
-          <p data-tone="coral" className={styles.addition} {...enter(820, 'band')}>
-            <Mark ink />
-            <span>
-              <Lines text={home.introAddition} />
-            </span>
-          </p>
+          {/* The addition and the statement are optional: emptied in the admin, their coloured bands are not drawn. */}
+          {home.introAddition.trim() !== '' && (
+            <p data-tone="coral" className={styles.addition} {...enter(820, 'band')}>
+              <Mark ink />
+              <span>
+                <Lines text={home.introAddition} />
+              </span>
+            </p>
+          )}
           <div className={styles.introActions} {...enter(940)}>
             <ActionLink href="/contact">فلنتحدث</ActionLink>
             <Signature width={190} reveal={false} />
@@ -77,12 +80,16 @@ export function HomeView({ home, doors, book }: { home: HomeContent; doors: Home
         </div>
       </Band>
 
-      <Band tone="aub" edge="crenel" pad="xl">
-        <p className={`t-statement ${styles.statement}`} data-reveal="">
-          <Lines text={home.statement} />
-        </p>
-      </Band>
-      <Edge kind="weave" />
+      {home.statement.trim() !== '' && (
+        <>
+          <Band tone="aub" edge="crenel" pad="xl">
+            <p className={`t-statement ${styles.statement}`} data-reveal="">
+              <Lines text={home.statement} />
+            </p>
+          </Band>
+          <Edge kind="weave" />
+        </>
+      )}
 
       <section id="rooms" aria-labelledby="rooms-title">
         <h2 id="rooms-title" className={`t-h2-lg ${styles.roomsTitle}`} data-reveal="">

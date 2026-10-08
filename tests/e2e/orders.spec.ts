@@ -492,7 +492,7 @@ for (const width of [360, 1440]) {
       const pay = page.getByRole('link', { name: 'ادفع الآن' })
       await expect(pay).toHaveAttribute('href', INVOICE_PAGE)
       await expect(page.getByText(`الإجمالي: ${formatMoney(s.digital.price)}`)).toBeVisible()
-      await expect(page.getByText(/^محجوز حتى \d{2}:\d{2}$/)).toBeVisible()
+      await expect(page.getByText(/^محجوز حتى \d{2}:\d{2} بتوقيت الرياض$/)).toBeVisible()
       await expect(page.getByText(TEST_MODE)).toBeVisible()
       await snap(page, 'book-hold', width)
 

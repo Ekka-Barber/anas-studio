@@ -609,7 +609,7 @@ test('«نجهّز صفحة الدفع…» when the first call is lost after th
   await emulatorControl('fault', { route: 'POST /v1/invoices', mode: 'drop_after_commit', times: 1 })
   await placeOrder(page, `buyer-${marker}-preparing@example.com`)
   await expect(page.getByText('نجهّز صفحة الدفع…')).toBeVisible()
-  await expect(page.getByText(/^محجوز حتى \d{2}:\d{2}$/)).toBeVisible()
+  await expect(page.getByText(/^محجوز حتى \d{2}:\d{2} بتوقيت الرياض$/)).toBeVisible()
   await expect(page.getByRole('link', { name: 'ادفع الآن' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'إلغاء الطلب' })).toBeVisible()
 
@@ -862,7 +862,7 @@ test('ACTIVE_HOLD hands the held order back to the same email when the tab lost 
   await fillDigital(page, `buyer-${marker}-elsewhere@example.com`)
   await confirmOrder(page)
   await expect(page.getByText('لديك طلب قيد الانتظار؛ أكمله أو ألغه أولًا.')).toBeVisible()
-  await expect(page.getByText(/^لديك طلب محجوز من هذه الجلسة حتى \d{2}:\d{2}\.$/)).toBeVisible()
+  await expect(page.getByText(/^لديك طلب محجوز من هذه الجلسة حتى \d{2}:\d{2} بتوقيت الرياض\.$/)).toBeVisible()
   await expect(page.getByText('رقم الطلب:')).toHaveCount(0)
   expect(await kept(page, PENDING_KEY)).toBeNull()
   expect(await orderRow(`buyer-${marker}-elsewhere@example.com`)).toEqual([])
@@ -1183,7 +1183,7 @@ for (const width of [360, 1440]) {
     await submit.click()
     // The hold view with its payment link.
     await expect(page.getByRole('link', { name: 'ادفع الآن' })).toBeVisible()
-    await expect(page.getByText(/^محجوز حتى \d{2}:\d{2}$/)).toBeVisible()
+    await expect(page.getByText(/^محجوز حتى \d{2}:\d{2} بتوقيت الرياض$/)).toBeVisible()
     await expectNoOverflow(page, `order ${width}`)
     await page.screenshot({ path: `${SHOTS}/store-order-${width}.png`, fullPage: true })
 

@@ -8,7 +8,7 @@ import type { ImageSources } from '@/lib/images'
 import { ClosedBook, Opening } from './ClosedBook'
 import styles from './reader.module.css'
 
-type Reader = ComponentType<{ cover: ImageSources; startPage?: number }>
+type Reader = ComponentType<{ cover: ImageSources; startPage?: number; editions?: boolean }>
 
 const noSubscribe = () => () => {}
 
@@ -18,9 +18,11 @@ const noSubscribe = () => () => {}
  * page). With it, «افتح الكتاب» (or a part) loads the reader, whose pdf.js
  * and page-flip come only then in their own chunk, and opens the book in
  * place: the closed book, the loading state and the open book all stand on
- * the same stage. A failed load says so and can be retried.
+ * the same stage. A failed load says so and can be retried. `editions` says
+ * whether the page draws its editions section, which the reader's closing
+ * words link to.
  */
-export function BookPreview({ cover }: { cover: ImageSources }) {
+export function BookPreview({ cover, editions = false }: { cover: ImageSources; editions?: boolean }) {
   const scripted = useSyncExternalStore(noSubscribe, () => true, () => false)
   const [reader, setReader] = useState<{ Reader: Reader; startPage?: number } | null>(null)
   const [state, setState] = useState<'closed' | 'loading' | 'failed'>('closed')
@@ -33,7 +35,7 @@ export function BookPreview({ cover }: { cover: ImageSources }) {
     )
   }
 
-  if (reader) return <reader.Reader cover={cover} startPage={reader.startPage} />
+  if (reader) return <reader.Reader cover={cover} startPage={reader.startPage} editions={editions} />
 
   return (
     <div className={styles.reader}>

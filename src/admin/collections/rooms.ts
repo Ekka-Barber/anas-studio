@@ -247,6 +247,18 @@ export const bookPhotoFields = [
 export const bookEditionFields = [
   { name: 'name', label: 'الاسم', type: 'text' },
   { name: 'text', label: 'الوصف', type: 'textarea' },
+  // The store variant this edition is sold as, by its SKU (the variant's «رمز SKU» in the store): an edition is one
+  // variant, so the card shows that variant's own price and a link to its product. Empty, unknown or unpriced, the card
+  // says «يُعلن قريباً». No publish rule: a SKU that matches nothing only leaves the card as it was. The pattern is the
+  // variants form's own, so a mistyped SKU is named at save.
+  {
+    name: 'variantSku',
+    label: 'رمز SKU للنسخة في المتجر',
+    type: 'text',
+    required: false,
+    pattern: { regex: /^(?:[A-Za-z0-9][A-Za-z0-9-]{0,39})?$/, message: 'حروف لاتينية وأرقام وشرطات، من 1 إلى 40، ولا يبدأ بشرطة.' },
+    hint: 'متى كان لهذا الرمز سعر في المتجر ظهر سعره ورابط الطلب على البطاقة في الصفحة المنشورة، لا في المعاينة.',
+  },
 ] as const satisfies Field[]
 
 export const bookRoomFields = [

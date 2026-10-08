@@ -60,8 +60,8 @@ The design is in `DESIGN.md` ("The book reader"). The owner's audit of the first
   - Without JavaScript the button and the parts are links to the preview PDF, at their page (`#page=`).
 - **One stage.** The closed book, the loading state and the open book share one box, sized from `--stage-h`. Opening never moves the page; the e2e test keeps the section's height within 2px.
 - **A physical Arabic hardcover.**
-  - The leaves, from `leafPlan`: the cover, then the inside of the cover (an endpaper, turned with its board). Each part starts on a left-hand page, and a blank fills the page before it when needed. Then come the closing leaf «بقية الحكاية في الكتاب» with «النسخ ←» to `#editions`, the back endpaper and the back cover.
-  - page-flip only turns left-to-right books, so it gets the leaves reversed and starts at the end. Its "previous" is the reader's next, and the left page turns to the right. ← is the next page and → the previous; Home and End go to the cover and the closing leaf. A key pressed while a page is still turning is ignored, and holding Home or End does not repeat the jump (the book stops on the closing leaf, not on the blank endpaper spread); Alt, Ctrl and Meta chords belong to the browser and do nothing.
+  - The leaves, from `leafPlan`: the cover, then the inside of the cover (an endpaper, turned with its board). Each part starts on a left-hand page, and a blank fills the page before it when needed. Then come the closing leaf «بقية الحكاية في الكتاب» (with «النسخ ←» to `#editions` when the page draws its editions; an empty list leaves both out), the back endpaper and the back cover.
+  - page-flip only turns left-to-right books, so it gets the leaves reversed and starts at the end. Its "previous" is the reader's next, and the left page turns to the right. ← is the next page and → the previous; Home and End go to the cover and the closing leaf. A key pressed while a page is still turning is kept, only the last one, and made when the turn ends (`pendingRef`), and holding Home or End does not repeat the jump (the book stops on the closing leaf, not on the blank endpaper spread); Alt, Ctrl and Meta chords belong to the browser and do nothing.
   - The boards (a `.case` behind the leaves), the page edges, the spine's shadow and the cover's slide to the middle when the book is closed are all CSS, sized from the stage. JavaScript only marks the state (`data-at`, `data-portrait`, `data-turning`, `data-fading`, the edges' thickness, the corner to turn).
   - page-flip rewrites each leaf's inline style, so anything a leaf needs from JavaScript (the linen of the back cover) is set on the book's root. Loading also pins the root's minimum width to `minWidth`, so the reader resets it after `loadFromHTML`.
 - **Canvases.**
@@ -82,8 +82,12 @@ The design is in `DESIGN.md` ("The book reader"). The owner's audit of the first
   - Below 800px the book shows one page at a time; blank backs and endpapers are skipped, so every step shows something.
   - On a phone a page is about 320px wide and page-flip blocks pinch zoom. «عرض للقراءة» shows the pages one under the other, where two fingers zoom (a hint says so on touch screens), and it opens at the page in view.
 - **Failure.**
-  - A corrupt or unreachable file says «تعذّر فتح الصفحات.», with a retry and the PDF link, on the same stage.
+  - A corrupt or unreachable file says «تعذّر فتح الصفحات.», with a retry and the PDF link, on the same stage. The focus goes to «إعادة المحاولة», the first failure included, unless the visitor has moved it elsewhere meanwhile (it never scrolls the page back).
+  - A stalled download counts as unreachable and ends in the same state (`pdf.ts`): nothing of the PDF within two minutes of the press (`START_TIMEOUT_MS`: pdf.js, its worker and the request, about 450 KiB, report no progress), or nothing more for 30 seconds once it has started (`OPEN_TIMEOUT_MS`). A download that keeps receiving is not cut off.
   - A failed chunk load says the same under the closed book.
+- **Focus.**
+  - «التالية» and «السابقة» are `aria-disabled`, not `disabled`, at the covers, so a focused button keeps the focus; `turn` ignores a move past either end.
+  - An arrow key pressed on the closing leaf's «النسخ ←» moves the focus to the book first, because the turn hides that leaf and the link with it.
 
 ## Two pdf.js findings (2026-09-28)
 

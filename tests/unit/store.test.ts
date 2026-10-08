@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MEDIA_ORIGIN, parseMediaRef } from '../../src/lib/media-ref'
-import { getProducts } from '../../src/lib/store'
+import { editionOffer, getProducts, type StoreProduct } from '../../src/lib/store'
 
 const PRODUCT = '0a000000-0000-4000-8000-000000000001'
 const EMPTY = { root: { type: 'root', children: [] } }
@@ -114,5 +114,50 @@ describe('getProducts: a product cover (CLIENT-SEC-08)', () => {
     ['a host after a slash and a tab, which the browser drops', 'media|/\t/other.host/cover|720x960|720'],
   ])('draws no image for a reference to %s', async (_label, stored) => {
     expect(await cover(stored)).toBeNull()
+  })
+})
+
+describe('editionOffer: what the book page offers for an edition (DSN-PAGES-08)', () => {
+  /** A product with one variant for each SKU and price given; a null price is a variant nobody has priced. */
+  const sold = (slug: string, ...variants: Array<[sku: string, price: number | null]>): Pick<StoreProduct, 'slug' | 'variants'> => ({
+    slug,
+    variants: variants.map(([sku, priceHalalas], i) => ({
+      id: `0b000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      productId: PRODUCT,
+      sku,
+      title: `النسخة ${i}`,
+      fulfillment: 'physical' as const,
+      priceHalalas,
+      sortOrder: i,
+      preorder: null,
+    })),
+  })
+  // The demo catalog's book has this shape (scripts/seed-demo-catalog.mjs: demo-khous, DEMO-KHOUS-EBOOK 3500, -PAPER 6900,
+  // -SIGNED 9900): one product, its editions as variants at three prices. The slug and SKUs here are shortened.
+  const khous = sold('khous', ['KHOUS-EBOOK', 3500], ['KHOUS-PAPER', 6900], ['KHOUS-SIGNED', 9900])
+
+  it('is the named variant’s own price and its product’s page, never another variant’s price', () => {
+    expect(editionOffer([khous], 'KHOUS-EBOOK')).toEqual({ slug: 'khous', priceHalalas: 3500 })
+    expect(editionOffer([khous], 'KHOUS-PAPER')).toEqual({ slug: 'khous', priceHalalas: 6900 })
+    // A1 of the D1 audit: the signed edition of a product whose cheapest variant is the e-book is offered at its own price.
+    expect(editionOffer([khous], 'KHOUS-SIGNED')).toEqual({ slug: 'khous', priceHalalas: 9900 })
+  })
+
+  it('finds the variant among the other products', () => {
+    const products = [sold('other', ['OTHER-1', 100]), khous, sold('mug', ['MUG-1', 4500])]
+    expect(editionOffer(products, 'MUG-1')).toEqual({ slug: 'mug', priceHalalas: 4500 })
+    expect(editionOffer(products, 'KHOUS-SIGNED')).toEqual({ slug: 'khous', priceHalalas: 9900 })
+  })
+
+  it('offers nothing for an unpriced variant: unconfigured means unavailable, never free (D06)', () => {
+    const products = [sold('khous', ['KHOUS-EBOOK', null], ['KHOUS-PAPER', 6900])]
+    expect(editionOffer(products, 'KHOUS-EBOOK')).toBeNull()
+    expect(editionOffer(products, 'KHOUS-PAPER')).toEqual({ slug: 'khous', priceHalalas: 6900 })
+  })
+
+  it('offers nothing for a SKU that is empty, blank or unknown, and reads one typed in small letters or between spaces', () => {
+    for (const sku of [undefined, '', '   ', 'KHOUS', 'KHOUS-EBOOK-2']) expect(editionOffer([khous], sku), String(sku)).toBeNull()
+    expect(editionOffer([khous], ' khous-signed ')).toEqual({ slug: 'khous', priceHalalas: 9900 })
+    expect(editionOffer([], 'KHOUS-EBOOK')).toBeNull()
   })
 })

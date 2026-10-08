@@ -802,7 +802,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         )}
         {heldUntil !== '' && (
           <p className={styles.note}>
-            لديك طلب محجوز من هذه الجلسة حتى <span dir="ltr">{heldUntil}</span>.
+            لديك طلب محجوز من هذه الجلسة حتى <span dir="ltr">{heldUntil}</span> بتوقيت الرياض.
           </p>
         )}
         {policiesStale && (

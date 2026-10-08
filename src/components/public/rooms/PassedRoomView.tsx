@@ -28,7 +28,19 @@ const PRODUCT_BRANDS: Record<string, string> = {
   '26-murady-cake-and-coffee': 'مرادي',
 }
 
-export function PassedRoomView({ room }: { room: PassedRoom }) {
+/**
+ * `backName` and `nextName` are the neighbouring rooms' names on the menu (the page passes them, so a rename
+ * there reaches the doors); the admin's preview passes none and shows the names below.
+ */
+export function PassedRoomView({
+  room,
+  backName = 'بنيتُ هنا',
+  nextName = 'على الرف',
+}: {
+  room: PassedRoom
+  backName?: string
+  nextName?: string
+}) {
   const gallery = room.media.gallery
   const paras: Para[] = [{ text: room.heroLine, kind: 'display' }, ...classify(room.paragraphs, room.pullLines, room.bandLines)]
   const blocks = toBlocks(paras)
@@ -127,7 +139,7 @@ export function PassedRoomView({ room }: { room: PassedRoom }) {
           </section>
         )}
       </main>
-      <RoomNav back={{ href: '/built', label: 'بنيتُ هنا' }} next={{ href: '/shelf', label: 'على الرف' }} nextTone="paper" />
+      <RoomNav back={{ href: '/built', label: backName }} next={{ href: '/shelf', label: nextName }} nextTone="paper" />
     </>
   )
 }

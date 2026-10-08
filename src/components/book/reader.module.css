@@ -438,7 +438,8 @@
   font-weight: 700;
   text-decoration: none;
 }
-.control:disabled {
+/* A turn button at the first or last leaf stays focusable (aria-disabled, PdfBookReader): it looks as a disabled one does. */
+.control:is(:disabled, [aria-disabled='true']) {
   opacity: 0.4;
   cursor: not-allowed;
 }
@@ -468,7 +469,7 @@
   opacity: 0.55;
 }
 @media (hover: hover) {
-  .control:not(:disabled):hover {
+  .control:not(:disabled, [aria-disabled='true']):hover {
     text-decoration: underline;
     text-underline-offset: 0.35em;
   }

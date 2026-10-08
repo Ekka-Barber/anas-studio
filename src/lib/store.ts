@@ -142,6 +142,41 @@ async function fetchCatalog(): Promise<StoreProduct[]> {
 export const getProducts = cache(fetchCatalog)
 
 /**
+ * What the book page offers for one of its editions (DSN-PAGES-08): the price
+ * of the store variant the owner named by its SKU, and the page of its product.
+ * An edition is one variant (the e-book, the paper copy, the signed copy), so
+ * its card shows that variant's own price, never another variant's.
+ */
+export interface EditionOffer {
+  /** The product's slug: the edition links to its page. */
+  slug: string
+  /** The variant's configured price, in halalas. */
+  priceHalalas: number
+}
+
+/**
+ * The offer for `sku`, or null while there is nothing to buy: the SKU is empty
+ * or names no variant of a published product, or that variant has no price
+ * (unconfigured means unavailable, never free: D06). The loader returns only
+ * published products and enabled variants, so a priced variant here is a
+ * sellable one. SKUs are unique and stored in capitals (the variants form saves
+ * them so), so the edition's SKU is compared in capitals, past the spaces typed
+ * around it.
+ */
+export function editionOffer(
+  products: readonly Pick<StoreProduct, 'slug' | 'variants'>[],
+  sku: string | undefined,
+): EditionOffer | null {
+  const wanted = sku?.trim().toUpperCase()
+  if (!wanted) return null
+  for (const product of products) {
+    const variant = product.variants.find((entry) => entry.sku.toUpperCase() === wanted)
+    if (variant) return variant.priceHalalas === null ? null : { slug: product.slug, priceHalalas: variant.priceHalalas }
+  }
+  return null
+}
+
+/**
  * The privacy policy revision an availability sign-up records (P08 contract
  * section 6): the `seq` of the policy this build rendered (`getPublishedPolicies`),
  * or null while none is published. Stored as given: the policy's wording is the owner's.

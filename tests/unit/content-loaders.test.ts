@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import fixture from '../../content/initial-content.json'
 import { noteFor } from '../../src/content/media-notes'
-import { getContactPage, getHomeDoors, getJournalName, mediaById, readAllRows, replaceMediaIds } from '../../src/lib/content'
+import { getContactPage, getHomeDoors, getJournalName, mediaById, navLabel, readAllRows, replaceMediaIds } from '../../src/lib/content'
 import { parseMediaRef } from '../../src/lib/media-ref'
 
 beforeEach(() => {
@@ -81,6 +81,19 @@ describe('getJournalName', () => {
   it('stays «المجلس» while the menu has no journal item', async () => {
     site(fixture.nav.filter((item) => item.href !== '/journal'))
     expect(await getJournalName()).toBe('المجلس')
+  })
+})
+
+describe('navLabel', () => {
+  it('is the menu’s label for an href, without the spaces around it', () => {
+    expect(navLabel(fixture.nav, '/built')).toBe('بنيتُ هنا')
+    expect(navLabel([{ label: '  بُنيت  ', href: '/built' }], '/built')).toBe('بُنيت')
+  })
+
+  it('is undefined while the menu has no item for the href or leaves its label blank, so the caller keeps its own words', () => {
+    expect(navLabel(fixture.nav, '/nowhere')).toBeUndefined()
+    expect(navLabel([{ label: ' ', href: '/built' }], '/built')).toBeUndefined()
+    expect(navLabel([], '/built')).toBeUndefined()
   })
 })
 

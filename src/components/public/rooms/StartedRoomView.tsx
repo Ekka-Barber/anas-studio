@@ -13,6 +13,7 @@ import { Signature } from '@/components/weave/Signature'
 import type { Tone } from '@/components/weave/tones'
 import { VideoTile } from '@/components/weave/VideoTile'
 import type { StartedMovement, StartedRoom } from '@/lib/content'
+import { otpDigits } from '@/lib/digits'
 
 import styles from './rooms.module.css'
 
@@ -53,7 +54,10 @@ function Movement({
   room: StartedRoom
   last: boolean
 }) {
-  const isYear = /^\d{4}$/.test(movement.year)
+  // A year typed with Arabic-Indic digits (the default on an Arabic phone keyboard) is still a year, and is shown in Latin digits like every other.
+  const typed = movement.year.trim()
+  const year = otpDigits(typed, 4)
+  const isYear = year.length === 4 && typed.length === 4
   const tone = YEAR_TONES[index % YEAR_TONES.length] ?? 'aub'
   const blocks = toBlocks(classify(movement.paragraphs, room.pullLines, room.bandLines))
   // The picture and the films belong to the first block of text, wherever a band line falls.
@@ -83,7 +87,7 @@ function Movement({
         <>
           <Edge kind="crenel" color={tone} />
           <h2 id={`year-${index}-title`} data-tone={tone} className={`t-year ${styles.yearBand}`} data-reveal="" data-fx="band">
-            {movement.year}
+            {year}
           </h2>
         </>
       ) : (
@@ -135,7 +139,19 @@ function Movement({
   )
 }
 
-export function StartedRoomView({ room }: { room: StartedRoom }) {
+/**
+ * `backName` and `nextName` are the neighbouring rooms' names on the menu (the page passes them, so a rename
+ * there reaches the doors); the admin's preview passes none and shows the names below.
+ */
+export function StartedRoomView({
+  room,
+  backName = 'الرئيسية',
+  nextName = 'بنيتُ هنا',
+}: {
+  room: StartedRoom
+  backName?: string
+  nextName?: string
+}) {
   const last = room.movements.length - 1
   return (
     <>
@@ -173,7 +189,7 @@ export function StartedRoomView({ room }: { room: StartedRoom }) {
           </Band>
         </section>
       </main>
-      <RoomNav back={{ href: '/', label: 'الرئيسية' }} backLabel="العودة" next={{ href: '/built', label: 'بنيتُ هنا' }} />
+      <RoomNav back={{ href: '/', label: backName }} backLabel="العودة" next={{ href: '/built', label: nextName }} />
     </>
   )
 }

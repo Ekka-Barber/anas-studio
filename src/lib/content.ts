@@ -208,13 +208,22 @@ export async function getFooter(): Promise<FooterContent> {
 }
 
 /**
+ * The menu's name for `href`, or undefined while the menu has no item for it
+ * or leaves its label blank. It is how a room names its neighbours and the
+ * footer names its links, so a rename in the admin's «التنقل» list reaches
+ * every page that mentions the room; the caller keeps the literal to fall back to.
+ */
+export function navLabel(items: readonly NavItem[], href: string): string | undefined {
+  return items.find((item) => item.href === href)?.label.trim() || undefined
+}
+
+/**
  * The journal's name (D11, C08): the label of its menu item, so renaming it
  * there renames it on every page. «المجلس» until the menu says otherwise,
  * and while its label is blank.
  */
 export async function getJournalName(): Promise<string> {
-  const label = (await getNav()).find((item) => item.href === '/journal')?.label.trim()
-  return label || 'المجلس'
+  return navLabel(await getNav(), '/journal') ?? 'المجلس'
 }
 
 export type HomeContent = SiteContent['home']

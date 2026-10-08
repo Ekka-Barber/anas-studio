@@ -12,6 +12,19 @@ import { fixLigatures, PAGE_RATIO } from '@/lib/book-preview'
  */
 export type Pdfjs = typeof import('pdfjs-dist')
 
+/**
+ * How long opening the preview may wait. Before the PDF's first bytes arrive,
+ * pdf.js, its worker and the start of the download share `START_TIMEOUT_MS`:
+ * they report no progress, and together they are about 450 KiB on the wire.
+ * From then on, `OPEN_TIMEOUT_MS` with nothing received counts as a stall (a
+ * weak or dropped mobile link). Either way the reader ends its «جارٍ فتح الكتاب…»
+ * with the failure state, which offers a retry and the PDF itself. A download
+ * that keeps receiving is not cut off; a link too slow to start within two
+ * minutes (about 4 KiB/s) is.
+ */
+export const START_TIMEOUT_MS = 120_000
+export const OPEN_TIMEOUT_MS = 30_000
+
 let loading: Promise<Pdfjs> | null = null
 
 export function loadPdfjs(): Promise<Pdfjs> {
@@ -34,16 +47,44 @@ export function loadPdfjs(): Promise<Pdfjs> {
  * each glyph from its outline instead (`disableFontFace`): the page looks
  * exactly as the PDF does.
  */
-export async function openPreview(url: string): Promise<{ pdfjs: Pdfjs; doc: PDFDocumentProxy; frame: Frame }> {
-  const pdfjs = await loadPdfjs()
-  const task = pdfjs.getDocument({ url, enableXfa: false, disableFontFace: true, verbosity: pdfjs.VerbosityLevel.ERRORS })
+export async function openPreview(
+  url: string,
+  { startMs = START_TIMEOUT_MS, stallMs = OPEN_TIMEOUT_MS }: { startMs?: number; stallMs?: number } = {},
+): Promise<{ pdfjs: Pdfjs; doc: PDFDocumentProxy; frame: Frame }> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let task: ReturnType<Pdfjs['getDocument']> | undefined
+  // Set once the attempt is decided (opened, failed or stalled): no clock and no download start after it.
+  let done = false
+  let stall: (error: Error) => void = () => {}
+  const stalled = new Promise<never>((_, reject) => {
+    stall = reject
+  })
+  const arm = (ms: number, why: string) => {
+    if (done) return
+    clearTimeout(timer)
+    timer = setTimeout(() => stall(new Error(`The preview ${why} ${ms} ms`)), ms)
+  }
+  // One clock from the press to the PDF's first bytes (pdf.js, its worker, the request), then one that every
+  // progress report starts again.
+  arm(startMs, 'did not start within')
   try {
-    const doc = await task.promise
-    return { pdfjs, doc, frame: await measureFrame(doc) }
+    const opened = (async () => {
+      const pdfjs = await loadPdfjs()
+      // A stall while pdf.js was loading has already ended the attempt: no download starts for it.
+      if (done) throw new Error('The preview was given up')
+      task = pdfjs.getDocument({ url, enableXfa: false, disableFontFace: true, verbosity: pdfjs.VerbosityLevel.ERRORS })
+      task.onProgress = () => arm(stallMs, 'made no progress for')
+      const doc = await task.promise
+      return { pdfjs, doc, frame: await measureFrame(doc) }
+    })()
+    return await Promise.race([opened, stalled])
   } catch (error) {
-    // A load that failed, or a document nobody receives, would keep its worker.
-    void task.destroy()
+    // A load that failed or stalled, or a document nobody receives, would keep its worker.
+    void task?.destroy()
     throw error
+  } finally {
+    done = true
+    clearTimeout(timer)
   }
 }
 

@@ -21,7 +21,7 @@ test('the header lists every room inline, within the screen, and offers no menu 
   await page.goto('/contact')
   await expect(page.getByRole('button', { name: 'القائمة' })).toBeHidden()
   await expect(page.locator('dialog[aria-label="قائمة التنقل"]')).toBeHidden()
-  await expect(page.getByRole('link', { name: 'أنس، الرئيسية' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'أنس anas.studio، الرئيسية' })).toBeVisible()
 
   const nav = page.getByRole('navigation', { name: 'التنقل الرئيسي' })
   for (const href of ROOMS) {

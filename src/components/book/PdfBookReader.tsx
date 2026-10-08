@@ -49,7 +49,7 @@ function toEditions(event: { preventDefault: () => void }) {
 }
 
 /** One leaf of the book, built outside React: page-flip moves and styles it. */
-function makeLeaf(leaf: Leaf, cover: ImageSources): HTMLElement {
+function makeLeaf(leaf: Leaf, cover: ImageSources, editions: boolean): HTMLElement {
   const el = document.createElement('div')
   el.className = cls('leaf')
   el.dataset.kind = leaf.kind
@@ -77,19 +77,23 @@ function makeLeaf(leaf: Leaf, cover: ImageSources): HTMLElement {
     const second = document.createElement('p')
     second.className = cls('endLine')
     second.textContent = 'بقية الحكاية في الكتاب.'
-    // A bare link, text only: page-flip lets a click through only when its
-    // target is the <a> itself.
-    const link = document.createElement('a')
-    link.href = '#editions'
-    link.className = cls('endLink')
-    link.textContent = 'النسخ ←'
-    // The arrow is a glyph, not a word; a child span would swallow the click.
-    link.setAttribute('aria-label', 'النسخ')
-    link.addEventListener('click', toEditions)
     // page-flip writes display: block on the leaf itself: the wrapper centres.
     const body = document.createElement('div')
     body.className = cls('endBody')
-    body.append(first, second, link)
+    body.append(first, second)
+    // The way to the editions, only when the page draws them (an empty list leaves the section out).
+    if (editions) {
+      // A bare link, text only: page-flip lets a click through only when its
+      // target is the <a> itself.
+      const link = document.createElement('a')
+      link.href = '#editions'
+      link.className = cls('endLink')
+      link.textContent = 'النسخ ←'
+      // The arrow is a glyph, not a word; a child span would swallow the click.
+      link.setAttribute('aria-label', 'النسخ')
+      link.addEventListener('click', toEditions)
+      body.append(link)
+    }
     el.append(body)
   }
   return el
@@ -111,7 +115,18 @@ function makeLeaf(leaf: Leaf, cover: ImageSources): HTMLElement {
  * - «عرض للقراءة» shows the same pages one under the other, at reading size,
  *   from the page in view: the place to read closely, zoom and select.
  */
-export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: { cover: ImageSources; url?: string; startPage?: number }) {
+/** `editions` says whether the page draws its editions section: the closing words link to it only then. */
+export default function PdfBookReader({
+  cover,
+  url = PREVIEW_URL,
+  startPage,
+  editions = false,
+}: {
+  cover: ImageSources
+  url?: string
+  startPage?: number
+  editions?: boolean
+}) {
   const readerRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const blockRef = useRef<HTMLDivElement | null>(null)
@@ -178,10 +193,15 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
 
   useEffect(() => () => void loaded?.doc.loadingTask.destroy(), [loaded])
 
-  // A retry replaces the focused «إعادة المحاولة» with the loading status, and a
-  // second failure replaces the status with a new «إعادة المحاولة»: focus follows each.
+  // A failure (the first too) replaces the pressed button, or the loading status, with «إعادة المحاولة»,
+  // and a retry replaces that button with the loading status: focus follows each, or it falls to <body>.
+  // A failure can come long after the press (the stall clock): it takes the focus only while nothing else
+  // holds it (the reader's own control went with the loading state), and never scrolls the page back to it.
   useEffect(() => {
-    if (attempt > 0 && !loaded) (failed ? retryRef : statusRef).current?.focus()
+    if (failed) {
+      const active = document.activeElement
+      if (active === null || active === document.body) retryRef.current?.focus({ preventScroll: true })
+    } else if (attempt > 0 && !loaded) statusRef.current?.focus()
   }, [attempt, loaded, failed])
 
   /** Where the book is for a reading index: closed on either cover, or open. */
@@ -270,7 +290,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     // since page-flip rewrites each leaf's own style.
     block.style.setProperty('--linen', `url("${cover.src}")`)
     host.append(block)
-    const elements = plan.map((leaf) => makeLeaf(leaf, cover))
+    const elements = plan.map((leaf) => makeLeaf(leaf, cover, editions))
     leafRef.current = elements
     const surfaces = surfacesRef.current
     elements.forEach((element, i) => {
@@ -451,7 +471,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     }
     // `go` and `opening` are read once, when the book first opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, mode, cover])
+  }, [loaded, mode, cover, editions])
 
   // The state of the book on screen: where it stands, its page edges, the
   // corner that invites a turn, and which leaves hold a canvas.
@@ -491,6 +511,8 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     const key = bookKey(event)
     if (!key) return
     event.preventDefault()
+    // The key came from the closing leaf's «النسخ ←»: the turn hides that leaf, and its link with it. The book keeps the focus.
+    if (event.target !== event.currentTarget) hostRef.current?.focus({ preventScroll: true })
     if (key.held) return
     const actions = { next: () => turn(1), previous: () => turn(-1), first: () => go(0), last: () => go(endLeaf) }
     actions[key.action]()
@@ -507,7 +529,9 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     return (
       <div className={styles.reader}>
         <ClosedBook cover={cover} />
-        <div className={styles.controls} role="alert">
+        {/* Keyed apart from the loading status: React would otherwise reuse that focused box as this one, and
+            the focus would stay on it instead of falling to <body>, where the failure picks it up. */}
+        <div key="failed" className={styles.controls} role="alert">
           <p className={styles.status}>تعذّر فتح الصفحات.</p>
           <p className={styles.messageActions}>
             <button
@@ -535,7 +559,7 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
     return (
       <div className={styles.reader}>
         <ClosedBook cover={cover} />
-        <div ref={statusRef} tabIndex={-1} className={styles.controls} role="status" aria-label="جارٍ فتح الكتاب">
+        <div key="loading" ref={statusRef} tabIndex={-1} className={styles.controls} role="status" aria-label="جارٍ فتح الكتاب">
           <Opening onOpen={() => {}} loading />
         </div>
       </div>
@@ -546,6 +570,8 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
   const where = describe(leaves, shown, loaded.doc.numPages)
   const parts = sections(leaves)
   const lastShown = shown[shown.length - 1] ?? 0
+  const atStart = (shown[0] ?? 0) === 0
+  const atEnd = lastShown === total - 1
   const part = [...parts].reverse().find((section) => section.index <= lastShown) ?? { label: '', index: 0 }
   const pageInView = shown.map((i) => leaves[i]).find((leaf) => leaf?.kind === 'page')
 
@@ -604,9 +630,11 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
         <div className={styles.closing}>
           <p>هنا تنتهي الصفحات المتاحة للقراءة.</p>
           <p className={styles.endLine}>بقية الحكاية في الكتاب.</p>
-          <a href="#editions" className={styles.endLink} onClick={toEditions}>
-            النسخ <span aria-hidden="true">←</span>
-          </a>
+          {editions && (
+            <a href="#editions" className={styles.endLink} onClick={toEditions}>
+              النسخ <span aria-hidden="true">←</span>
+            </a>
+          )}
         </div>
       </div>
     )
@@ -629,7 +657,13 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
       </p>
       <div className={styles.controls}>
         <div className={styles.toolbar}>
-          <button type="button" className={styles.control} onClick={() => turn(-1)} disabled={(shown[0] ?? 0) === 0}>
+          {/* At the first or last leaf a turn button stays focusable: aria-disabled, not `disabled`, which would drop the focus to <body>. */}
+          <button
+            type="button"
+            className={styles.control}
+            aria-disabled={atStart || undefined}
+            onClick={() => !atStart && turn(-1)}
+          >
             <span aria-hidden="true">→</span> <span className={styles.controlLabel}>السابقة</span>
           </button>
           <p className={styles.where} aria-live="polite">
@@ -640,7 +674,12 @@ export default function PdfBookReader({ cover, url = PREVIEW_URL, startPage }: {
               </span>
             )}
           </p>
-          <button type="button" className={styles.control} onClick={() => turn(1)} disabled={lastShown === total - 1}>
+          <button
+            type="button"
+            className={styles.control}
+            aria-disabled={atEnd || undefined}
+            onClick={() => !atEnd && turn(1)}
+          >
             <span className={styles.controlLabel}>التالية</span> <span aria-hidden="true">←</span>
           </button>
         </div>

@@ -16,7 +16,8 @@ const MENU_TONES: Tone[] = ['coral', 'saffron', 'paper', 'night']
 
 function Brand({ className, onClick }: { className?: string; onClick?: () => void }) {
   return (
-    <Link href="/" prefetch={false} aria-label="أنس، الرئيسية" className={`${styles.brand} ${className ?? ''}`} onClick={onClick}>
+    // The name holds the words the link shows, in their order (WCAG 2.5.3), then where it leads.
+    <Link href="/" prefetch={false} aria-label="أنس anas.studio، الرئيسية" className={`${styles.brand} ${className ?? ''}`} onClick={onClick}>
       <Mark />
       <span className={styles.brandName}>أنس</span>
       <span dir="ltr" className={styles.brandDomain}>

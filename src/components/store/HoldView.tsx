@@ -276,7 +276,7 @@ export function HoldView({
         <>
           {holdEnds !== null && (
             <p id="checkout-order-state" className={styles.note}>
-              محجوز حتى <span dir="ltr">{formatRiyadhTime(holdEnds)}</span>
+              محجوز حتى <span dir="ltr">{formatRiyadhTime(holdEnds)}</span> بتوقيت الرياض
             </p>
           )}
           {payment.state === 'ready' && <ActionLink href={payment.url}>ادفع الآن</ActionLink>}

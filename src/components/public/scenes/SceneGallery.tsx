@@ -26,6 +26,11 @@ function photoCount(n: number): string {
   return `${n} صورة`
 }
 
+/** What a screen reader hears when the lightbox shows another photo: «3 من 19: ذرى». */
+export function photoAnnouncement(position: number, total: number, caption: string): string {
+  return `${position} من ${total}: ${caption}`
+}
+
 /**
  * The scenes page: its title band with the category filter, the grid, and
  * the lightbox (one component, as they share the filter). The filter is
@@ -170,8 +175,13 @@ export function SceneGallery({ items, categories }: { items: SceneItem[]; catego
         {current && (
           <>
             <div className={styles.viewerBar}>
-              <span dir="ltr" aria-live="polite" className="t-label">
+              {/* The counter is for the eyes: read aloud its slash is noise, and it never named the photo.
+                  The live region says the place in words, with the caption, each time the photo changes. */}
+              <span dir="ltr" aria-hidden="true" className="t-label">
                 {index + 1} / {shown.length}
+              </span>
+              <span role="status" className="visually-hidden">
+                {photoAnnouncement(index + 1, shown.length, current.caption)}
               </span>
               <button type="button" data-tone="coral" className={styles.close} onClick={() => setIndex(-1)}>
                 إغلاق
