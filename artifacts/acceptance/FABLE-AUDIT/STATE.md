@@ -32,6 +32,10 @@ The owner stopped the session ("stop here, will continue after limit reset"). No
 - `next-env.d.ts` is clean; `.next/e2e` removed. `.claude/launch.json`, `.claude/settings.json` and `.claude/settings.json.tmp` were already dirty before the audit (2026-10-03) and were left alone.
 
 
+## Update 2026-10-08 ~17:35 Riyadh: the cloud branch locally ratified (ZCode, owner-dispatched, verification only)
+
+The cloud continuation stopped after committing the round S brief (`e800fc5`, 06:38 Riyadh; CI green; nothing mid-flight lost — the S fix worker was never dispatched). At the owner's word, ZCode (GLM-5.3) ran the local ratification of that commit on the owner's machine: from-scratch stack, the whole integration suite (874/874, the eight edge-runtime HTTP files included — the set CI cannot run), lint/typecheck/unit (2,536/2,536, the local-only drift check included), build, export (no secrets), budgets (149.4 of 150.0), and all seven never-run Playwright specs (185 passed: no-js, reader, cms, orders-money, orders-admin, cart-checkout, orders — `orders.spec` in 6.2 minutes, so the baseline timeout was machine load). Everything green; nothing the cloud committed fails anywhere it had never run. Full record: `ratify-e800fc5/RECORD.md`. Still open: the HELD visual round, F3-16 (g) (owner decision), rounds S and D, the plan files, the after-battery, REPORT.md, and — per the owner's rule below — the independent deep audit before `main` moves.
+
 ## Update 2026-10-08 00:20 Riyadh: the cloud continuation takes over (Claude Opus 5.5 at effort max, under D48)
 
 Written by the cloud continuation session (Claude Code on the web, Claude Opus 5.5 at effort max; session `session_01FQkKvtRHvBR6eKdAaVaCnf`), which orchestrates the rest of the audit from the GitHub repository under D48.

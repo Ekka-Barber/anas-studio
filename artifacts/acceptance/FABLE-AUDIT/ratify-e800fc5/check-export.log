@@ -1,0 +1,3 @@
+check:export
+  OK 59 required files present; 377 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)

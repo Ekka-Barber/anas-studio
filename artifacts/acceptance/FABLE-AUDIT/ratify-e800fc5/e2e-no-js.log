@@ -1,0 +1,23 @@
+
+Running 18 tests using 1 worker
+
+  ok  1 [chromium] › tests\e2e\no-js.spec.ts:20:1 › the header lists every room inline, within the screen, and offers no menu button (3.5s)
+  ok  2 [chromium] › tests\e2e\no-js.spec.ts:42:1 › المَشاهد lists every photo as a link to the file and offers no filter (940ms)
+  ok  3 [chromium] › tests\e2e\no-js.spec.ts:58:1 › المجلس lists its posts as links, or says there are none yet (1.4s)
+  ok  4 [chromium] › tests\e2e\no-js.spec.ts:76:1 › تواصل shows the form but cannot send, and keeps the channels and services (1.1s)
+  ok  5 [chromium] › tests\e2e\no-js.spec.ts:107:3 › /orders: the order and notification pages say they need JavaScript and offer no dead control (1.4s)
+  ok  6 [chromium] › tests\e2e\no-js.spec.ts:107:3 › /notify/confirm: the order and notification pages say they need JavaScript and offer no dead control (1.2s)
+  ok  7 [chromium] › tests\e2e\no-js.spec.ts:107:3 › /notify/unsubscribe: the order and notification pages say they need JavaScript and offer no dead control (1.1s)
+  ok  8 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 375px › / without JavaScript, once its entrances have played (2.9s)
+  ok  9 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 375px › /started without JavaScript, once its entrances have played (3.8s)
+  ok 10 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 375px › /built without JavaScript, once its entrances have played (3.6s)
+  ok 11 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 375px › /passed without JavaScript, once its entrances have played (3.7s)
+  ok 12 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 375px › /shelf without JavaScript, once its entrances have played (3.8s)
+  ok 13 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 1440px › / without JavaScript, once its entrances have played (3.1s)
+  ok 14 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 1440px › /started without JavaScript, once its entrances have played (3.0s)
+  ok 15 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 1440px › /built without JavaScript, once its entrances have played (3.0s)
+  ok 16 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 1440px › /passed without JavaScript, once its entrances have played (3.0s)
+  ok 17 [chromium] › tests\e2e\no-js.spec.ts:170:9 › nothing is left at a hidden start state › at 1440px › /shelf without JavaScript, once its entrances have played (3.1s)
+  ok 18 [chromium] › tests\e2e\no-js.spec.ts:182:5 › nothing is left at a hidden start state › with JavaScript › / once every part has scrolled into view and every reveal has played (4.3s)
+
+  18 passed (59.9s)

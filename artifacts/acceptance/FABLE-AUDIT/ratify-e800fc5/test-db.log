@@ -1,0 +1,367 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv5.0.1 [39m[90mC:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME[39m
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/order-operations.test.ts [2m([22m[2m83 tests[22m[2m)[22m[33m 28254[2mms[22m[39m
+   [32m✓[39m who may call [2m(4)[22m
+     [33m[2m✓[22m[39m refuses anon, an editor, a revoked owner and an inactive operations member on every one of the nine, and changes nothing[33m 878[2mms[22m[39m
+     [33m[2m✓[22m[39m lets an operations member work the orders but refuses what is the owner's: resolving, the reconciliation, closing a review, restocking[33m 348[2mms[22m[39m
+   [32m✓[39m orders_list [2m(3)[22m
+     [33m[2m✓[22m[39m answers each filter with the orders that belong to it, in the row the contract names; to_ship leaves out fully refunded items and digital-only orders[33m 530[2mms[22m[39m
+   [32m✓[39m fulfillment_update [2m(14)[22m
+     [33m[2m✓[22m[39m answers two identical calls at once with one move, one mail and one audit row[33m 679[2mms[22m[39m
+   [32m✓[39m return_receive [2m(7)[22m
+     [33m[2m✓[22m[39m marks approved goods received without a restock: operations may, the stock is not touched, and the return keeps an empty list[33m 327[2mms[22m[39m
+     [33m[2m✓[22m[39m adds the stock once when two calls arrive at once: one receives, the other is refused[33m 685[2mms[22m[39m
+   [32m✓[39m order_resolve [2m(9)[22m
+     [33m[2m✓[22m[39m resolves once when two calls arrive at once: one resolves, the other is refused, the stock moves once[33m 640[2mms[22m[39m
+   [32m✓[39m orders_alerts [2m(5)[22m
+     [33m[2m✓[22m[39m moves uncertain refunds and external refunds, and unverified attempts and exhausted events, with their causes[33m 461[2mms[22m[39m
+   [32m✓[39m locks [2m(3)[22m
+     [33m[2m✓[22m[39m every writer waits for the order's row before it decides, and finishes when it is freed[33m 4945[2mms[22m[39m
+     [33m[2m✓[22m[39m decides on what it reads after the locks: a change committed while it waited is what it sees[33m 4728[2mms[22m[39m
+     [33m[2m✓[22m[39m a restock waits for the variant's row, after the order and the return, and then applies[33m 1017[2mms[22m[39m
+   [32m✓[39m races between staff and the money functions [2m(4)[22m
+     [33m[2m✓[22m[39m shipping an item against a refund of that same item: no deadlock, and nothing ships for money that is going back, whichever comes first[33m 1343[2mms[22m[39m
+     [33m[2m✓[22m[39m resolving an order against a refund of that same order: no deadlock, and the end state is one of the two valid orders of events[33m 1326[2mms[22m[39m
+     [33m[2m✓[22m[39m receiving, deciding, a new return request and a file attached to a waiting digital line, all at one order: no deadlock, and each does what it does[33m 1208[2mms[22m[39m
+     [33m[2m✓[22m[39m receiving goods against deciding the request: no deadlock, and the end state is one of the two valid orders of events[33m 1262[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/refunds-http.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 16324[2mms[22m[39m
+   [32m✓[39m refund-create against the emulator [2m(8)[22m
+     [33m[2m✓[22m[39m a full refund: one provider call carrying the amount, the order refunded, the entitlement revoked, the mail queued, an answer with three fields[33m 2274[2mms[22m[39m
+     [33m[2m✓[22m[39m two partial refunds: each reads the provider total first, the second carries on from the first, and the order is refunded only at the end[33m 328[2mms[22m[39m
+     [33m[2m✓[22m[39m a request without expectedRefunded is not checked against the total (a page loaded before this field existed), and one with the right total is[33m 356[2mms[22m[39m
+   [32m✓[39m a refund the provider answers badly [2m(6)[22m
+     [33m[2m✓[22m[39m a refund cut after the provider committed: uncertain, the next refund is blocked with no provider call, and the job settles it from the total[33m 1017[2mms[22m[39m
+     [33m[2m✓[22m[39m a refund that times out and lands late: still uncertain while it has not landed (the job only backs off), settled once it has[33m 6276[2mms[22m[39m
+     [33m[2m✓[22m[39m a refund the provider never applied (a 500, then a 429): uncertain, then NOT_APPLIED once it is 15 minutes old, and the balance is free again[33m 474[2mms[22m[39m
+     [33m[2m✓[22m[39m a provider that refuses a second refund of a payment already refunded: the second is failed, the ledger and the provider agree[33m 350[2mms[22m[39m
+     [33m[2m✓[22m[39m the owner's recheck settles an uncertain refund at once, from a fresh fetch; a settled refund is answered as stored[33m 789[2mms[22m[39m
+   [32m✓[39m a refund made at the provider behind our back [2m(2)[22m
+     [33m[2m✓[22m[39m PROVIDER_AHEAD blocks the next refund, the owner records it, then the refunds go on; a void is recorded for what is left[33m 364[2mms[22m[39m
+     [33m[2m✓[22m[39m a refund that landed after it was declared NOT_APPLIED is adopted by the owner with its own allocation[33m 353[2mms[22m[39m
+   [32m✓[39m who may refund [2m(1)[22m
+     [33m[2m✓[22m[39m an editor and operations are refused all three actions; an owner without a fresh TOTP is refused the two that move money; nothing is written or sent[33m 1648[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/orders-http.test.ts [2m([22m[2m21 tests[22m[2m)[22m[33m 9555[2mms[22m[39m
+   [32m✓[39m a paid digital order, end to end [2m(2)[22m
+     [33m[2m✓[22m[39m shows the order, takes the owner's PDF, hands out a download and the bytes come back; a full refund then stops the same token[33m 1810[2mms[22m[39m
+     [33m[2m✓[22m[39m shows what a buyer must not see nowhere: no address, no provider id, no key, no token[33m 353[2mms[22m[39m
+   [32m✓[39m recovery over HTTP [2m(3)[22m
+     [33m[2m✓[22m[39m answers an address with an order and an address with none with the same reply, and only the first gets a mail and a renewed link[33m 524[2mms[22m[39m
+   [32m✓[39m the owner re-sends an order's link through the real admin function [2m(3)[22m
+     [33m[2m✓[22m[39m rotates the link to the next version: the new token opens the order, the old one is refused, and one mail goes to the order's address[33m 522[2mms[22m[39m
+     [33m[2m✓[22m[39m a corrected address needs a fresh TOTP; with one, the mail goes to it, it becomes the order's, and only the newest link opens the order[33m 934[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses an editor, an order that is not paid and a malformed address, and changes nothing[33m 928[2mms[22m[39m
+   [32m✓[39m the return request over HTTP [2m(1)[22m
+     [33m[2m✓[22m[39m takes a request for shipped goods, shows it on the order page, and refuses what cannot be returned[33m 348[2mms[22m[39m
+   [32m✓[39m the upload checks, on real objects in the real Storage [2m(8)[22m
+     [33m[2m✓[22m[39m a file that is not an EPUB is refused and removed: a plain ZIP, a PDF[33m 465[2mms[22m[39m
+     [33m[2m✓[22m[39m a stored type that differs from the declared one is refused and removed[33m 332[2mms[22m[39m
+     [33m[2m✓[22m[39m a lock held elsewhere puts the real object back under its ticket, and the same ticket then completes[33m 436[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/notify.test.ts [2m([22m[2m68 tests[22m[2m)[22m[33m 19558[2mms[22m[39m
+   [32m✓[39m catalog_availability [2m(5)[22m
+     [33m[2m✓[22m[39m is callable by a signed-in member as well as by anon, and gives them the same answer[33m 334[2mms[22m[39m
+   [32m✓[39m notify_subscribe [2m(15)[22m
+     [33m[2m✓[22m[39m decides under the availability row: a sign-up that waited behind a sweep which saw a restock stores nothing and does not undo the sweep[33m 1644[2mms[22m[39m
+     [33m[2m✓[22m[39m makes one row and one mail of two sign-ups at once for one address and variant[33m 3147[2mms[22m[39m
+   [32m✓[39m notify_token_info, notify_confirm and notify_unsubscribe [2m(8)[22m
+     [33m[2m✓[22m[39m answers two confirms at once with the same success, and two unsubscribes at once with one success and one NOT_FOUND[33m 6139[2mms[22m[39m
+   [32m✓[39m finance.availability_sweep [2m(15)[22m
+     [33m[2m✓[22m[39m queues each mail once when two sweeps run at once[33m 3201[2mms[22m[39m
+   [32m✓[39m grants [2m(12)[22m
+     [33m[2m✓[22m[39m refuses anon and a signed-in member with 42501 on every server-only function, through the Data API[33m 399[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/staff-admin.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 5721[2mms[22m[39m
+   [32m✓[39m staff-admin [2m(8)[22m
+     [33m[2m✓[22m[39m an owner with a fresh TOTP can invite, and rejects bad input[33m 981[2mms[22m[39m
+     [33m[2m✓[22m[39m set_role writes an audit row, and set_active revokes then restores access[33m 1314[2mms[22m[39m
+     [33m[2m✓[22m[39m staff_sessions_end ends every session of a member for the server, and an owner's own token cannot run it[33m 621[2mms[22m[39m
+     [33m[2m✓[22m[39m set_active revoking a signed-in editor ends every session of theirs, and the audit row says the ban and the end both held[33m 1128[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses to remove the last active owner[33m 894[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/payment.test.ts [2m([22m[2m83 tests[22m[2m)[22m[33m 13182[2mms[22m[39m
+   [32m✓[39m grants and access [2m(9)[22m
+     [33m[2m✓[22m[39m every new public function refuses anon and an editor with 42501; service_role holds each, nobody else[33m 625[2mms[22m[39m
+     [33m[2m✓[22m[39m anon cannot read the capacity but reads the public preorder columns; the owner writes the preorder columns and no longer digital_asset[33m 327[2mms[22m[39m
+   [32m✓[39m payment_attempt_close [2m(3)[22m
+     [33m[2m✓[22m[39m every allowed move works and sets its next check; every other move is BAD_TRANSITION and changes nothing[33m 1237[2mms[22m[39m
+   [32m✓[39m concurrency with checkout [2m(1)[22m
+     [33m[2m✓[22m[39m a payment for the last unit racing a checkout for the same variant never oversells (five rounds)[33m 377[2mms[22m[39m
+   [32m✓[39m concurrency: a crowd for a few units [2m(1)[22m
+     [33m[2m✓[22m[39m four late payments, all sharing one coupon, and two checkouts racing for two units: exactly two units go out, nothing deadlocks (three rounds)[33m 717[2mms[22m[39m
+   [32m✓[39m owner alerts [2m(2)[22m
+     [33m[2m✓[22m[39m creates one outbox row per active owner, none for a revoked owner or operations, and a second identical alert creates none[33m 499[2mms[22m[39m
+   [32m✓[39m payment_check_begin, payment_state and payment_callback_begin [2m(8)[22m
+     [33m[2m✓[22m[39m check: the throttle is 120 an hour per IP hash and raises 54000 over it[33m 513[2mms[22m[39m
+     [33m[2m✓[22m[39m callback: a check for a known invoice, {} for an unknown one, {} within 5 seconds and {} when the invoice is throttled, never by the caller's address (never an error)[33m 897[2mms[22m[39m
+   [32m✓[39m payment_reconcile_claim [2m(3)[22m
+     [33m[2m✓[22m[39m takes at most 10 attempts, 10 events and 5 refunds a run, oldest due first, and each kind in its own list[33m 513[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/checkout-http.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 4366[2mms[22m[39m
+   [32m✓[39m quote, and a store that is closed [2m(3)[22m
+     [33m[2m✓[22m[39m the quote says open and in test mode; the cart errors and totals come from the database[33m 443[2mms[22m[39m
+   [32m✓[39m the paid journey [2m(1)[22m
+     [33m[2m✓[22m[39m create, pay on the emulator, the webhook settles: the order is paid, the stock down once, one receipt; then pay and cancel only report it[33m 323[2mms[22m[39m
+   [32m✓[39m a second create in the same checkout session [2m(2)[22m
+     [33m[2m✓[22m[39m is 409 ACTIVE_HOLD with the order and a working token for the buyer whose email it is; for anyone else only when the hold ends[33m 315[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/payment-http.test.ts [2m([22m[2m41 tests[22m[2m)[22m[33m 6534[2mms[22m[39m
+   [32m✓[39m payment-recheck through the real admin function [2m(4)[22m
+     [33m[2m✓[22m[39m an owner settles a pending attempt whose prompts were lost, and an editor or an operations member is refused[33m 615[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/refunds.test.ts [2m([22m[2m77 tests[22m[2m)[22m[33m 9284[2mms[22m[39m
+   [32m✓[39m refund_request: the reserve under concurrency [2m(5)[22m
+     [33m[2m✓[22m[39m one key sent at once for two different attempts: one is new, the other IDEMPOTENCY_CONFLICT, never an exception[33m 315[2mms[22m[39m
+   [32m✓[39m refund_settle: every branch of the fetched total [2m(14)[22m
+     [33m[2m✓[22m[39m every branch ends within 15 minutes of the refund's life: one settle on a refund that old is never left in flight[33m 800[2mms[22m[39m
+     [33m[2m✓[22m[39m two connections settling the same refund at once: one success, one mail, one surplus row[33m 346[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/checkout.test.ts [2m([22m[2m56 tests[22m[2m)[22m[33m 9734[2mms[22m[39m
+   [32m✓[39m grants and access (D32) [2m(8)[22m
+     [33m[2m✓[22m[39m anon and authenticated cannot execute the three checkout functions; service_role can[33m 869[2mms[22m[39m
+     [33m[2m✓[22m[39m customers: the owner and operations read them, an editor and a revoked owner read nothing, nobody inserts or deletes, and only the owner corrects a name or phone[33m 1201[2mms[22m[39m
+     [33m[2m✓[22m[39m an editor and an operations member cannot insert or update catalog rows[33m 866[2mms[22m[39m
+     [33m[2m✓[22m[39m an owner inserts and updates catalog rows; a stale version changes 0 rows; demo and version are not updatable[33m 340[2mms[22m[39m
+   [32m✓[39m checkout_create success [2m(4)[22m
+     [33m[2m✓[22m[39m no API role can write the holds, redemptions or order totals: finance is not exposed and grants nothing[33m 349[2mms[22m[39m
+   [32m✓[39m concurrency (separate connections) [2m(3)[22m
+     [33m[2m✓[22m[39m two creates for a coupon limited to one use, on different variants, forced to race: exactly one keeps it[33m 3076[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/outbox.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 7933[2mms[22m[39m
+   [32m✓[39m claiming [2m(9)[22m
+     [33m[2m✓[22m[39m a contact notice or an owner alert to a suppressed address is still claimed: staff mail is never held back by the list[33m 308[2mms[22m[39m
+     [33m[2m✓[22m[39m a contact notice for a member who is no longer an active owner or operations is exhausted, never sent (S03.5)[33m 622[2mms[22m[39m
+     [33m[2m✓[22m[39m a notice swept as RECIPIENT_INACTIVE is left out of outbox_attention; another exhausted row stays[33m 443[2mms[22m[39m
+   [32m✓[39m a delivery event from a webhook transaction that overlaps the accept [2m(1)[22m
+     [33m[2m✓[22m[39m is applied to the row, not lost (S04.4 race)[33m 549[2mms[22m[39m
+   [32m✓[39m operations views through real JWTs [2m(7)[22m
+     [33m[2m✓[22m[39m outbox_attention flags replay_needs_confirmation only past the 23-hour window[33m 322[2mms[22m[39m
+     [33m[2m✓[22m[39m editors get neither outbox_attention nor outbox_replay[33m 315[2mms[22m[39m
+     [33m[2m✓[22m[39m an exhausted row that may have been sent needs the duplicate-risk confirmation after 23 hours, and gets a new key (X1.3)[33m 347[2mms[22m[39m
+     [33m[2m✓[22m[39m replay of a contact notice for a member who is no longer an active owner or operations is refused (S03.5)[33m 442[2mms[22m[39m
+     [33m[2m✓[22m[39m replays a sent mail the provider reports failed: a new key, a new window, the failure cleared; past 23 hours only with the duplicate risk; no other sent mail[33m 472[2mms[22m[39m
+   [32m✓[39m outbox_close [2m(1)[22m
+     [33m[2m✓[22m[39m closes an uncertain or an exhausted mail: CLOSED_BY_STAFF, out of the attention list, never claimed or replayed, one audit row; any other status is BAD_STATUS[33m 1106[2mms[22m[39m
+   [32m✓[39m job runs [2m(3)[22m
+     [33m[2m✓[22m[39m job_run_record stores a run, and job_runs_latest is for owner and operations only[33m 757[2mms[22m[39m
+     [33m[2m✓[22m[39m outbox_due_since answers owner and operations, refuses an editor, and no API role runs the finance one[33m 796[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/notify-http.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 4814[2mms[22m[39m
+   [32m✓[39m a sign-up, its confirmation, the notice and the unsubscribe, end to end [2m(2)[22m
+     [33m[2m✓[22m[39m goes from a visitor to a confirmed subscriber to one availability notice to an unsubscribed row whose old links are dead[33m 805[2mms[22m[39m
+   [32m✓[39m subscribe over HTTP [2m(3)[22m
+     [33m[2m✓[22m[39m gives one reply to a variant that is out of stock, an unknown one, a sellable one, an address already confirmed and a spent day[33m 484[2mms[22m[39m
+     [33m[2m✓[22m[39m throttles one caller at 5 an hour with 429, whatever it asks for[33m 433[2mms[22m[39m
+   [32m✓[39m confirm and unsubscribe over HTTP [2m(3)[22m
+     [33m[2m✓[22m[39m gives every bad token the same 404: a forged mac, an older version, an unknown id and a token that is not one[33m 534[2mms[22m[39m
+     [33m[2m✓[22m[39m throttles the two link actions at 60 an hour per caller with 429[33m 1764[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/download.test.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 8663[2mms[22m[39m
+   [32m✓[39m download_issue [2m(6)[22m
+     [33m[2m✓[22m[39m compares the order token before it locks the entitlement: with the file held, a wrong guess is answered at once and the right token waits[33m 1570[2mms[22m[39m
+     [33m[2m✓[22m[39m throttles 120 requests an hour per IP hash with 54000, and raises for a malformed call[33m 552[2mms[22m[39m
+   [32m✓[39m download_redeem [2m(5)[22m
+     [33m[2m✓[22m[39m never exceeds max_uses when redeems arrive at once, on two connections or five[33m 1024[2mms[22m[39m
+     [33m[2m✓[22m[39m throttles 120 requests an hour per IP hash with 54000, and raises for a malformed call[33m 362[2mms[22m[39m
+   [32m✓[39m paid_asset_set [2m(7)[22m
+     [33m[2m✓[22m[39m refuses a caller that is not an active owner with 42501, and writes nothing[33m 438[2mms[22m[39m
+     [33m[2m✓[22m[39m fills each waiting entitlement exactly once when two files are attached at once[33m 670[2mms[22m[39m
+     [33m[2m✓[22m[39m does not deadlock with a refund of the order that waits for the file, and mails only what was filled[33m 591[2mms[22m[39m
+     [33m[2m✓[22m[39m fills an order that began to wait after the first read, and answers 55P03 and changes nothing when another writer holds it[33m 1248[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/stats.test.ts [2m([22m[2m47 tests[22m[2m)[22m[33m 7774[2mms[22m[39m
+   [32m✓[39m dispute_record [2m(17)[22m
+     [33m[2m✓[22m[39m two calls at once for the same place end the same way: one inserts, the other answers that row, never an error[33m 1779[2mms[22m[39m
+     [33m[2m✓[22m[39m fulfillment_stopped needs named items still being prepared, and stops their shipping until a later row of the dispute lifts it[33m 514[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/orders-access.test.ts [2m([22m[2m40 tests[22m[2m)[22m[33m 7640[2mms[22m[39m
+   [32m✓[39m order_access [2m(7)[22m
+     [33m[2m✓[22m[39m throttles 120 requests an hour per IP hash with 54000, wrong tokens included, and another IP is not affected[33m 495[2mms[22m[39m
+   [32m✓[39m recovery [2m(11)[22m
+     [33m[2m✓[22m[39m agrees on one new token when two requests for the same expired link apply at once: the version guard[33m 538[2mms[22m[39m
+     [33m[2m✓[22m[39m throttles 3 an hour per email and 10 an hour per IP in silence: the same empty list as a miss, never an error[33m 584[2mms[22m[39m
+   [32m✓[39m order_link_reissue [2m(3)[22m
+     [33m[2m✓[22m[39m refuses what it cannot do and changes nothing: an unknown order, one that is not paid, a version that is not the next, an address that is not one; and anyone but an owner[33m 335[2mms[22m[39m
+   [32m✓[39m return_request_create [2m(10)[22m
+     [33m[2m✓[22m[39m reads under no lock and compares the token before it locks the order: with the order held, the page and a wrong guess answer at once, the right token waits[33m 1575[2mms[22m[39m
+     [33m[2m✓[22m[39m lets three requests for the last units race: one is taken, the others are told the quantity is no longer there[33m 514[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/media-security.test.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 6560[2mms[22m[39m
+   [32m✓[39m media_ticket [2m(6)[22m
+     [33m[2m✓[22m[39m two claims of one ticket at the same time: exactly one wins, the other waits and gets 55000[33m 725[2mms[22m[39m
+   [32m✓[39m RLS through real JWTs [2m(5)[22m
+     [33m[2m✓[22m[39m an editor may update the descriptive columns but not keys or derivatives[33m 317[2mms[22m[39m
+     [33m[2m✓[22m[39m operations sees nothing[33m 452[2mms[22m[39m
+   [32m✓[39m an edit of what the public pages print asks for a site build [2m(1)[22m
+     [33m[2m✓[22m[39m an alt text or caption edit of a published image leaves a build request pending; one of an unpublished image, of its name, folder or rights, or the same text again, asks for none[33m 463[2mms[22m[39m
+   [32m✓[39m usage and delete [2m(2)[22m
+     [33m[2m✓[22m[39m media_where_used reports each document once per state: live, draft, scheduled, and a live document with a newer draft[33m 309[2mms[22m[39m
+   [32m✓[39m operations and inactive staff get nothing from the library functions [2m(2)[22m
+     [33m[2m✓[22m[39m media_where_used is refused (42501) for operations and for an inactive editor[33m 580[2mms[22m[39m
+     [33m[2m✓[22m[39m media_rename_folder changes nothing for operations: zero rows, the folder unchanged[33m 387[2mms[22m[39m
+   [32m✓[39m folders [2m(1)[22m
+     [33m[2m✓[22m[39m media_rename_folder moves nested folders and rejects the root[33m 317[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/publish.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 5683[2mms[22m[39m
+   [32m✓[39m publishDocument [2m(4)[22m
+     [33m[2m✓[22m[39m an editor publishes a valid draft; it goes live and a site rebuild is requested[33m 338[2mms[22m[39m
+     [33m[2m✓[22m[39m an operations member is refused, by the admin and by the database[33m 517[2mms[22m[39m
+   [32m✓[39m scheduleDocument [2m(1)[22m
+     [33m[2m✓[22m[39m a schedule time in the past is INVALID[33m 304[2mms[22m[39m
+   [32m✓[39m archiveDocument [2m(2)[22m
+     [33m[2m✓[22m[39m archiving a post removes it for anon and requests a rebuild[33m 366[2mms[22m[39m
+   [32m✓[39m scheduling, unscheduling, archiving and the media usage read [2m(2)[22m
+     [33m[2m✓[22m[39m an operations member and a revoked editor are refused by each with insufficient_privilege, and nothing changes[33m 1049[2mms[22m[39m
+     [33m[2m✓[22m[39m cancel_schedule takes back the pending schedule and nothing else: the live version stays, and the audit names the editor[33m 536[2mms[22m[39m
+   [32m✓[39m the scenes collection (C05) [2m(1)[22m
+     [33m[2m✓[22m[39m is a collection the store knows; the admin publish refuses a category outside Anas’s five and publishes a valid gallery[33m 390[2mms[22m[39m
+   [32m✓[39m content_versions optimistic concurrency [2m(1)[22m
+     [33m[2m✓[22m[39m a stale seq is refused as a 409-mapped conflict[33m 323[2mms[22m[39m
+   [32m✓[39m a stale admin tab (X2.3) [2m(1)[22m
+     [33m[2m✓[22m[39m publishing or scheduling a version older than the latest is refused as a conflict; the newer live copy stays[33m 459[2mms[22m[39m
+   [32m✓[39m a post slug already live (S01.2) [2m(2)[22m
+     [33m[2m✓[22m[39m a manual publish that collides is a CONFLICT with its own message, not a generic failure[33m 373[2mms[22m[39m
+     [33m[2m✓[22m[39m scheduling a post whose slug another live post uses is refused at once; the live post itself can be scheduled[33m 395[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/privacy-requests.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 5910[2mms[22m[39m
+   [32m✓[39m privacy_erase_staff [2m(2)[22m
+     [33m[2m✓[22m[39m erases a revoked member: Auth tables emptied, earlier audit rows identical, staff renamed, repeat is a no-op[33m 320[2mms[22m[39m
+   [32m✓[39m privacy_buyer_erase [2m(9)[22m
+     [33m[2m✓[22m[39m locks the address's orders before it touches any notification or mail row: a writer that holds an order never meets a row the erase already took[33m 4134[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/order-emails.test.ts [2m([22m[2m41 tests[22m[2m)[22m[33m 4665[2mms[22m[39m
+   [32m✓[39m owner alerts [2m(4)[22m
+     [33m[2m✓[22m[39m two active owners each get an alert row, and each is claimable[33m 340[2mms[22m[39m
+     [33m[2m✓[22m[39m a row for an owner who was revoked, or demoted to operations, is closed and never claimed[33m 535[2mms[22m[39m
+     [33m[2m✓[22m[39m outbox_replay refuses an alert for someone who is no longer an owner, and replays one for an active owner[33m 572[2mms[22m[39m
+   [32m✓[39m the dispatcher over the real data functions (rolled back, provider stubbed) [2m(1)[22m
+     [33m[2m✓[22m[39m sends every kind its state allows, with the right links, and closes the rest with their codes, sending nothing for them[33m 373[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/disputes-http.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 3517[2mms[22m[39m
+   [32m✓[39m dispute-record and stats through the real admin function [2m(5)[22m
+     [33m[2m✓[22m[39m records a synthetic chargeback, answers a repeat as the same row, takes its follow-up, and the statistics count it beside an unchanged gross[33m 383[2mms[22m[39m
+     [33m[2m✓[22m[39m refuses everyone but an owner with a fresh TOTP, before anything is read, and writes nothing[33m 805[2mms[22m[39m
+     [33m[2m✓[22m[39m a token whose claims were edited to a fresh TOTP, or that another key signed, is 401 and writes nothing[33m 418[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/staff.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 3107[2mms[22m[39m
+   [32m✓[39m editor [2m(1)[22m
+     [33m[2m✓[22m[39m sees only its own staff row, cannot write staff, sees no audit rows, and staff_directory fails[33m 333[2mms[22m[39m
+   [32m✓[39m operations [2m(1)[22m
+     [33m[2m✓[22m[39m sees only its own staff row, cannot write staff, sees no audit rows, and staff_directory fails[33m 368[2mms[22m[39m
+   [32m✓[39m owner [2m(1)[22m
+     [33m[2m✓[22m[39m reads all staff, the directory and audit, but cannot write staff through the Data API[33m 421[2mms[22m[39m
+   [32m✓[39m current_staff_role [2m(2)[22m
+     [33m[2m✓[22m[39m a revoked owner keeps its session but reads no audit rows or directory, and cannot write staff[33m 548[2mms[22m[39m
+   [32m✓[39m audit_events is append-only [2m(2)[22m
+     [33m[2m✓[22m[39m no staff JWT and not the service role can change or delete an audit row through the Data API, and the trigger refuses even the owner of the table[33m 1016[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/commerce-settings.test.ts [2m([22m[2m19 tests[22m[2m)[22m[33m 3073[2mms[22m[39m
+   [32m✓[39m commerce_settings_get [2m(3)[22m
+     [33m[2m✓[22m[39m an editor or operations member gets nothing[33m 545[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+[90mstderr[2m | tests/integration/forms.test.ts[2m > [22m[2mcontact function email grammar[2m > [22m[2maccepts a normal address
+[22m[39m{"requestId":"1f352ace-eaac-4260-bd9c-53466dc8743b","status":503,"code":"TURNSTILE_UNAVAILABLE"}
+
+[90mstderr[2m | tests/integration/forms.test.ts[2m > [22m[2mcontact function email grammar[2m > [22m[2maccepts an internationalised Saudi domain, validated and stored as punycode
+[22m[39m{"requestId":"b1779fcc-601d-448d-91a6-4105adf55a51","status":503,"code":"TURNSTILE_UNAVAILABLE"}
+
+ [32m✓[39m tests/integration/forms.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 2789[2mms[22m[39m
+   [32m✓[39m contact_submit [2m(5)[22m
+     [33m[2m✓[22m[39m stores the message and queues one notice per active owner or operations member[33m 701[2mms[22m[39m
+   [32m✓[39m contacts are server-only (D31: no admin inbox) [2m(4)[22m
+     [33m[2m✓[22m[39m owner, operations, editor, revoked and anonymous callers read nothing through the Data API[33m 1106[2mms[22m[39m
+     [33m[2m✓[22m[39m not even the owner updates, inserts or deletes a contact[33m 361[2mms[22m[39m
+     [33m[2m✓[22m[39m no API role executes the server-only functions or reads finance[33m 312[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/audit-fixes.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 2228[2mms[22m[39m
+   [32m✓[39m S01.4: no password sign-in [2m(1)[22m
+     [33m[2m✓[22m[39m a password grant is refused with 403 even for a staff member who has a password; the emailed code and a refresh still work[33m 780[2mms[22m[39m
+   [32m✓[39m GAP-G5-1: publishing takes the document lock before any row lock [2m(2)[22m
+     [33m[2m✓[22m[39m archive_document waits for the document lock instead of racing a publish[33m 708[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/policy-approval.test.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 2148[2mms[22m[39m
+   [32m✓[39m a policy publish that overlaps an approval [2m(1)[22m
+     [33m[2m✓[22m[39m an approval that starts while a publish of one policy holds the settings row waits for it, then approves the new seq, never the old one[33m 1126[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/variant-admin-info.test.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 2166[2mms[22m[39m
+   [32m✓[39m the function [2m(4)[22m
+     [33m[2m✓[22m[39m refuses anon, an editor, a revoked owner and an inactive operations member (42501), the role before the lookup[33m 523[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/email-delivery.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 1588[2mms[22m[39m
+   [32m✓[39m runOutbox (fetch stubbed, service_role through a direct session) [2m(7)[22m
+     [33m[2m✓[22m[39m quota: a 429 daily_quota_exceeded stops the run, gives the attempt back and waits for the next UTC day (S04.2)[33m 308[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/cron-jobs.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 854[2mms[22m[39m
+   [32m✓[39m cron_failures_recent [2m(2)[22m
+     [33m[2m✓[22m[39m is for an owner or operations only: anon has no grant, an editor is refused; security definer with an empty search_path[33m 632[2mms[22m[39m
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ [32m✓[39m tests/integration/content.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 464[2mms[22m[39m
+ [32m✓[39m tests/integration/static-site.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 384[2mms[22m[39m
+ [32m✓[39m tests/integration/buyer-retention.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 306[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m31 passed[39m[22m[90m (31)[39m
+[2m      Tests [22m [1m[32m874 passed[39m[22m[90m (874)[39m
+[2m   Start at [22m 17:00:22
+[2m   Duration [22m 255.59s[2m (tests 82%, import 17%, transform 1%)[22m
+

@@ -1,0 +1,16 @@
+# stack battery (ratify-e800fc5), commit e800fc5, 2026-10-08T13:59:29Z
+db-reset -> exit 0 (34s)
+db-import -> exit 0 (2s)
+db-demo-catalog -> exit 0 (1s)
+db-env -> exit 0 (2s)
+edge-restart -> exit 0 (4s)
+test-db -> exit 0 (258s)
+[2m Test Files [22m [1m[32m31 passed[39m[22m[90m (31)[39m
+[2m      Tests [22m [1m[32m874 passed[39m[22m[90m (874)[39m
+build -> exit 0 (45s)
+check-export -> exit 0 (2s)
+  OK 59 required files present; 377 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)
+check-budgets -> exit 0 (2s)
+  OK largest 149.4 KiB (budget 150.0 KiB)
+done 2026-10-08T14:05:27Z

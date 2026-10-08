@@ -1,0 +1,37 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 20 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok  1 [chromium] › tests\e2e\orders.spec.ts:479:5 › at 360px › 1. a book: the product page to the receipt, the order link, a real download and the owner's order view (24.0s)
+  ok  2 [chromium] › tests\e2e\orders.spec.ts:600:5 › at 360px › 2. paper and signed editions: paid, shipped with a tracking number, delivered, returned and restocked (26.8s)
+  ok  3 [chromium] › tests\e2e\orders.spec.ts:714:5 › at 360px › 3. a failed payment leaves the invoice payable; the return page says pending; the second try settles it once (8.2s)
+  ok  4 [chromium] › tests\e2e\orders.spec.ts:763:5 › at 360px › 4. 3-D Secure: the challenge, then success; and a second order whose challenge is rejected stays unpaid (12.9s)
+  ok  5 [chromium] › tests\e2e\orders.spec.ts:801:5 › at 360px › 5. a cancel frees the held stock at once; a payment forced on the cancelled invoice lands as a late payment and is never lost (15.7s)
+  ok  6 [chromium] › tests\e2e\orders.spec.ts:866:5 › at 360px › 6. a refund of one line through the step-up: the provider, the ledger, the mail, the buyer's page and the download agree (14.0s)
+  ok  7 [chromium] › tests\e2e\orders.spec.ts:972:5 › at 360px › 7. the availability notice: a real sign-up, the confirmation, a restock, one notice, the unsubscribe (14.7s)
+  ok  8 [chromium] › tests\e2e\orders.spec.ts:1089:5 › at 360px › 8. a preorder: the date and the note before paying, on the order page and in the receipt; the capacity ends the next quote (15.2s)
+  ok  9 [chromium] › tests\e2e\orders.spec.ts:1167:5 › at 360px › 9. a dispute: a chargeback recorded through the step-up, a repeat answered as a duplicate, a follow-up; the figures and the ledger agree (14.8s)
+  ok 10 [chromium] › tests\e2e\orders.spec.ts:1256:5 › at 360px › 10. the owner's switch: closed through the commerce settings, the checkout refuses a new order; opened again, one goes through (12.2s)
+  ok 11 [chromium] › tests\e2e\orders.spec.ts:479:5 › at 1440px › 1. a book: the product page to the receipt, the order link, a real download and the owner's order view (11.6s)
+  ok 12 [chromium] › tests\e2e\orders.spec.ts:600:5 › at 1440px › 2. paper and signed editions: paid, shipped with a tracking number, delivered, returned and restocked (20.1s)
+  ok 13 [chromium] › tests\e2e\orders.spec.ts:714:5 › at 1440px › 3. a failed payment leaves the invoice payable; the return page says pending; the second try settles it once (6.5s)
+  ok 14 [chromium] › tests\e2e\orders.spec.ts:763:5 › at 1440px › 4. 3-D Secure: the challenge, then success; and a second order whose challenge is rejected stays unpaid (11.2s)
+  ok 15 [chromium] › tests\e2e\orders.spec.ts:801:5 › at 1440px › 5. a cancel frees the held stock at once; a payment forced on the cancelled invoice lands as a late payment and is never lost (13.5s)
+  ok 16 [chromium] › tests\e2e\orders.spec.ts:866:5 › at 1440px › 6. a refund of one line through the step-up: the provider, the ledger, the mail, the buyer's page and the download agree (14.8s)
+  ok 17 [chromium] › tests\e2e\orders.spec.ts:972:5 › at 1440px › 7. the availability notice: a real sign-up, the confirmation, a restock, one notice, the unsubscribe (11.7s)
+  ok 18 [chromium] › tests\e2e\orders.spec.ts:1089:5 › at 1440px › 8. a preorder: the date and the note before paying, on the order page and in the receipt; the capacity ends the next quote (11.8s)
+  ok 19 [chromium] › tests\e2e\orders.spec.ts:1167:5 › at 1440px › 9. a dispute: a chargeback recorded through the step-up, a repeat answered as a duplicate, a follow-up; the figures and the ledger agree (12.7s)
+  ok 20 [chromium] › tests\e2e\orders.spec.ts:1256:5 › at 1440px › 10. the owner's switch: closed through the commerce settings, the checkout refuses a new order; opened again, one goes through (10.8s)
+
+  20 passed (6.2m)

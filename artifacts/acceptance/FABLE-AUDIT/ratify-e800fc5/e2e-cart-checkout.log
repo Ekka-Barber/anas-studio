@@ -1,0 +1,104 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 34 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok  1 [chromium] › tests\e2e\cart-checkout.spec.ts:357:1 › the store lists the fixture product and its page prices every variant (6.3s)
+  ok  2 [chromium] › tests\e2e\cart-checkout.spec.ts:370:1 › while checkout is off, the cart and the checkout say so (10.1s)
+  ok  3 [chromium] › tests\e2e\cart-checkout.spec.ts:381:1 › the cart persists across reload, follows the live quote and removes a line (11.4s)
+  ok  4 [chromium] › tests\e2e\cart-checkout.spec.ts:416:1 › a digital-only cart shows no city; the coupon applies and the discount shows (5.6s)
+  ok  5 [chromium] › tests\e2e\cart-checkout.spec.ts:434:1 › a signed line gets its dedication field in the cart (3.8s)
+  ok  6 [chromium] › tests\e2e\cart-checkout.spec.ts:443:1 › with checkout on: order, hold view with its payment link, kept cart, reload and cancel (16.6s)
+  ok  7 [chromium] › tests\e2e\cart-checkout.spec.ts:520:1 › a price change between the quote and the submit asks for confirmation, then succeeds (12.1s)
+  ok  8 [chromium] › tests\e2e\cart-checkout.spec.ts:553:1 › paying on the invoice page brings the buyer back to «تم الدفع», and only then are the cart and the stored order cleared (12.2s)
+  ok  9 [chromium] › tests\e2e\cart-checkout.spec.ts:580:1 › a cancel that finds the invoice paid says a payment arrived and clears nothing; the return page then tells the rest (7.9s)
+  ok 10 [chromium] › tests\e2e\cart-checkout.spec.ts:606:1 › «نجهّز صفحة الدفع…» when the first call is lost after the provider made the invoice, and the retry finds that one invoice (7.3s)
+  ok 11 [chromium] › tests\e2e\cart-checkout.spec.ts:623:1 › «تعذّر تجهيز الدفع؛ حاول بعد لحظات.» when the provider refuses, and the retry makes the invoice (7.6s)
+  ok 12 [chromium] › tests\e2e\cart-checkout.spec.ts:637:1 › a stored order whose `pay` the function refuses (closed store, throttle) shows its words with the retry, and the retry works (5.1s)
+  ok 13 [chromium] › tests\e2e\cart-checkout.spec.ts:682:1 › a cancel the function refuses (a payment under way, the throttle) shows its words and keeps the hold view (3.9s)
+  ok 14 [chromium] › tests\e2e\cart-checkout.spec.ts:730:1 › a stored order that cannot be paid here: a payment under review says so and keeps the order; another payment mode claims no payment and offers the cancel (4.5s)
+  ok 15 [chromium] › tests\e2e\cart-checkout.spec.ts:768:1 › a stored order the function does not know is forgotten, and the form is shown again (4.1s)
+  ok 16 [chromium] › tests\e2e\cart-checkout.spec.ts:783:1 › at the hold's end the view asks the function: a device clock that runs ahead ends nothing, and a hold that is over ends the view (7.2s)
+  ok 17 [chromium] › tests\e2e\cart-checkout.spec.ts:835:1 › when the function says the hold is over, a reload ends the view the same way (8.4s)
+  ok 18 [chromium] › tests\e2e\cart-checkout.spec.ts:849:1 › ACTIVE_HOLD hands the held order back to the same email when the tab lost it, and not to another email (13.2s)
+  ok 19 [chromium] › tests\e2e\cart-checkout.spec.ts:884:1 › the return page without the token says paid, offers no order link, and clears nothing it does not hold (4.5s)
+  ok 20 [chromium] › tests\e2e\cart-checkout.spec.ts:903:1 › the return page ignores a forged status in the address: an unpaid order stays unpaid (2.4s)
+  ok 21 [chromium] › tests\e2e\cart-checkout.spec.ts:930:1 › the return page keeps asking until the provider's payment is settled, then stops asking and only then clears the cart (18.8s)
+  ok 22 [chromium] › tests\e2e\cart-checkout.spec.ts:974:1 › the return page tells a throttle from a lost connection from an unknown order, and «تحديث» asks once more (2.6s)
+  ok 23 [chromium] › tests\e2e\cart-checkout.spec.ts:1029:3 › the return page words a needs_resolution order, and forgets it, keeping the cart (2.3s)
+  ok 24 [chromium] › tests\e2e\cart-checkout.spec.ts:1029:3 › the return page words a review order, and forgets it, keeping the cart (2.2s)
+  ok 25 [chromium] › tests\e2e\cart-checkout.spec.ts:1029:3 › the return page words a refunded order, and forgets it, keeping the cart (2.3s)
+  ok 26 [chromium] › tests\e2e\cart-checkout.spec.ts:1029:3 › the return page words a expired order, and forgets it, keeping the cart (1.4s)
+  ok 27 [chromium] › tests\e2e\cart-checkout.spec.ts:1029:3 › the return page words a cancelled order, and forgets it, keeping the cart (1.5s)
+  ok 28 [chromium] › tests\e2e\cart-checkout.spec.ts:1069:1 › a return page with no order number at all says so and links to the recovery page (2.1s)
+  ok 29 [chromium] › tests\e2e\cart-checkout.spec.ts:1079:1 › while the build's policy revisions differ from the quote's the form says so and stays off (5.0s)
+  ok 30 [chromium] › tests\e2e\cart-checkout.spec.ts:1100:1 › a #test= fragment moves into sessionStorage, leaves the address bar, and rides the quote and nothing else (2.7s)
+  ok 31 [chromium] › tests\e2e\cart-checkout.spec.ts:1114:1 › storage denied still allows a session cart, with the honest note (2.6s)
+  ok 32 [chromium] › tests\e2e\cart-checkout.spec.ts:1132:1 › the store and a product page read without JavaScript (1.6s)
+  ok 33 [chromium] › tests\e2e\cart-checkout.spec.ts:1145:3 › screenshots and overflow at 360 (11.3s)
+[WebServer] [browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+[WebServer] 
+[WebServer] - A server/client branch `if (typeof window !== 'undefined')`.
+[WebServer] - Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+[WebServer] - Date formatting in a user's locale which doesn't match the server.
+[WebServer] - External changing data without sending a snapshot of it along with the HTML.
+[WebServer] - Invalid HTML tag nesting.
+[WebServer] 
+[WebServer] It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+[WebServer] 
+[WebServer] https://react.dev/link/hydration-mismatch
+[WebServer] 
+[WebServer]   ...
+[WebServer]     <RedirectBoundary>
+[WebServer]       <RedirectErrorBoundary router={{...}}>
+[WebServer]         <InnerLayoutRouter url="/store/e2e..." tree={[...]} params={{slug:"e2e-..."}} cacheNode={{rsc:{...}, ...}} ...>
+[WebServer]           <SegmentViewNode type="page" pagePath="(public)/s...">
+[WebServer]             <SegmentTrieNode>
+[WebServer]             <ProductPage>
+[WebServer]               <main id="main" className="store-modu...">
+[WebServer]                 <div>
+[WebServer]                 <header>
+[WebServer]                 <div>
+[WebServer]                 <Band>
+[WebServer]                   <section data-tone="sand" className="band-modul...">
+[WebServer]                     <div>
+[WebServer]                     <noscript>
+[WebServer]                     <ul className="store-modu...">
+[WebServer]                       <li>
+[WebServer]                       <li>
+[WebServer]                       <li className="store-modu...">
+[WebServer]                         <p>
+[WebServer]                         <VariantAction variantId="de902114-e..." label="كتاب الاخت..." price="23.60 ر.س" digital={false} ...>
+[WebServer]                           <p>
+[WebServer]                           <AddToCart variantId="de902114-e..." label="كتاب الاخت..." preorder={false} digital={false}>
+[WebServer]                             <div className="store-modu...">
+[WebServer]                               <label className="store-modu...">
+[WebServer]                                 <span>
+[WebServer]                                 <input
+[WebServer]                                   className="store-module__ji0kVG__quantityInput"
+[WebServer]                                   type="number"
+[WebServer]                                   min={1}
+[WebServer]                                   max={20}
+[WebServer]                                   inputMode="numeric"
+[WebServer]                                   value="1"
+[WebServer]                                   onChange={function onChange}
+[WebServer]                                   onBlur={function onBlur}
+[WebServer] -                                 style={{caret-color:"transparent"}}
+[WebServer]                                 >
+[WebServer]                               ...
+[WebServer]           ...
+[WebServer]         ...
+[WebServer]  
+  ok 34 [chromium] › tests\e2e\cart-checkout.spec.ts:1145:3 › screenshots and overflow at 1440 (11.2s)
+
+  34 passed (4.3m)
