@@ -7,6 +7,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
+import { stepUpError } from './StepUp'
 
 type Enrollment = { factorId: string; qrCode: string; secret: string }
 type State =
@@ -77,7 +78,8 @@ export function MfaEnroll() {
     })
     setBusy(false)
     if (verifyError) {
-      setError('الرمز غير صحيح.')
+      // A lost connection and Auth's attempt limit are not a wrong code (the step-up dialog says them the same way).
+      setError(stepUpError(verifyError.status))
       return
     }
     setState({ status: 'enrolled' })

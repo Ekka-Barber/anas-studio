@@ -9,7 +9,7 @@
  * It opens in three ways: «تسجيل فرق» (a payout or a fee difference, no payment), «تسجيل اعتراض» (a chargeback
  * or another dispute about one attempt or one review payment), and «إضافة متابعة» (the next row of a reference:
  * its reference, kind and payment are those of its first row and are not editable, and it follows its latest
- * row).
+ * row: it starts from that row's decision and lines, so that leaving the form as it is carries a stop on).
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
@@ -21,6 +21,9 @@ import {
   DISPUTE_PAYMENT_KINDS,
   DISPUTE_DIRECTIONS,
   DISPUTE_PROBLEMS,
+  FOLLOW_REPLACES,
+  FOLLOW_WAITS_FOR_LINES,
+  followStart,
   linesFor,
   readDisputeReply,
   riyadhToday,
@@ -37,7 +40,17 @@ type Target = { attemptId?: string; reviewPaymentId?: string }
 export type DisputeMode =
   | { kind: 'difference' }
   | { kind: 'payment'; target: { attemptId: string } | { reviewPaymentId: string } }
-  | { kind: 'follow'; target: Target; providerRef: string; disputeKind: string; follows: number; orderNumber: string | null }
+  | {
+      kind: 'follow'
+      target: Target
+      providerRef: string
+      disputeKind: string
+      follows: number
+      /** The decision and the lines of the latest row, which the follow-up starts from. */
+      decision: string
+      itemIds: readonly string[]
+      orderNumber: string | null
+    }
 
 const TITLES = { difference: 'تسجيل فرق', payment: 'تسجيل اعتراض', follow: 'إضافة متابعة' } as const
 
@@ -60,8 +73,9 @@ export function DisputeForm({
   const [day, setDay] = useState('')
   const [reason, setReason] = useState('')
   const [resolution, setResolution] = useState('')
-  const [decision, setDecision] = useState<string>('none')
-  const [picked, setPicked] = useState<string[]>([])
+  // Null until the owner changes them: a follow-up then shows what it starts from, whatever the lines read so far allow.
+  const [chosen, setChosen] = useState<string | null>(null)
+  const [ticked, setTicked] = useState<string[] | null>(null)
   // The latest day the field offers; the check at the press is made again on the day it is then.
   const [today] = useState(riyadhToday)
   // The control that opened the form still has the focus when the form mounts: «رجوع» removes itself with the form, so it gives it back.
@@ -74,10 +88,16 @@ export function DisputeForm({
   const target: Target = mode.kind === 'difference' ? {} : mode.target
   const hasTarget = target.attemptId !== undefined || target.reviewPaymentId !== undefined
   const decisions = decisionsFor(hasTarget, known)
+  const start = mode.kind === 'follow' ? followStart(mode, hasTarget, known) : { decision: 'none', picked: [] }
+  const decision = chosen ?? start.decision
+  const picked = ticked ?? start.picked
   const fitting = actsOnLines(decision) ? linesFor(decision, known ?? []) : []
 
   function submit(event: FormEvent) {
     event.preventDefault()
+    // A follow-up of a row that names lines (a stop, a revocation) waits for the order's lines: before they are read it could
+    // only start from «بلا إجراء», and sending that would lift the row's decision.
+    if (mode.kind === 'follow' && known === null && actsOnLines(mode.decision)) return money.say('alert', FOLLOW_WAITS_FOR_LINES)
     const built = buildDispute(
       { providerRef: mode.kind === 'follow' ? mode.providerRef : providerRef, kind: mode.kind === 'follow' ? mode.disputeKind : kind, amount, direction, day, reason, resolution, decision, picked },
       target,
@@ -200,9 +220,10 @@ export function DisputeForm({
             id="dispute-decision"
             className={styles.input}
             value={decision}
+            aria-describedby={mode.kind === 'follow' && mode.decision === 'fulfillment_stopped' ? 'dispute-decision-note' : undefined}
             onChange={(event) => {
-              setDecision(event.target.value)
-              setPicked([])
+              setChosen(event.target.value)
+              setTicked([])
             }}
           >
             {decisions.map((option) => (
@@ -211,6 +232,11 @@ export function DisputeForm({
               </option>
             ))}
           </select>
+          {mode.kind === 'follow' && mode.decision === 'fulfillment_stopped' && (
+            <p id="dispute-decision-note" className={styles.message}>
+              {FOLLOW_REPLACES}
+            </p>
+          )}
         </div>
       )}
       {actsOnLines(decision) &&
@@ -224,7 +250,12 @@ export function DisputeForm({
                 <input
                   type="checkbox"
                   checked={picked.includes(line.id)}
-                  onChange={(event) => setPicked((current) => (event.target.checked ? [...current, line.id] : current.filter((entry) => entry !== line.id)))}
+                  onChange={(event) =>
+                    setTicked((current) => {
+                      const now = current ?? picked
+                      return event.target.checked ? [...now, line.id] : now.filter((entry) => entry !== line.id)
+                    })
+                  }
                 />
                 <bdi>{line.name}</bdi>
               </label>

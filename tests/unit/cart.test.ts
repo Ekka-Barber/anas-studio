@@ -1,7 +1,8 @@
 // P07: the cart's pure storage logic (src/lib/cart.ts) — the localStorage
 // format and its guards (DATA "Checkout transaction" step 1), the
 // storage-denied fallback, and the create-request fingerprint that decides
-// when the idempotency key is reused.
+// when the idempotency key is reused. FABLE-AUDIT F3-8 adds the digest of the lines an order was made from, which
+// the hold view and the return page compare the cart with.
 import { randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,8 +19,13 @@ import {
   digestText,
   EMPTY_CART,
   formatRiyadhTime,
+  handedLinesDigest,
+  heldOrder,
   instantOf,
+  linesDigest,
+  orderChanged,
   ORDER_NUMBER,
+  OTHER_REQUEST,
   parseTestFragment,
   pendingOrderOf,
   PENDING_ORDER_KEY,
@@ -39,12 +45,14 @@ import {
   readSavedCoupon,
   removeLine,
   removeLines,
+  returnOrder,
   serializeCart,
   setDedication,
   setQuantity,
   toApiLines,
   type CartArea,
   type CartV1,
+  type PendingOrder,
 } from '../../src/lib/cart'
 
 // The storage bridge keeps the tab's memory cart and a write-failed flag in module state, so the three functions that
@@ -58,6 +66,7 @@ beforeEach(async () => {
 const readCart: typeof fresh.readCart = (...args) => fresh.readCart(...args)
 const writeCart: typeof fresh.writeCart = (...args) => fresh.writeCart(...args)
 const updateStoredCart: typeof fresh.updateStoredCart = (...args) => fresh.updateStoredCart(...args)
+const emptyBoughtCart: typeof fresh.emptyBoughtCart = (...args) => fresh.emptyBoughtCart(...args)
 
 const VARIANT_A = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
 const VARIANT_B = '1b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e'
@@ -523,5 +532,163 @@ describe('P08: the hold\'s clock time and the pending order', () => {
     expect(readPendingOrder()).toBeNull()
     session.setItem(PENDING_ORDER_KEY, 'not json')
     expect(readPendingOrder()).toBeNull()
+  })
+})
+
+describe('F3-8: the order and the cart it was made from', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const token = 'A'.repeat(43)
+  const NUMBER = 'ABCD2345'
+  /** The lines the checkout sent with `create`. */
+  const ordered = [
+    { variantId: VARIANT_A, quantity: 2 },
+    { variantId: VARIANT_B, quantity: 1 },
+  ]
+  const cartOf = (lines: Array<{ variantId: string; quantity: number }>): CartV1 => ({ version: 1, lines })
+
+  /** The tab's storage, with `window` as the cart code needs it. */
+  function tab() {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session, dispatchEvent: () => true })
+    return { session, local: memoryArea() }
+  }
+
+  it('digests the lines one way: variant ids and quantities, whatever the order, the case of the ids or a dedication', () => {
+    const digest = linesDigest(ordered)
+    expect(digest).toMatch(/^[0-9a-f]{16}$/)
+    expect(linesDigest([...ordered].reverse())).toBe(digest)
+    expect(linesDigest(ordered.map((line) => ({ ...line, variantId: line.variantId.toUpperCase() })))).toBe(digest)
+    expect(linesDigest(ordered.map((line) => ({ ...line, dedication: 'إهداء' })))).toBe(digest)
+    expect(linesDigest([{ variantId: VARIANT_A, quantity: 3 }, ordered[1]!])).not.toBe(digest)
+    expect(linesDigest([ordered[0]!])).not.toBe(digest)
+    expect(linesDigest([...ordered, { variantId: VARIANT_C, quantity: 1 }])).not.toBe(digest)
+    expect(linesDigest([])).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('keeps the digest with the pending order, and drops one that cannot be read: it then counts as no digest', () => {
+    const { session } = tab()
+    const order: PendingOrder = { orderNumber: NUMBER, accessToken: token, lines: linesDigest(ordered) }
+    writePendingOrder(order)
+    expect(readPendingOrder()).toEqual(order)
+    for (const lines of [5, null, '', 'zz', 'ABCDEF0123456789', '0123456789abcdef0', {}, ['0123456789abcdef']]) {
+      session.setItem(PENDING_ORDER_KEY, JSON.stringify({ orderNumber: NUMBER, accessToken: token, lines }))
+      expect(readPendingOrder(), JSON.stringify(lines)).toEqual({ orderNumber: NUMBER, accessToken: token })
+    }
+    // The mark of an order handed back to another request is a digest too.
+    expect(pendingOrderOf({ orderNumber: NUMBER, accessToken: token, lines: OTHER_REQUEST })).toEqual({ orderNumber: NUMBER, accessToken: token, lines: OTHER_REQUEST })
+  })
+
+  it('a cart still the order\'s: no warning at the hold, and the return page empties the cart after payment', () => {
+    const { local } = tab()
+    writeCart(cartOf(ordered), local)
+    writePendingOrder({ orderNumber: NUMBER, accessToken: token, lines: linesDigest(ordered) })
+    const pending = readPendingOrder()!
+    expect(orderChanged(pending, readCart(local).cart.lines)).toBe(false)
+    // The return page reads the same digest from the stored order, and spends it.
+    const target = returnOrder(`?order=${NUMBER}`, pending)!
+    expect(target).toEqual({ orderNumber: NUMBER, accessToken: token, lines: linesDigest(ordered) })
+    expect(emptyBoughtCart(target, local)).toBe(true)
+    expect(readCart(local).cart.lines).toEqual([])
+    expect(local.store.get(CART_STORAGE_KEY)).toBe(serializeCart(EMPTY_CART))
+  })
+
+  it('a cart changed after the order: the warning, and the return page leaves the cart as it is', () => {
+    const { local } = tab()
+    const order: PendingOrder = { orderNumber: NUMBER, accessToken: token, lines: linesDigest(ordered) }
+    // A quantity edited, a line added, a line removed, the cart emptied.
+    const edits = [
+      [{ variantId: VARIANT_A, quantity: 3 }, ordered[1]!],
+      [...ordered, { variantId: VARIANT_C, quantity: 1 }],
+      [ordered[0]!],
+      [],
+    ]
+    for (const edited of edits) {
+      writeCart(cartOf(edited), local)
+      expect(orderChanged(order, readCart(local).cart.lines), JSON.stringify(edited)).toBe(true)
+      const before = local.store.get(CART_STORAGE_KEY)
+      expect(emptyBoughtCart(returnOrder(`?order=${NUMBER}`, order)!, local), JSON.stringify(edited)).toBe(false)
+      expect(local.store.get(CART_STORAGE_KEY)).toBe(before)
+    }
+  })
+
+  it('an order stored without a digest behaves as it always did: no warning, and the paid order empties the cart', () => {
+    const { local } = tab()
+    const old: PendingOrder = { orderNumber: NUMBER, accessToken: token }
+    writeCart(cartOf([{ variantId: VARIANT_C, quantity: 7 }]), local)
+    expect(orderChanged(old, readCart(local).cart.lines)).toBe(false)
+    expect(orderChanged(old, [])).toBe(false)
+    const target = returnOrder(`?order=${NUMBER}`, old)!
+    expect(target).toEqual({ orderNumber: NUMBER, accessToken: token })
+    expect(emptyBoughtCart(target, local)).toBe(true)
+    expect(readCart(local).cart.lines).toEqual([])
+    // A number in the address that is not this tab's order has no token, no digest and no say over the cart.
+    expect(returnOrder('?order=KMNP6789', old)).toEqual({ orderNumber: 'KMNP6789', accessToken: null })
+  })
+
+  it('ACTIVE_HOLD handing back an order for another request: the warning, whatever the cart holds, and the cart is kept', () => {
+    const { local } = tab()
+    const handed = pendingOrderOf({ orderNumber: NUMBER, accessToken: token })!
+    // This tab has no record of the order: it was made by a request other than the one just sent.
+    const held = heldOrder(handed, null)!
+    expect(held).toEqual({ orderNumber: NUMBER, accessToken: token, lines: OTHER_REQUEST })
+    writeCart(cartOf(ordered), local)
+    expect(orderChanged(held, readCart(local).cart.lines)).toBe(true)
+    expect(orderChanged(held, [])).toBe(true)
+    expect(emptyBoughtCart(returnOrder(`?order=${NUMBER}`, held)!, local)).toBe(false)
+    expect(readCart(local).cart.lines).toEqual(ordered)
+    // The mark survives a reload of the tab.
+    tab()
+    writePendingOrder(held)
+    expect(readPendingOrder()).toEqual(held)
+  })
+
+  // The auditor's B1: an order handed back to a tab that holds no record of it is no longer assumed to be another
+  // request's. Its own lines (SKUs and quantities) are read through the quote the tab just sent, which carries both.
+  it('ACTIVE_HOLD handing back an order this tab has no record of: compared by its own lines, read through the quote', () => {
+    const { local } = tab()
+    const quoteLines = [
+      { sku: 'SKU-A', variantId: VARIANT_A },
+      { sku: 'SKU-B', variantId: VARIANT_B },
+    ]
+    const orderLines = [
+      { sku: 'SKU-B', quantity: 1 },
+      { sku: 'SKU-A', quantity: 2 },
+    ]
+    // The cart the order was made from: the same digest, so no warning, and the paid order empties the cart.
+    const same = handedLinesDigest(orderLines, quoteLines)
+    expect(same).toBe(linesDigest(ordered))
+    const held = heldOrder(pendingOrderOf({ orderNumber: NUMBER, accessToken: token, lines: same })!, null)!
+    expect(held).toEqual({ orderNumber: NUMBER, accessToken: token, lines: same })
+    writeCart(cartOf(ordered), local)
+    expect(orderChanged(held, readCart(local).cart.lines)).toBe(false)
+    expect(emptyBoughtCart(returnOrder(`?order=${NUMBER}`, held)!, local)).toBe(true)
+    expect(readCart(local).cart.lines).toEqual([])
+    // A quantity changed since the order: the warning.
+    const fewer = handedLinesDigest([{ sku: 'SKU-A', quantity: 1 }, { sku: 'SKU-B', quantity: 1 }], quoteLines)
+    expect(orderChanged(heldOrder(pendingOrderOf({ orderNumber: NUMBER, accessToken: token, lines: fewer })!, null)!, ordered)).toBe(true)
+    // A line the quote does not hold: the order was made from other lines.
+    expect(handedLinesDigest([...orderLines, { sku: 'SKU-C', quantity: 1 }], quoteLines)).toBe(OTHER_REQUEST)
+    // An old record of the same order, stored without a digest, stays without one whatever the handed lines say.
+    expect(heldOrder(pendingOrderOf({ orderNumber: NUMBER, accessToken: token, lines: same })!, { orderNumber: NUMBER, accessToken: token })).toEqual({
+      orderNumber: NUMBER,
+      accessToken: token,
+    })
+  })
+
+  it('ACTIVE_HOLD for an order this tab stored itself keeps that record: its digest decides, as before', () => {
+    const mine: PendingOrder = { orderNumber: NUMBER, accessToken: token, lines: linesDigest(ordered) }
+    const handed = pendingOrderOf({ orderNumber: NUMBER, accessToken: token })!
+    expect(heldOrder(handed, mine)).toEqual(mine)
+    expect(orderChanged(heldOrder(handed, mine)!, ordered)).toBe(false)
+    // An old record without a digest stays without one: today's behaviour.
+    const old: PendingOrder = { orderNumber: NUMBER, accessToken: token }
+    expect(heldOrder(handed, old)).toEqual(old)
+    // Another order stored here is not this one: the handed order is for another request.
+    const other = { orderNumber: 'KMNP6789', accessToken: token, lines: linesDigest(ordered) }
+    expect(heldOrder(handed, other)).toEqual({ orderNumber: NUMBER, accessToken: token, lines: OTHER_REQUEST })
+    // No order handed back (the email was not the held order's own): this tab's record, if any.
+    expect(heldOrder(null, mine)).toEqual(mine)
+    expect(heldOrder(null, null)).toBeNull()
   })
 })

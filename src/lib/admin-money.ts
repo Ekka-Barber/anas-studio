@@ -69,6 +69,10 @@ export const DISPUTE_PROBLEMS = {
   lines: 'اختر بندًا واحدًا على الأقل.',
   noLines: 'لا توجد بنود في هذا الطلب يناسبها هذا القرار.',
 } as const
+/** Said under the decision of a follow-up whose reference's latest row stops the shipping: the stop belongs to a reference's latest row alone. */
+export const FOLLOW_REPLACES = 'قرار هذا السجل يحل محل القرار السابق للمرجع؛ «بلا إجراء» يرفع إيقاف الشحن.'
+/** A follow-up of a row that names lines, pressed before the order's lines are read (it could only start from «بلا إجراء»). */
+export const FOLLOW_WAITS_FOR_LINES = 'لم تُحمَّل عناصر الطلب بعد؛ انتظر لحظة ثم أعد المحاولة.'
 
 // ---------------------------------------------------------------------------
 // What a refund can still take
@@ -545,6 +549,27 @@ export function linesFor(decision: string, lines: readonly DisputeLine[]): Dispu
 export function decisionsFor(hasTarget: boolean, lines: readonly DisputeLine[] | null): Array<(typeof DISPUTE_DECISIONS)[number]> {
   if (!hasTarget) return ['none']
   return lines === null ? ['none', 'entitlement_kept'] : [...DISPUTE_DECISIONS]
+}
+
+/**
+ * What a follow-up starts from: the decision of the reference's latest row and the lines it named, as far as the
+ * form can still offer them (a decision not on offer yet, or an item that is no longer a line that decision can
+ * name, is dropped). Starting from «بلا إجراء» would end a «إيقاف الشحن» without a word: the stop belongs to the
+ * latest row of a reference alone, so a follow-up has to carry it on.
+ */
+export function followStart(
+  latest: { decision: string; itemIds: readonly string[] },
+  hasTarget: boolean,
+  lines: readonly DisputeLine[] | null,
+): { decision: string; picked: string[] } {
+  const offered: readonly string[] = decisionsFor(hasTarget, lines)
+  const decision = offered.includes(latest.decision) ? latest.decision : 'none'
+  return {
+    decision,
+    picked: linesFor(decision, lines ?? [])
+      .filter((line) => latest.itemIds.includes(line.id))
+      .map((line) => line.id),
+  }
 }
 
 /** Riyadh is UTC+3 all year: the calendar day the owner is living in, as `YYYY-MM-DD`. */

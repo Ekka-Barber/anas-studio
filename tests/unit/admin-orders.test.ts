@@ -9,6 +9,7 @@
 // owner's re-send of an order's link (its body and every answer, read by `src/lib/admin-money.ts`).
 // FABLE-AUDIT F3-4 adds the shipping button's two calls: «تم الشحن» (`fulfillment_update`) and «تصحيح بيانات
 // الشحن» (`fulfillment_correct`, round M2), and the sentence of a stale «تم الشحن».
+// FABLE-AUDIT F3-16 (d) adds `settleAction`, the call of an order action whose order is read again whatever it answered.
 // The screens themselves are proven in tests/e2e/orders-admin.spec.ts and tests/e2e/orders-money.spec.ts.
 import { describe, expect, it, vi } from 'vitest'
 
@@ -29,6 +30,7 @@ import {
   isUuid,
   labelOf,
   NEEDS_REASON,
+  NO_PERMISSION,
   normalizeOrderQuery,
   ORDER_FILTER_LABELS,
   ORDER_FILTERS,
@@ -49,9 +51,11 @@ import {
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
+  settleAction,
   shipCall,
   SHIPPED_BEFORE,
   STOPPED_BADGE,
+  type CallReply,
   type OrderAction,
   type Refusal,
 } from '../../src/lib/admin-orders'
@@ -984,5 +988,76 @@ describe('the re-send of an order\'s link', () => {
       expect(readReissueReply({ ok: true, data }), JSON.stringify(data)).toEqual({ line: 'alert', text: BAD_REPLY })
     }
     expect(readReissueReply({ ok: false } as unknown as FunctionResult<unknown>)).toEqual({ line: 'alert', text: BAD_REPLY })
+  })
+})
+
+describe('one call of an order action, the order read again whatever it answered (FABLE-AUDIT F3-16 d)', () => {
+  /** A call that answers `reply`, and one that throws; the reread says whether the reading failed. */
+  const answering = (reply: CallReply) => () => Promise.resolve(reply)
+  const run = async (call: () => PromiseLike<CallReply>, reads: { failed: boolean | 'throws' } = { failed: false }) => {
+    const order: string[] = []
+    const outcome = await settleAction<string>({
+      call: () => {
+        order.push('call')
+        return call()
+      },
+      reread: async () => {
+        order.push('reread')
+        if (reads.failed === 'throws') throw new Error('network')
+        return reads.failed
+      },
+      done: (reply) => {
+        order.push('done')
+        return `تم: ${reply.changed}`
+      },
+      refused: (reply) => {
+        order.push('refused')
+        return `رُفض: ${reply.code}`
+      },
+    })
+    return { outcome, order }
+  }
+
+  it('says what the call did and reads the order once, after the call', async () => {
+    const done = await run(answering({ data: { ok: true, changed: 2 }, error: null }))
+    expect(done.outcome).toEqual({ line: 'status', text: 'تم: 2', unread: false })
+    expect(done.order).toEqual(['call', 'done', 'reread'])
+    const refused = await run(answering({ data: { ok: false, code: 'BAD_TRANSITION' }, error: null }))
+    expect(refused.outcome).toEqual({ line: 'alert', text: 'رُفض: BAD_TRANSITION', unread: false })
+    expect(refused.order).toEqual(['call', 'refused', 'reread'])
+  })
+
+  it('reads the order again after a call that threw, and still says «تعذّر الحفظ» (the reply may have been lost after the SQL committed)', async () => {
+    const lost = await run(() => Promise.reject(new Error('Failed to fetch')))
+    expect(lost.outcome).toEqual({ line: 'alert', text: SAVE_FAILED, unread: false })
+    expect(lost.order).toEqual(['call', 'reread'])
+  })
+
+  it('reads the order again after an error that carries no reply (supabase-js reports a dropped connection as an error with an empty code) and after a refusal of the role', async () => {
+    const dropped = await run(answering({ data: null, error: { code: '' } }))
+    expect(dropped.outcome).toEqual({ line: 'alert', text: SAVE_FAILED, unread: false })
+    expect(dropped.order).toEqual(['call', 'reread'])
+    const noRole = await run(answering({ data: null, error: { code: '42501' } }))
+    expect(noRole.outcome).toEqual({ line: 'alert', text: NO_PERMISSION, unread: false })
+    expect(noRole.order).toEqual(['call', 'reread'])
+  })
+
+  it('never reads a reply it cannot read as done or as refused, and reads the order again', async () => {
+    for (const data of [null, {}, { ok: 'yes' }, { ok: false }, { ok: true, changed: 'two' }]) {
+      const unreadable = await run(answering({ data, error: null }))
+      expect(unreadable.outcome, JSON.stringify(data)).toEqual({ line: 'alert', text: SAVE_FAILED, unread: false })
+      expect(unreadable.order, JSON.stringify(data)).toEqual(['call', 'reread'])
+    }
+  })
+
+  it('says a failed reading after the sentence, for each way the call can end (the screen appends REREAD_FAILED to it)', async () => {
+    expect((await run(answering({ data: { ok: true, changed: 1 }, error: null }), { failed: true })).outcome).toEqual({ line: 'status', text: 'تم: 1', unread: true })
+    expect((await run(() => Promise.reject(new Error('Failed to fetch')), { failed: true })).outcome).toEqual({ line: 'alert', text: SAVE_FAILED, unread: true })
+    expect((await run(answering({ data: null, error: { code: '' } }), { failed: true })).outcome).toEqual({ line: 'alert', text: SAVE_FAILED, unread: true })
+  })
+
+  it('counts a reading that threw as a reading that failed, and never rejects (the screen would stay busy)', async () => {
+    const threw = await run(answering({ data: { ok: true, changed: 1 }, error: null }), { failed: 'throws' })
+    expect(threw.outcome).toEqual({ line: 'status', text: 'تم: 1', unread: true })
   })
 })

@@ -20,17 +20,20 @@
  * `create` sends one `checkoutSession` per tab and an `idempotencyKey` reused
  * only when retrying the identical request (a digest of it, kept with the key
  * in sessionStorage so a reload keeps the retry) after a network failure.
- * Success keeps `{orderNumber, accessToken}` in sessionStorage only and
- * never clears the cart (DATA step 5: nothing settles before payment
- * verification). The hold view (`HoldView.tsx`, loaded on demand: the page's
- * first script is at the public budget) then shows the order, the time the
- * hold ends and, per the reply's `payment`, «ادفع الآن» (a plain link to the
- * invoice), a retry (`pay`) or why payment cannot start; after a reload one
+ * Success keeps `{orderNumber, accessToken}` and a digest of the lines the order
+ * was made from in sessionStorage only, and never clears the cart (DATA step 5:
+ * nothing settles before payment verification). The hold view (`HoldView.tsx`,
+ * loaded on demand: the page's first script is at the public budget) then shows
+ * the order, the time the hold ends and, per the reply's `payment`, «ادفع الآن»
+ * (a plain link to the invoice), a retry (`pay`) or why payment cannot start; after a reload one
  * `pay` brings the same view back. It tells this form when the order ends
  * (cancelled, expired, hold over) or is not found, and the stored order is
  * forgotten then; it is kept when a payment of it arrived: the return page
  * clears the cart and the order on `paid`. A preorder line shows its date and
- * note in the summary before the buyer confirms.
+ * note in the summary before the buyer confirms. When the cart is no longer what
+ * the stored order was made from (its digest), or an ACTIVE_HOLD handed back an
+ * order for another request, the hold view says the order was made before the
+ * buyer's edit (`orderChanged`, `heldOrder` in `src/lib/cart.ts`).
  */
 
 import Link from 'next/link'
@@ -47,9 +50,13 @@ import {
   digestText,
   fingerprintCreate,
   formatRiyadhTime,
+  handedLinesDigest,
+  heldOrder,
   instantOf,
+  linesDigest,
   MAX_COUPON,
   normalizeCoupon,
+  orderChanged,
   pendingOrderOf,
   phoneToSend,
   readIdempotency,
@@ -384,7 +391,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         }
         // A duplicate reply for an order that already ended is no live hold: the hold view shows it closed and
         // tells this form, which forgets the key, so its token stays out of storage and the next order gets a new key.
-        const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: accessToken ?? '' }
+        const saved: PendingOrder = { orderNumber: order.orderNumber, accessToken: accessToken ?? '', lines: linesDigest(core.lines) }
         if (accessToken && !over) writePendingOrder(saved)
         const reported = reply.data.payment === undefined ? null : parsePayment(reply.data.payment)
         setStart({ order, payment: reported })
@@ -429,7 +436,18 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         const fields = error.fields ?? {}
         const handedNumber =
           typeof fields.order === 'object' && fields.order !== null ? (fields.order as { orderNumber?: unknown }).orderNumber : undefined
-        const mine = pendingOrderOf({ orderNumber: handedNumber, accessToken: fields.accessToken }) ?? readPendingOrder()
+        // An order handed back to a tab with no record of it is compared with this cart by its own lines, read through the
+        // quote just sent (`handedLinesDigest`); one whose lines cannot be read carries OTHER_REQUEST (`heldOrder`).
+        let handedLines: string | undefined
+        try {
+          handedLines = handedLinesDigest(orderSchema.parse(fields.order).lines, quote.lines)
+        } catch {
+          handedLines = undefined
+        }
+        const mine = heldOrder(
+          pendingOrderOf({ orderNumber: handedNumber, accessToken: fields.accessToken, lines: handedLines }),
+          readPendingOrder(),
+        )
         if (mine) {
           writePendingOrder(mine)
           setStart(null)
@@ -468,6 +486,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
           start={start}
           testMode={quote?.testMode === true}
           focusOnOpen={openedByBuyer}
+          changed={orderChanged(pending, cart?.lines ?? [])}
           onEnd={endKey}
           onForget={forget}
         />
@@ -791,10 +810,13 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
             نحدّث السياسات الآن؛ حاول بعد قليل.
           </p>
         )}
+        {/* `disabled` only for what cannot change by itself (no check, a stale summary, no city, policies being updated); while
+            a press is being sent it is aria-disabled, so the button keeps the focus (`submit` returns early when submitting). */}
         <ActionButton
           type="submit"
           className={styles.submit}
-          disabled={!turnstileAvailable || submitting || waiting || stale || noCities || policiesStale}
+          disabled={!turnstileAvailable || stale || noCities || policiesStale}
+          aria-disabled={submitting || waiting || undefined}
         >
           {submitting || waiting ? 'جارٍ الإرسال…' : 'تأكيد الطلب'}
         </ActionButton>

@@ -3,7 +3,9 @@
 /**
  * The owner home (P06 round 2): real pending work, each count from a real
  * query under RLS, each item linking to its screen. A failed query shows
- * «تعذّر التحميل» — never 0 (D21: unavailable is unavailable, not zero).
+ * «تعذّر التحميل» — never 0 (D21: unavailable is unavailable, not zero). What
+ * has gone wrong (a failed job run, a scheduled job that failed, a publish
+ * whose time has passed) is drawn in the problem style, not as a grey fact.
  * Contact messages are not counted here: they arrive in the owner's own
  * mailbox (D31).
  */
@@ -81,6 +83,54 @@ interface JobRun {
   /** The run's own summary; `reason` says why a partial or skipped run did less. */
   detail?: { reason?: string } | null
   finished_at: string
+}
+
+/** A job's last run as its line prints it: the status and when it ended. A failed run is a problem, not a grey fact. */
+export function jobRunLine(run: JobRun): { text: string; problem: boolean } {
+  return { text: `${JOB_STATUS_LABEL[run.status] ?? run.status} (${formatRiyadh(run.finished_at)})`, problem: run.status === 'failed' }
+}
+
+/** A pending schedule counts as passed once its time is this far back: the minute job needs a moment to publish it. */
+export const SCHEDULE_GRACE_MS = 5 * 60 * 1000
+
+/** The time before which a pending schedule is overdue, as the queries compare it. */
+export function scheduleCutoff(now: number = Date.now()): string {
+  return new Date(now - SCHEDULE_GRACE_MS).toISOString()
+}
+
+/** A schedule whose time has passed is not waiting any more: nothing publishes it. */
+export function overdueText(at: string): string {
+  return `موعد النشر فات: ${formatRiyadh(at)}`
+}
+
+/** One scheduled job that failed in the last 24 hours (`cron_failures_recent()`: its name, how often, and when it last did). */
+export interface CronFailure {
+  jobname: string
+  failures: number
+  lastFailedAt: string
+}
+
+/**
+ * `cron_failures_recent()`'s array, the latest failure first (`[]` when nothing failed). A reply that is not that array is
+ * no reading (null), never an empty list: an empty list says the jobs are healthy.
+ */
+export function parseCronFailures(value: unknown): CronFailure[] | null {
+  if (!Array.isArray(value)) return null
+  const rows: CronFailure[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) return null
+    const { jobname, failures, lastFailedAt } = entry as Record<string, unknown>
+    if (typeof jobname !== 'string' || jobname === '') return null
+    if (typeof failures !== 'number' || !Number.isInteger(failures) || failures < 1) return null
+    if (typeof lastFailedAt !== 'string' || Number.isNaN(Date.parse(lastFailedAt))) return null
+    rows.push({ jobname, failures, lastFailedAt })
+  }
+  return rows
+}
+
+/** The home's line for one failing scheduled job. */
+export function cronFailureText(row: CronFailure): string {
+  return `مهام مجدولة فشلت خلال 24 ساعة: ${row.jobname} ×${formatNumber(row.failures)} (آخرها ${formatRiyadh(row.lastFailedAt)})`
 }
 
 type PublishFailure = { collection: string; docId: string }
@@ -170,7 +220,13 @@ export function AdminHome() {
   const [jobRuns, setJobRuns] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: Partial<Record<string, string | null>> }
   >({ state: 'loading' })
+  // The documents still waiting for their time, and the oldest pending schedule whose time has passed (null: none).
   const [scheduled, setScheduled] = useState<Count>(LOADING)
+  const [overdue, setOverdue] = useState<string | null>(null)
+  // The scheduled jobs (pg_cron) that failed in the last 24 hours; a failed read shows its own line, the rest of the home stands.
+  const [cronFailures, setCronFailures] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: CronFailure[] }>({
+    state: 'loading',
+  })
   const [orders, setOrders] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: OrdersAlerts }>({
     state: 'loading',
   })
@@ -236,12 +292,26 @@ export function AdminHome() {
 
     async function loadScheduled() {
       const supabase = getSupabaseBrowserClient()
-      const { count, error } = await supabase
-        .from('content_documents')
-        .select('doc_id', { count: 'exact', head: true })
-        .not('scheduled_at', 'is', null)
+      const cutoff = scheduleCutoff()
+      const [waiting, late] = await Promise.all([
+        supabase.from('content_documents').select('doc_id', { count: 'exact', head: true }).gt('scheduled_at', cutoff),
+        supabase.from('content_documents').select('scheduled_at').lte('scheduled_at', cutoff).order('scheduled_at', { ascending: true }).limit(1),
+      ])
       if (!active) return
-      setScheduled(error || count === null ? { state: 'error' } : { state: 'ok', value: count })
+      if (waiting.error || waiting.count === null || late.error) {
+        setScheduled({ state: 'error' })
+        return
+      }
+      setScheduled({ state: 'ok', value: waiting.count })
+      setOverdue((late.data as Array<{ scheduled_at: string }> | null)?.[0]?.scheduled_at ?? null)
+    }
+
+    async function loadCronFailures() {
+      const supabase = getSupabaseBrowserClient()
+      const { data, error } = await supabase.rpc('cron_failures_recent')
+      if (!active) return
+      const rows = error ? null : parseCronFailures(data)
+      setCronFailures(rows === null ? { state: 'error' } : { state: 'ok', value: rows })
     }
 
     async function loadPublishFailures() {
@@ -298,7 +368,7 @@ export function AdminHome() {
 
       // A role that never sees a section does not ask for it: the call would be refused.
       const jobs: Promise<void>[] = []
-      if (role === 'owner' || role === 'operations') jobs.push(loadEmail(), loadJobs(), loadOrders())
+      if (role === 'owner' || role === 'operations') jobs.push(loadEmail(), loadJobs(), loadOrders(), loadCronFailures())
       if (role === 'owner' || role === 'editor') jobs.push(loadScheduled())
       if (role === 'owner') jobs.push(loadPublishFailures())
       if (role === 'owner' && sessionData.session) jobs.push(loadVisits())
@@ -392,19 +462,34 @@ export function AdminHome() {
               {KNOWN_JOBS.map((job) => {
                 const run = jobRuns.value.find((row) => row.job === job)
                 const problem = jobProblem(job, run, jobRuns.dueSince[job] ?? null)
+                const last = run ? jobRunLine(run) : null
                 return (
                   <li key={job}>
                     {JOB_LABEL[job] ?? job}:{' '}
                     {problem ? (
                       <span className={styles.error}>{problem}</span>
-                    ) : run ? (
-                      `${JOB_STATUS_LABEL[run.status] ?? run.status} (${formatRiyadh(run.finished_at)})`
+                    ) : last ? (
+                      last.problem ? (
+                        <span className={styles.error}>{last.text}</span>
+                      ) : (
+                        last.text
+                      )
                     ) : (
                       JOB_NEVER_TEXT[job] ?? 'لم يعمل بعد'
                     )}
                   </li>
                 )
               })}
+            </ul>
+          )}
+          {cronFailures.state === 'error' && <p className={styles.error}>تعذّر التحقق من المهام المجدولة.</p>}
+          {cronFailures.state === 'ok' && cronFailures.value.length > 0 && (
+            <ul className={styles.metaList}>
+              {cronFailures.value.map((row) => (
+                <li key={row.jobname}>
+                  <span className={styles.error}>{cronFailureText(row)}</span>
+                </li>
+              ))}
             </ul>
           )}
         </section>
@@ -414,6 +499,7 @@ export function AdminHome() {
         <section>
           <h2>المحتوى المجدول</h2>
           <p>مستندات تنتظر موعد النشر: {countText(scheduled)}</p>
+          {overdue !== null && <p className={styles.error}>{overdueText(overdue)}</p>}
           {own?.role === 'owner' && publishFailed.state === 'error' && (
             <p className={styles.error}>تعذّر التحقق من نجاح النشر المجدول.</p>
           )}

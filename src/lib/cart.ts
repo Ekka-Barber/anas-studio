@@ -466,10 +466,14 @@ export function builtPolicyRevisions(
 /** Seconds after the return page opened at which it asks `verify`; «تحديث» takes over after the last. */
 export const VERIFY_SCHEDULE_SECONDS = [0, 2, 4, 8, 15, 30] as const
 
-/** The order the return page is about, and the token this tab may use for it (null: it holds none). */
+/**
+ * The order the return page is about, and the token this tab may use for it (null: it holds none). `lines` is the
+ * digest of the lines the stored order was made from, when this tab stored the order with one.
+ */
 export interface ReturnTarget {
   orderNumber: string
   accessToken: string | null
+  lines?: string
 }
 
 /**
@@ -477,13 +481,14 @@ export interface ReturnTarget {
  * first 8 characters (upper-cased) are an order number, since the payment page
  * may append its own parameters after it; else this tab's stored pending
  * order; else none. The token is the stored order's, and only when its number
- * is the same. Nothing else in the address is read.
+ * is the same, and so is its digest of the ordered lines. Nothing else in the address is read.
  */
 export function returnOrder(search: string, stored: PendingOrder | null): ReturnTarget | null {
   const queried = new URLSearchParams(search).get('order')?.slice(0, 8).toUpperCase() ?? ''
   const orderNumber = ORDER_NUMBER.test(queried) ? queried : (stored?.orderNumber ?? null)
   if (orderNumber === null) return null
-  return { orderNumber, accessToken: stored?.orderNumber === orderNumber ? stored.accessToken : null }
+  const own = stored?.orderNumber === orderNumber ? stored : null
+  return { orderNumber, accessToken: own?.accessToken ?? null, ...(own?.lines === undefined ? {} : { lines: own.lines }) }
 }
 
 /**
@@ -500,6 +505,17 @@ export function returnRelease(state: string): 'cart' | 'order' | null {
   return null
 }
 
+/**
+ * The return page spending a paid order: it empties the cart that bought it (true), but only while the cart is still
+ * that one. Lines the buyer changed since were never bought and are not theirs to lose (false). An order stored
+ * without a digest of its lines is read as it always was: the cart is emptied.
+ */
+export function emptyBoughtCart(target: ReturnTarget, area: CartArea = cartArea()): boolean {
+  if (orderChanged(target, readCart(area).cart.lines)) return false
+  writeCart(EMPTY_CART, area)
+  return true
+}
+
 /** The buyer's checkout session id, one per tab, minted once. */
 export function checkoutSession(): string {
   const existing = readSessionValue(CHECKOUT_SESSION_KEY)
@@ -512,17 +528,80 @@ export function checkoutSession(): string {
 export interface PendingOrder {
   orderNumber: string
   accessToken: string
+  /**
+   * The digest of the lines the order was made from (`linesDigest`), or `OTHER_REQUEST`. Absent on an order this
+   * browser stored before the digest existed: such an order is read as it always was (nothing to compare).
+   */
+  lines?: string
 }
 
-/** An order number and a token in the shapes the function issues, or null (what `ACTIVE_HOLD` hands back, or what storage holds). */
-export function pendingOrderOf(value: { orderNumber?: unknown; accessToken?: unknown }): PendingOrder | null {
+/** The mark of an order an `ACTIVE_HOLD` handed back to a tab that did not send its request: its lines are not this tab's cart. */
+export const OTHER_REQUEST = 'other-request'
+const LINES_DIGEST = /^[0-9a-f]{16}$/
+
+/**
+ * The lines an order is made from, as one short string: their variant ids and quantities, sorted. The one place that
+ * writes it: what the checkout stores with the order and what the hold view and the return page compare the cart with.
+ */
+export function linesDigest(lines: ReadonlyArray<{ variantId: string; quantity: number }>): string {
+  return digestText(
+    lines
+      .map((line) => `${line.variantId.toLowerCase()}:${line.quantity}`)
+      .sort()
+      .join(','),
+  )
+}
+
+/**
+ * Whether the cart is no longer what the pending order was made from. An order with no digest (stored before it
+ * existed, or with one that could not be read: `pendingOrderOf` drops it) has nothing to compare, and is not changed.
+ */
+export function orderChanged(order: { lines?: string }, cartLines: ReadonlyArray<{ variantId: string; quantity: number }>): boolean {
+  return order.lines !== undefined && (order.lines === OTHER_REQUEST || order.lines !== linesDigest(cartLines))
+}
+
+/**
+ * The digest of the lines of an order an `ACTIVE_HOLD` handed back. Its lines name a SKU, not a variant, so they are
+ * read through the quote this tab just sent, whose lines carry both (an order has one line per variant); a SKU the
+ * quote does not hold means the order was made from other lines: `OTHER_REQUEST`.
+ */
+export function handedLinesDigest(
+  orderLines: ReadonlyArray<{ sku: string; quantity: number }>,
+  quoteLines: ReadonlyArray<{ sku: string; variantId: string }>,
+): string {
+  const lines: Array<{ variantId: string; quantity: number }> = []
+  for (const line of orderLines) {
+    const match = quoteLines.find((candidate) => candidate.sku === line.sku)
+    if (match === undefined) return OTHER_REQUEST
+    lines.push({ variantId: match.variantId, quantity: line.quantity })
+  }
+  return linesDigest(lines)
+}
+
+/**
+ * The pending order an `ACTIVE_HOLD` gives this tab: the order the function handed back, else the one this tab
+ * stored. This tab's own record of the same order keeps its digest, and one stored before digests existed stays as it
+ * always was (none). An order the tab holds no record of is compared by the digest of its own lines
+ * (`handedLinesDigest`, which the caller puts on `handed`), or carries `OTHER_REQUEST` when it has none to compare.
+ */
+export function heldOrder(handed: PendingOrder | null, stored: PendingOrder | null): PendingOrder | null {
+  if (handed === null) return stored
+  if (stored?.orderNumber === handed.orderNumber) {
+    return stored.lines === undefined ? { orderNumber: handed.orderNumber, accessToken: handed.accessToken } : { ...handed, lines: stored.lines }
+  }
+  return { ...handed, lines: handed.lines ?? OTHER_REQUEST }
+}
+
+/** An order number and a token in the shapes the function issues, or null (what `ACTIVE_HOLD` hands back, or what storage holds). A digest that is not one is dropped. */
+export function pendingOrderOf(value: { orderNumber?: unknown; accessToken?: unknown; lines?: unknown }): PendingOrder | null {
   if (
     typeof value.orderNumber === 'string' &&
     typeof value.accessToken === 'string' &&
     ORDER_NUMBER.test(value.orderNumber) &&
     /^[A-Za-z0-9_-]{43}$/.test(value.accessToken)
   ) {
-    return { orderNumber: value.orderNumber, accessToken: value.accessToken }
+    const readable = typeof value.lines === 'string' && (LINES_DIGEST.test(value.lines) || value.lines === OTHER_REQUEST)
+    return { orderNumber: value.orderNumber, accessToken: value.accessToken, ...(readable ? { lines: value.lines as string } : {}) }
   }
   return null
 }
@@ -532,7 +611,7 @@ export function readPendingOrder(): PendingOrder | null {
   const raw = readSessionValue(PENDING_ORDER_KEY)
   if (typeof raw !== 'string') return null
   try {
-    return pendingOrderOf(JSON.parse(raw) as { orderNumber?: unknown; accessToken?: unknown })
+    return pendingOrderOf(JSON.parse(raw) as { orderNumber?: unknown; accessToken?: unknown; lines?: unknown })
   } catch {
     // Fall through: an unreadable value is no pending order.
   }

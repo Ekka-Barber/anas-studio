@@ -6,7 +6,9 @@
  * An uncertain row whose idempotency key expired may already have been
  * delivered, so replaying it opens a native `<dialog>` with a mandatory
  * confirmation checkbox. A suppressed recipient's refusal (SQLSTATE 23514)
- * is shown as the Arabic message from `docs/operations.md`.
+ * is shown as the Arabic message from `docs/operations.md`. The same rows can
+ * be closed (`outbox_close`, FABLE-AUDIT F3-18): «إغلاق» asks first, and the
+ * closed mail leaves the list and is never sent.
  */
 import { useEffect, useRef, useState } from 'react'
 
@@ -68,6 +70,28 @@ type ProblemFilter = 'all' | 'attention' | 'ended'
 const PROBLEM_FILTERS: ProblemFilter[] = ['all', 'attention', 'ended']
 const PROBLEM_FILTER_LABEL: Record<ProblemFilter, string> = { all: 'الكل', attention: 'تحتاج تدخل', ended: 'انتهت' }
 
+export const CLOSE_CONFIRM = 'إغلاق الرسالة يخرجها من القائمة ولا تُرسل بعد ذلك. متابعة؟'
+export const CLOSED_MESSAGE = 'أُغلقت الرسالة.'
+const CLOSE_FAILED_MESSAGE = 'تعذّر إغلاق الرسالة.'
+
+/**
+ * What a call of `outbox_close` came to, in this screen's words: the row is closed; the list is out of date (the row
+ * changed meanwhile, `BAD_STATUS`, or is gone, `NOT_FOUND`: the list is read again and the notice says so); or a
+ * sentence for the row itself (42501 is a staff member who may not close mail, anything else a failure).
+ */
+export type CloseResult = { kind: 'closed' } | { kind: 'stale' } | { kind: 'failed'; message: string }
+
+export function closeResult(reply: { data: unknown; error: { code?: string } | null }): CloseResult {
+  if (reply.error) return { kind: 'failed', message: reply.error.code === '42501' ? NO_ACCESS_MESSAGE : CLOSE_FAILED_MESSAGE }
+  const data = reply.data
+  if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+    const { ok, code } = data as { ok?: unknown; code?: unknown }
+    if (ok === true) return { kind: 'closed' }
+    if (ok === false && (code === 'BAD_STATUS' || code === 'NOT_FOUND')) return { kind: 'stale' }
+  }
+  return { kind: 'failed', message: CLOSE_FAILED_MESSAGE }
+}
+
 export function EmailView() {
   const role = useStaffRole()
   // The mail screens are for the owner and operations (the nav hides them from editors).
@@ -119,6 +143,31 @@ export function EmailView() {
     await load()
     // The row and its focused button are gone: focus and announce the result here.
     setNotice(REPLAYED_MESSAGE)
+    headingRef.current?.focus()
+  }
+
+  /** «إغلاق»: the mail needs nothing more and leaves the list. Asked first; a press while another row is being worked on does nothing. */
+  async function close(id: number) {
+    if (busyId !== null) return
+    if (!window.confirm(CLOSE_CONFIRM)) return
+    setBusyId(id)
+    setRowError(null)
+    setNotice(null)
+    const supabase = getSupabaseBrowserClient()
+    const result = closeResult(await supabase.rpc('outbox_close', { p_id: id }))
+    setBusyId(null)
+    if (result.kind === 'stale') {
+      setNotice(STALE_MESSAGE)
+      await load()
+      return
+    }
+    if (result.kind === 'failed') {
+      setRowError({ id, message: result.message })
+      return
+    }
+    await load()
+    // The row and its focused button are gone: focus and announce the result here, as a replay does.
+    setNotice(CLOSED_MESSAGE)
     headingRef.current?.focus()
   }
 
@@ -247,15 +296,27 @@ export function EmailView() {
                   </td>
                   <td data-label="إجراء">
                     {REPLAYABLE_STATUSES.has(row.status) ? (
-                      <button
-                        type="button"
-                        className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
-                        aria-label={`إعادة الإرسال: ${row.recipient}`}
-                        disabled={busyId === row.id}
-                        onClick={() => startReplay(row)}
-                      >
-                        إعادة الإرسال
-                      </button>
+                      <div className={styles.row}>
+                        <button
+                          type="button"
+                          className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
+                          aria-label={`إعادة الإرسال: ${row.recipient}`}
+                          disabled={busyId === row.id}
+                          onClick={() => startReplay(row)}
+                        >
+                          إعادة الإرسال
+                        </button>
+                        {/* aria-disabled, not disabled: the button keeps the focus while its own call runs. */}
+                        <button
+                          type="button"
+                          className={`${styles.buttonSecondary} ${styles.cellNowrap}`}
+                          aria-label={`إغلاق: ${row.recipient}`}
+                          aria-disabled={busyId !== null || undefined}
+                          onClick={() => void close(row.id)}
+                        >
+                          إغلاق
+                        </button>
+                      </div>
                     ) : (
                       NONE
                     )}

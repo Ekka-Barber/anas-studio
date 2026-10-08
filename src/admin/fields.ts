@@ -45,8 +45,10 @@ interface FieldBase {
 
 export type Field =
   | (FieldBase & {
-      type: 'paragraphs' | 'boolean' | 'image' | 'video' | 'relation' | 'richtext'
+      type: 'paragraphs' | 'image' | 'video' | 'relation' | 'richtext'
     })
+  // `initial` is what a new document starts with (false when absent): a post is `visible` from the start.
+  | (FieldBase & { type: 'boolean'; initial?: boolean })
   // AUDIT-1 S11.3: the rules a catalog table's own checks put on a string, so the
   // form refuses what the database would. `pattern` replaces a slug's default
   // rule; `nonBlank` is `btrim(x) <> ''`; `after` names an earlier datetime
@@ -166,7 +168,7 @@ function defaultForField(field: Field): unknown {
     case 'relation':
       return []
     case 'boolean':
-      return false
+      return field.initial ?? false
     case 'select':
       return field.options[0] ?? ''
     // P07 round 2: nullable number/money/datetime default to null (handled
@@ -184,6 +186,36 @@ function defaultForField(field: Field): unknown {
     case 'list':
       return []
   }
+}
+
+/**
+ * The text field that holds an image's words for those who cannot see it, among the image's siblings: `alt`, or
+ * `<name>Alt` (the home portrait's `portraitAlt`). Null for an image with none (a cover, a vignette).
+ */
+export function altSibling(siblings: readonly Field[], image: Field): string | null {
+  for (const name of ['alt', `${image.name}Alt`]) {
+    if (siblings.some((sibling) => sibling.name === name && (sibling.type === 'text' || sibling.type === 'textarea'))) return name
+  }
+  return null
+}
+
+/**
+ * The object that holds an image, once the library hands one back: the new id and, when the image's alt is empty, the
+ * alt the library holds for it (`alt_ar`, which the upload required). Words already written are never replaced.
+ */
+export function withPickedImage(
+  holder: Record<string, unknown>,
+  imageName: string,
+  altName: string | null,
+  mediaId: string,
+  alt: string,
+): Record<string, unknown> {
+  const next = { ...holder, [imageName]: mediaId }
+  if (altName !== null && typeof alt === 'string' && alt.trim() !== '') {
+    const written = holder[altName]
+    if (typeof written !== 'string' || written.trim() === '') next[altName] = alt
+  }
+  return next
 }
 
 /** The unsaved copy the editor keeps in `localStorage` (CollectionForm's autosave). */

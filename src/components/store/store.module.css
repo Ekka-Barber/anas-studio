@@ -294,9 +294,11 @@
   font-size: var(--size-line);
   font-weight: 700;
 }
-.stepButton:disabled {
+.stepButton:disabled,
+.stepButton[aria-disabled='true'] {
   opacity: 0.45;
   cursor: not-allowed;
+  translate: none;
 }
 .quantityInput {
   inline-size: 4.5rem;

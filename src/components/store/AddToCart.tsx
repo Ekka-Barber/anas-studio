@@ -9,7 +9,7 @@
  * `VariantAction`) says «اطلب مسبقًا» on its button: the same cart line, and
  * the cart and the checkout carry its note and date before payment. A digital
  * variant (`digital`) is one copy: no quantity field, and a second add changes
- * nothing and says the book is in the cart.
+ * nothing and says the product is in the cart.
  */
 // Relative, not `@/`: the unit tests import `VariantAction`, which imports this file, and the unit config has no alias.
 import Link from 'next/link'
@@ -19,6 +19,9 @@ import { addLine, cartCount, MAX_LINES, MAX_QUANTITY, readCart, writeCart } from
 import { ActionButton } from '../weave/Action'
 
 import styles from './store.module.css'
+
+/** Said when a digital product is already in the cart: one copy per order, whatever the product. */
+export const DIGITAL_IN_CART = 'هذا المنتج في سلتك؛ النسخة الرقمية واحدة لكل طلب.'
 
 /** The field's text as a quantity: a whole number from 1 to 20, and 1 when it is empty or not a number. */
 function toQuantity(text: string): number {
@@ -52,7 +55,7 @@ export function AddToCart({
     const added = cartCount(next) - cartCount(cart)
     if (added === 0) {
       const held = digital && cart.lines.some((line) => line.variantId === variantId.toLowerCase())
-      setNote(held ? 'الكتاب الرقمي في سلتك.' : `لم يُضف شيء: الحد الأقصى ${MAX_QUANTITY} لكل منتج و${MAX_LINES} منتجًا في السلة.`)
+      setNote(held ? DIGITAL_IN_CART : `لم يُضف شيء: الحد الأقصى ${MAX_QUANTITY} لكل منتج و${MAX_LINES} منتجًا في السلة.`)
       return
     }
     writeCart(next)

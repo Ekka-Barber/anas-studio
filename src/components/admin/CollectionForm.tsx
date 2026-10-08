@@ -369,6 +369,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
           scheduledSeq={scheduledSeq}
           canPublish={canPublish}
           canArchive={collection === 'posts' || collection === 'taxonomies'}
+          siteHidden={collection === 'posts' && data.visible === false}
           previewPath={previewPathFor(collection, docId)}
           onChanged={() => void load()}
         />

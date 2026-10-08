@@ -471,6 +471,8 @@ export function ReconciliationView() {
                     providerRef: reference.providerRef,
                     disputeKind: reference.kind,
                     follows: latest.seq,
+                    decision: latest.decision,
+                    itemIds: latest.itemIds,
                     orderNumber: first.orderNumber,
                   },
                   orderNumber: first.orderNumber,

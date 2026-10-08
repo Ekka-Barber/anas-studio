@@ -241,7 +241,9 @@ export function ContactForm() {
         <p className={styles.notice}>الإرسال يحتاج JavaScript؛ راسلني عبر القنوات المجاورة.</p>
       </noscript>
       <div className={styles.submitRow}>
-        <ActionButton type="submit" arrow disabled={!scripted || !turnstileAvailable || status.kind === 'sending'}>
+        {/* `disabled` for what cannot change by itself (no script, no check); while the message is being sent the button is
+            aria-disabled so it keeps the focus (`submit` returns early when sending). */}
+        <ActionButton type="submit" arrow disabled={!scripted || !turnstileAvailable} aria-disabled={status.kind === 'sending' || undefined}>
           أرسل
         </ActionButton>
         <p role="status" aria-live="polite" className={styles.status}>

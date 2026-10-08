@@ -318,6 +318,24 @@ function repeatsAParagraph(
   })
 }
 
+/**
+ * The publish rule for a photo's words (ADMIN-CMS-09): an image that is set needs its alt, for those who cannot see it.
+ * Only the publish gate runs it; a draft saves with the alt blank, and the loaders keep the lenient schemas.
+ */
+export const PHOTO_ALT_ERROR = 'اكتب الوصف البديل للصورة.'
+
+type Photo = { id: string; alt: string }
+
+function altIsWritten(ctx: z.RefinementCtx, path: (string | number)[], photo: Photo | undefined) {
+  if (photo !== undefined && photo.id !== '' && photo.alt.trim() === '') {
+    ctx.addIssue({ code: 'custom', path: [...path, 'alt'], message: PHOTO_ALT_ERROR })
+  }
+}
+
+function altsAreWritten(ctx: z.RefinementCtx, path: (string | number)[], photos: readonly Photo[] | undefined) {
+  photos?.forEach((photo, index) => altIsWritten(ctx, [...path, index], photo))
+}
+
 export const roomPublishSchemas = {
   started: startedRoomSchema.superRefine((room, ctx) => {
     const paragraphs = room.movements.flatMap((movement) => movement.paragraphs)
@@ -332,15 +350,25 @@ export const roomPublishSchemas = {
     ]
     repeatsAParagraph(ctx, ['pullLines'], room.pullLines, paragraphs)
     repeatsAParagraph(ctx, ['bandLines'], room.bandLines, paragraphs)
+    altIsWritten(ctx, ['media', 'logo'], room.media.logo)
   }),
   passed: passedRoomSchema.superRefine((room, ctx) => {
     repeatsAParagraph(ctx, ['pullLines'], room.pullLines, room.paragraphs)
     repeatsAParagraph(ctx, ['bandLines'], room.bandLines, room.paragraphs)
+    altsAreWritten(ctx, ['media', 'gallery'], room.media.gallery)
   }),
   shelf: shelfRoomSchema.superRefine((room, ctx) => {
-    const { moonlightCup, boutique } = room.items
+    const { thura, moonlightCup, boutique } = room.items
     repeatsAParagraph(ctx, ['items', 'moonlightCup', 'pullLines'], moonlightCup.pullLines, moonlightCup.paragraphs)
     repeatsAParagraph(ctx, ['items', 'boutique', 'bandLines'], boutique.bandLines, boutique.paragraphs)
+    altsAreWritten(ctx, ['items', 'thura', 'photos'], thura.photos)
+    altsAreWritten(ctx, ['items', 'moonlightCup', 'images'], moonlightCup.images)
   }),
-  book: bookRoomSchema,
+  book: bookRoomSchema.superRefine((room, ctx) => {
+    altIsWritten(ctx, ['cover'], room.cover)
+    altIsWritten(ctx, ['standing'], room.standing)
+    altIsWritten(ctx, ['spine'], room.spine)
+    altIsWritten(ctx, ['bookmark'], room.bookmark)
+    altsAreWritten(ctx, ['photos'], room.photos)
+  }),
 } as const

@@ -15,14 +15,17 @@
  * not know the order any more, so it shows the form again. A payment that
  * arrived is `received`: nothing is cleared then, the return page tells the
  * rest. Focus follows the buyer's own action (create, cancel, retry) into the
- * order box; not a page load.
+ * order box; not a page load. The view shows the order's own lines and, for one that
+ * ships, where it goes (what the order says, never the cart); when the buyer has since
+ * edited the cart (`changed`) it says the order was made before the edit.
  */
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { formatRiyadhTime, instantOf, type PendingOrder } from '@/lib/cart'
-import { formatMoney } from '@/lib/format'
-import { ActionButton, ActionLink } from '@/components/weave/Action'
+// Relative, not `@/`: tests/unit/store-checkout.test.ts renders this view, and the unit config has no alias.
+import { formatRiyadhTime, instantOf, type PendingOrder } from '../../lib/cart'
+import { formatMoney } from '../../lib/format'
+import { ActionButton, ActionLink } from '../weave/Action'
 
 import { orderSchema, parsePayment, postCheckout, RECEIVED, type OrderSummary, type PaymentView } from './quote'
 import styles from './store.module.css'
@@ -33,15 +36,22 @@ type LivePayment = Exclude<PaymentView, { state: 'closed' }>
 /** Why the view has nothing to pay: the order ended, a payment of it arrived, or it cannot be paid from here (`blocked`: the order still holds its stock, so the view keeps the cancel). */
 type Closed = 'cancelled' | 'expired' | 'received' | 'blocked'
 
+/** Said when the cart is no longer what the order was made from: the order stands as it was made. */
+export const ORDER_BEFORE_EDIT = 'هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.'
+/** A line that ships (physical or signed) took the address typed when the order was made. */
+export const SHIPS_TO_TYPED_ADDRESS = 'يُشحن إلى العنوان الذي أُدخل عند إنشاء الطلب'
+
 interface Shown {
   total: number | null
+  /** The order's own lines, as the order says them. */
+  lines: OrderSummary['lines']
   /** The hold's end (an ISO time) while the order waits for payment. */
   holdEnds: string | null
   payment: LivePayment
   closed: Closed | null
 }
 
-const WAITING: Shown = { total: null, holdEnds: null, payment: { state: 'preparing' }, closed: null }
+const WAITING: Shown = { total: null, lines: [], holdEnds: null, payment: { state: 'preparing' }, closed: null }
 
 /** What `create` said of the order: its summary and, when the reply carried one, its payment. */
 export interface HoldStart {
@@ -51,17 +61,17 @@ export interface HoldStart {
 
 /** What a `create` or `pay` reply says of the order: the hold view with its payment, or the reason there is none. */
 function shownBy(order: OrderSummary, reply: PaymentView | null): Shown {
-  const total = order.total
-  if (RECEIVED.has(order.status) || (reply?.state === 'closed' && RECEIVED.has(reply.status ?? ''))) return { ...WAITING, total, closed: 'received' }
-  if (order.status === 'expired' || order.status === 'cancelled') return { ...WAITING, total, closed: order.status }
+  const { total, lines } = order
+  if (RECEIVED.has(order.status) || (reply?.state === 'closed' && RECEIVED.has(reply.status ?? ''))) return { ...WAITING, total, lines, closed: 'received' }
+  if (order.status === 'expired' || order.status === 'cancelled') return { ...WAITING, total, lines, closed: order.status }
   if (reply?.state === 'closed') {
     // A payment of it waits for the owner's review: that is a payment received. A hold that ran out is over.
     // Anything else (the payment mode changed, too many attempts) claims no payment: the order cannot be paid
     // from here and still holds its stock, so the view offers the cancel.
-    if (reply.reason === 'UNDER_REVIEW') return { ...WAITING, total, closed: 'received' }
-    return { ...WAITING, total, closed: reply.code === 'HOLD_EXPIRED' ? 'expired' : 'blocked' }
+    if (reply.reason === 'UNDER_REVIEW') return { ...WAITING, total, lines, closed: 'received' }
+    return { ...WAITING, total, lines, closed: reply.code === 'HOLD_EXPIRED' ? 'expired' : 'blocked' }
   }
-  return { total, holdEnds: order.holdExpiresAt, payment: reply ?? { state: 'preparing' }, closed: null }
+  return { total, lines, holdEnds: order.holdExpiresAt, payment: reply ?? { state: 'preparing' }, closed: null }
 }
 
 export function HoldView({
@@ -69,6 +79,7 @@ export function HoldView({
   start,
   testMode,
   focusOnOpen,
+  changed,
   onEnd,
   onForget,
 }: {
@@ -79,6 +90,8 @@ export function HoldView({
   testMode: boolean
   /** The buyer's own action opened the view: it takes the focus. */
   focusOnOpen: boolean
+  /** The cart is no longer what the order was made from (`orderChanged`). */
+  changed: boolean
   /** The order ended (cancelled, or its hold is over): the form forgets its token and its key. */
   onEnd: () => void
   /** The function does not know the order, or its token no longer fits: the form is shown again, with these words. */
@@ -90,7 +103,9 @@ export function HoldView({
   const orderBoxRef = useRef<HTMLDivElement>(null)
   const focusOrderBox = useRef(focusOnOpen)
   const opened = useRef(false)
-  const { total, holdEnds, payment, closed } = shown
+  const { total, lines, holdEnds, payment, closed } = shown
+  // What the order still holds for the buyer: shown while it can be paid or cancelled.
+  const holds = (closed === null || closed === 'blocked') && lines.length > 0
 
   // The order is over: the form forgets its token and its key, and the view says why.
   const show = useCallback(
@@ -200,13 +215,35 @@ export function HoldView({
       tabIndex={-1}
       role="group"
       aria-labelledby="checkout-order-number"
-      aria-describedby={closed !== null || holdEnds !== null ? 'checkout-order-state' : undefined}
+      aria-describedby={
+        [closed !== null || holdEnds !== null ? 'checkout-order-state' : '', changed && closed === null ? 'checkout-order-warning' : '']
+          .filter((id) => id !== '')
+          .join(' ') || undefined
+      }
       className={styles.orderBox}
     >
       <p id="checkout-order-number" className={styles.orderNumber}>
         رقم الطلب: <span dir="ltr">{pending.orderNumber}</span>
       </p>
       {total !== null && <p>الإجمالي: {formatMoney(total)}</p>}
+      {holds && (
+        <>
+          <ul className={styles.summaryLines}>
+            {lines.map((line) => (
+              <li key={line.sku}>
+                {line.productTitle}: {line.variantTitle} × {line.quantity}
+                <span className={styles.summaryPrice}>{formatMoney(line.total)}</span>
+              </li>
+            ))}
+          </ul>
+          {lines.some((line) => line.fulfillment !== 'digital') && <p className={styles.note}>{SHIPS_TO_TYPED_ADDRESS}</p>}
+        </>
+      )}
+      {changed && closed === null && (
+        <p id="checkout-order-warning" className={styles.warning} role="note">
+          {ORDER_BEFORE_EDIT}
+        </p>
+      )}
       {closed === 'received' ? (
         <>
           <p id="checkout-order-state" className={styles.note} role="status">
@@ -221,7 +258,8 @@ export function HoldView({
           <p id="checkout-order-state" className={styles.note} role="status">
             تعذّر تجهيز الدفع لهذا الطلب. ألغِ الطلب ثم اطلب من جديد.
           </p>
-          <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
+          {/* aria-disabled, not disabled: the button keeps the focus while its own request runs (`cancelOrder` returns early). */}
+          <ActionButton variant="outline" onClick={cancelOrder} aria-disabled={submitting || undefined}>
             إلغاء الطلب
           </ActionButton>
         </>
@@ -256,15 +294,16 @@ export function HoldView({
             <ActionButton
               variant="outline"
               onClick={() => {
+                if (submitting) return
                 focusOrderBox.current = true
                 void loadPayment()
               }}
-              disabled={submitting}
+              aria-disabled={submitting || undefined}
             >
               أعد المحاولة
             </ActionButton>
           )}
-          <ActionButton variant="outline" onClick={cancelOrder} disabled={submitting}>
+          <ActionButton variant="outline" onClick={cancelOrder} aria-disabled={submitting || undefined}>
             إلغاء الطلب
           </ActionButton>
         </>

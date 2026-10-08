@@ -136,7 +136,7 @@ describe('a link follows one rule in the editor, the schema and the renderer (CL
   })
   const html = (url: string) => renderToStaticMarkup(RichText({ document: linked(url) as never }))
 
-  it.each(['https://example.com', 'http://example.com/path?q=1#part', 'mailto:anas@example.com'])(
+  it.each(['https://example.com', 'https://example.com/path?q=1#part', 'https://example.com:8443/a_b'])(
     'accepts %s, and the page links to it',
     (url) => {
       expect(richTextSchema.safeParse(linked(url)).success).toBe(true)
@@ -145,6 +145,12 @@ describe('a link follows one rule in the editor, the schema and the renderer (CL
   )
 
   it.each([
+    // Only https: the site links to nothing else (F3-11), whatever F2a let in.
+    'http://example.com',
+    'http://example.com/path?q=1#part',
+    'mailto:anas@example.com',
+    'MAILTO:anas@example.com',
+    'tel:+966500000000',
     'HTTPS://example.com',
     'Http://example.com',
     'https:example.com',

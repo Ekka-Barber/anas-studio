@@ -14,7 +14,7 @@
     text-decoration: underline;
     text-underline-offset: 0.35em;
   }
-  .action:disabled:hover .label {
+  .action:is(:disabled, [aria-disabled='true']):hover .label {
     text-decoration: none;
   }
 }

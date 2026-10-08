@@ -233,6 +233,11 @@ test('post lifecycle: taxonomies, rich text, relations, cover, schedule, publish
   await page.goto(`/admin/content/posts/edit?id=${docId}`)
 
   // Archive: absent again.
+  // «أرشفة» asks first (FABLE-AUDIT F3-6 (d)): the question is the exact one, and the test answers yes.
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toBe('أرشفة المستند تزيله من الموقع. متابعة؟')
+    await dialog.accept()
+  })
   await page.getByRole('button', { name: 'أرشفة' }).click()
   await expect(page.getByText('أرشفة: تم بنجاح.')).toBeVisible()
   expect(await isPublished('posts', docId)).toBe(false)
@@ -247,6 +252,11 @@ test('post lifecycle: taxonomies, rich text, relations, cover, schedule, publish
   expect(await isPublished('posts', docId)).toBe(true)
 
   // Archive it at the end.
+  // «أرشفة» asks first (FABLE-AUDIT F3-6 (d)): the question is the exact one, and the test answers yes.
+  page.once('dialog', async (dialog) => {
+    expect(dialog.message()).toBe('أرشفة المستند تزيله من الموقع. متابعة؟')
+    await dialog.accept()
+  })
   await page.getByRole('button', { name: 'أرشفة' }).click()
   await expect(page.getByText('أرشفة: تم بنجاح.')).toBeVisible()
   expect(await isPublished('posts', docId)).toBe(false)

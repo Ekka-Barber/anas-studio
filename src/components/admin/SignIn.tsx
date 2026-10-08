@@ -9,6 +9,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { useTurnstile } from '@/lib/turnstile'
 
 import styles from './admin.module.css'
+import { stepUpError } from './StepUp'
 
 /** The emailed code's length (`otp_length` in supabase/config.toml). */
 const CODE_LENGTH = 8
@@ -17,6 +18,23 @@ const RATE_LIMITED_MESSAGE = 'أُرسلت رموز كثيرة في وقت قص�
 const OFFLINE_MESSAGE = 'تعذّر الاتصال. تحقق من الشبكة وحاول مرة أخرى.'
 const SEND_FAILED_MESSAGE = 'تعذّر الإرسال الآن. حاول بعد قليل.'
 const BAD_CODE_MESSAGE = 'الرمز غير صحيح أو انتهت صلاحيته.'
+const CAPTCHA_MESSAGE = 'تعذّر التحقق من أنك لست روبوتًا؛ حدّث الصفحة وحاول مرة أخرى.'
+
+/**
+ * What step 1 says of Auth's answer to the request for a code, and the step that follows. Only an answer that says
+ * nothing about the address varies the message: a request that never reached the server (no HTTP status), Auth's
+ * rate limit, a refused Turnstile token (a 400 with the code `captcha_failed`: missing, expired or rejected, so
+ * nothing was sent and the e-mail step stays) and a failure on Auth's side. Every other answer, a refusal for an
+ * address that is no staff email included, is the masked «أرسلنا…».
+ */
+export function sendOutcome(error: { status?: number; code?: string } | null): { message: string; step: 'email' | 'code' } {
+  if (error && !error.status) return { message: OFFLINE_MESSAGE, step: 'email' }
+  if (error?.status === 429) return { message: RATE_LIMITED_MESSAGE, step: 'email' }
+  if (error?.code === 'captcha_failed') return { message: CAPTCHA_MESSAGE, step: 'email' }
+  // A failure on Auth's side (the mail could not be sent) says nothing about the address either, and no code is on its way.
+  if (error?.status && error.status >= 500) return { message: SEND_FAILED_MESSAGE, step: 'email' }
+  return { message: SENT_MESSAGE, step: 'code' }
+}
 
 /**
  * Passwordless staff sign-in (P03): an 8-digit email code, asked for behind
@@ -53,24 +71,9 @@ export function SignIn() {
     // A token is accepted once, whatever the answer was: the next request needs a fresh one.
     resetTurnstile()
     setBusy(false)
-    // A request that never reached the server has no HTTP status; it says
-    // nothing about the address, so it may be told apart from the masked answers.
-    if (sendError && !sendError.status) {
-      setMessage(OFFLINE_MESSAGE)
-      return
-    }
-    if (sendError?.status === 429) {
-      setMessage(RATE_LIMITED_MESSAGE)
-      return
-    }
-    // A failure on Auth's side (the mail could not be sent) says nothing about
-    // the address either, and no code is on its way: the step stays.
-    if (sendError?.status && sendError.status >= 500) {
-      setMessage(SEND_FAILED_MESSAGE)
-      return
-    }
-    setMessage(SENT_MESSAGE)
-    setStep('code')
+    const outcome = sendOutcome(sendError)
+    setMessage(outcome.message)
+    if (outcome.step === 'code') setStep('code')
   }
 
   async function submitCode(event: FormEvent) {
@@ -81,7 +84,8 @@ export function SignIn() {
     const { error: verifyError } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' })
     setBusy(false)
     if (verifyError) {
-      setError(BAD_CODE_MESSAGE)
+      // A lost connection and Auth's attempt limit are not a wrong code.
+      setError(stepUpError(verifyError.status, BAD_CODE_MESSAGE))
       return
     }
     router.push('/admin')

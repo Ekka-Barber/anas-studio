@@ -35,10 +35,8 @@ import {
   isCorrection,
   isUuid,
   LOAD_FAILED,
-  NO_PERMISSION,
   ORDER_NOT_FOUND,
   ORDER_STATUS_LABELS,
-  parseActionReply,
   parseOrderDetail,
   REFUND_SOURCE_LABELS,
   REFUND_STATUS_LABELS,
@@ -46,6 +44,7 @@ import {
   RETURN_STATE_LABELS,
   REVIEW_REASON_LABELS,
   SAVE_FAILED,
+  settleAction,
   shipCall,
   STOPPED_BADGE,
   type Done,
@@ -110,7 +109,8 @@ export function OrderView() {
   const [focusLine, setFocusLine] = useState<{ line: 'status' | 'alert'; n: number } | null>(null)
   const statusRef = useRef<HTMLParagraphElement>(null)
   const alertRef = useRef<HTMLParagraphElement>(null)
-  const confirmRef = useRef<HTMLButtonElement>(null)
+  // The sentence above «إكمال الطلب»: the confirmation takes the focus there, never on «تأكيد إكمال الطلب» (R11B-4).
+  const resolveNoteRef = useRef<HTMLParagraphElement>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [carrier, setCarrier] = useState('')
   const [tracking, setTracking] = useState('')
@@ -141,7 +141,7 @@ export function OrderView() {
     if (focusLine !== null) (focusLine.line === 'alert' ? alertRef : statusRef).current?.focus()
   }, [focusLine])
   useEffect(() => {
-    if (confirming) confirmRef.current?.focus()
+    if (confirming) resolveNoteRef.current?.focus()
   }, [confirming])
 
   function report(line: 'status' | 'alert', text: ReactNode) {
@@ -180,36 +180,24 @@ export function OrderView() {
 
   /**
    * One call and what follows it: the button is off while it is in flight (a second press sends
-   * nothing), the order is read again whatever the answer (a refusal may mean it changed), and the
-   * result goes to the status or the alert line, which takes the focus.
+   * nothing), the order is read again whatever the answer (a refusal may mean it changed, and a reply
+   * lost on the way may have been carried out: `settleAction`), and the result goes to the status or
+   * the alert line, which takes the focus.
    */
   async function act(key: string, action: OrderAction, call: () => PromiseLike<Reply>, done: (reply: Done) => ReactNode): Promise<void> {
     if (inFlight.current || load.kind !== 'ready') return
     inFlight.current = true
     const { items, fulfillments } = load.detail
+    const orderId = load.detail.order.id
     setBusy(key)
     setStatus('')
     setAlert('')
-    let line: 'status' | 'alert' = 'alert'
-    let text: ReactNode = SAVE_FAILED
-    let unread = false
-    try {
-      const { data, error } = await call()
-      if (error) {
-        text = error.code === '42501' ? NO_PERMISSION : SAVE_FAILED
-      } else {
-        unread = await reread(load.detail.order.id)
-        const reply = parseActionReply(data)
-        if (reply.ok) {
-          line = 'status'
-          text = done(reply)
-        } else {
-          text = refused(action, reply, items, fulfillments)
-        }
-      }
-    } catch {
-      // The sentence stays «تعذّر الحفظ».
-    }
+    const { line, text, unread } = await settleAction<ReactNode>({
+      call,
+      reread: () => reread(orderId),
+      done,
+      refused: (reply) => refused(action, reply, items, fulfillments),
+    })
     inFlight.current = false
     setBusy(null)
     if (unread) report('alert', <>{text} {REREAD_FAILED}</>)
@@ -986,7 +974,9 @@ export function OrderView() {
         {owner && order.status === 'paid_needs_resolution' && (
           <section>
             <h2>إكمال الطلب</h2>
-            <p>يُخصم المخزون للعناصر غير المعادة، وتُمنح الملفات، ويُرسل إيصال.</p>
+            <p ref={resolveNoteRef} tabIndex={-1}>
+              يُخصم المخزون للعناصر غير المعادة، وتُمنح الملفات، ويُرسل إيصال.
+            </p>
             <div className={styles.row}>
               <button
                 type="button"
@@ -998,7 +988,7 @@ export function OrderView() {
                 إكمال الطلب
               </button>
               {confirming && (
-                <button ref={confirmRef} type="button" className={styles.button} disabled={off} onClick={resolve}>
+                <button type="button" className={styles.button} disabled={off} onClick={resolve}>
                   تأكيد إكمال الطلب
                 </button>
               )}
@@ -1098,6 +1088,8 @@ export function OrderView() {
                         </td>
                         <td data-label="السبب">
                           <bdi>{refund.reason}</bdi>
+                          {/* A refund of a review payment (a duplicate payment, an amount mismatch) is not a refund of the order's own payment. */}
+                          {refund.reviewPaymentId !== null && <div className={styles.message}>دفعة قيد المراجعة {ltrLong(refund.reviewPaymentId)}</div>}
                         </td>
                         <td data-label="المصدر" className={styles.cellNowrap}>
                           <Enum labels={REFUND_SOURCE_LABELS} code={refund.source} />

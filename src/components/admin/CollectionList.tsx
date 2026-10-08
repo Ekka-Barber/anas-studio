@@ -19,7 +19,7 @@ import {
   SITE_SETTINGS_DOC_ID,
   type Collection,
 } from '@/admin/collections'
-import { scheduleIsBehind } from '@/lib/admin-publish'
+import { liveStatus, scheduleIsBehind } from '@/lib/admin-publish'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { documentHref } from '@/lib/supabase/functions'
 
@@ -48,7 +48,8 @@ function statusFor(row: DocumentRow | undefined): string {
   }
   if (row.live_seq === null) return 'مسودة لم تُنشر'
   if (row.latest_seq > row.live_seq) return 'تعديلات غير منشورة'
-  return 'منشور'
+  // The live version is the latest one: a post it hides is live but not on the site.
+  return liveStatus(row.latest_data)
 }
 
 export function CollectionList({ collection }: { collection: Collection }) {

@@ -1094,7 +1094,9 @@ for (const width of [360, 1440]) {
         await expect(button(resolution, 'تأكيد إكمال الطلب')).toHaveCount(0)
         await button(resolution, 'إكمال الطلب').click()
         await expect(button(resolution, 'تأكيد إكمال الطلب')).toBeVisible()
-        await expect(button(resolution, 'تأكيد إكمال الطلب')).toBeFocused()
+        // The confirmation takes the focus itself (its sentence), never «تأكيد إكمال الطلب»: a held Enter must not complete the order (R11B-4).
+        await expect(resolution.getByText('يُخصم المخزون للعناصر غير المعادة، وتُمنح الملفات، ويُرسل إيصال.')).toBeFocused()
+        await expect(button(resolution, 'تأكيد إكمال الطلب')).not.toBeFocused()
         expect(rpc.count('order_resolve')).toBe(0)
 
         // Confirmed while the stock is short: refused in the function's words, nothing changed.

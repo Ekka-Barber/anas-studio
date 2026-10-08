@@ -65,6 +65,32 @@ export function scheduleIsBehind(scheduledSeq: number | null, latestSeq: number)
   return scheduledSeq !== null && scheduledSeq < latestSeq
 }
 
+/** Said above «نشر» and «جدولة» of a policy, and after them: a policy going live under another revision than the approved one closes the checkout. */
+export const POLICY_PUBLISH_NOTE = 'نشر تعديل على سياسة معتمدة يوقف الشراء حتى يعيد المالك اعتماد السياسات من الإعدادات.'
+
+/** The status of a live post whose «ظاهر» is off: the journal does not list it, the build drops it. */
+export const HIDDEN_LIVE_STATUS = 'منشور ومخفي عن الموقع'
+
+/** A live version's status, from the data it holds: «منشور», or that it is live and hidden. */
+export function liveStatus(data: Record<string, unknown> | null | undefined): string {
+  return data?.visible === false ? HIDDEN_LIVE_STATUS : 'منشور'
+}
+
+/** Asked before «أرشفة»: the document leaves the site at once. */
+export const ARCHIVE_CONFIRM = 'أرشفة المستند تزيله من الموقع. متابعة؟'
+
+/**
+ * What a successful action says: its label, that it went through and, when the site is rebuilt (publish, archive),
+ * what shows on it: a live post whose «ظاهر» is off does not (`hidden`). A policy's publish or schedule (`policy`)
+ * ends with the warning that it closes the checkout until the owner approves the policies again.
+ */
+export function successMessage(label: string, { rebuilds = false, hidden = false, policy = false } = {}): string {
+  const parts = [`${label}: تم بنجاح.`]
+  if (rebuilds) parts.push(hidden ? `${HIDDEN_LIVE_STATUS}: «ظاهر» غير مفعّل.` : 'يظهر التعديل على الموقع خلال دقائق.')
+  if (policy) parts.push(POLICY_PUBLISH_NOTE)
+  return parts.join(' ')
+}
+
 // Cloudflare, which fronts hosted Supabase, refuses a URL past 16 KB; a uuid
 // costs about 39 characters, so 100 ids per request (as `mediaById` in
 // `src/lib/content.ts` does for the build).

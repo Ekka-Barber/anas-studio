@@ -13,8 +13,11 @@
  *
  * A settled state spends the order here (`returnRelease`): the stored order
  * and its idempotency key are cleared, so the checkout page no longer holds
- * it; `paid` is the one state that clears the cart too. The order link
- * (`/orders#<number>.<token>`) is shown only when this tab holds the token.
+ * it; `paid` is the one state that clears the cart too, and only while the cart
+ * is still the one that bought the order (a buyer who edited it since keeps the
+ * edit; an order stored without a digest of its lines empties it as it always
+ * did). The order link (`/orders#<number>.<token>`) is shown only when this tab
+ * holds the token.
  * An order this tab does not hold clears nothing: a number in the address is
  * no reason to empty anyone's cart. The state sits in one `role="status"`
  * region; the page is calm and official (D38): no countdown, no motion.
@@ -27,12 +30,11 @@ import type { ReactNode } from 'react'
 import {
   clearIdempotency,
   clearPendingOrder,
-  EMPTY_CART,
+  emptyBoughtCart,
   readPendingOrder,
   returnOrder,
   returnRelease,
   VERIFY_SCHEDULE_SECONDS,
-  writeCart,
   type ReturnTarget,
 } from '@/lib/cart'
 import { ActionButton, ActionLink } from '@/components/weave/Action'
@@ -57,10 +59,13 @@ async function checkOnce(target: ReturnTarget): Promise<Outcome> {
   }
 }
 
-/** The order is over for this tab: its token and key are spent, and a paid one also empties the cart that bought it. */
+/**
+ * The order is over for this tab: its token and key are spent, and a paid one also empties the cart that bought it,
+ * but only while the cart is still that one (`emptyBoughtCart`).
+ */
 function spend(target: ReturnTarget, paid: boolean): void {
   if (target.accessToken === null) return
-  if (paid) writeCart(EMPTY_CART)
+  if (paid) emptyBoughtCart(target)
   clearPendingOrder()
   clearIdempotency()
 }

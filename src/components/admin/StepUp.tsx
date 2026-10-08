@@ -9,11 +9,13 @@ import styles from './admin.module.css'
 
 /**
  * What a failed check says, by its HTTP status: a request that never reached
- * Auth has none, 429 is Auth's limit on MFA attempts, anything else is the code.
+ * Auth has none, 429 is Auth's limit on MFA attempts, anything else is the code
+ * (`wrong` is the sentence for it: the sign-in's own says the code may have
+ * expired). The three code checks (sign-in, enrolment, step-up) share this.
  */
-export function stepUpError(status: number | undefined): string {
+export function stepUpError(status: number | undefined, wrong = 'الرمز غير صحيح.'): string {
   if (!status) return 'تعذّر الاتصال. حاول مرة أخرى.'
-  return status === 429 ? 'محاولات كثيرة. انتظر دقيقة ثم حاول.' : 'الرمز غير صحيح.'
+  return status === 429 ? 'محاولات كثيرة. انتظر دقيقة ثم حاول.' : wrong
 }
 
 /**
@@ -46,6 +48,8 @@ export function StepUp({
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    // The button stays focusable while the code is checked (aria-disabled), so a press, or Enter in the field, must send nothing.
+    if (busy) return
     setBusy(true)
     setError(null)
     const supabase = getSupabaseBrowserClient()
@@ -94,7 +98,8 @@ export function StepUp({
           />
         </div>
         <div className={styles.row}>
-          <button type="submit" className={styles.button} disabled={busy}>
+          {/* aria-disabled, not disabled: the button keeps the focus while its own check runs. */}
+          <button type="submit" className={styles.button} aria-disabled={busy || undefined}>
             تحقق
           </button>
           <button type="button" className={styles.buttonSecondary} onClick={cancel}>

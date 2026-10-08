@@ -309,3 +309,48 @@ export function commerceLines(stats: CommerceStats): string[] {
     `النزاعات: ${formatNumber(disputes.count)}، على البائع ${formatMoney(disputes.againstSeller)}، لصالح البائع ${formatMoney(disputes.forSeller)}`,
   ]
 }
+
+// ---------------------------------------------------------------------------
+// The store settings screen's calls (FABLE-AUDIT F3-5, F3-16)
+// ---------------------------------------------------------------------------
+
+export const FACTORS_UNREADABLE = 'تعذّر قراءة حالة المصادقة؛ حدّث الصفحة.'
+export const SAVED_NOT_REFRESHED = 'تم الحفظ؛ تعذّر تحديث الشاشة، حدّثها.'
+
+/** An authenticator as `mfa.listFactors()` lists it. */
+interface ListedFactor {
+  id: string
+  status: string
+}
+
+/** What the owner's authenticators come to: a verified one to ask for a code with, none enrolled, or a list that could not be read. */
+export type FactorReading = { kind: 'verified'; id: string } | { kind: 'none' } | { kind: 'failed' }
+
+/**
+ * `mfa.listFactors()`'s answer as the settings screen needs it. A list that could not be read says nothing about
+ * enrolment: it is `failed`, never `none` (which sends an owner who has an authenticator to enrol one).
+ */
+export function factorReading(reply: { data: { totp: readonly ListedFactor[] } | null; error: unknown }): FactorReading {
+  if (reply.error || !reply.data || !Array.isArray(reply.data.totp)) return { kind: 'failed' }
+  const verified = reply.data.totp.find((factor) => factor.status === 'verified')
+  return verified === undefined ? { kind: 'none' } : { kind: 'verified', id: verified.id }
+}
+
+/**
+ * The settings screen once an action went through: the settings read again and its own success sentence. When the
+ * reading fails the version the screen still holds is spent (the action raised it), and the next action sent with it
+ * would be refused as a change from another session that never happened. The screen is then `stale`: it says so, in
+ * place of the success sentence, and sends nothing until the page is read again.
+ */
+export async function afterSaved<Row>(
+  reread: () => Promise<Row | null>,
+  success: string,
+): Promise<{ row: Row | null; stale: boolean; sentence: string }> {
+  let row: Row | null = null
+  try {
+    row = await reread()
+  } catch {
+    // A reading that threw is a reading that failed.
+  }
+  return row === null ? { row: null, stale: true, sentence: SAVED_NOT_REFRESHED } : { row, stale: false, sentence: success }
+}

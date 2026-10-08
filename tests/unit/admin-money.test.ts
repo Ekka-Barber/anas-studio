@@ -25,6 +25,8 @@ import {
   DISPUTE_PROBLEMS,
   DISPUTE_RECORDED,
   disputeLines,
+  FOLLOW_REPLACES,
+  followStart,
   IN_FLIGHT_SENTENCE,
   inFlight,
   keptRequest,
@@ -908,6 +910,37 @@ describe('the dispute form', () => {
     expect(decisionsFor(false, lines)).toEqual(['none'])
     expect(decisionsFor(true, null)).toEqual(['none', 'entitlement_kept'])
     expect(decisionsFor(true, lines)).toEqual(['none', 'entitlement_revoked', 'entitlement_kept', 'fulfillment_stopped'])
+  })
+
+  it('starts a follow-up from the reference\'s latest row, so that leaving it as it is carries a stop on (F3-3)', () => {
+    const latest = { decision: 'fulfillment_stopped', itemIds: [B] }
+    const start = followStart(latest, true, lines)
+    expect(start).toEqual({ decision: 'fulfillment_stopped', picked: [B] })
+    // The form, untouched, records the stop again for the same line instead of ending it with «بلا إجراء».
+    expect(build({ decision: start.decision, picked: start.picked }, 2)).toMatchObject({ ok: true, body: { follows: 2, decision: 'fulfillment_stopped', itemIds: [B] } })
+    // A revoke is carried on the same way, with the lines that still hold a file.
+    expect(followStart({ decision: 'entitlement_revoked', itemIds: [A] }, true, lines)).toEqual({ decision: 'entitlement_revoked', picked: [A] })
+    expect(followStart({ decision: 'entitlement_kept', itemIds: [] }, true, lines)).toEqual({ decision: 'entitlement_kept', picked: [] })
+    expect(followStart({ decision: 'none', itemIds: [] }, true, lines)).toEqual({ decision: 'none', picked: [] })
+  })
+
+  it('drops from a follow-up\'s start what the form can no longer offer', () => {
+    // An item the latest row names that is no longer a line of that decision (shipped meanwhile) or no longer a line of the order at all.
+    expect(followStart({ decision: 'fulfillment_stopped', itemIds: [B, C, E] }, true, lines)).toEqual({ decision: 'fulfillment_stopped', picked: [B] })
+    expect(followStart({ decision: 'fulfillment_stopped', itemIds: [C, E] }, true, lines)).toEqual({ decision: 'fulfillment_stopped', picked: [] })
+    expect(followStart({ decision: 'entitlement_revoked', itemIds: [A, B] }, true, lines)).toEqual({ decision: 'entitlement_revoked', picked: [A] })
+    // The order's own lines in the order the form draws them, each once, however the row lists them.
+    expect(followStart({ decision: 'fulfillment_stopped', itemIds: [B, B] }, true, lines).picked).toEqual([B])
+    // While the lines are not known, the decisions that name lines are not on offer: the start is «بلا إجراء» (it is read again when they arrive).
+    expect(followStart({ decision: 'fulfillment_stopped', itemIds: [B] }, true, null)).toEqual({ decision: 'none', picked: [] })
+    expect(followStart({ decision: 'entitlement_kept', itemIds: [] }, true, null)).toEqual({ decision: 'entitlement_kept', picked: [] })
+    // A reference with no payment offers «بلا إجراء» alone; a decision the form does not know falls back to it too.
+    expect(followStart({ decision: 'fulfillment_stopped', itemIds: [B] }, false, lines)).toEqual({ decision: 'none', picked: [] })
+    expect(followStart({ decision: 'something_new', itemIds: [A] }, true, lines)).toEqual({ decision: 'none', picked: [] })
+  })
+
+  it('says under the decision that a follow-up replaces the previous decision of the reference', () => {
+    expect(FOLLOW_REPLACES).toBe('قرار هذا السجل يحل محل القرار السابق للمرجع؛ «بلا إجراء» يرفع إيقاف الشحن.')
   })
 
   it('reads the lines of an order from its items, entitlements and fulfilments', () => {

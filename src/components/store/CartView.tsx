@@ -34,7 +34,7 @@ import { ActionButton, ActionLink } from '@/components/weave/Action'
 import { formatMoney } from '@/lib/format'
 
 import { useCart } from './CartProvider'
-import { fetchCities, fetchQuote, preorderSentence, quoteErrorMessage, type CityRate, type Quote } from './quote'
+import { fetchCities, fetchQuote, oneCopyOnly, preorderSentence, quoteErrorMessage, type CityRate, type Quote } from './quote'
 import styles from './store.module.css'
 
 /**
@@ -249,15 +249,32 @@ export function CartView() {
                       ))}
                     </ul>
                   )}
+                  {/* A digital line holds one copy: the refusal names it, and one press sets it right. «حذف» keeps the focus as the quote comes back. */}
+                  {lineErrors.some(oneCopyOnly) && (
+                    <button
+                      type="button"
+                      className={styles.textButton}
+                      aria-label={`اجعل الكمية 1: ${name}`}
+                      onClick={() => {
+                        document.getElementById(`cart-remove-${line.variantId}`)?.focus()
+                        update((latest) => setQuantity(latest, line.variantId, 1))
+                      }}
+                    >
+                      اجعل الكمية 1
+                    </button>
+                  )}
                   <div className={styles.lineControls}>
                     {quoteLine?.fulfillment !== 'digital' && (
                       <div className={styles.quantity}>
+                        {/* aria-disabled at the limits, not disabled: the pressed button keeps the focus, and a press at the limit does nothing. */}
                         <button
                           type="button"
                           className={styles.stepButton}
                           aria-label={`إنقاص الكمية: ${name}`}
-                          onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity - 1))}
-                          disabled={line.quantity <= 1}
+                          onClick={() => {
+                            if (line.quantity > 1) update((latest) => setQuantity(latest, line.variantId, line.quantity - 1))
+                          }}
+                          aria-disabled={line.quantity <= 1 || undefined}
                         >
                           −
                         </button>
@@ -271,8 +288,10 @@ export function CartView() {
                           type="button"
                           className={styles.stepButton}
                           aria-label={`زيادة الكمية: ${name}`}
-                          onClick={() => update((latest) => setQuantity(latest, line.variantId, line.quantity + 1))}
-                          disabled={line.quantity >= MAX_QUANTITY}
+                          onClick={() => {
+                            if (line.quantity < MAX_QUANTITY) update((latest) => setQuantity(latest, line.variantId, line.quantity + 1))
+                          }}
+                          aria-disabled={line.quantity >= MAX_QUANTITY || undefined}
                         >
                           +
                         </button>

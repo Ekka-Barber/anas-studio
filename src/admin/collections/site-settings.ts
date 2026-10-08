@@ -4,7 +4,7 @@ import { normalizeSaudiMobile } from '../../lib/format'
 
 import { type Field, schemaFromFields } from '../fields'
 
-import { JEWEL_FIELD } from './rooms'
+import { JEWEL_FIELD, PHOTO_ALT_ERROR } from './rooms'
 
 /**
  * `site_settings`: one fixed document, `site` — nav, footer, the home page's
@@ -168,6 +168,10 @@ export const siteSettingsSchema = siteSettingsStoredSchema.superRefine((value, c
   })
   if (value.home.doors === undefined) {
     ctx.addIssue({ code: 'custom', path: ['home', 'doors'], message: HOME_DOORS_MISSING_ERROR })
+  }
+  // The portrait is a photo like the rooms' (ADMIN-CMS-09): set, it needs its alt.
+  if (value.home.portrait !== '' && value.home.portraitAlt.trim() === '') {
+    ctx.addIssue({ code: 'custom', path: ['home', 'portraitAlt'], message: PHOTO_ALT_ERROR })
   }
   // Each room has one door, and the home page keys its doors by href.
   const doorHrefs = new Set<string>()

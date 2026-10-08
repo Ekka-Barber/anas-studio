@@ -24,15 +24,16 @@ const linebreak = z.looseObject({ type: z.literal('linebreak') })
 /**
  * One rule for a link's address: the editor checks it while typing, the
  * schema when publishing, and the public renderer before it draws a link.
- * Exactly a lowercase `https://` or `http://` with a host, or `mailto:`, that
- * the URL parser reads; a spelling browsers would also follow (`HTTPS://…`,
- * `https:host`) is refused here rather than saved and then drawn as plain
- * text (CLIENT-SEC-07).
+ * Exactly a lowercase `https://` with a host that the URL parser reads: the
+ * site links to https addresses only (F3-11 restores that; `http:` and
+ * `mailto:` had been let in by mistake). A spelling browsers would also follow
+ * (`HTTPS://…`, `https:host`) is refused here rather than saved and then drawn
+ * as plain text (CLIENT-SEC-07).
  */
 export const linkUrlSchema = z
   .string()
   .max(2000)
-  .regex(/^(?:https?:\/\/[^\s/?#]+(?:[/?#]\S*)?|mailto:\S+)$/)
+  .regex(/^https:\/\/[^\s/?#]+(?:[/?#]\S*)?$/)
   .refine((url) => URL.canParse(url))
 const link = z.looseObject({
   type: z.literal('link'),

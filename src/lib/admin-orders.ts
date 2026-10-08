@@ -731,3 +731,56 @@ export function refusalText(action: OrderAction, reply: Refusal, before: readonl
   const table = REFUSALS[action]
   return Object.hasOwn(table, reply.code) ? (table[reply.code] ?? SAVE_FAILED) : SAVE_FAILED
 }
+
+/** The reply of a Supabase call as the order screens read it: the data, and the error with its SQLSTATE (empty when no reply came). */
+export interface CallReply {
+  data: unknown
+  error: { code?: string } | null
+}
+
+/** What one call of an order action came to: the line it goes to, its sentence, and whether the order could not be read again. */
+export interface ActionOutcome<Text> {
+  line: 'status' | 'alert'
+  text: Text | string
+  unread: boolean
+}
+
+/**
+ * One call of an order action and the sentence it comes to (FABLE-AUDIT F3-16). The order is read again whatever the
+ * call answered, a reply lost on the way included: that call may have been carried out, and a refusal may mean the
+ * order changed, so the screen never keeps a stale «قيد التجهيز» beside a «تعذّر الحفظ» for a shipment that went through.
+ * A call that threw, an error and a reply that cannot be read all say «تعذّر الحفظ» (never read as done or as refused);
+ * a failed reading is `unread`, and the screen then says so after the sentence.
+ */
+export async function settleAction<Text>(steps: {
+  call: () => PromiseLike<CallReply>
+  reread: () => Promise<boolean>
+  done: (reply: Done) => Text
+  refused: (reply: Refusal) => Text
+}): Promise<ActionOutcome<Text>> {
+  let line: 'status' | 'alert' = 'alert'
+  let text: Text | string = SAVE_FAILED
+  try {
+    const { data, error } = await steps.call()
+    if (error) {
+      text = error.code === '42501' ? NO_PERMISSION : SAVE_FAILED
+    } else {
+      const reply = parseActionReply(data)
+      if (reply.ok) {
+        line = 'status'
+        text = steps.done(reply)
+      } else {
+        text = steps.refused(reply)
+      }
+    }
+  } catch {
+    // The sentence stays «تعذّر الحفظ».
+  }
+  let unread = true
+  try {
+    unread = await steps.reread()
+  } catch {
+    // A reading that threw is a reading that failed.
+  }
+  return { line, text, unread }
+}

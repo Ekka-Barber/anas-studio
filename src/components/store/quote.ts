@@ -88,9 +88,14 @@ export interface QuoteError {
   variantId?: string
   available?: number
   minimum?: number
+  /** `INVALID_QUANTITY` of a digital line only: the most an order may hold of it (1: one copy per order). */
+  maximum?: number
   /** `OUT_OF_STOCK` only: the units exist and another order's unpaid hold takes them (true for at most 20 minutes). */
   held?: boolean
 }
+
+/** A digital line holds more than its one copy: the refusal that names `maximum: 1`, and nothing else (the 1 to 20 rule does not). */
+export const oneCopyOnly = (error: QuoteError): boolean => error.code === 'INVALID_QUANTITY' && error.maximum === 1
 
 export interface Price {
   ok: boolean
@@ -178,6 +183,7 @@ function parseError(value: unknown): QuoteError {
     ...(o.variantId === undefined ? {} : { variantId: str(o.variantId) }),
     ...(o.available === undefined ? {} : { available: count(o.available) }),
     ...(o.minimum === undefined ? {} : { minimum: count(o.minimum) }),
+    ...(o.maximum === undefined ? {} : { maximum: count(o.maximum) }),
     ...(o.held === undefined ? {} : { held: bool(o.held) }),
   }
 }
@@ -362,7 +368,7 @@ export function quoteErrorMessage(error: QuoteError): string {
     case 'UNAVAILABLE':
       return 'هذا المنتج غير متاح حاليًا.'
     case 'INVALID_QUANTITY':
-      return 'الكمية يجب أن تكون بين 1 و20.'
+      return oneCopyOnly(error) ? 'نسخة رقمية واحدة لكل طلب.' : 'الكمية يجب أن تكون بين 1 و20.'
     case 'CITY_REQUIRED':
       return 'اختر مدينة التوصيل.'
     case 'CITY_UNSUPPORTED':

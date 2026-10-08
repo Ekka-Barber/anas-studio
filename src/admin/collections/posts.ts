@@ -13,6 +13,7 @@ export const postFields = [
   { name: 'categories', label: 'التصنيفات', type: 'relation' },
   { name: 'tags', label: 'الوسوم', type: 'relation' },
   { name: 'cover', label: 'صورة الغلاف', type: 'image', required: false },
-  { name: 'visible', label: 'ظاهر', type: 'boolean' },
+  // A new post starts visible: publishing one that is not puts nothing on the journal.
+  { name: 'visible', label: 'ظاهر', type: 'boolean', initial: true },
 ] as const satisfies Field[]
 export const postSchema = schemaFromFields(postFields)

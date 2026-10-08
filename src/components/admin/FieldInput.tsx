@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 
-import { defaultsForFields, type Field } from '../../admin/fields'
+import { altSibling, defaultsForFields, withPickedImage, type Field } from '../../admin/fields'
 import { isDay } from '../../lib/admin-commerce'
 import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIsoOrNull } from '../../lib/money-input'
 import { isMediaId, mediaUrl } from '../../lib/media-ref'
@@ -56,11 +56,13 @@ function ImageFieldInput({
   field,
   value,
   onChange,
+  onPick,
   id,
 }: {
   field: Field
   value: unknown
   onChange: (value: unknown) => void
+  onPick?: (mediaId: string, alt: string) => void
   id: string
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -221,9 +223,11 @@ function ImageFieldInput({
       <MediaPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onChoose={(mediaId) => {
+        onChoose={(mediaId, row) => {
           justPicked.current = true
-          onChange(mediaId)
+          // An image with an alt of its own hands both back in one change (two would overwrite each other).
+          if (onPick) onPick(mediaId, row.alt_ar)
+          else onChange(mediaId)
         }}
       />
     </>
@@ -271,6 +275,8 @@ interface FieldInputProps {
   onChange: (value: unknown) => void
   id: string
   taxonomies?: TaxonomiesByKind
+  /** An image field whose parent holds an alt for it: the parent takes the picked id and the library's alt together (`withPickedImage`). */
+  onPick?: (mediaId: string, alt: string) => void
 }
 
 type MoneyField = Extract<Field, { type: 'money' }>
@@ -362,7 +368,7 @@ function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; va
   )
 }
 
-export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInputProps) {
+export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: FieldInputProps) {
   switch (field.type) {
     case 'text':
     case 'slug':
@@ -437,7 +443,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
         </div>
       )
     case 'image':
-      return <ImageFieldInput field={field} value={value} onChange={onChange} id={id} />
+      return <ImageFieldInput field={field} value={value} onChange={onChange} onPick={onPick} id={id} />
     case 'money':
       return <MoneyFieldInput field={field} value={value} onChange={onChange} id={id} />
     case 'number':
@@ -601,16 +607,20 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
       return (
         <fieldset className={styles.fieldset}>
           <legend className={styles.legend}>{field.label}</legend>
-          {field.fields.map((child) => (
-            <FieldInput
-              key={child.name}
-              field={child}
-              value={groupValue[child.name]}
-              onChange={(childValue) => onChange({ ...groupValue, [child.name]: childValue })}
-              id={`${id}-${child.name}`}
-              taxonomies={taxonomies}
-            />
-          ))}
+          {field.fields.map((child) => {
+            const altName = child.type === 'image' ? altSibling(field.fields, child) : null
+            return (
+              <FieldInput
+                key={child.name}
+                field={child}
+                value={groupValue[child.name]}
+                onChange={(childValue) => onChange({ ...groupValue, [child.name]: childValue })}
+                onPick={altName === null ? undefined : (mediaId, alt) => onChange(withPickedImage(groupValue, child.name, altName, mediaId, alt))}
+                id={`${id}-${child.name}`}
+                taxonomies={taxonomies}
+              />
+            )
+          })}
         </fieldset>
       )
     }
@@ -680,20 +690,32 @@ export function FieldInput({ field, value, onChange, id, taxonomies }: FieldInpu
           <legend className={styles.legend}>{field.label}</legend>
           {items.map((item, index) => (
             <div key={index} className={styles.listItem}>
-              {field.fields.map((child) => (
-                <FieldInput
-                  key={child.name}
-                  field={child}
-                  value={item[child.name]}
-                  onChange={(childValue) => {
-                    const next = items.slice()
-                    next[index] = { ...item, [child.name]: childValue }
-                    onChange(next)
-                  }}
-                  id={`${id}-${index}-${child.name}`}
-                  taxonomies={taxonomies}
-                />
-              ))}
+              {field.fields.map((child) => {
+                const altName = child.type === 'image' ? altSibling(field.fields, child) : null
+                return (
+                  <FieldInput
+                    key={child.name}
+                    field={child}
+                    value={item[child.name]}
+                    onChange={(childValue) => {
+                      const next = items.slice()
+                      next[index] = { ...item, [child.name]: childValue }
+                      onChange(next)
+                    }}
+                    onPick={
+                      altName === null
+                        ? undefined
+                        : (mediaId, alt) => {
+                            const next = items.slice()
+                            next[index] = withPickedImage(item, child.name, altName, mediaId, alt)
+                            onChange(next)
+                          }
+                    }
+                    id={`${id}-${index}-${child.name}`}
+                    taxonomies={taxonomies}
+                  />
+                )
+              })}
               {field.hideable && (
                 <div className={styles.row}>
                   <input

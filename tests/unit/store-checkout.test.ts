@@ -6,15 +6,18 @@
 // code travels. The screens themselves are in tests/e2e/cart-checkout.spec.ts.
 // FABLE-AUDIT F2b adds the digital variant's add control (one copy, no
 // quantity), the phone a digital-only cart does not send, and what the return
-// page releases for each state.
+// page releases for each state. FABLE-AUDIT F3-7 adds the digital line held at more than one copy and F3-8 the hold
+// view that shows the order it holds, with the sentence for a cart edited since.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { AddToCart } from '../../src/components/store/AddToCart'
+import { AddToCart, DIGITAL_IN_CART } from '../../src/components/store/AddToCart'
+import { HoldView, ORDER_BEFORE_EDIT, SHIPS_TO_TYPED_ADDRESS } from '../../src/components/store/HoldView'
 import { VariantAction } from '../../src/components/store/VariantAction'
 import {
   fetchQuote,
+  oneCopyOnly,
   orderSchema,
   parsePayment,
   parseVerify,
@@ -23,6 +26,7 @@ import {
   quoteErrorMessage,
 } from '../../src/components/store/quote'
 import { builtPolicyRevisions, phoneToSend, returnOrder, returnRelease, TEST_ACCESS_KEY, VERIFY_SCHEDULE_SECONDS } from '../../src/lib/cart'
+import { formatMoney } from '../../src/lib/format'
 
 const TOKEN = 'T'.repeat(43)
 const HASH = 'a'.repeat(64)
@@ -417,5 +421,111 @@ describe('the sandbox access code on the calls (P08 contract section 1)', () => 
       data: undefined,
       error: { code: 'RATE_LIMITED', message: 'أرسلت طلبات كثيرة؛ حاول لاحقًا.' },
     })
+  })
+})
+
+describe('a digital line held at more than one copy (FABLE-AUDIT F3-7)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+  })
+
+  it('says one copy per order for the refusal that names the maximum, and keeps the 1 to 20 rule for any other', () => {
+    expect(quoteErrorMessage({ code: 'INVALID_QUANTITY', line: 0, variantId: LINE.variantId, maximum: 1 })).toBe('نسخة رقمية واحدة لكل طلب.')
+    expect(quoteErrorMessage({ code: 'INVALID_QUANTITY', line: 0, variantId: LINE.variantId })).toBe('الكمية يجب أن تكون بين 1 و20.')
+    expect(quoteErrorMessage({ code: 'INVALID_QUANTITY', maximum: 20 })).toBe('الكمية يجب أن تكون بين 1 و20.')
+    // The maximum belongs to that refusal alone.
+    expect(quoteErrorMessage({ code: 'OUT_OF_STOCK', maximum: 1 })).toBe('الكمية المطلوبة غير متوفرة الآن.')
+  })
+
+  it('reads the maximum from the quote, and offers «اجعل الكمية 1» for that refusal only', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:54321')
+    stubSession()
+    const other = '1b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e'
+    stubFetch({
+      ok: true,
+      data: {
+        ...QUOTE,
+        ok: false,
+        errors: [
+          { code: 'INVALID_QUANTITY', line: 0, variantId: LINE.variantId, maximum: 1 },
+          { code: 'INVALID_QUANTITY', line: 1, variantId: other },
+          { code: 'OUT_OF_STOCK', line: 2, variantId: other, available: 0 },
+        ],
+      },
+    })
+    const quote = await fetchQuote({ lines: [{ variantId: LINE.variantId, quantity: 2 }] })
+    expect(quote.errors[0]).toMatchObject({ code: 'INVALID_QUANTITY', maximum: 1 })
+    expect(quote.errors.map(oneCopyOnly)).toEqual([true, false, false])
+    // A maximum that is no count is no quote.
+    stubFetch({ ok: true, data: { ...QUOTE, errors: [{ code: 'INVALID_QUANTITY', line: 0, maximum: 'one' }] } })
+    await expect(fetchQuote({ lines: [{ variantId: LINE.variantId, quantity: 2 }] })).rejects.toThrow()
+  })
+
+  it('says a second add of a digital product in words that fit any product', () => {
+    expect(DIGITAL_IN_CART).toBe('هذا المنتج في سلتك؛ النسخة الرقمية واحدة لكل طلب.')
+    expect(DIGITAL_IN_CART).not.toContain('الكتاب')
+  })
+})
+
+describe('the hold view shows the order it holds (FABLE-AUDIT F3-8)', () => {
+  const PENDING = { orderNumber: 'ABCD2345', accessToken: TOKEN }
+  const digitalLine = ORDER.lines[0]!
+  const paperLine = { ...digitalLine, sku: 'SKU-2', variantTitle: 'نسخة ورقية', fulfillment: 'physical', quantity: 2, unitPrice: 3000, total: 6000, preorder: null }
+  const orderWith = (lines: unknown[], over: Record<string, unknown> = {}) => orderSchema.parse({ ...ORDER, lines, ...over })
+  const view = (order: ReturnType<typeof orderWith>, over: Record<string, unknown> = {}) =>
+    renderToStaticMarkup(
+      createElement(HoldView, {
+        pending: PENDING,
+        start: { order, payment: { state: 'ready', url: 'https://pay.example/invoice/1' } },
+        testMode: false,
+        focusOnOpen: false,
+        changed: false,
+        onEnd: () => {},
+        onForget: () => {},
+        ...over,
+      } as never),
+    ).replaceAll('<!-- -->', '')
+
+  it('lists the order\'s own lines, with their quantities and totals', () => {
+    const html = view(orderWith([digitalLine, paperLine]))
+    expect(html).toContain('كتاب: نسخة × 1')
+    expect(html).toContain('كتاب: نسخة ورقية × 2')
+    expect(html).toContain(formatMoney(6000))
+    expect(html).toContain(formatMoney(1240))
+  })
+
+  it('says where an order that ships goes, and says nothing of an address for a digital one', () => {
+    expect(SHIPS_TO_TYPED_ADDRESS).toBe('يُشحن إلى العنوان الذي أُدخل عند إنشاء الطلب')
+    expect(view(orderWith([digitalLine, paperLine]))).toContain(SHIPS_TO_TYPED_ADDRESS)
+    expect(view(orderWith([{ ...paperLine, fulfillment: 'signed' }]))).toContain(SHIPS_TO_TYPED_ADDRESS)
+    expect(view(orderWith([digitalLine]))).not.toContain(SHIPS_TO_TYPED_ADDRESS)
+  })
+
+  it('warns only when the cart is no longer what the order was made from', () => {
+    expect(ORDER_BEFORE_EDIT).toBe('هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.')
+    expect(view(orderWith([digitalLine]), { changed: true })).toContain(ORDER_BEFORE_EDIT)
+    expect(view(orderWith([digitalLine]), { changed: false })).not.toContain(ORDER_BEFORE_EDIT)
+    // An order that is over (cancelled, expired) or paid has nothing left to pay as it is: no warning, no lines.
+    for (const status of ['cancelled', 'expired', 'paid']) {
+      const html = view(orderWith([digitalLine], { status }), { changed: true })
+      expect(html, status).not.toContain(ORDER_BEFORE_EDIT)
+      expect(html, status).not.toContain('كتاب: نسخة × 1')
+    }
+  })
+
+  it('keeps showing the lines, and the cancel, of an order that cannot be paid from here, without the pay-as-it-is advice', () => {
+    const html = view(orderWith([paperLine]), { start: { order: orderWith([paperLine]), payment: { state: 'closed', code: 'PAYMENT_MODE_CHANGED' } }, changed: true })
+    expect(html).toContain('كتاب: نسخة ورقية × 2')
+    expect(html).toContain('إلغاء الطلب')
+    expect(html).not.toContain(ORDER_BEFORE_EDIT)
+  })
+
+  it('draws its buttons at rest live: «إلغاء الطلب» and «أعد المحاولة» disable themselves with aria-disabled while a request runs, never with disabled', () => {
+    const waiting = view(orderWith([digitalLine]), { start: { order: orderWith([digitalLine]), payment: { state: 'preparing' } } })
+    expect(waiting).toContain('أعد المحاولة')
+    expect(waiting).toContain('إلغاء الطلب')
+    expect(waiting).not.toMatch(/\sdisabled(=|\s|>)/)
+    expect(waiting).not.toContain('aria-disabled')
   })
 })

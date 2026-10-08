@@ -419,7 +419,7 @@ test('a digital-only cart shows no city; the coupon applies and the discount sho
   const ebookRow = page.locator('li', { hasText: 'النسخة الإلكترونية' })
   await expect(ebookRow.getByLabel('الكمية')).toHaveCount(0)
   await ebookRow.getByRole('button', { name: 'أضف إلى السلة' }).click()
-  await expect(ebookRow.getByText('الكتاب الرقمي في سلتك.')).toBeVisible()
+  await expect(ebookRow.getByText('هذا المنتج في سلتك؛ النسخة الرقمية واحدة لكل طلب.')).toBeVisible()
   await page.goto('/cart')
   await expect(page.locator('li', { hasText: 'النسخة الإلكترونية' })).toContainText('12.40 ر.س × 1')
   await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
@@ -872,6 +872,8 @@ test('ACTIVE_HOLD hands the held order back to the same email when the tab lost 
   await confirmOrder(page)
   await expect(page.locator('#checkout-order-number span')).toHaveText(number)
   await expect(page.getByRole('link', { name: 'ادفع الآن' })).toBeVisible()
+  // The cart is the one the order was made from: the order's own lines say so (FABLE-AUDIT F3-8, the auditor's B1), so no warning.
+  await expect(page.getByText('هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.')).toHaveCount(0)
   const handedBack = JSON.parse((await kept(page, PENDING_KEY))!) as { orderNumber: string }
   expect(handedBack.orderNumber).toBe(number)
   // Still the one order, and the one invoice.

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { collections, documentTitle, isRoomSlug, ROOM_DOC_LABELS, schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
@@ -12,9 +14,13 @@ import {
   siteSettingsStoredSchema,
 } from '../../src/admin/collections/site-settings'
 import { tables, type TableKey } from '../../src/admin/tables'
-import { defaultsForFields, equalData, type Field, schemaFromFields } from '../../src/admin/fields'
-import { startedRoomSchema } from '../../src/admin/collections/rooms'
+import { altSibling, defaultsForFields, equalData, type Field, schemaFromFields, withDefaults, withPickedImage } from '../../src/admin/fields'
+import { postFields } from '../../src/admin/collections/posts'
+import { galleryPhotoFields, PHOTO_ALT_ERROR, roomSchemas, startedMovementFields, startedRoomSchema } from '../../src/admin/collections/rooms'
+import { homeFields } from '../../src/admin/collections/site-settings'
+import { PublishBar } from '../../src/components/admin/PublishBar'
 import { SCENE_CATEGORIES } from '../../src/content/scenes'
+import { ARCHIVE_CONFIRM, HIDDEN_LIVE_STATUS, liveStatus, POLICY_PUBLISH_NOTE, successMessage } from '../../src/lib/admin-publish'
 import { formatMediaRef } from '../../src/lib/media-ref'
 import content from '../../content/initial-content.json'
 
@@ -510,5 +516,150 @@ describe('admin editing fixes (AUDIT-1)', () => {
       widths: [1200],
     })
     expect(startedRoomSchema.safeParse(resolved).success).toBe(false)
+  })
+})
+
+describe('a new post starts visible (FABLE-AUDIT F3-6 b)', () => {
+  it('opens with «ظاهر» ticked; a boolean that says nothing of it still starts unticked', () => {
+    expect(defaultsForFields(collections.posts.fields).visible).toBe(true)
+    expect(defaultsForFields([{ name: 'on', label: 'مفعّل', type: 'boolean' }])).toEqual({ on: false })
+  })
+
+  it('keeps what a saved post holds: a hidden post stays hidden, one with no value takes the starting one', () => {
+    expect(withDefaults(postFields, { visible: false }).visible).toBe(false)
+    expect(withDefaults(postFields, { visible: true }).visible).toBe(true)
+    expect(withDefaults(postFields, {}).visible).toBe(true)
+  })
+
+  it('says a live post it hides is live and hidden, in the list and in the message of «نشر»', () => {
+    expect(HIDDEN_LIVE_STATUS).toBe('منشور ومخفي عن الموقع')
+    expect(liveStatus({ visible: false, title: 'مقال' })).toBe('منشور ومخفي عن الموقع')
+    expect(liveStatus({ visible: true })).toBe('منشور')
+    // A document with no such field (a room, a policy) is plainly «منشور».
+    for (const data of [{}, { title: 'سياسة' }, null, undefined]) expect(liveStatus(data), JSON.stringify(data)).toBe('منشور')
+    expect(successMessage('نشر', { rebuilds: true })).toBe('نشر: تم بنجاح. يظهر التعديل على الموقع خلال دقائق.')
+    expect(successMessage('نشر', { rebuilds: true, hidden: true })).toBe('نشر: تم بنجاح. منشور ومخفي عن الموقع: «ظاهر» غير مفعّل.')
+    expect(successMessage('جدولة')).toBe('جدولة: تم بنجاح.')
+  })
+})
+
+describe('a photo that is set needs its alt at publish, and a draft saves without it (FABLE-AUDIT F3-6 c)', () => {
+  const issuesOf = (schema: { safeParse: (data: unknown) => { success: boolean; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } } }, data: unknown) => {
+    const result = schema.safeParse(data)
+    return result.success ? [] : (result.error?.issues ?? []).map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+  }
+
+  it('refuses a blank alt on the passed gallery, the shelf\'s photos and images and the book\'s five kinds of image', () => {
+    const passed = structuredClone(content.rooms.passed)
+    passed.media.gallery[2]!.alt = ''
+    expect(issuesOf(schemaFor('rooms', 'passed'), passed)).toEqual([`media.gallery.2.alt: ${PHOTO_ALT_ERROR}`])
+
+    const shelf = structuredClone(content.rooms.shelf)
+    shelf.items.thura.photos[1]!.alt = '   '
+    shelf.items.moonlightCup.images[0]!.alt = ''
+    expect(issuesOf(schemaFor('rooms', 'shelf'), shelf)).toEqual([
+      `items.thura.photos.1.alt: ${PHOTO_ALT_ERROR}`,
+      `items.moonlightCup.images.0.alt: ${PHOTO_ALT_ERROR}`,
+    ])
+
+    const book = structuredClone(content.rooms.book)
+    book.cover.alt = ''
+    book.standing.alt = ''
+    book.spine.alt = ''
+    book.bookmark.alt = ''
+    book.photos[3]!.alt = ''
+    expect(issuesOf(schemaFor('rooms', 'book'), book)).toEqual(
+      ['cover', 'standing', 'spine', 'bookmark', 'photos.3'].map((where) => `${where}.alt: ${PHOTO_ALT_ERROR}`),
+    )
+    expect(PHOTO_ALT_ERROR).toBe('اكتب الوصف البديل للصورة.')
+  })
+
+  // The auditor's B6: the built room's logo is a photo too ({id, alt}), and the picker already fills its alt.
+  it('refuses a blank alt on the built room\'s logo (its image is required)', () => {
+    const built = structuredClone(content.rooms.built)
+    expect(issuesOf(schemaFor('rooms', 'built'), built)).toEqual([])
+    built.media.logo.alt = ' '
+    expect(issuesOf(schemaFor('rooms', 'built'), built)).toEqual([`media.logo.alt: ${PHOTO_ALT_ERROR}`])
+  })
+
+  it('refuses a blank alt on the home portrait, beside it in the settings', () => {
+    const settings = structuredClone(siteSettingsData)
+    settings.home.portraitAlt = ''
+    expect(issuesOf(schemaFor('site_settings', 'site'), settings)).toEqual([`home.portraitAlt: ${PHOTO_ALT_ERROR}`])
+  })
+
+  it('saves a draft with the alt blank: the stored schemas the form saves and the loaders read accept it', () => {
+    const passed = structuredClone(content.rooms.passed)
+    passed.media.gallery[0]!.alt = ''
+    expect(roomSchemas.passed.safeParse(passed).success).toBe(true)
+    const settings = structuredClone(siteSettingsData)
+    settings.home.portraitAlt = ''
+    expect(siteSettingsStoredSchema.safeParse(settings).success).toBe(true)
+  })
+
+  it('leaves the seeded documents as they are: every image there carries its alt', () => {
+    for (const slug of ROOM_SLUGS) expect(issuesOf(schemaFor('rooms', slug), (content.rooms as Record<string, unknown>)[slug]), slug).toEqual([])
+    expect(issuesOf(schemaFor('site_settings', 'site'), siteSettingsData)).toEqual([])
+  })
+
+  it('finds the alt that goes with an image among its siblings: `alt`, or `<name>Alt` for the home portrait, else none', () => {
+    expect(altSibling(galleryPhotoFields, galleryPhotoFields[0])).toBe('alt')
+    const portrait = homeFields.find((field) => field.name === 'portrait')!
+    expect(altSibling(homeFields, portrait)).toBe('portraitAlt')
+    // A cover and a vignette have no alt of their own to fill.
+    expect(altSibling(postFields, postFields.find((field) => field.name === 'cover')!)).toBeNull()
+    expect(altSibling(startedMovementFields, startedMovementFields.find((field) => field.name === 'vignette')!)).toBeNull()
+  })
+
+  it('fills an empty alt from the library\'s when an image is picked, and never replaces words already written', () => {
+    expect(withPickedImage({ id: '', alt: '' }, 'id', 'alt', 'media-1', 'كوب مزخرف')).toEqual({ id: 'media-1', alt: 'كوب مزخرف' })
+    expect(withPickedImage({ id: 'old', alt: '   ' }, 'id', 'alt', 'media-2', 'كوب مزخرف')).toEqual({ id: 'media-2', alt: 'كوب مزخرف' })
+    expect(withPickedImage({ id: 'old', alt: 'وصف كتبه أنس' }, 'id', 'alt', 'media-2', 'كوب مزخرف')).toEqual({ id: 'media-2', alt: 'وصف كتبه أنس' })
+    // The library holds no words for it (or the image has no alt field): only the id changes, and the other keys stay.
+    expect(withPickedImage({ id: '', alt: '' }, 'id', 'alt', 'media-3', '  ')).toEqual({ id: 'media-3', alt: '' })
+    expect(withPickedImage({ portrait: '', tagline: 'x' }, 'portrait', null, 'media-4', 'وصف')).toEqual({ portrait: 'media-4', tagline: 'x' })
+    expect(withPickedImage({ portrait: '', portraitAlt: '' }, 'portrait', 'portraitAlt', 'media-5', 'أنس')).toEqual({ portrait: 'media-5', portraitAlt: 'أنس' })
+  })
+})
+
+describe('the publish bar of a policy and of a document never published (FABLE-AUDIT F3-6 a, d)', () => {
+  const bar = (over: Record<string, unknown>) =>
+    renderToStaticMarkup(
+      createElement(PublishBar, {
+        collection: 'posts',
+        docId: 'a-post',
+        seq: 2,
+        liveSeq: 2,
+        scheduledAt: null,
+        scheduledSeq: null,
+        canPublish: true,
+        canArchive: true,
+        previewPath: null,
+        onChanged: () => {},
+        ...over,
+      } as never),
+    ).replaceAll('<!-- -->', '')
+
+  it('says above «نشر» and «جدولة» that publishing a policy stops buying until the owner approves again', () => {
+    expect(POLICY_PUBLISH_NOTE).toBe('نشر تعديل على سياسة معتمدة يوقف الشراء حتى يعيد المالك اعتماد السياسات من الإعدادات.')
+    const policy = bar({ collection: 'policies', docId: 'store', canArchive: false })
+    expect(policy).toContain(POLICY_PUBLISH_NOTE)
+    expect(policy.indexOf(POLICY_PUBLISH_NOTE)).toBeLessThan(policy.indexOf('>نشر<'))
+    expect(policy.indexOf(POLICY_PUBLISH_NOTE)).toBeLessThan(policy.indexOf('>جدولة<'))
+    expect(bar({})).not.toContain(POLICY_PUBLISH_NOTE)
+  })
+
+  it('ends the success message of a policy\'s publish and schedule with that warning, and no other message', () => {
+    expect(successMessage('نشر', { rebuilds: true, policy: true })).toBe(`نشر: تم بنجاح. يظهر التعديل على الموقع خلال دقائق. ${POLICY_PUBLISH_NOTE}`)
+    expect(successMessage('جدولة', { policy: true })).toBe(`جدولة: تم بنجاح. ${POLICY_PUBLISH_NOTE}`)
+    expect(successMessage('أرشفة', { rebuilds: true })).not.toContain(POLICY_PUBLISH_NOTE)
+    expect(successMessage('إلغاء الجدولة')).toBe('إلغاء الجدولة: تم بنجاح.')
+  })
+
+  it('offers «أرشفة» only for a document that was published, and asks first', () => {
+    expect(ARCHIVE_CONFIRM).toBe('أرشفة المستند تزيله من الموقع. متابعة؟')
+    expect(bar({ liveSeq: 2 })).toContain('>أرشفة<')
+    expect(bar({ liveSeq: null })).not.toContain('>أرشفة<')
+    expect(bar({ liveSeq: 2, canArchive: false })).not.toContain('>أرشفة<')
   })
 })

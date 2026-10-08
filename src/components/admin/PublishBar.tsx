@@ -12,7 +12,16 @@ import { useState } from 'react'
 
 import type { Collection } from '@/admin/collections'
 // Relative, like the money-input import: the unit tests render this bar, and they do not resolve `@/`.
-import { archiveDocument, cancelSchedule, publishDocument, scheduleDocument, scheduleIsBehind } from '../../lib/admin-publish'
+import {
+  archiveDocument,
+  ARCHIVE_CONFIRM,
+  cancelSchedule,
+  POLICY_PUBLISH_NOTE,
+  publishDocument,
+  scheduleDocument,
+  scheduleIsBehind,
+  successMessage,
+} from '../../lib/admin-publish'
 import { formatRiyadh } from '../../lib/format'
 import { riyadhLocalToIsoOrNull } from '../../lib/money-input'
 
@@ -28,6 +37,8 @@ interface PublishBarProps {
   scheduledSeq: number | null
   canPublish: boolean
   canArchive: boolean
+  /** A post whose «ظاهر» is off: publishing it does not put it on the site, and the message says so. */
+  siteHidden?: boolean
   previewPath: string | null
   onChanged: () => void
 }
@@ -41,6 +52,7 @@ export function PublishBar({
   scheduledSeq,
   canPublish,
   canArchive,
+  siteHidden = false,
   previewPath,
   onChanged,
 }: PublishBarProps) {
@@ -48,11 +60,12 @@ export function PublishBar({
   const [message, setMessage] = useState<string | null>(null)
   const [scheduleValue, setScheduleValue] = useState('')
   const scheduleId = `${collection}-${docId}-schedule`
+  const policy = collection === 'policies'
 
   async function run(
     label: string,
     task: () => Promise<{ ok: boolean; error?: { message: string } }>,
-    rebuilds = false,
+    shown: { rebuilds?: boolean; hidden?: boolean; policy?: boolean } = {},
   ) {
     setBusy(true)
     setMessage(null)
@@ -60,7 +73,7 @@ export function PublishBar({
     const result = await task().catch(() => ({ ok: false, error: { message: 'تعذّر إكمال الإجراء.' } }))
     setBusy(false)
     if (result.ok) {
-      setMessage(rebuilds ? `${label}: تم بنجاح. يظهر التعديل على الموقع خلال دقائق.` : `${label}: تم بنجاح.`)
+      setMessage(successMessage(label, shown))
       onChanged()
     } else {
       setMessage(`${label}: ${result.error?.message ?? 'تعذّر إكمال الإجراء.'}`)
@@ -78,28 +91,32 @@ export function PublishBar({
       setMessage('جدولة: يجب أن يكون موعد الجدولة في المستقبل.')
       return
     }
-    void run('جدولة', () => scheduleDocument(collection, docId, seq, at))
+    void run('جدولة', () => scheduleDocument(collection, docId, seq, at), { policy })
   }
 
   const behind = scheduledAt !== null && scheduleIsBehind(scheduledSeq, seq)
 
   return (
     <div className={styles.field}>
+      {policy && <p className={styles.message}>{POLICY_PUBLISH_NOTE}</p>}
       <div className={styles.row}>
         <button
           type="button"
           className={styles.button}
           disabled={busy || !canPublish}
-          onClick={() => run('نشر', () => publishDocument(collection, docId, seq), true)}
+          onClick={() => run('نشر', () => publishDocument(collection, docId, seq), { rebuilds: true, hidden: siteHidden, policy })}
         >
           نشر
         </button>
-        {canArchive && (
+        {/* A document never published has nothing to take off the site. */}
+        {canArchive && liveSeq !== null && (
           <button
             type="button"
             className={styles.buttonSecondary}
             disabled={busy}
-            onClick={() => run('أرشفة', () => archiveDocument(collection, docId), true)}
+            onClick={() => {
+              if (window.confirm(ARCHIVE_CONFIRM)) void run('أرشفة', () => archiveDocument(collection, docId), { rebuilds: true })
+            }}
           >
             أرشفة
           </button>
@@ -159,7 +176,7 @@ export function PublishBar({
             type="button"
             className={styles.buttonSecondary}
             disabled={busy || !canPublish}
-            onClick={() => void run('جدولة', () => scheduleDocument(collection, docId, seq, scheduledAt))}
+            onClick={() => void run('جدولة', () => scheduleDocument(collection, docId, seq, scheduledAt), { policy })}
           >
             جدولة النسخة {seq} في الموعد نفسه
           </button>

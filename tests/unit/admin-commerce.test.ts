@@ -3,10 +3,13 @@
 // range of days sent to `stats`, the size wording, the strict parsers of what `variant_admin_info`, the
 // paid-file actions and `owner_commerce_stats` answer, and the sentences. FABLE-AUDIT F2b adds the store
 // settings' «الشراء» box: the payments line with its reason, and whether the store takes orders now.
+// FABLE-AUDIT F3-5 and F3-16 add what the settings screen does with the owner's authenticators (a list that could not be
+// read is not «no authenticator») and with an action that went through whose re-read failed.
 import { describe, expect, it } from 'vitest'
 
 import { PAID_FILE_MAX_BYTES as SERVER_MAX_BYTES } from '../../supabase/functions/_shared/paid-files.ts'
 import {
+  afterSaved,
   checkoutLine,
   checkPaidFile,
   COMMERCE_NOTE,
@@ -14,6 +17,8 @@ import {
   DAY_INVALID,
   dayAfter,
   dayStart,
+  factorReading,
+  FACTORS_UNREADABLE,
   FILE_EMPTY,
   FILE_NAME,
   FILE_TOO_LARGE,
@@ -30,6 +35,7 @@ import {
   RANGE_REVERSED,
   RANGE_TOO_LONG,
   riyadhToday,
+  SAVED_NOT_REFRESHED,
   signedMoney,
   statsRequest,
   uploadedSentence,
@@ -417,5 +423,48 @@ describe('the «الشراء» box of the store settings', () => {
     // A reason this screen does not know, or none, still says closed: never «مفتوح» on a closed store.
     expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: 'SOMETHING_NEW' })).toBe('الشراء مغلق')
     expect(checkoutLine({ checkoutOpen: false, checkoutClosedReason: null })).toBe('الشراء مغلق')
+  })
+})
+
+describe('the owner\'s authenticators, read for the store settings (FABLE-AUDIT F3-5 c)', () => {
+  const factor = (id: string, status: string) => ({ id, status })
+
+  it('finds the verified authenticator, whatever else is listed', () => {
+    expect(factorReading({ data: { totp: [factor('a', 'unverified'), factor('b', 'verified')] }, error: null })).toEqual({ kind: 'verified', id: 'b' })
+  })
+
+  it('says none when the list was read and holds no verified one', () => {
+    expect(factorReading({ data: { totp: [] }, error: null })).toEqual({ kind: 'none' })
+    expect(factorReading({ data: { totp: [factor('a', 'unverified')] }, error: null })).toEqual({ kind: 'none' })
+  })
+
+  it('says failed, never none, for a list that could not be read: an owner who has an authenticator is not told to enrol one', () => {
+    expect(factorReading({ data: null, error: new Error('Failed to fetch') })).toEqual({ kind: 'failed' })
+    expect(factorReading({ data: null, error: true })).toEqual({ kind: 'failed' })
+    expect(factorReading({ data: null, error: null })).toEqual({ kind: 'failed' })
+    // An error beside data is still an error; data without a list is no list.
+    expect(factorReading({ data: { totp: [factor('b', 'verified')] }, error: new Error('x') })).toEqual({ kind: 'failed' })
+    expect(factorReading({ data: {} as { totp: [] }, error: null })).toEqual({ kind: 'failed' })
+    expect(FACTORS_UNREADABLE).toBe('تعذّر قراءة حالة المصادقة؛ حدّث الصفحة.')
+  })
+})
+
+describe('the store settings after an action that went through (FABLE-AUDIT F3-16 e)', () => {
+  const row = { version: 4 }
+
+  it('shows the settings read again and the action\'s own sentence', async () => {
+    expect(await afterSaved(async () => row, 'تم الحفظ.')).toEqual({ row, stale: false, sentence: 'تم الحفظ.' })
+  })
+
+  it('keeps no row, says the screen was not refreshed and goes stale when the reading fails: the old version is spent', async () => {
+    expect(await afterSaved(async () => null, 'تم الحفظ.')).toEqual({ row: null, stale: true, sentence: 'تم الحفظ؛ تعذّر تحديث الشاشة، حدّثها.' })
+    expect(SAVED_NOT_REFRESHED).toBe('تم الحفظ؛ تعذّر تحديث الشاشة، حدّثها.')
+  })
+
+  it('counts a reading that threw as a failed one', async () => {
+    const threw = async (): Promise<typeof row | null> => {
+      throw new Error('Failed to fetch')
+    }
+    expect(await afterSaved(threw, 'تم اعتماد السياسات.')).toEqual({ row: null, stale: true, sentence: SAVED_NOT_REFRESHED })
   })
 })

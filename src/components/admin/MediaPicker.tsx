@@ -8,7 +8,8 @@ import styles from './admin.module.css'
 /**
  * «اختر من المكتبة»: a native dialog over the same library browser the
  * media screen uses (search and paging included). Choosing a tile hands the
- * media id back to the field.
+ * media id back to the field, and the whole row after it (its alt, for a field
+ * with an alt of its own to fill).
  */
 export function MediaPicker({
   open,
@@ -17,7 +18,7 @@ export function MediaPicker({
 }: {
   open: boolean
   onClose: () => void
-  onChoose: (id: string) => void
+  onChoose: (id: string, row: MediaRow) => void
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const titleId = useId()
@@ -30,7 +31,7 @@ export function MediaPicker({
   }, [open])
 
   function choose(row: MediaRow) {
-    onChoose(row.id)
+    onChoose(row.id, row)
     onClose()
   }
 

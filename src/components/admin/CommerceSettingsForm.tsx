@@ -20,7 +20,7 @@ import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { POLICY_DOC_LABELS, type PolicyDocId } from '@/admin/collections/policies'
-import { checkoutLine, paymentsLine } from '@/lib/admin-commerce'
+import { afterSaved, checkoutLine, factorReading, FACTORS_UNREADABLE, paymentsLine } from '@/lib/admin-commerce'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
@@ -71,6 +71,8 @@ export function CommerceSettingsForm() {
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
   const [needsEnrollment, setNeedsEnrollment] = useState(false)
+  // An action went through and the settings could not be read again: the version held here is spent (`afterSaved`).
+  const [stale, setStale] = useState(false)
   const [stepUp, setStepUp] = useState<{ factorId: string; body: Record<string, unknown>; successMessage: string } | null>(null)
 
   useEffect(() => {
@@ -99,19 +101,29 @@ export function CommerceSettingsForm() {
   async function applyResult(ok: boolean, code: string, message: string, body: Record<string, unknown>, successMessage: string) {
     if (ok) {
       setSaved(successMessage)
-      const loaded = await loadRow()
-      if (loaded) setRow(loaded)
+      const next = await afterSaved(loadRow, successMessage)
+      if (next.row !== null) {
+        setRow(next.row)
+      } else {
+        setSaved(null)
+        setError(next.sentence)
+        setStale(next.stale)
+      }
       return
     }
     if (code === 'STEP_UP_REQUIRED') {
       const supabase = getSupabaseBrowserClient()
-      const { data } = await supabase.auth.mfa.listFactors()
-      const verified = data?.totp.find((factor) => factor.status === 'verified')
-      if (!verified) {
+      const reading = factorReading(await supabase.auth.mfa.listFactors().catch(() => ({ data: null, error: true })))
+      // A list that could not be read says nothing about enrolment: no «فعّل تطبيق المصادقة» for an owner who has one.
+      if (reading.kind === 'failed') {
+        setError(FACTORS_UNREADABLE)
+        return
+      }
+      if (reading.kind === 'none') {
         setNeedsEnrollment(true)
         return
       }
-      setStepUp({ factorId: verified.id, body, successMessage })
+      setStepUp({ factorId: reading.id, body, successMessage })
       return
     }
     setError(message)
@@ -156,6 +168,8 @@ export function CommerceSettingsForm() {
   if (loadError) return <p className={styles.error}>تعذّر تحميل إعدادات المتجر.</p>
   if (!row) return <p className={styles.message}>يحمّل...</p>
 
+  // Busy with a call, or holding a version the last action spent: nothing is sent from here.
+  const off = busy || stale
   const policyEntries = Object.entries(row.policyRevisions)
 
   return (
@@ -186,7 +200,7 @@ export function CommerceSettingsForm() {
             type="text"
             maxLength={200}
             value={legalName}
-            disabled={busy}
+            disabled={off}
             onChange={(event) => setLegalName(event.target.value)}
           />
         </div>
@@ -200,7 +214,7 @@ export function CommerceSettingsForm() {
             type="text"
             maxLength={500}
             value={address}
-            disabled={busy}
+            disabled={off}
             onChange={(event) => setAddress(event.target.value)}
           />
         </div>
@@ -214,11 +228,11 @@ export function CommerceSettingsForm() {
             type="text"
             maxLength={100}
             value={registration}
-            disabled={busy}
+            disabled={off}
             onChange={(event) => setRegistration(event.target.value)}
           />
         </div>
-        <button type="submit" className={styles.button} disabled={busy}>
+        <button type="submit" className={styles.button} disabled={off}>
           حفظ
         </button>
       </form>
@@ -233,7 +247,7 @@ export function CommerceSettingsForm() {
         <button
           type="button"
           className={styles.button}
-          disabled={busy}
+          disabled={off}
           onClick={() => void runAction({ action: 'commerce-policies-approve', expectedVersion: row.version }, 'تم اعتماد السياسات.')}
         >
           اعتماد السياسات المنشورة
@@ -251,7 +265,7 @@ export function CommerceSettingsForm() {
           <button
             type="button"
             className={styles.button}
-            disabled={busy}
+            disabled={off}
             onClick={() =>
               void runAction(
                 { action: 'commerce-checkout-set', enabled: !row.checkoutEnabled, expectedVersion: row.version },

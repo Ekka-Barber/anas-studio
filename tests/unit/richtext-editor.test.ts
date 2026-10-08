@@ -117,7 +117,7 @@ describe('the link rule is the schema rule (ADMIN-publish-2)', () => {
     expect(richTextSchema.safeParse(json).success).toBe(true)
   })
 
-  it('keeps http and mailto links, and unwraps «HTTPS://» and «https:host», which the page would not draw (CLIENT-SEC-07)', () => {
+  it('keeps an https link, and unwraps http:, mailto:, «HTTPS://» and «https:host», which the site does not link to (CLIENT-SEC-07, F3-11)', () => {
     const editor = headlessEditor()
     registerAllowlistTransforms(editor)
     editor.update(
@@ -128,6 +128,7 @@ describe('the link rule is the schema rule (ADMIN-publish-2)', () => {
             $createLinkNode('https:example.com').append($createTextNode('b')),
             $createLinkNode('http://example.com').append($createTextNode('c')),
             $createLinkNode('mailto:anas@example.com').append($createTextNode('d')),
+            $createLinkNode('https://example.com').append($createTextNode('e')),
           ),
         )
       },
@@ -135,7 +136,7 @@ describe('the link rule is the schema rule (ADMIN-publish-2)', () => {
     )
     const json = editor.getEditorState().toJSON()
     const children = (json.root.children[0] as unknown as { children: Array<{ type: string; url?: string; text?: string }> }).children
-    expect(children.map((node) => node.url ?? node.text)).toEqual(['ab', 'http://example.com', 'mailto:anas@example.com'])
+    expect(children.map((node) => node.url ?? node.text)).toEqual(['abcd', 'https://example.com'])
     expect(richTextSchema.safeParse(json).success).toBe(true)
   })
 })
