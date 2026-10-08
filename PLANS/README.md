@@ -6,7 +6,7 @@ Read in order: [DECISIONS.md](DECISIONS.md), [ARCHITECTURE.md](ARCHITECTURE.md),
 
 Authority: the owner's current amendments; offer v3's binding scope, with its Payload requirement replaced by D29; compatible PRD detail; the frozen `deploy/design/` showcase (v1 history; the public design is D39's direction B, `DESIGN.md`); assets and brand sources; project rules. Never inspect or modify `_archive/`. Source hashes in `evidence/source-manifest.json` protect the frozen sources.
 
-Packages run P00 to P11 in order (D38 lets P07–P09 run before P01 and P02 finish), each accepted independently. Offer phases: P00–P02 foundation, P03–P06 administration, P07–P09 store/payment, P10–P11 launch. P12 لوحة أنس is BONUS SCOPE, accepted separately, outside the offer C-IDs and the 7–9-week estimate.
+Packages run P00 to P11 in order (D38 lets P07–P09 run before P01 and P02 finish), each accepted independently. Offer phases: P00–P02 foundation, P03–P06 administration, P07–P09 store/payment, P10–P11 launch. P12 «لوحة المشاريع» is BONUS SCOPE (D22, D50), accepted separately, outside the offer C-IDs and the 7–9-week estimate.
 
 ## Single-writer orchestration
 

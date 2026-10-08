@@ -77,4 +77,4 @@ The exact work and evidence are in WORK-PACKAGES.md, DATA-AND-SECURITY.md and VE
 
 Each C-ID has exactly one bold owner package above. Supporting packages implement prerequisites; only the owner closes that C-ID after all proof exists. C20 is owned by P07 but cannot be closed until supporting payment/fulfillment P08 passes. Package acceptance and complete contract acceptance are separate states.
 
-User-added owner statistics are implemented in P06/P10 with real DB and Cloudflare Analytics queries. User-added operational monitoring belongs to P10/P11. P12 private personal workspace is BONUS SCOPE, has no C-ID, changes no offer milestone/timeline, and has its own acceptance gate. It must not auto-publish linked content.
+User-added owner statistics are implemented in P06/P10 with real DB and Cloudflare Analytics queries. User-added operational monitoring belongs to P10/P11. P12 «لوحة المشاريع», the private projects board, is BONUS SCOPE (D22, D50), has no C-ID, changes no offer milestone/timeline, and has its own acceptance gate. It must not auto-publish linked content.
