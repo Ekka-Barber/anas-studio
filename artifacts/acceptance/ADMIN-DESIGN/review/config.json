@@ -1,6 +1,6 @@
 {
   "before": "e800fc5",
-  "after": "the working tree on top of 107054c",
+  "after": "873a479",
   "changed": [
     "A night rail at the start of a wide screen (from 1280 px), a bar on a phone, a tablet and a small laptop: the mark, «أنس» and the nav in four groups, in the order every role already had.",
     "The current page is a sand tab cut out of the rail, laid over the palm-weave strip.",
@@ -17,7 +17,7 @@
     "tasmeem's scan: 0 findings; its in-page checks: what remains is by design, older than the redesign, one rule misreading a one-word button, or the harness's own stand-in.",
     "impeccable's detector: 0 findings.",
     "Every text colour pair is 4.5:1 or more (aubergine on the fields' paper: 9.5:1).",
-    "Lint, typecheck and 2,583 unit tests pass. An Opus audit compared every screen's structure with the old admin's: nothing the screens do changed. Four Opus audits checked the redesign as it was built; every finding was fixed, but one: on a laptop window under about 590 px tall the rail scrolls without a visible bar.",
+    "Lint, typecheck and 2,583 unit tests pass, and CI is green on 873a479. An Opus audit compared every screen's structure with the old admin's: nothing the screens do changed. Four Opus audits checked the redesign as it was built; every finding was fixed, but one: on a laptop window under about 590 px tall the rail scrolls without a visible bar.",
     "!Still to come: your review of every screen (mark each one here).",
     "!Before acceptance: the admin e2e suites on your machine (D49)."
   ]
