@@ -98,9 +98,9 @@ export function scheduleCutoff(now: number = Date.now()): string {
   return new Date(now - SCHEDULE_GRACE_MS).toISOString()
 }
 
-/** A schedule whose time has passed is not waiting any more: nothing publishes it. */
-export function overdueText(at: string): string {
-  return `موعد النشر فات: ${formatRiyadh(at)}`
+/** A schedule whose time has passed is not waiting any more: nothing publishes it. Several are counted, the oldest named. */
+export function overdueText(at: string, count = 1): string {
+  return count > 1 ? `مستندات فات موعد نشرها: ${formatNumber(count)}، أقدمها: ${formatRiyadh(at)}` : `موعد النشر فات: ${formatRiyadh(at)}`
 }
 
 /** One scheduled job that failed in the last 24 hours (`cron_failures_recent()`: its name, how often, and when it last did). */
@@ -220,9 +220,9 @@ export function AdminHome() {
   const [jobRuns, setJobRuns] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: JobRun[]; dueSince: Partial<Record<string, string | null>> }
   >({ state: 'loading' })
-  // The documents still waiting for their time, and the oldest pending schedule whose time has passed (null: none).
+  // The documents still waiting for their time, and the schedules whose time has passed: how many, and the oldest (null: none).
   const [scheduled, setScheduled] = useState<Count>(LOADING)
-  const [overdue, setOverdue] = useState<string | null>(null)
+  const [overdue, setOverdue] = useState<{ at: string; count: number } | null>(null)
   // The scheduled jobs (pg_cron) that failed in the last 24 hours; a failed read shows its own line, the rest of the home stands.
   const [cronFailures, setCronFailures] = useState<{ state: 'loading' } | { state: 'error' } | { state: 'ok'; value: CronFailure[] }>({
     state: 'loading',
@@ -295,7 +295,7 @@ export function AdminHome() {
       const cutoff = scheduleCutoff()
       const [waiting, late] = await Promise.all([
         supabase.from('content_documents').select('doc_id', { count: 'exact', head: true }).gt('scheduled_at', cutoff),
-        supabase.from('content_documents').select('scheduled_at').lte('scheduled_at', cutoff).order('scheduled_at', { ascending: true }).limit(1),
+        supabase.from('content_documents').select('scheduled_at', { count: 'exact' }).lte('scheduled_at', cutoff).order('scheduled_at', { ascending: true }).limit(1),
       ])
       if (!active) return
       if (waiting.error || waiting.count === null || late.error) {
@@ -303,7 +303,8 @@ export function AdminHome() {
         return
       }
       setScheduled({ state: 'ok', value: waiting.count })
-      setOverdue((late.data as Array<{ scheduled_at: string }> | null)?.[0]?.scheduled_at ?? null)
+      const oldest = (late.data as Array<{ scheduled_at: string }> | null)?.[0]?.scheduled_at
+      setOverdue(oldest === undefined ? null : { at: oldest, count: late.count ?? 1 })
     }
 
     async function loadCronFailures() {
@@ -499,7 +500,7 @@ export function AdminHome() {
         <section>
           <h2>المحتوى المجدول</h2>
           <p>مستندات تنتظر موعد النشر: {countText(scheduled)}</p>
-          {overdue !== null && <p className={styles.error}>{overdueText(overdue)}</p>}
+          {overdue !== null && <p className={styles.error}>{overdueText(overdue.at, overdue.count)}</p>}
           {own?.role === 'owner' && publishFailed.state === 'error' && (
             <p className={styles.error}>تعذّر التحقق من نجاح النشر المجدول.</p>
           )}

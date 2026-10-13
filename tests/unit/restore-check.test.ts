@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -363,6 +363,15 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
           .filter((line) => line !== '')
           .map((line) => JSON.parse(line) as Call)
       : []
+    // Every run, whatever its plan: no call of the CLI goes without its target. Without `--workdir` (the scratch workdir,
+    // under this run's temp folder) or `--project-id` (the rehearsal's own id), the CLI reads this repository's
+    // supabase/config.toml and acts on the development stack, where a `stop --no-backup` removes its data volumes.
+    for (const call of calls.filter((entry) => entry.name === 'supabase')) {
+      const workdir = call.args.indexOf('--workdir')
+      const projectId = call.args.indexOf('--project-id')
+      const aimed = workdir >= 0 ? (call.args[workdir + 1] ?? '').startsWith(temp + sep) : projectId >= 0 && call.args[projectId + 1] === PROJECT_ID
+      expect(aimed, `supabase ${call.args.join(' ')}`).toBe(true)
+    }
     return { result, calls, commands: calls.map((call) => [call.name, ...call.args].join(' ')), tempLeft: readdirSync(temp) }
   }
 
@@ -378,6 +387,14 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
       volumes: commands.indexOf(`docker volume ls --filter label=${LABEL} --format {{.Name}}`),
     }
   }
+
+  describe('the development stack', () => {
+    it('is never the target: the first call after decryption clears a crashed rehearsal by its own project id, and rehearse() checks every CLI call names its workdir or that id', () => {
+      const { result, commands } = rehearse(local, [START_FAILS])
+      expect(result.status).toBe(1)
+      expect(commands[0]).toBe(`supabase stop --no-backup --project-id ${PROJECT_ID}`)
+    })
+  })
 
   describe('the network and the published ports', () => {
     it('creates the stack\'s network bound to the loopback address before the CLI starts on it, and refuses to restore when a port is published wider', () => {

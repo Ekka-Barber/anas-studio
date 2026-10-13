@@ -248,6 +248,9 @@ describe('the owner home: a failed run, a schedule that passed, the scheduled jo
     expect(scheduleCutoff(Date.parse('2026-10-07T10:00:00Z'))).toBe('2026-10-07T09:55:00.000Z')
     expect(scheduleCutoff()).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
     expect(overdueText(at)).toBe(`موعد النشر فات: ${at}`)
+    expect(overdueText(at, 1)).toBe(`موعد النشر فات: ${at}`)
+    // The deep audit's FD-B-02: several passed schedules are counted, not hidden behind the oldest.
+    expect(overdueText(at, 3)).toBe(`مستندات فات موعد نشرها: 3، أقدمها: ${at}`)
   })
 
   it('reads cron_failures_recent as the SQL builds it: [{jobname, failures, lastFailedAt}], and [] when nothing failed', () => {

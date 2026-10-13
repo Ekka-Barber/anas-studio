@@ -579,17 +579,40 @@ export function handedLinesDigest(
 }
 
 /**
+ * The request of this tab that may have made an order the tab never saw: its reply was lost (a network failure) or
+ * a 5xx. A press sets it when none is waiting, and keeps it after a lost reply or a success; a 4xx refusal of that
+ * same request drops it, since that request made nothing. The checkout clears it with its key. A later press whose
+ * request differs from it may meet that order through ACTIVE_HOLD (`heldOrder`'s `editedSince`).
+ */
+export function unseenRequest(unseen: string | null, fingerprint: string, refused: boolean): string | null {
+  const waiting = unseen ?? fingerprint
+  return refused && waiting === fingerprint ? null : waiting
+}
+
+/**
+ * Whether a `create` reply proves its request made nothing: a 4xx refusal, but not Turnstile's 400, which can come
+ * before the function replays an order that same request already made (a token spent in flight, say), and no 5xx.
+ */
+export function refusedOutright(reply: { ok: boolean; status: number; error?: { code: string } }): boolean {
+  return !reply.ok && reply.status < 500 && reply.error?.code !== 'TURNSTILE'
+}
+
+/**
  * The pending order an `ACTIVE_HOLD` gives this tab: the order the function handed back, else the one this tab
  * stored. This tab's own record of the same order keeps its digest, and one stored before digests existed stays as it
  * always was (none). An order the tab holds no record of is compared by the digest of its own lines
  * (`handedLinesDigest`, which the caller puts on `handed`), or carries `OTHER_REQUEST` when it has none to compare.
+ * When the press differs from a request of this tab whose reply was lost (`editedSince`, from `unseenRequest`: a
+ * corrected address, say), the order may have been made from that request and carries `OTHER_REQUEST` whatever its
+ * lines, which show no address, name or phone.
  */
-export function heldOrder(handed: PendingOrder | null, stored: PendingOrder | null): PendingOrder | null {
-  if (handed === null) return stored
-  if (stored?.orderNumber === handed.orderNumber) {
-    return stored.lines === undefined ? { orderNumber: handed.orderNumber, accessToken: handed.accessToken } : { ...handed, lines: stored.lines }
-  }
-  return { ...handed, lines: handed.lines ?? OTHER_REQUEST }
+export function heldOrder(handed: PendingOrder | null, stored: PendingOrder | null, editedSince = false): PendingOrder | null {
+  let held: PendingOrder | null
+  if (handed === null) held = stored
+  else if (stored?.orderNumber === handed.orderNumber) {
+    held = stored.lines === undefined ? { orderNumber: handed.orderNumber, accessToken: handed.accessToken } : { ...handed, lines: stored.lines }
+  } else held = { ...handed, lines: handed.lines ?? OTHER_REQUEST }
+  return held !== null && editedSince ? { ...held, lines: OTHER_REQUEST } : held
 }
 
 /** An order number and a token in the shapes the function issues, or null (what `ACTIVE_HOLD` hands back, or what storage holds). A digest that is not one is dropped. */

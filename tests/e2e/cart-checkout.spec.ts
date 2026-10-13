@@ -881,6 +881,59 @@ test('ACTIVE_HOLD hands the held order back to the same email when the tab lost 
   expect(await emulatorInvoices()).toHaveLength(1)
 })
 
+/** Lets the first `create` reach the function, which makes the order, and cuts its reply off before the page sees it. */
+async function loseFirstCreateReply(page: Page) {
+  let lost = false
+  await page.route('**/functions/v1/checkout', async (route) => {
+    const request = route.request()
+    if (!lost && request.method() === 'POST' && request.postDataJSON()?.action === 'create') {
+      lost = true
+      await route.fetch()
+      return route.abort('failed')
+    }
+    return route.continue()
+  })
+}
+
+// The deep audit's FD-B-01: the order a lost reply made comes back through ACTIVE_HOLD, and only a press that changed
+// the request since is told it was made before the edit.
+test('a lost create reply, then a changed name: ACTIVE_HOLD hands back that order and the hold view says it was made before the edit', async ({ page }) => {
+  await checkoutOn()
+  const email = `buyer-${marker}-lost-edited@example.com`
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
+  await loseFirstCreateReply(page)
+  await confirmOrder(page)
+  await expect(page.getByText('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')).toBeVisible()
+  expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
+
+  await page.getByLabel('الاسم').fill('مشترٍ آخر')
+  await confirmOrder(page)
+  await expect(page.locator('#checkout-order-number')).toBeVisible()
+  await expect(page.getByText('هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.')).toBeVisible()
+  expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
+})
+
+test('a lost create reply, then the same request again: the order comes back with no warning', async ({ page }) => {
+  await checkoutOn()
+  const email = `buyer-${marker}-lost-same@example.com`
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
+  await loseFirstCreateReply(page)
+  await confirmOrder(page)
+  await expect(page.getByText('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')).toBeVisible()
+
+  // The same request keeps its key, so the function replays the order it made.
+  await confirmOrder(page)
+  await expect(page.locator('#checkout-order-number')).toBeVisible()
+  await expect(page.getByText('هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.')).toHaveCount(0)
+  expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
+})
+
 test('the return page without the token says paid, offers no order link, and clears nothing it does not hold', async ({ browser }) => {
   await checkoutOn()
   const placed = await apiOrder(`buyer-${marker}-notoken@example.com`)

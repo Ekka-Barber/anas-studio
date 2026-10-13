@@ -63,7 +63,9 @@ import {
   readPendingOrder,
   readSavedCoupon,
   readSessionValue,
+  refusedOutright,
   toApiLines,
+  unseenRequest,
   writeIdempotency,
   writePendingOrder,
   writeSessionValue,
@@ -169,6 +171,8 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
   const sessionRef = useRef<string | null>(null)
   const idempotencyRef = useRef<string | null>(null)
   const fingerprintRef = useRef<string | null>(null)
+  // A request of this tab whose reply was lost, and which may have made an order (`unseenRequest`).
+  const unseenRef = useRef<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
@@ -258,6 +262,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
     clearIdempotency()
     idempotencyRef.current = null
     fingerprintRef.current = null
+    unseenRef.current = null
   }, [])
 
   // The function does not know the order, or its token no longer fits: forget it and show the form again.
@@ -360,6 +365,9 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
     // Reuse the idempotency key only for the identical request (a retry after
     // a network failure); any change to the request mints a new key.
     const fingerprint = digestText(fingerprintCreate(core))
+    // This press differs from a request of the tab whose reply was lost (a corrected address, say): an order
+    // ACTIVE_HOLD hands back below may have been made from that request.
+    const editedSince = unseenRef.current !== null && unseenRef.current !== fingerprint
     if (fingerprint !== fingerprintRef.current) {
       const key = crypto.randomUUID()
       idempotencyRef.current = key
@@ -381,6 +389,8 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         ...core,
         turnstileToken: token,
       })
+      // A reply that proves this request made nothing drops it; any other leaves an order it may have made.
+      unseenRef.current = unseenRequest(unseenRef.current, fingerprint, refusedOutright(reply))
       if (reply.ok && reply.data !== undefined) {
         const order = orderSchema.parse(reply.data.order)
         const accessToken = reply.data.accessToken
@@ -437,7 +447,8 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         const handedNumber =
           typeof fields.order === 'object' && fields.order !== null ? (fields.order as { orderNumber?: unknown }).orderNumber : undefined
         // An order handed back to a tab with no record of it is compared with this cart by its own lines, read through the
-        // quote just sent (`handedLinesDigest`); one whose lines cannot be read carries OTHER_REQUEST (`heldOrder`).
+        // quote just sent (`handedLinesDigest`); one whose lines cannot be read, or one made before this press changed
+        // the tab's earlier request, carries OTHER_REQUEST (`heldOrder`).
         let handedLines: string | undefined
         try {
           handedLines = handedLinesDigest(orderSchema.parse(fields.order).lines, quote.lines)
@@ -447,6 +458,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         const mine = heldOrder(
           pendingOrderOf({ orderNumber: handedNumber, accessToken: fields.accessToken, lines: handedLines }),
           readPendingOrder(),
+          editedSince,
         )
         if (mine) {
           writePendingOrder(mine)
@@ -463,6 +475,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
       setSubmitError(error?.message ?? 'تعذّر إتمام الطلب.')
     } catch {
       // A network failure keeps the form; the retry reuses the same key.
+      unseenRef.current = unseenRequest(unseenRef.current, fingerprint, false)
       setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
     } finally {
       setSubmitting(false)

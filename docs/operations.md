@@ -2001,12 +2001,12 @@ secrets, no Vault values and no schedules until the steps below create them; the
 static site and the admin still name the old project until the site is rebuilt;
 and Resend and Moyasar still send to the old address. The order is the point:
 nothing may sell or talk to Moyasar before the store is closed on the restored
-project and the ledger's erasures are back (step 5); nothing may send mail through
-the outbox before the whole ledger is back, which is why the functions'
-`RESEND_API_KEY` comes last (step 17); only Auth's sign-in codes go earlier (step
-15), because step 17 needs the owner signed in, and until then a member revoked
-after the backup can ask for one too, so steps 15 to 17 run without a break; and
-only one project may ever do any of it (step 1). Nobody has
+project and the whole deletion ledger, its revokes included, is back (step 5):
+Auth and its users come back with the database at step 4, so a member revoked
+after the backup is active again from then until the ledger revokes them; nothing
+may send mail through the outbox before every step is done, which is why the
+functions' `RESEND_API_KEY` comes last (step 17); and only one project may ever do
+any of it (step 1). Nobody has
 run these steps end to end on a real hosted project; `pnpm restore-check` proves
 the dumps, the objects and the schedules, not what follows them.
 
@@ -2037,7 +2037,7 @@ the dumps, the objects and the schedules, not what follows them.
    `history_schema.sql` and `history_data.sql` the same way. If a
    `supabase_admin` owner or `cli_login_postgres` grant error appears,
    comment out those lines (the guide's documented caveats); never edit data.
-5. **Replay the ledger's SQL-only erasures now.** Run every
+5. **Replay the deletion ledger now, all of it, in the SQL editor.** Run every
    `privacy_erase_contacts` and `privacy_buyer_erase` line of the deletion ledger
    in the SQL editor (docs/privacy-data-map.md, "The deletion ledger and
    restores"). A restored older backup brings erased contacts and buyers back with
@@ -2047,10 +2047,35 @@ the dumps, the objects and the schedules, not what follows them.
    have given the `email-outbox` schedule a function to call and its secret, and
    step 17 Resend's key.
 
+   **Revoke again, in the same editor, every member a `revoke` line lists, then
+   erase the staff the ledger erased.** A restored older backup has them active
+   and unbanned, and the team screen cannot wait: Auth and its users are back
+   since step 4, and from step 11 the rebuilt site's sign-in reaches this project.
+   For each `revoke <user id>` line:
+   `update public.staff set active = false where user_id = '<user id>';`
+   From the next query, RLS and every staff function refuse an inactive member
+   (`20260924130000_staff_and_app_server.sql`), so whatever Auth does later, the
+   member reaches nothing. Then
+   `update auth.users set banned_until = now() + interval '876000 hours' where id = '<user id>';`
+   (the ban the team screen's «إيقاف» sets through Auth's admin API, `ban_duration`
+   876000h; written here directly, which nobody has tried on a hosted project, so
+   the inactive row above is what to rely on) and
+   `select public.staff_sessions_end('<user id>');` (it ends their sessions and
+   refresh tokens; a backup older than round M1b has no such function: run this
+   line right after step 6). If a `revoke` line names the only active owner the
+   backup holds (the shop changed hands after the backup), its first update is
+   refused with «At least one active owner is required.» (the
+   `staff_keep_an_owner` trigger): make the current owner first, as "Removing
+   access in a hurry" does for the only owner (an Auth user, then the
+   `public.staff` row), then run the line. Then run every `privacy_erase_staff`
+   line (it refuses an active member, so it comes after the revokes). The team screen will show each
+   of them «موقوف». These direct updates write no audit event: note them in your
+   own log.
+
    **Close the store on the restored project, in the same editor.** The backup
    brought «الشراء» back as it was when the backup was taken, and from step 11 the
    site sells through this project, before its paid files (step 16), its Moyasar
-   webhook (step 13), its ledger (step 17) and its stock (step 19) are right:
+   webhook (step 13) and its stock (step 19) are right:
    `update finance.commerce_settings set checkout_enabled = false, version = version + 1 where id = 1;`
    This direct update writes no audit event (the admin's switch does), so note it
    in your own log; while the store is closed the availability notices stop too.
@@ -2168,20 +2193,22 @@ the dumps, the objects and the schedules, not what follows them.
     403.
 16. Upload the objects from `storage/<bucket>/...` back to their buckets with
    their original content types (read from
-   `storage.objects.metadata->>'mimetype'` in the restored data) — exactly
-   what `pnpm restore-check` does in its rehearsal.
-17. **Replay the rest of the deletion ledger, then set Resend's key.** The team
-    screen works now (the functions are deployed, the site is rebuilt and sign-in
-    is set): first re-revoke in the team screen every member a `revoke` line lists,
-    then run every `privacy_erase_staff` line (it refuses an active member). A
-    restored older backup brings revoked members back active and unbanned, and
-    erased staff data back; until this step they can sign in, so do steps 15 to 17
-    without a break (docs/privacy-data-map.md, "The deletion ledger and
-    restores"). They get no staff mail meanwhile: only now set `RESEND_API_KEY`
-    with `supabase secrets set`. Until it is set the outbox claims nothing and
+   `storage.objects.metadata->>'mimetype'` in the restored data), with upsert: the
+   restored data already holds their `storage.objects` rows (step 4), so a plain
+   upload is refused as already existing. The repository has no command for this
+   on a hosted project; `uploadObjects` in `scripts/restore-check.mjs` shows the
+   calls the rehearsal makes (the Storage API's upload with `upsert: true` and the
+   content type). Nothing here waits for step 11 (the rows are back from step 4,
+   the buckets with the schema), so do it before step 11, and the rebuilt site
+   never shows the library images broken.
+17. **Check the ledger, then set Resend's key.** The team screen works now (the
+    functions are deployed, the site is rebuilt and sign-in is set): every member
+    a `revoke` line lists shows «موقوف» since step 5 (docs/privacy-data-map.md,
+    "The deletion ledger and restores"). Only now set `RESEND_API_KEY` with
+    `supabase secrets set`. Until it is set the outbox claims nothing and
     sends nothing (its runs are recorded as skipped, `EMAIL_NOT_CONFIGURED`), and
     staff mail goes to active members only, so a notice queued for a member revoked
-    in this step is closed `RECIPIENT_INACTIVE` instead of sent.
+    at step 5 is closed `RECIPIENT_INACTIVE` instead of sent.
 18. **Smoke test, and show that it reached the new project.** Send one real message
     through the contact form of the rebuilt site. It must answer «received» (201),
     and the notice must reach the mailbox within a few minutes (this proves

@@ -33,7 +33,9 @@ import {
   readPendingOrder,
   readTestAccess,
   readTestFragment,
+  refusedOutright,
   TEST_ACCESS_KEY,
+  unseenRequest,
   writeIdempotency,
   writePendingOrder,
   fingerprintCreate,
@@ -690,5 +692,62 @@ describe('F3-8: the order and the cart it was made from', () => {
     // No order handed back (the email was not the held order's own): this tab's record, if any.
     expect(heldOrder(null, mine)).toEqual(mine)
     expect(heldOrder(null, null)).toBeNull()
+  })
+
+  // The deep audit's FD-B-01: a lost `create` reply writes no record of the order, and the buyer corrects the address
+  // and presses again; ACTIVE_HOLD hands back the order made from the request whose reply was lost, and its lines
+  // match the cart. That press differs from the unseen request (`editedSince`), so the order carries OTHER_REQUEST and
+  // the hold view warns.
+  it('the request whose reply was lost: kept until a refusal of that same request, and what a different press meets', () => {
+    const lost = unseenRequest(null, 'first', false)
+    expect(lost).toBe('first')
+    // Another lost reply, a success, or a refusal of another request: the first one still may have made an order.
+    expect(unseenRequest(lost, 'second', false)).toBe('first')
+    expect(unseenRequest(lost, 'second', true)).toBe('first')
+    // The same request refused (a 4xx): it made nothing.
+    expect(unseenRequest(lost, 'first', true)).toBeNull()
+    // A first press refused at once (the e2e case of another address meeting ACTIVE_HOLD): nothing waits.
+    expect(unseenRequest(null, 'other', true)).toBeNull()
+  })
+
+  // The verification's FV-01: Turnstile's 400 can come before the function replays the order a lost reply made.
+  it('a create reply proves its request made nothing only as a 4xx refusal, and never as Turnstile\'s 400 or a 5xx', () => {
+    expect(refusedOutright({ ok: false, status: 409, error: { code: 'ACTIVE_HOLD' } })).toBe(true)
+    expect(refusedOutright({ ok: false, status: 422, error: { code: 'INVALID' } })).toBe(true)
+    expect(refusedOutright({ ok: false, status: 400, error: { code: 'TURNSTILE' } })).toBe(false)
+    expect(refusedOutright({ ok: false, status: 503, error: { code: 'TURNSTILE_UNAVAILABLE' } })).toBe(false)
+    expect(refusedOutright({ ok: false, status: 500, error: { code: 'INTERNAL' } })).toBe(false)
+    expect(refusedOutright({ ok: true, status: 201 })).toBe(false)
+  })
+
+  it('ACTIVE_HOLD after a press that differs from the request whose reply was lost (a corrected address): the warning, though the lines match', () => {
+    const { local } = tab()
+    const quoteLines = [
+      { sku: 'SKU-A', variantId: VARIANT_A },
+      { sku: 'SKU-B', variantId: VARIANT_B },
+    ]
+    const same = handedLinesDigest(
+      [
+        { sku: 'SKU-A', quantity: 2 },
+        { sku: 'SKU-B', quantity: 1 },
+      ],
+      quoteLines,
+    )
+    const handed = pendingOrderOf({ orderNumber: NUMBER, accessToken: token, lines: same })!
+    writeCart(cartOf(ordered), local)
+    const edited = heldOrder(handed, null, true)!
+    expect(edited).toEqual({ orderNumber: NUMBER, accessToken: token, lines: OTHER_REQUEST })
+    expect(orderChanged(edited, readCart(local).cart.lines)).toBe(true)
+    // The bought cart is not emptied by that order's payment: it is not known to be this cart's.
+    expect(emptyBoughtCart(returnOrder(`?order=${NUMBER}`, edited)!, local)).toBe(false)
+    expect(readCart(local).cart.lines).toEqual(ordered)
+    // The tab's own record of the same order is marked too, and so is a stored order when nothing is handed back.
+    const mine = { orderNumber: NUMBER, accessToken: token, lines: linesDigest(ordered) }
+    expect(heldOrder(handed, mine, true)).toEqual({ ...mine, lines: OTHER_REQUEST })
+    expect(heldOrder(null, mine, true)).toEqual({ ...mine, lines: OTHER_REQUEST })
+    // No lost request, or the same one pressed again: the comparison by lines.
+    expect(heldOrder(handed, null, false)).toEqual({ orderNumber: NUMBER, accessToken: token, lines: same })
+    expect(orderChanged(heldOrder(handed, null)!, readCart(local).cart.lines)).toBe(false)
+    expect(heldOrder(null, null, true)).toBeNull()
   })
 })
