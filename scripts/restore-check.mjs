@@ -18,14 +18,27 @@
  * not relied on to carry `cron.job` (it depends on the CLI version), so the
  * runbook step follows: every `cron.schedule(...)` call
  * of supabase/migrations is re-run (printed as an applied caveat), and every
- * schedule must then be in `cron.job`. The scratch stack is stopped with
- * `--no-backup` and the temp dirs removed on the way out.
+ * schedule must then be in `cron.job`.
+ *
+ * The scratch stack holds the whole restored database behind the CLI's public
+ * default credentials, so its Docker network is created first, bound to the
+ * loopback address (the CLI would publish every port on all interfaces), the CLI
+ * is told to use that network (`--network-id`), and `docker port` must print at
+ * least one binding, every one of them on 127.0.0.1, before anything is restored.
+ * A backup of the linked project is rehearsed on that project's service versions,
+ * copied from supabase/.temp (written by `supabase link`), not on the CLI's
+ * defaults. The scratch stack is stopped with `--no-backup` and the temp dirs
+ * removed on the way out, each cleanup step on its own so that one that fails
+ * never skips the rest; afterwards no container or volume the CLI labelled for
+ * the project may remain. A run that finds one, cannot show there is none, or
+ * had a cleanup step fail exits non-zero, and says plaintext restored data may
+ * still be on disk.
  */
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { createClient } from '@supabase/supabase-js'
@@ -37,6 +50,13 @@ import { promptHidden } from './lib/passphrase.mjs'
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PROJECT_ID = 'anasaq-restore-check'
 const CONTAINER = `supabase_db_${PROJECT_ID}`
+// How the CLI names the Docker network of a project (supabase_network_<project_id>) and labels everything it
+// creates for it (apps/cli-go/internal/utils/config.go and docker.go, v2.106.0); `supabase stop` removes by the label.
+const NETWORK = `supabase_network_${PROJECT_ID}`
+const PROJECT_LABEL = `com.supabase.cli.project=${PROJECT_ID}`
+// What `supabase link` records in supabase/.temp: the CLI starts the linked project's Postgres, PostgREST, GoTrue and
+// Storage images, and Storage's target migration, when it finds these in the workdir's supabase/.temp.
+const LINKED_VERSION_FILES = ['postgres-version', 'rest-version', 'gotrue-version', 'storage-version', 'storage-migration']
 const DUMP_FILES = ['roles.sql', 'schema.sql', 'data.sql', 'history_schema.sql', 'history_data.sql']
 // The buckets `pnpm backup` holds (scripts/backup.mjs). The paid files are the product: a restore without them is not a restore.
 const BUCKETS = ['media-private', 'media-public', 'paid-files']
@@ -62,15 +82,46 @@ for (let i = 0; i < args.length; i += 1) {
 if (!backupFile) usage(2)
 backupFile = resolve(backupFile)
 
+/** `target` with its nearest existing ancestor resolved to the real path (a junction or symlink, an 8.3 short name, the
+ * letter case and a trailing dot all resolve there) and the parts that do not exist yet, the new folders of this run,
+ * appended as they are. */
+function realPathOf(target) {
+  const missing = []
+  let existing = resolve(target)
+  for (;;) {
+    try {
+      return join(realpathSync.native(existing), ...missing)
+    } catch {
+      const parent = dirname(existing)
+      if (parent === existing) return resolve(target)
+      missing.unshift(basename(existing))
+      existing = parent
+    }
+  }
+}
+
+/** True when `child` is `parent` or anything inside it, by path text. `relative` gives '' for the parent itself, '..' or
+ * '..' + sep + ... for anything outside, and an absolute path for another drive on Windows. A folder that merely starts
+ * with two dots (`..plain`) is inside, so a bare startsWith('..') is not the test. */
+function within(parent, child) {
+  const rel = relative(parent, child)
+  return !(rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))
+}
+
+/** True when `target` is the repository root or anything inside it, as written or as it resolves. By real path, a link
+ * into the repository is inside it, whatever the path looks like. As written, a path through a link inside the repository
+ * that leads out of it is inside too: Git for Windows treats a junction as a plain folder, so `git add -A` would stage
+ * what lies behind it. */
+function insideRepository(target) {
+  return within(repoRoot, resolve(target)) || within(realPathOf(repoRoot), realPathOf(target))
+}
+
 // The extracted files are plaintext (auth password hashes, TOTP secrets,
 // customer data): never inside the repository, where a `git add -A` could
 // publish them.
-if (extractArg) {
-  const relDest = relative(repoRoot, resolve(extractArg))
-  if (relDest === '' || (!relDest.startsWith('..') && !isAbsolute(relDest))) {
-    console.error(`Refusing --extract inside the repository: ${resolve(extractArg)}`)
-    process.exit(1)
-  }
+if (extractArg && insideRepository(resolve(extractArg))) {
+  console.error(`Refusing --extract inside the repository: ${resolve(extractArg)}`)
+  process.exit(1)
 }
 
 /** Runs the Supabase CLI by name. */
@@ -140,6 +191,110 @@ function patchConfig(configPath) {
     })
     .join('\n')
   writeFileSync(configPath, patched)
+}
+
+/** A backup of the linked project is rehearsed on the versions that project runs: copies the version files `supabase link`
+ * left in the repository's supabase/.temp into the scratch workdir, where the CLI looks for them, and prints what it
+ * found. Without them the scratch stack runs the CLI's bundled images, and a hosted Auth or Storage schema newer than
+ * those fails the psql restore of a perfectly good backup. */
+function copyLinkedVersions(scratch) {
+  const from = join(repoRoot, 'supabase', '.temp')
+  const to = join(scratch, 'supabase', '.temp')
+  const used = []
+  for (const name of LINKED_VERSION_FILES) {
+    const file = join(from, name)
+    if (!existsSync(file)) continue
+    const version = readFileSync(file, 'utf8').trim()
+    if (version === '') continue
+    mkdirSync(to, { recursive: true })
+    copyFileSync(file, join(to, name))
+    used.push(`${name}: ${version}`)
+  }
+  if (used.length === 0) {
+    console.log("This is a backup of the linked project, but supabase/.temp holds none of its service versions (run `supabase link`): the scratch stack runs the CLI's default versions, so a newer hosted Auth or Storage schema can fail the restore.")
+    return
+  }
+  console.log("Service versions of the linked project, used by the scratch stack instead of the CLI's defaults:")
+  for (const line of used) console.log(`  ${line}`)
+}
+
+/** Creates the scratch project's Docker network before the CLI can: the CLI reuses an existing network of that name, and
+ * the one it would create publishes every port on all host addresses. The bridge driver's default host binding is set to
+ * the loopback address (Docker docs, "Port publishing and mapping"). The label is the CLI's own, so `supabase stop` prunes
+ * this network too. Docker older than 28.0.0 still lets hosts on the same L2 segment reach ports published to localhost.
+ * When the network cannot be created the run ends here with the remedy on one screen, not a stack trace: the usual cause
+ * is a network of that name left behind, which the pre-clean's `supabase stop` could not remove. */
+function createLoopbackNetwork() {
+  const created = docker(['network', 'create', '-o', 'com.docker.network.bridge.host_binding_ipv4=127.0.0.1', '--label', PROJECT_LABEL, NETWORK], { timeout: 60000 })
+  if (created.status === 0) return
+  console.error(`docker network create ${NETWORK} failed (${created.error?.code ?? `exit ${created.status}`}).`)
+  if (created.stderr) console.error(created.stderr.toString().trim())
+  console.error(
+    `If ${NETWORK} is left from an earlier rehearsal, the pre-clean could not remove it: \`supabase stop\` removes only what carries the CLI's label, and not a network a container still uses. ` +
+      `Stop what uses it (\`docker network inspect ${NETWORK}\` lists the containers), then remove it with: docker network rm ${NETWORK}`,
+  )
+  // The 'exit' handler still stops what was started and checks for leftovers.
+  process.exit(1)
+}
+
+/** Refuses to restore into a stack that publishes any port beyond the loopback address: from there the whole restored
+ * database would be reachable by other devices with the CLI's default credentials. `docker port` prints one
+ * `5432/tcp -> 127.0.0.1:55322` line per binding, and at least one must be there: an empty answer would pass the test for
+ * the others vacuously. The network's default binding covers every container of the stack, so the database container,
+ * the one that matters most, stands for them all. */
+function assertLoopbackOnly() {
+  const result = docker(['port', CONTAINER], { encoding: 'utf8', timeout: 60000 })
+  mustSucceed(result, `docker port ${CONTAINER}`)
+  const bindings = result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+  if (bindings.length === 0) {
+    throw new Error(`Refusing to restore: \`docker port ${CONTAINER}\` shows no published port, so nothing proves the scratch database is bound to the loopback address only, and it would hold the whole restored database behind the CLI's default credentials.`)
+  }
+  const open = bindings.filter((line) => !/->\s*127\.0\.0\.1:\d+$/.test(line))
+  if (open.length > 0) {
+    throw new Error(`Refusing to restore: the scratch database is published beyond the loopback address (${open.join('; ')}), and it would hold the whole restored database behind the CLI's default credentials.`)
+  }
+}
+
+/** The names `docker ps` or `docker volume ls` print, or null when docker could not answer. */
+function dockerNames(cliArgs) {
+  const result = docker(cliArgs, { encoding: 'utf8', timeout: 60000 })
+  if (result.status !== 0) return null
+  return result.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+}
+
+/** How `supabase stop` ended, in words, for the leftover report. */
+function describeStop(stopResult) {
+  return stopResult.status === 0 ? 'supabase stop reported success' : `supabase stop failed (${stopResult.error?.code ?? `exit ${stopResult.status}`})`
+}
+
+/** After `supabase stop`: whether the scratch stack is still on this machine. The restored database is an unencrypted copy
+ * of production in a container's Docker volume, so a stop that failed or timed out must not pass in silence. Containers and
+ * volumes are found by the label the CLI puts on everything it creates for the project (the one `supabase stop` itself
+ * removes by), not by a substring of a name. Says what remains on stderr and returns true when a container or volume of
+ * the project does, or when docker cannot show none does. `stop` says how `supabase stop` ended. */
+function scratchStackRemains(stop) {
+  const containers = dockerNames(['ps', '-a', '--filter', `label=${PROJECT_LABEL}`, '--format', '{{.Names}}'])
+  const volumes = dockerNames(['volume', 'ls', '--filter', `label=${PROJECT_LABEL}`, '--format', '{{.Name}}'])
+  const remains = [...(containers ?? []).map((name) => `container ${name}`), ...(volumes ?? []).map((name) => `volume ${name}`)]
+  if (remains.length > 0) {
+    console.error(`\nThe scratch stack was not removed: plaintext restored data is still on disk (the whole restored database, auth secrets and customer records included; ${stop}). Left behind:`)
+    for (const item of remains) console.error(`  ${item}`)
+    console.error(`Remove it with: supabase stop --no-backup --project-id ${PROJECT_ID}`)
+    return true
+  }
+  if (containers === null || volumes === null) {
+    const unanswered = [containers === null && '`docker ps`', volumes === null && '`docker volume ls`'].filter(Boolean).join(' and ')
+    console.error(`\nCould not check that the scratch stack is gone (${unanswered} did not answer: is Docker running?). If the rehearsal got as far as restoring, plaintext restored data may still be on disk. Check with: docker ps -a --filter label=${PROJECT_LABEL}  and  docker volume ls --filter label=${PROJECT_LABEL}`)
+    return true
+  }
+  console.log(`Scratch stack removed: no container or volume of ${PROJECT_ID} remains.`)
+  return false
 }
 
 /** The guide's psql restore inside the scratch database container. */
@@ -391,16 +546,50 @@ async function main() {
   // so it completes inside 'exit': the scratch stack is stopped and the
   // decrypted dumps never stay in the temp dir.
   let cleaned = false
+  // Set from the moment the stack's network is created: only then can the
+  // rehearsal have left a container, volume or network behind to look for.
+  let stackTouched = false
+  // Set when, after the stop, a container or volume of the stack remains (or
+  // none can be shown to be gone): the run must then not end with exit code 0.
+  let plaintextLeft = false
+  // Set when a cleanup step threw: the run must then not end with exit code 0
+  // either.
+  let cleanupFailed = false
+  /** Runs one cleanup step on its own: a throw from it (rmSync of a directory Windows still holds open fails with
+   * EBUSY) is reported and remembered, and the steps after it still run. */
+  const step = (what, run) => {
+    try {
+      run()
+    } catch (error) {
+      cleanupFailed = true
+      console.error(`Cleanup step failed (${what}): ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   const cleanup = () => {
     if (cleaned) return
     cleaned = true
     // The decrypted dumps go first: `supabase stop` can take minutes, longer
     // than Windows allows after the console window closes (SIGHUP).
-    rmSync(extractDir, { recursive: true, force: true })
-    if (existsSync(scratch)) {
-      supabase(['stop', '--no-backup', '--workdir', scratch], { stdio: 'ignore', timeout: 300000 })
+    step(`removing the decrypted dumps in ${extractDir}; delete that directory by hand, it holds the restored database in plaintext`, () =>
+      rmSync(extractDir, { recursive: true, force: true }),
+    )
+    let stop = 'supabase stop did not run'
+    if (existsSync(scratch) || stackTouched) {
+      // Without its workdir (something removed it while the stack ran) the stack is stopped by its project id, as the
+      // pre-clean does: never the development stack's id.
+      const target = existsSync(scratch) ? ['--workdir', scratch] : ['--project-id', PROJECT_ID]
+      step('stopping the scratch stack', () => {
+        stop = describeStop(supabase(['stop', '--no-backup', ...target], { stdio: 'ignore', timeout: 300000 }))
+      })
     }
-    rmSync(scratch, { recursive: true, force: true })
+    if (stackTouched) {
+      // The network was created here, not by the CLI; remove it with the stack (a no-op when `stop` pruned it).
+      step(`removing the network ${NETWORK}`, () => docker(['network', 'rm', NETWORK], { stdio: 'ignore', timeout: 60000 }))
+      step('checking that nothing of the scratch stack remains', () => {
+        plaintextLeft = scratchStackRemains(stop)
+      })
+    }
+    step(`removing the scratch workdir ${scratch}`, () => rmSync(scratch, { recursive: true, force: true }))
   }
   process.on('exit', cleanup)
   const startedAt = Date.now()
@@ -418,9 +607,14 @@ async function main() {
     console.log(`Rehearsal scratch stack: ${scratch}`)
     mustSucceed(supabase(['init', '--workdir', scratch], { stdio: 'inherit', timeout: 120000 }), 'supabase init')
     patchConfig(join(scratch, 'supabase', 'config.toml'))
+    if (manifest.source === 'linked') copyLinkedVersions(scratch)
 
     console.log('Starting the throwaway stack (this can take a few minutes)...')
-    mustSucceed(supabase(['start', '--workdir', scratch], { stdio: 'inherit', timeout: 600000 }), 'supabase start')
+    stackTouched = true
+    createLoopbackNetwork()
+    // --network-id makes the CLI join the network created above by name instead of relying on its naming convention.
+    mustSucceed(supabase(['start', '--workdir', scratch, '--network-id', NETWORK], { stdio: 'inherit', timeout: 600000 }), 'supabase start')
+    assertLoopbackOnly()
 
     const statusResult = supabase(['status', '-o', 'json', '--workdir', scratch], { encoding: 'utf8', timeout: 120000 })
     mustSucceed(statusResult, 'supabase status')
@@ -504,7 +698,8 @@ async function main() {
   } finally {
     cleanup()
   }
-  process.exit(exitCode)
+  // Never report success while the restored plaintext is still on this disk, or after a cleanup step failed.
+  process.exit(plaintextLeft || cleanupFailed ? 1 : exitCode)
 }
 
 process.on('SIGINT', () => process.exit(130))

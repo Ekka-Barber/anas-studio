@@ -13,9 +13,9 @@
  * or written anywhere.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { writeBackup } from './lib/backup-format.mjs'
@@ -61,10 +61,43 @@ function linkedProjectRef() {
 }
 const projectRef = mode === '--linked' ? linkedProjectRef() : undefined
 
+/** `target` with its nearest existing ancestor resolved to the real path (a junction or symlink, an 8.3 short name, the
+ * letter case and a trailing dot all resolve there) and the parts that do not exist yet, the new folders of this run,
+ * appended as they are. */
+function realPathOf(target) {
+  const missing = []
+  let existing = resolve(target)
+  for (;;) {
+    try {
+      return join(realpathSync.native(existing), ...missing)
+    } catch {
+      const parent = dirname(existing)
+      if (parent === existing) return resolve(target)
+      missing.unshift(basename(existing))
+      existing = parent
+    }
+  }
+}
+
+/** True when `child` is `parent` or anything inside it, by path text. `relative` gives '' for the parent itself, '..' or
+ * '..' + sep + ... for anything outside, and an absolute path for another drive on Windows. A folder that merely starts
+ * with two dots (`..plain`) is inside, so a bare startsWith('..') is not the test. */
+function within(parent, child) {
+  const rel = relative(parent, child)
+  return !(rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))
+}
+
+/** True when `target` is the repository root or anything inside it, as written or as it resolves. By real path, a link
+ * into the repository is inside it, whatever the path looks like. As written, a path through a link inside the repository
+ * that leads out of it is inside too: Git for Windows treats a junction as a plain folder, so `git add -A` would stage
+ * what lies behind it. */
+function insideRepository(target) {
+  return within(repoRoot, resolve(target)) || within(realPathOf(repoRoot), realPathOf(target))
+}
+
 // A backup inside the repository could be committed by accident.
 const outDir = resolve(outArg ?? join(homedir(), 'ANASAQ-backups'))
-const relOut = relative(repoRoot, outDir)
-if (relOut === '' || (!relOut.startsWith('..') && !isAbsolute(relOut))) {
+if (insideRepository(outDir)) {
   console.error(`Refusing --out inside the repository: ${outDir}`)
   process.exit(1)
 }

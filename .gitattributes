@@ -1,0 +1,12 @@
+# deploy/ holds the frozen V1 sources: scripts/check-frozen.mjs hashes their raw
+# bytes, so Git must never convert their line endings (a Windows clone with
+# core.autocrlf=true would otherwise check the LF-stored ones out as CRLF).
+deploy/** -text
+
+# Binary assets: no text conversion, no textual diff or merge.
+*.woff2 binary
+*.pdf binary
+*.mp4 binary
+*.webp binary
+*.png binary
+*.jpg binary

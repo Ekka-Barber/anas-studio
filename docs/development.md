@@ -9,7 +9,7 @@ Supabase CLI stack.
 | Tool | Version | Where it is pinned |
 | --- | --- | --- |
 | Node.js | 24.19.0 | `.node-version`, and `engines.node` (`>=24.9.0 <25`) in `package.json` |
-| pnpm | 10.33.0 | `packageManager` in `package.json` |
+| pnpm | 10.34.6 | `packageManager` in `package.json` |
 | Docker | any recent release | runs the Supabase CLI stack |
 | Supabase CLI | 2.106.0 | `version:` of the `supabase/setup-cli` step in `.github/workflows/ci.yml` |
 

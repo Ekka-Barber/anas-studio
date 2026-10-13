@@ -47,6 +47,19 @@ jobs:
         # dependency graph than the committed lockfile.
         run: pnpm install --frozen-lockfile
 
+      - name: Audit the runtime dependencies
+        # A new critical or high advisory in the runtime dependency tree (what
+        # `--prod` walks: next and what it brings, react, supabase-js, ...) is
+        # meant to turn this job red (PLANS/VERIFICATION.md: no silently
+        # suppressed critical/high runtime vulnerability). Nothing is ignored
+        # here: update the dependency, never silence the advisory. The one high
+        # advisory still open, braces (GHSA-vfj7-8cjw-p6xm, no patched version
+        # upstream, checked 2026-10-08), is reached only through
+        # eslint-config-next, a dev tool, so `--prod` does not walk it. Sass used
+        # to bring braces into the runtime tree and is no longer installed: no
+        # file here uses it, and it is only an optional peer of next and vite.
+        run: pnpm audit --prod --audit-level=high
+
       - name: Lint
         run: pnpm lint
 

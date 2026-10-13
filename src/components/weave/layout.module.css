@@ -11,9 +11,6 @@
 .splitEnd {
   align-items: flex-end;
 }
-.splitCenter {
-  align-items: center;
-}
 .text {
   flex: 1 1 520px;
   max-inline-size: var(--measure);

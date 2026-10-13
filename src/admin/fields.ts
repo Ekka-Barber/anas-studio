@@ -8,31 +8,13 @@ import { richTextSchema, type RichTextDocument } from './richtext'
 import imageManifestRaw from '../../public/images/manifest.json'
 import mediaManifestRaw from '../../public/media/manifest.json'
 
-/**
+/*
  * Collection field model (D29 "Collections, drafts and versions"): one small
  * config describes each collection's fields once, and `schemaFromFields`
  * derives the Zod schema that the admin form, the publish check and the
  * public loaders all share. Only the field types P04's four collections
  * actually use.
  */
-export type FieldType =
-  | 'text'
-  | 'textarea'
-  | 'paragraphs'
-  | 'select'
-  | 'boolean'
-  | 'image'
-  | 'video'
-  | 'group'
-  | 'list'
-  | 'slug'
-  | 'relation'
-  | 'richtext'
-  | 'number'
-  | 'money'
-  | 'datetime'
-  | 'date'
-
 interface FieldBase {
   name: string
   /** Arabic label shown in the admin form. */
