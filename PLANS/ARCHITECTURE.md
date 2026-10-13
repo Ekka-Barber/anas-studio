@@ -67,7 +67,7 @@ No in-memory timers. Without the Vault values (the local stack) the HTTP jobs do
 | `src/lib/admin-publish.ts` | Publish, schedule, cancel, archive from the admin, with the browser-side Zod and media checks |
 | `src/admin/collections/*.ts` | Collection configs |
 | `src/admin/tables/*.ts` | Commercial table configs (registry in `index.ts`), rendered by `TableList`/`TableForm` |
-| `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, email problems, team, orders, stats, board (no inbox: D31; backups are owner-run, D35) |
+| `src/app/(admin)/layout.tsx`, `src/app/(admin)/admin/**` | Admin root layout and screens: sign-in, collections, media, settings, email problems, team, orders, stats, and from P12 «لوحة المشاريع» at `/admin/projects` (D50) (no inbox: D31; backups are owner-run, D35) |
 | `src/components/admin/*` | Generic list and form, rich text editor, media upload, custom views, `admin.module.css` on the main tokens |
 | `src/lib/{content,journal,scenes,store,policies,images,cart,orders,digits,format,env,media-ref,turnstile,book-preview,money-input}.ts`, `src/lib/richtext.tsx` | Build-time published loaders (content, journal, scenes, store, and `policies`, the one loader of the built policy revisions), images, the browser cart, the buyer's order page and notification pages (`orders`), one-time-code digit folding (`digits`), formatting, env schema, media references, Turnstile, the book preview's leaf plan, money input, the safe Lexical renderer |
 | `src/lib/admin-{commerce,money,orders,publish}.ts` | The admin's client logic without React: the catalog and figures screens (`admin-commerce`), the money actions (`admin-money`: request bodies, readers of replies, Arabic wording), the orders screens (`admin-orders`), publishing (`admin-publish`) |
@@ -85,7 +85,7 @@ Use `src/components/site/{Header,SiteHeader,Footer}.tsx`, `src/components/weave/
 
 A static export knows its pages at build time, so every dynamic public route (`journal/[slug]`, `store/[slug]`, `services/[slug]`, `policies/[slug]`) lists its published slugs in `generateStaticParams`; a new slug appears after the rebuild its publish triggers. Pages that depend on a private token read it from the URL fragment and call a function from the browser, so the token never reaches a server log or a Referer: `orders#<order number>.<token>` and the notify confirm and unsubscribe pages. The checkout return page reads only the order number, from `?order=`; its token, when the tab has one, comes from the tab's `sessionStorage`, never from the address. Admin documents open at `/admin/content/<collection>/edit?id=<doc>`.
 
-Public loaders select only the fields they need, rely on published-only RLS and never read drafts. The admin and the order, download and board screens are `no-store` and `noindex` (`public/_headers`).
+Public loaders select only the fields they need, rely on published-only RLS and never read drafts. The admin and the order, download and projects screens (P12, under `/admin/*`) are `no-store` and `noindex` (`public/_headers`).
 
 ## Server endpoints: Edge Functions
 

@@ -192,7 +192,7 @@ Evidence: `artifacts/acceptance/DESIGN-B/` (commands and results in `commands.tx
 | 43, 45, 59, 60 | No clipped glyph or overflow at 360, 768, 1024 or 1440 on the pages `tests/e2e/visual.spec.ts` lists (10 when this was run, 13 now: 0px overflow with JavaScript on). The money pages (a product, the cart, the checkout, the held order, the return page) are measured at 360 and 1440 only (`tests/e2e/cart-checkout.spec.ts`), and the policy pages, a journal post and the 404 at no width by any spec, so their 768 and 1024 widths stay owed to P10's responsive proof. The gutters are consistent. |
 | 46, 50, 55 | One depth only: the book stands on a solid, directional offset block. No halos. |
 | 54, 75 | Photos and films sit on aubergine-900 frames; bands meet at a triangle or weave edge, never a raw seam. |
-| 56 | Contrast measured per tone (DESIGN.md §1). Coral text only at display size on aubergine (3.2:1); errors coral-deep (4.9:1); admin field borders 4.8:1. |
+| 56 | Contrast measured per tone (DESIGN.md §1). Coral text only at display size on aubergine (3.2:1); errors coral-deep (4.9:1); admin field borders 6.9:1 (a 2px aubergine-muted line on `--paper-page`, DESIGN.md §10, D49). |
 | 58, 129 | The current room is marked with `aria-current` plus B's triangle in the link's own ink (aubergine, 6.6:1; the design's own "you are here"). With scripting off (`@media (scripting: none)`) the header shows the inline room links at every width; `tests/e2e/no-js.spec.ts` covers it at 375px (FOUNDATION-1). The menu is a native modal dialog: focus is trapped, Escape closes it and focus returns (e2e). |
 | 66 | The home's first screen is the name bands and the portrait. |
 | 67 | The sand page is Anas's palette (identity), not a default cream. |
