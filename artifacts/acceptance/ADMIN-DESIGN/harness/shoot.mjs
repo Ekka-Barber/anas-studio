@@ -374,6 +374,12 @@ async function shootOne(browser, screen, width) {
         result.problems.push(`page not ready: ${screen.h1 ? `heading ${screen.h1}` : 'gate text'}${screen.waitText ? `, text "${screen.waitText}"` : ''}${screen.waitSelector ? `, selector ${screen.waitSelector}` : ''}`)
         return false
       }
+      // React has hydrated what the server drew (its key is on every heading, label and button): an --eval that
+      // writes attributes, as tasmeem's page audit does, would otherwise race the hydration of a screen whose heading
+      // the server renders (the sign-in), and React would warn of a mismatch (the D49 final audit's AD-F4).
+      const hydrated = () =>
+        page.evaluate(() => [...document.querySelectorAll('h1, label, button')].every((el) => Object.keys(el).some((key) => key.startsWith('__reactFiber$'))))
+      if (!(await until(hydrated, 20_000))) result.problems.push('page not hydrated')
       // Pictures and fonts: lazy images load now, and the shot waits for them.
       await page.evaluate(async () => {
         const images = [...document.images]

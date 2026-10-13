@@ -89,8 +89,19 @@
   scrollbar-width: none;
 }
 
-.nav::-webkit-scrollbar {
-  display: none;
+/* A finger swipes the strip; a mouse cannot. Where the pointer is fine and
+   hovers, the strip keeps a thin scrollbar to drag in the night's own ink. */
+@media not all and (hover: hover) and (pointer: fine) {
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .nav {
+    scrollbar-width: thin;
+    scrollbar-color: var(--sand-muted) transparent;
+  }
 }
 
 /* On a phone the strip fades at an end with more links past it (AdminShell sets
@@ -517,6 +528,12 @@
   overflow-wrap: anywhere;
 }
 
+/* A code kept whole on its line in a table (a shipment's tracking number): the
+   browser may break after its hyphen, and a squeezed column would. */
+.whole {
+  white-space: nowrap;
+}
+
 .metaList {
   margin: 0 0 12px;
   padding: 0;
@@ -829,15 +846,16 @@ section .tableWrap {
 }
 
 /* Compact cells (kind, status, dates, counts, actions): one line on a screen with
-   room for the whole table. Below 1440px they wrap at their spaces when the table
-   needs it (a date before its time), never inside a word (no overflow-wrap here),
-   so a wide table fits its box rather than scroll. */
+   room for the whole table. Below 1440px a cell wraps at its spaces when the
+   table needs it (a date before its time), never inside a word (no overflow-wrap
+   here), so a wide table fits its box rather than scroll; a button in a row keeps
+   its one line. */
 .cellNowrap {
   white-space: nowrap;
 }
 
 @media (max-width: 1439px) {
-  .table .cellNowrap {
+  .table td.cellNowrap {
     white-space: normal;
   }
 }
@@ -927,12 +945,17 @@ section .tableWrap {
     font-weight: 700;
   }
 
-  /* Cards show the full text wrapped, not the one-line ellipsis. */
+  /* Cards show the full text wrapped, not the one-line ellipsis, and a code too
+     long for the card breaks. */
   .responsive .cellEllipsis {
     max-inline-size: none;
     overflow: visible;
     white-space: normal;
     text-overflow: clip;
+  }
+
+  .responsive .whole {
+    white-space: normal;
   }
 }
 
@@ -941,6 +964,7 @@ section .tableWrap {
 .dialog {
   max-inline-size: min(26rem, calc(100vw - 2rem));
   padding: 28px;
+  scroll-padding-block: 8px; /* a control the keyboard scrolls into view keeps its ring */
   border: 3px solid var(--aub);
   border-radius: 0;
   background: var(--sand-50);
@@ -1257,6 +1281,16 @@ section .tableWrap {
   padding: clamp(20px, 4vw, 32px);
   border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent);
   background: var(--sand-50);
+}
+
+/* Below 360px Cloudflare's widget (a fixed 300px) needs the form's whole width:
+   the panel gives way to the page. */
+@media (max-width: 359px) {
+  .signIn .form {
+    padding-inline: 0;
+    border: 0;
+    background: none;
+  }
 }
 
 .signIn .message:not(:empty) {

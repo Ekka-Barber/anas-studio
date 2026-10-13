@@ -1,6 +1,6 @@
 {
- "label": "final4",
- "generatedAt": "2026-10-13T15:18:52.817Z",
+ "label": "final5",
+ "generatedAt": "2026-10-13T17:29:52.664Z",
  "clock": "2026-10-08T07:30:00.000Z",
  "browser": "Chromium 141.0.7390.37",
  "lenient": false,
@@ -12,9 +12,7 @@
   "shots": 124,
   "settled": 124,
   "notSettled": [],
-  "withAppConsoleErrors": [
-   "sign-in@1440"
-  ],
+  "withAppConsoleErrors": [],
   "withPageErrors": [],
   "withFlags": [],
   "withOverflow": [],
@@ -62,7 +60,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1615
+   "ms": 1674
   },
   {
    "screen": "home-editor",
@@ -97,7 +95,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1483
+   "ms": 1346
   },
   {
    "screen": "home-operations",
@@ -132,7 +130,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1430
+   "ms": 1406
   },
   {
    "screen": "content",
@@ -175,7 +173,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1067
+   "ms": 1028
   },
   {
    "screen": "content-rooms",
@@ -210,7 +208,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2075
+   "ms": 2002
   },
   {
    "screen": "content-rooms-edit-built",
@@ -253,7 +251,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 3187
+   "ms": 2804
   },
   {
    "screen": "content-rooms-edit-book",
@@ -296,7 +294,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2726
+   "ms": 2668
   },
   {
    "screen": "content-posts",
@@ -331,7 +329,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1457
+   "ms": 1499
   },
   {
    "screen": "content-posts-edit",
@@ -374,7 +372,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1918
+   "ms": 1702
   },
   {
    "screen": "content-posts-edit-overdue",
@@ -417,7 +415,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1779
+   "ms": 1767
   },
   {
    "screen": "content-site-settings",
@@ -452,7 +450,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1370
+   "ms": 1312
   },
   {
    "screen": "content-site-settings-edit",
@@ -495,7 +493,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2639
+   "ms": 2795
   },
   {
    "screen": "content-taxonomies",
@@ -530,7 +528,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1423
+   "ms": 1619
   },
   {
    "screen": "content-taxonomies-edit",
@@ -573,7 +571,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1486
+   "ms": 1481
   },
   {
    "screen": "content-policies",
@@ -608,7 +606,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1479
+   "ms": 1494
   },
   {
    "screen": "content-policies-edit",
@@ -651,7 +649,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1632
+   "ms": 1651
   },
   {
    "screen": "content-scenes",
@@ -686,7 +684,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1379
+   "ms": 1464
   },
   {
    "screen": "content-scenes-edit",
@@ -729,7 +727,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2585
+   "ms": 2452
   },
   {
    "screen": "media",
@@ -772,7 +770,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2977
+   "ms": 2903
   },
   {
    "screen": "store",
@@ -815,7 +813,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1324
+   "ms": 1349
   },
   {
    "screen": "store-products",
@@ -850,7 +848,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1869
+   "ms": 1837
   },
   {
    "screen": "store-products-edit",
@@ -885,7 +883,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2227
+   "ms": 2126
   },
   {
    "screen": "store-variants-edit-ebook",
@@ -920,7 +918,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1506
+   "ms": 1609
   },
   {
    "screen": "store-variants-edit-preorder",
@@ -955,7 +953,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1654
+   "ms": 1544
   },
   {
    "screen": "store-shipping-rates",
@@ -990,7 +988,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1486
+   "ms": 1384
   },
   {
    "screen": "store-shipping-rates-edit",
@@ -1025,7 +1023,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1410
+   "ms": 1426
   },
   {
    "screen": "store-coupons",
@@ -1060,7 +1058,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1412
+   "ms": 1339
   },
   {
    "screen": "store-coupons-edit",
@@ -1095,7 +1093,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1505
+   "ms": 1522
   },
   {
    "screen": "store-customers",
@@ -1130,7 +1128,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1495
+   "ms": 1537
   },
   {
    "screen": "store-customers-edit",
@@ -1165,7 +1163,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1549
+   "ms": 1607
   },
   {
    "screen": "store-notifications",
@@ -1200,7 +1198,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1333
+   "ms": 1441
   },
   {
    "screen": "store-editor",
@@ -1242,7 +1240,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1006
+   "ms": 1037
   },
   {
    "screen": "orders",
@@ -1277,7 +1275,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1632
+   "ms": 1427
   },
   {
    "screen": "orders-operations",
@@ -1312,7 +1310,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1428
+   "ms": 1432
   },
   {
    "screen": "orders-empty",
@@ -1347,7 +1345,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1264
+   "ms": 1288
   },
   {
    "screen": "orders-failed",
@@ -1388,7 +1386,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1219
+   "ms": 1275
   },
   {
    "screen": "orders-view",
@@ -1423,7 +1421,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1657
+   "ms": 1760
   },
   {
    "screen": "orders-view-resolution",
@@ -1458,7 +1456,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1623
+   "ms": 1525
   },
   {
    "screen": "orders-view-operations",
@@ -1493,7 +1491,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1440
+   "ms": 1416
   },
   {
    "screen": "orders-reconciliation",
@@ -1528,7 +1526,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1579
+   "ms": 1575
   },
   {
    "screen": "media-upload-dialog",
@@ -1571,7 +1569,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 3709
+   "ms": 3862
   },
   {
    "screen": "media-delete-dialog",
@@ -1614,7 +1612,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 3788
+   "ms": 3853
   },
   {
    "screen": "media-picker-dialog",
@@ -1657,7 +1655,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 4863
+   "ms": 4699
   },
   {
    "screen": "email-replay-dialog",
@@ -1692,7 +1690,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 2840
+   "ms": 2890
   },
   {
    "screen": "orders-view-refund-confirm",
@@ -1727,7 +1725,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1711
+   "ms": 1728
   },
   {
    "screen": "orders-view-dispute-form",
@@ -1762,7 +1760,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1851
+   "ms": 1894
   },
   {
    "screen": "team-step-up-dialog",
@@ -1803,7 +1801,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 3395
+   "ms": 3426
   },
   {
    "screen": "content-posts-new",
@@ -1838,7 +1836,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1523
+   "ms": 1561
   },
   {
    "screen": "store-products-new",
@@ -1873,7 +1871,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1306
+   "ms": 1296
   },
   {
    "screen": "email",
@@ -1943,7 +1941,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1408
+   "ms": 1476
   },
   {
    "screen": "settings",
@@ -1978,7 +1976,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1643
+   "ms": 1535
   },
   {
    "screen": "security",
@@ -2013,7 +2011,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1468
+   "ms": 1269
   },
   {
    "screen": "security-enroll",
@@ -2048,7 +2046,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1382
+   "ms": 1223
   },
   {
    "screen": "team",
@@ -2083,7 +2081,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1476
+   "ms": 1338
   },
   {
    "screen": "team-editor",
@@ -2118,7 +2116,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1188
+   "ms": 1143
   },
   {
    "screen": "gate-error",
@@ -2169,7 +2167,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1295
+   "ms": 1194
   },
   {
    "screen": "sign-in",
@@ -2259,7 +2257,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 778
+   "ms": 678
   },
   {
    "screen": "sign-in-code",
@@ -2292,7 +2290,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1409
+   "ms": 1549
   },
   {
    "screen": "preview-built",
@@ -2333,7 +2331,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1908
+   "ms": 1805
   },
   {
    "screen": "preview-post",
@@ -2374,7 +2372,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1501
+   "ms": 1391
   },
   {
    "screen": "home",
@@ -2417,7 +2415,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1441
+   "ms": 1396
   },
   {
    "screen": "home-editor",
@@ -2452,7 +2450,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1405
+   "ms": 1330
   },
   {
    "screen": "home-operations",
@@ -2487,7 +2485,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1514
+   "ms": 1381
   },
   {
    "screen": "content",
@@ -2530,7 +2528,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1138
+   "ms": 1006
   },
   {
    "screen": "content-rooms",
@@ -2565,7 +2563,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1392
+   "ms": 1708
   },
   {
    "screen": "content-rooms-edit-built",
@@ -2600,7 +2598,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 3588
+   "ms": 3528
   },
   {
    "screen": "content-rooms-edit-book",
@@ -2635,7 +2633,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 3989
+   "ms": 3870
   },
   {
    "screen": "content-posts",
@@ -2670,7 +2668,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1513
+   "ms": 1388
   },
   {
    "screen": "content-posts-edit",
@@ -2705,7 +2703,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1824
+   "ms": 1728
   },
   {
    "screen": "content-posts-edit-overdue",
@@ -2740,7 +2738,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1795
+   "ms": 1679
   },
   {
    "screen": "content-site-settings",
@@ -2775,7 +2773,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1502
+   "ms": 1333
   },
   {
    "screen": "content-site-settings-edit",
@@ -2810,7 +2808,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 4205
+   "ms": 3807
   },
   {
    "screen": "content-taxonomies",
@@ -2845,7 +2843,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1441
+   "ms": 1347
   },
   {
    "screen": "content-taxonomies-edit",
@@ -2880,7 +2878,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1548
+   "ms": 1444
   },
   {
    "screen": "content-policies",
@@ -2915,7 +2913,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1529
+   "ms": 1442
   },
   {
    "screen": "content-policies-edit",
@@ -2950,7 +2948,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1671
+   "ms": 1646
   },
   {
    "screen": "content-scenes",
@@ -2985,7 +2983,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1419
+   "ms": 1314
   },
   {
    "screen": "content-scenes-edit",
@@ -3020,7 +3018,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 3649
+   "ms": 3199
   },
   {
    "screen": "media",
@@ -3063,7 +3061,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2530
+   "ms": 2634
   },
   {
    "screen": "store",
@@ -3106,7 +3104,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1280
+   "ms": 1287
   },
   {
    "screen": "store-products",
@@ -3141,7 +3139,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1298
+   "ms": 1468
   },
   {
    "screen": "store-products-edit",
@@ -3176,7 +3174,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1735
+   "ms": 1689
   },
   {
    "screen": "store-variants-edit-ebook",
@@ -3211,7 +3209,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1678
+   "ms": 1504
   },
   {
    "screen": "store-variants-edit-preorder",
@@ -3246,7 +3244,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1602
+   "ms": 1563
   },
   {
    "screen": "store-shipping-rates",
@@ -3281,7 +3279,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1382
+   "ms": 1294
   },
   {
    "screen": "store-shipping-rates-edit",
@@ -3316,7 +3314,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1482
+   "ms": 1409
   },
   {
    "screen": "store-coupons",
@@ -3351,7 +3349,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1444
+   "ms": 1249
   },
   {
    "screen": "store-coupons-edit",
@@ -3386,7 +3384,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1589
+   "ms": 1492
   },
   {
    "screen": "store-customers",
@@ -3429,7 +3427,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1386
+   "ms": 1280
   },
   {
    "screen": "store-customers-edit",
@@ -3464,7 +3462,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1627
+   "ms": 1320
   },
   {
    "screen": "store-notifications",
@@ -3499,7 +3497,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1322
+   "ms": 1271
   },
   {
    "screen": "store-editor",
@@ -3541,7 +3539,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1110
+   "ms": 1098
   },
   {
    "screen": "orders",
@@ -3576,7 +3574,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1514
+   "ms": 1385
   },
   {
    "screen": "orders-operations",
@@ -3611,7 +3609,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1327
+   "ms": 1362
   },
   {
    "screen": "orders-empty",
@@ -3646,7 +3644,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1376
+   "ms": 1164
   },
   {
    "screen": "orders-failed",
@@ -3687,7 +3685,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1303
+   "ms": 1233
   },
   {
    "screen": "orders-view",
@@ -3722,7 +3720,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1861
+   "ms": 1893
   },
   {
    "screen": "orders-view-resolution",
@@ -3757,7 +3755,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1933
+   "ms": 1884
   },
   {
    "screen": "orders-view-operations",
@@ -3792,7 +3790,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1549
+   "ms": 1673
   },
   {
    "screen": "orders-reconciliation",
@@ -3827,7 +3825,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1849
+   "ms": 1807
   },
   {
    "screen": "media-upload-dialog",
@@ -3870,7 +3868,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 3076
+   "ms": 3142
   },
   {
    "screen": "media-delete-dialog",
@@ -3913,7 +3911,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 3596
+   "ms": 3654
   },
   {
    "screen": "media-picker-dialog",
@@ -3956,7 +3954,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 4098
+   "ms": 3901
   },
   {
    "screen": "email-replay-dialog",
@@ -3999,7 +3997,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2975
+   "ms": 2867
   },
   {
    "screen": "orders-view-refund-confirm",
@@ -4034,7 +4032,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2332
+   "ms": 2092
   },
   {
    "screen": "orders-view-dispute-form",
@@ -4069,7 +4067,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2685
+   "ms": 2241
   },
   {
    "screen": "team-step-up-dialog",
@@ -4110,7 +4108,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 3551
+   "ms": 3416
   },
   {
    "screen": "content-posts-new",
@@ -4145,7 +4143,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1824
+   "ms": 1574
   },
   {
    "screen": "store-products-new",
@@ -4180,7 +4178,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1470
+   "ms": 1246
   },
   {
    "screen": "email",
@@ -4223,7 +4221,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1545
+   "ms": 1303
   },
   {
    "screen": "stats",
@@ -4258,7 +4256,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1545
+   "ms": 1350
   },
   {
    "screen": "settings",
@@ -4293,7 +4291,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1834
+   "ms": 1569
   },
   {
    "screen": "security",
@@ -4328,7 +4326,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1405
+   "ms": 1191
   },
   {
    "screen": "security-enroll",
@@ -4363,7 +4361,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1467
+   "ms": 1211
   },
   {
    "screen": "team",
@@ -4398,7 +4396,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1438
+   "ms": 1328
   },
   {
    "screen": "team-editor",
@@ -4433,7 +4431,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1164
+   "ms": 1155
   },
   {
    "screen": "gate-error",
@@ -4484,7 +4482,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1405
+   "ms": 1203
   },
   {
    "screen": "sign-in",
@@ -4494,13 +4492,7 @@
    "note": "Signed out. Turnstile cannot load here, so the send button stays off.",
    "settled": true,
    "problems": [],
-   "consoleErrors": [
-    {
-     "tag": "app",
-     "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the",
-     "url": "http://localhost:3210/_next/static/chunks/0l8u_next_dist_0puib1e._.js"
-    }
-   ],
+   "consoleErrors": [],
    "pageErrors": [],
    "unmocked": [],
    "blockedExternal": [],
@@ -4523,7 +4515,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1168
+   "ms": 693
   },
   {
    "screen": "sign-in-widget",
@@ -4580,7 +4572,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 760
+   "ms": 661
   },
   {
    "screen": "sign-in-code",
@@ -4613,7 +4605,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1298
+   "ms": 1421
   },
   {
    "screen": "preview-built",
@@ -4654,7 +4646,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2847
+   "ms": 2838
   },
   {
    "screen": "preview-post",
@@ -4695,7 +4687,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1542
+   "ms": 1629
   }
  ]
 }

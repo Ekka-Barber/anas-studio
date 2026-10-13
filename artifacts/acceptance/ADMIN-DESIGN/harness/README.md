@@ -60,8 +60,10 @@ deterministic) and writes red-overlay diffs of the changed ones to `shots/diff-<
   healthy), `slices`, `ms`. `summary` lists what needs attention.
 
 A screen is `settled` when every call it must make has been answered, the network has been quiet for 0.5 s, its heading is
-visible (`h1` in `lib/screens.mjs`), no «يحمّل...» is left, fonts and pictures have loaded (lazy images are forced eager
-for the shot), and any `waitText` / `waitSelector` it declares is there.
+visible (`h1` in `lib/screens.mjs`), no «يحمّل...» is left, React has hydrated it (its key is on every heading, label and
+button, so an `--eval` that writes attributes cannot race the hydration of a heading the server drew), fonts and pictures
+have loaded (lazy images are forced eager for the shot), and any `waitText` / `waitSelector` it declares is there. A
+console message is kept up to 4,000 characters.
 
 ## How the mock works
 

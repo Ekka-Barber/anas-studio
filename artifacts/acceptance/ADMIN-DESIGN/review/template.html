@@ -20,6 +20,12 @@
   --bar-h: 64px;
   color-scheme: light;
 }
+/* Dark: the brand's own night. Ink sand-50 on aub-900 12.2:1, on aub-800 9.6:1; muted sand 8.4:1 and 6.6:1;
+   "needs a change" a light coral, 7.3:1 and 5.7:1 (aub-900 text on it 7.3:1); saffron focus 7.8:1 and 6.1:1. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) { --sand: #2a191d; --paper: #412a2f; --slip: #2a191d; --rule: #684a50; --ink: #eadac8; --ink-muted: #cdb39c; --coral-deep: #f0927d; color-scheme: dark; }
+}
+:root[data-theme='dark'] { --sand: #2a191d; --paper: #412a2f; --slip: #2a191d; --rule: #684a50; --ink: #eadac8; --ink-muted: #cdb39c; --coral-deep: #f0927d; color-scheme: dark; }
 @font-face { font-family: 'Thmanyah Sans'; src: url(data:font/woff2;base64,{{FONT_SANS_400}}) format('woff2'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Thmanyah Sans'; src: url(data:font/woff2;base64,{{FONT_SANS_700}}) format('woff2'); font-weight: 700; font-display: swap; }
 @font-face { font-family: 'Thmanyah Serif Display'; src: url(data:font/woff2;base64,{{FONT_SERIF_500}}) format('woff2'); font-weight: 500; font-display: swap; }

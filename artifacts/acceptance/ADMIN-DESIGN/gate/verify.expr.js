@@ -45,7 +45,8 @@
   }
   // Focus rings: every control of the nav focused in turn, as the keyboard reaches it (the strip brings it into view);
   // its ring must lie inside the box that clips it (the strip below 1280px, the rail's inner box above), and in the
-  // strip clear of a fade.
+  // strip clear of a fade. A scripted focus after a screen the harness set up with a click is not :focus-visible: it
+  // draws no ring and, like a press, does not move the strip (the final audit's AD-F1), so it is counted apart.
   const ring = async (el) => {
     el.focus()
     await frame()
@@ -61,7 +62,8 @@
   }
   const results = []
   for (const control of nav.querySelectorAll('a, button')) results.push(await ring(control))
-  out.rings = { count: results.length, outside: results.filter((r) => !r.inside).map((r) => r.control), faded: results.filter((r) => r.faded).map((r) => r.control), colours: [...new Set(results.map((r) => r.outline))] }
+  const drawn = results.filter((r) => r.focusVisible)
+  out.rings = { count: results.length, notFocusVisible: results.length - drawn.length, outside: drawn.filter((r) => !r.inside).map((r) => r.control), faded: drawn.filter((r) => r.faded).map((r) => r.control), colours: [...new Set(drawn.map((r) => r.outline))] }
   document.activeElement?.blur()
   return out
 })()

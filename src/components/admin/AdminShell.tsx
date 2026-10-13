@@ -211,9 +211,11 @@ export function AdminShell({ children }: { children: ReactNode }) {
   // The strip keeps whole, clear of its fades, the current page's link (on a
   // route change, when a new role gives the strip other links, once the web
   // font has changed the links' widths, and when the strip changes size, the
-  // rail turning into it included) and any control focused in it: the browser
-  // leaves a focused control that is partly in view where it is. Only the strip
-  // scrolls, never the page, and at once (a state change, not a motion).
+  // rail turning into it included) and any control the keyboard focuses in it:
+  // the browser leaves a focused control that is partly in view where it is. A
+  // press is left alone: it focuses its link on the way down, and a strip moved
+  // under the pointer would end the press, and the click, on another link. Only
+  // the strip scrolls, never the page, and at once (a state change, not a motion).
   useEffect(() => {
     const nav = navRef.current
     if (!nav) return
@@ -226,7 +228,9 @@ export function AdminShell({ children }: { children: ReactNode }) {
       if (delta !== 0) nav.scrollBy({ left: delta })
     }
     const showCurrent = () => show(nav.querySelector('[aria-current="page"]'))
-    const showFocused = (event: FocusEvent) => show(event.target)
+    const showFocused = (event: FocusEvent) => {
+      if (event.target instanceof Element && event.target.matches(':focus-visible')) show(event.target)
+    }
     let live = true
     showCurrent()
     void document.fonts.ready.then(() => {
