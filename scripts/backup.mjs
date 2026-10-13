@@ -87,12 +87,17 @@ function within(parent, child) {
   return !(rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel))
 }
 
-/** True when `target` is the repository root or anything inside it, as written or as it resolves. By real path, a link
- * into the repository is inside it, whatever the path looks like. As written, a path through a link inside the repository
- * that leads out of it is inside too: Git for Windows treats a junction as a plain folder, so `git add -A` would stage
- * what lies behind it. */
+/** True when `target`, or any folder it passes through, resolves into the repository. A link into the repository is
+ * inside it, whatever the path looks like; so is a path that passes through the repository and leaves it again by a link
+ * inside it, however the repository was named on the way in (its own path, a link or junction to it or to a folder above
+ * it, a subst drive, an 8.3 name): Git for Windows treats a junction as a plain folder, so `git add -A` would stage what
+ * lies behind it. */
 function insideRepository(target) {
-  return within(repoRoot, resolve(target)) || within(realPathOf(repoRoot), realPathOf(target))
+  const root = realPathOf(repoRoot)
+  for (let at = resolve(target); ; at = dirname(at)) {
+    if (within(root, realPathOf(at))) return true
+    if (dirname(at) === at) return false
+  }
 }
 
 // A backup inside the repository could be committed by accident.

@@ -39,8 +39,8 @@ All eight S-A items were found closed in the code, each proven by the re-auditor
 
 | Finding | Ruling |
 |---|---|
-| S-R1 minor: the S-A4 fix compared real paths only, so a path through a link inside the repository that leads out of it passed. Git for Windows treats a junction as a plain folder (compat/win32.h marks only symlink reparse points as links), so `git add -A` would stage the plaintext dumps or the backup behind it | Fixed by the orchestrator, in both scripts: a path is inside when its written form or its real path is inside the repository; the two link-out tests now expect the refusal |
-| S-R2 nit: `PLANS/HANDOFF.md` named two graft pins; `PINNED` in the helpers is a third, and one left behind silences the hooks without a message | Fixed by the orchestrator: the graft line names the three pins and the test that fails until they agree |
+| S-R1 minor: the S-A4 fix compared real paths only, so a path through a link inside the repository that leads out of it passed. Git for Windows treats a junction as a plain folder (compat/win32.h marks only symlink reparse points as links), so `git add -A` would stage the plaintext dumps or the backup behind it | Fixed by the orchestrator, in both scripts: a path is inside when its written form or its real path is inside the repository; the two link-out tests now expect the refusal. Completed after the focused audit (S-F1): every folder the path passes through is checked |
+| S-R2 nit: `PLANS/HANDOFF.md` named two graft pins; `PINNED` in the helpers is a third, and one left behind silences the hooks without a message | Fixed by the orchestrator: the graft line names the three pins; the helper test holds `.mcp.json` and both `PINNED` together, and the global CLI is checked with `npm ls -g @nanonets/graft` (worded after the focused audit, S-F2) |
 | S-R3 nit: the stop, the network removal and the leftover check all sat under "the scratch workdir exists", so a run whose workdir vanished could exit 0 with the stack still up | Fixed by the orchestrator: without its workdir the stack is stopped by its project id (as the pre-clean does), and the network removal and the leftover check run whenever the stack was touched; two tests (the stack stopped, exit 0 when nothing remains; exit 1 naming a container that does) |
 | Q4: a committed test for the helpers, since graft's upkeep rewrites them | Accepted: `tests/unit/graft-helpers.test.ts` |
 | S-A6 (from the first audit) | Recorded in `PLANS/ISSUES.md` as I53 (1), with the CLI key (S-6), the restore rehearsal's Docker side and F1-15 |
@@ -64,7 +64,13 @@ CI on the pushed commit runs the rest, the database steps included, and `pnpm au
 
 ## The focused audit of the orchestrator's fixes
 
-Pending when this record was committed; added here when it reports.
+Opus 5.5 at effort max, on an isolated copy of `4543c99`, 2026-10-13: audit_failed on one minor finding. S-R3 and Q4 closed (9 and more mutants of its own, all killed; the helper test cannot run a real graft or lean on the developer's PATH, HOME, npm or global packages, and passes with a temp folder behind a link, as on macOS); I53 true; S-R1 partly closed.
+
+| Finding | Ruling |
+|---|---|
+| S-F1 minor: the written-path leg compared against the repository's real path, so a path written through any alias of the repository (a link or junction to it or a folder above it, macOS's /var for /private/var, a subst drive, an 8.3 name) that then leaves by a link inside it passed both checks; with the temp folder behind a link the round's own link-out tests failed | Fixed by the orchestrator, in both scripts: the guard walks every folder the path passes through and refuses when any of them resolves into the repository (the auditor's proven form); one test per script writes the link-out path through a link to the repository (each fails on the guard of `4543c99`; both files pass 58 of 58 with and without a temp folder behind a link). The residual, a junction's far side written directly, is in I53 (3) |
+| S-F2 nit: HANDOFF and this record said the helper test fails until the three pins agree; it cannot see the global CLI | Fixed: the wording, and `npm ls -g @nanonets/graft` for the global CLI |
+| S-F3 nit: HANDOFF's open issues stopped at I51 | Fixed: I43–I53 |
 
 ## What only the owner's machine can prove
 

@@ -122,9 +122,10 @@ describe('backup --out containment', { timeout: 60_000 }, () => {
   })
 
   // The guard compares real paths, so a junction or symlink cannot pass as outside (nor, on Windows, an 8.3 short name or a
-  // trailing dot, which resolve the same way but cannot be made here). It compares the written path too, so a link inside
-  // the repository that leads out of it is refused as well. The links are made in the private home, beside the throwaway
-  // repository, never in the real one. Skipped where the machine does not let a test make a link.
+  // trailing dot, which resolve the same way but cannot be made here). It checks every folder the path passes through, so
+  // a link inside the repository that leads out of it is refused as well, however the repository is named on the way in.
+  // The links are made in the private home, beside the throwaway repository, never in the real one. Skipped where the
+  // machine does not let a test make a link.
   describe.skipIf(!CAN_LINK)('through a link', () => {
     let repo: string
 
@@ -166,6 +167,13 @@ describe('backup --out containment', { timeout: 60_000 }, () => {
       expect(result.status).toBe(1)
       expect(result.stderr).toContain('Refusing --out inside the repository')
       expect(existsSync(join(home, 'elsewhere', 'backups'))).toBe(false)
+    })
+
+    it('refuses that link-out path when it is written through a link to the repository, as any alias of the repository would be, and nothing is written', () => {
+      const { result } = backupFromCopy(['--local', '--out', join(home, 'repo-link', 'leads-out', 'via-alias-backups')])
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('Refusing --out inside the repository')
+      expect(existsSync(join(home, 'elsewhere', 'via-alias-backups'))).toBe(false)
     })
   })
 })

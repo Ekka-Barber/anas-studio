@@ -101,9 +101,10 @@ describe('restore-check --extract containment', { timeout: 60_000 }, () => {
 
 // A link into the repository is the repository: the guard compares real paths, so a junction or symlink cannot pass as
 // outside (nor, on Windows, an 8.3 short name or a trailing dot, which resolve the same way but cannot be made here). It
-// compares the written path too, so a link inside the repository that leads out of it is refused as well. The script runs
-// from a copy in a throwaway repository with the links beside it, so a guard that regressed could not write into the real
-// one. Skipped where the machine does not let a test make a link.
+// checks every folder the path passes through, so a link inside the repository that leads out of it is refused as well,
+// however the repository is named on the way in. The script runs from a copy in a throwaway repository with the links
+// beside it, so a guard that regressed could not write into the real one. Skipped where the machine does not let a test
+// make a link.
 describe.skipIf(!CAN_LINK)('restore-check --extract containment through a link', { timeout: 60_000 }, () => {
   const PASSPHRASE = 'a-real-backup-passphrase-123'
   let parent: string
@@ -152,6 +153,13 @@ describe.skipIf(!CAN_LINK)('restore-check --extract containment through a link',
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('Refusing --extract inside the repository')
     expect(existsSync(join(parent, 'elsewhere', 'plaintext'))).toBe(false)
+  })
+
+  it('refuses that link-out path when it is written through a link to the repository, as any alias of the repository would be', () => {
+    const result = restoreCheck(['missing.enc', '--extract', join(parent, 'repo-link', 'leads-out', 'via-alias-plaintext')], PASSPHRASE, repo)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Refusing --extract inside the repository')
+    expect(existsSync(join(parent, 'elsewhere', 'via-alias-plaintext'))).toBe(false)
   })
 })
 
