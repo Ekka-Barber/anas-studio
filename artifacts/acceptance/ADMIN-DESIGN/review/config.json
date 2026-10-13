@@ -1,0 +1,24 @@
+{
+  "before": "e800fc5",
+  "after": "the working tree on top of 107054c",
+  "changed": [
+    "A night rail at the start of a wide screen (from 1280 px), a bar on a phone, a tablet and a small laptop: the mark, «أنس» and the nav in four groups, in the order every role already had.",
+    "The current page is a sand tab cut out of the rail, laid over the palm-weave strip.",
+    "Screen titles in Thmanyah Serif Display after the three-triangle mark, closed by a 3 px rule; sections are paper panels.",
+    "Fields and buttons are 46 px tall, square, with 2 px aubergine lines; every link and control is at least a 44 px target.",
+    "Tables sit in a paper box with a sand header row; at 480 px and below each row becomes a labelled card (the short version history stays a table, with smaller buttons).",
+    "The owner home flows in two columns, the content home is a set of doors, and the library keeps the chosen picture beside the grid.",
+    "Pages are longer: about 26% on a phone and 16% on a laptop, because controls grew to 46 px, sections became panels and fact lists became ruled rows (the paid order as operations sees it, at 360 px: 3,786 to 5,486 px). If you want denser screens, say so on any screen and I tighten the spacing everywhere at once."
+  ],
+  "checked": [
+    "No page scrolls sideways: 62 screens at six widths from 360 to 1440 (372 views). Tables fit from 1024 up and become cards at 480 and below; only at a tablet's 768 do the orders list and the mail scroll inside their own box (the orders list by 87 px, where the old one scrolled 328 px).",
+    "On a phone and a tablet the nav strip keeps the current page's link whole in view on every screen, also after a resize, a page change, a role change or a late font, and fades only toward links that are out of view.",
+    "The rail fits every laptop window down to 1280 x 600, the current page's tab covers the weave, and every focus ring sits inside its box, also under real Tab presses.",
+    "tasmeem's scan: 0 findings; its in-page checks: what remains is by design, older than the redesign, one rule misreading a one-word button, or the harness's own stand-in.",
+    "impeccable's detector: 0 findings.",
+    "Every text colour pair is 4.5:1 or more (aubergine on the fields' paper: 9.5:1).",
+    "Lint, typecheck and 2,583 unit tests pass. An Opus audit compared every screen's structure with the old admin's: nothing the screens do changed. Two Opus audits failed earlier states of the redesign; every finding was fixed.",
+    "!Still to come: the final Opus audit and CI, then your review.",
+    "!Before acceptance: the admin e2e suites on your machine (D49)."
+  ]
+}

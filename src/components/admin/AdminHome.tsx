@@ -381,7 +381,7 @@ export function AdminHome() {
   }, [])
 
   return (
-    <div>
+    <div className={styles.home}>
       <h1>لوحة أنس</h1>
       {ownError && (
         <p role="alert" className={styles.error}>

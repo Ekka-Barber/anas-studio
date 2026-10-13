@@ -22,7 +22,7 @@ import {
   SCHEDULE_GRACE_MS,
   scheduleCutoff,
 } from '../../src/components/admin/AdminHome'
-import { clearDrafts, isWidePath } from '../../src/components/admin/AdminShell'
+import { clearDrafts, currentEntry, isWidePath } from '../../src/components/admin/AdminShell'
 import { CLOSE_CONFIRM, CLOSED_MESSAGE, closeResult } from '../../src/components/admin/EmailView'
 import { sendOutcome } from '../../src/components/admin/SignIn'
 import { stepUpError } from '../../src/components/admin/StepUp'
@@ -66,6 +66,22 @@ describe('the admin shell', () => {
     for (const path of ['/admin', '/admin/store', '/admin/store/', '/admin/store/products/edit', '/admin/content/rooms', '/admin/security']) {
       expect(isWidePath(path), path).toBe(false)
     }
+  })
+
+  // D49: the rail marks the screen the visitor is on (aria-current="page"); the home only by itself.
+  it('marks the nav entry a screen belongs to, the home only by itself', () => {
+    expect(currentEntry('/admin')).toBe('/admin')
+    expect(currentEntry('/admin/')).toBe('/admin')
+    expect(currentEntry('/admin/orders')).toBe('/admin/orders')
+    expect(currentEntry('/admin/orders/view')).toBe('/admin/orders')
+    expect(currentEntry('/admin/orders/reconciliation/')).toBe('/admin/orders')
+    expect(currentEntry('/admin/content/rooms/edit')).toBe('/admin/content')
+    expect(currentEntry('/admin/store/products')).toBe('/admin/store')
+    expect(currentEntry('/admin/security')).toBe('/admin/security')
+    // A path that only starts like an entry is not under it, and the sign-in and the preview have none.
+    expect(currentEntry('/admin/ordersx')).toBeNull()
+    expect(currentEntry('/admin/sign-in')).toBeNull()
+    expect(currentEntry('/admin/preview')).toBeNull()
   })
 
   it('clears every editor draft and nothing else', () => {

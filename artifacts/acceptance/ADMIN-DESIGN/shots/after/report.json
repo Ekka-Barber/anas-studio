@@ -1,0 +1,4701 @@
+{
+ "label": "final4",
+ "generatedAt": "2026-10-13T15:18:52.817Z",
+ "clock": "2026-10-08T07:30:00.000Z",
+ "browser": "Chromium 141.0.7390.37",
+ "lenient": false,
+ "widths": [
+  360,
+  1440
+ ],
+ "summary": {
+  "shots": 124,
+  "settled": 124,
+  "notSettled": [],
+  "withAppConsoleErrors": [
+   "sign-in@1440"
+  ],
+  "withPageErrors": [],
+  "withFlags": [],
+  "withOverflow": [],
+  "unmockedCalls": []
+ },
+ "screens": [
+  {
+   "screen": "home",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin",
+   "note": "Owner home with every section filled.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2390,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "ul.admin-module__nc4JNq__metaList > li > a.admin-module__nc4JNq__target"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1615
+  },
+  {
+   "screen": "home-editor",
+   "width": 360,
+   "role": "editor",
+   "url": "http://localhost:3210/admin",
+   "note": "Editor role: the nav and the sections differ.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1483
+  },
+  {
+   "screen": "home-operations",
+   "width": 360,
+   "role": "operations",
+   "url": "http://localhost:3210/admin",
+   "note": "Operations role.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1721,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1430
+  },
+  {
+   "screen": "content",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content",
+   "note": "The content collections (tiles).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1296,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "div.admin-module__nc4JNq__page > div.admin-module__nc4JNq__grid > a.admin-module__nc4JNq__tile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1067
+  },
+  {
+   "screen": "content-rooms",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/rooms",
+   "note": "The five rooms with their states.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1101,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2075
+  },
+  {
+   "screen": "content-rooms-edit-built",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/rooms/edit?id=built",
+   "note": "The long room form (unpublished changes).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 15908,
+   "flags": [],
+   "slices": 11,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 3187
+  },
+  {
+   "screen": "content-rooms-edit-book",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/rooms/edit?id=book",
+   "note": "A room with a pending schedule.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 16316,
+   "flags": [],
+   "slices": 11,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 5,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2726
+  },
+  {
+   "screen": "content-posts",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts",
+   "note": "Posts in mixed states: live, unpublished changes, draft, overdue and future schedule.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1155,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1457
+  },
+  {
+   "screen": "content-posts-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+   "note": "A live post: rich text, taxonomies, cover, publish bar, version history.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2916,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 3,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1918
+  },
+  {
+   "screen": "content-posts-edit-overdue",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=87fbf26e-c2a6-44bf-94ab-dca0688c39d9",
+   "note": "A post whose schedule time has passed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2360,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1779
+  },
+  {
+   "screen": "content-site-settings",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/site_settings",
+   "note": "The one site-settings document, listed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1370
+  },
+  {
+   "screen": "content-site-settings-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/site_settings/edit?id=site",
+   "note": "The longest form: nav, footer, home, SEO, contact, socials, contact page.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 18203,
+   "flags": [],
+   "slices": 13,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 6,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2639
+  },
+  {
+   "screen": "content-taxonomies",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/taxonomies",
+   "note": "Categories and tags, with the new-slug field.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1395,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1423
+  },
+  {
+   "screen": "content-taxonomies-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/taxonomies/edit?id=places",
+   "note": "One taxonomy (a category).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1063,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1486
+  },
+  {
+   "screen": "content-policies",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/policies",
+   "note": "The four policy documents (one never published).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 953,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1479
+  },
+  {
+   "screen": "content-policies-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/policies/edit?id=store",
+   "note": "A policy: title and rich text, with the approval warning.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1660,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 2,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1632
+  },
+  {
+   "screen": "content-scenes",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/scenes",
+   "note": "The scenes gallery document, listed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1379
+  },
+  {
+   "screen": "content-scenes-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/scenes/edit?id=gallery",
+   "note": "The gallery: 19 photos as repeating groups.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 14065,
+   "flags": [],
+   "slices": 10,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 3,
+      "evidence": "tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary | tr > td > button.admin-module__nc4JNq__buttonSecondary"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2585
+  },
+  {
+   "screen": "media",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/media",
+   "note": "Library grid with the first image selected (details, where-used).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 4815,
+   "flags": [],
+   "slices": 4,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2977
+  },
+  {
+   "screen": "store",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store",
+   "note": "The store tiles, with the demo-data line.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1378,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 2,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__grid > a.admin-module__nc4JNq__tile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__grid > a.admin-module__nc4JNq__tile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1324
+  },
+  {
+   "screen": "store-products",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/products",
+   "note": "Five products (one demo, one draft, one archived).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1587,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1869
+  },
+  {
+   "screen": "store-products-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/products/edit?id=a841a517-0614-4bc5-ae22-6f8f2ed1fdfb",
+   "note": "A product with its variants listed below.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2708,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2227
+  },
+  {
+   "screen": "store-variants-edit-ebook",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/variants/edit?id=237e10e7-3bcf-4fec-a8a2-1f3241ee257f&product=a841a517-0614-4bc5-ae22-6f8f2ed1fdfb",
+   "note": "A digital variant with its paid file.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1435,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1506
+  },
+  {
+   "screen": "store-variants-edit-preorder",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/variants/edit?id=eb25bd4e-7d25-457d-a223-254ddd2f8063&product=bf0d5ffc-d152-4461-9dc7-3a4512114b5e",
+   "note": "A preorder variant.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1641,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1654
+  },
+  {
+   "screen": "store-shipping-rates",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/shipping-rates",
+   "note": "Nine city rates (one unpriced, one switched off).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2490,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1486
+  },
+  {
+   "screen": "store-shipping-rates-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/shipping-rates/edit?id=3bbb98c2-f1ea-48b4-9471-dca0233731fc",
+   "note": "A city rate form.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 882,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1410
+  },
+  {
+   "screen": "store-coupons",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/coupons",
+   "note": "Three coupons (percent, fixed, expired).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1135,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1412
+  },
+  {
+   "screen": "store-coupons-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/coupons/edit?id=23de6612-ba9e-446b-a095-a312f2216f0c",
+   "note": "A coupon form with its product scope.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1462,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "latin:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1505
+  },
+  {
+   "screen": "store-customers",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/customers",
+   "note": "Customers with their «طلباته» links.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 3386,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1495
+  },
+  {
+   "screen": "store-customers-edit",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/customers/edit?id=7ba6d2d0-3e0e-47f1-a876-915d8f1987e9",
+   "note": "A customer: read-only email, editable name and phone.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1549
+  },
+  {
+   "screen": "store-notifications",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/notifications",
+   "note": "Availability sign-ups (a read-only list).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1562,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1333
+  },
+  {
+   "screen": "store-editor",
+   "width": 360,
+   "role": "editor",
+   "url": "http://localhost:3210/admin/store",
+   "note": "Role gate: editors see nothing of the store.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "QA-03",
+      "severity": "P1",
+      "message": "0 visible <h1>",
+      "count": 1,
+      "evidence": ""
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1006
+  },
+  {
+   "screen": "orders",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Twelve orders in mixed states.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5233,
+   "flags": [],
+   "slices": 4,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1632
+  },
+  {
+   "screen": "orders-operations",
+   "width": 360,
+   "role": "operations",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Operations role: no reconciliation link.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5133,
+   "flags": [],
+   "slices": 4,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1428
+  },
+  {
+   "screen": "orders-empty",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Empty state: orders_list answers no rows.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 833,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1264
+  },
+  {
+   "screen": "orders-failed",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Failed state: orders_list answers 500.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+     "url": "https://mock.supabase.invalid/rest/v1/rpc/orders_list"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 879,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1219
+  },
+  {
+   "screen": "orders-view",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "Paid order: items, payment, shipping, files, return, refund, dispute, log.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 8332,
+   "flags": [],
+   "slices": 6,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1657
+  },
+  {
+   "screen": "orders-view-resolution",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=b6066992-e578-4824-baa6-f81f0618e65c",
+   "note": "Paid but needs resolution: open review payment, chargeback in two steps.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 7340,
+   "flags": [],
+   "slices": 5,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1623
+  },
+  {
+   "screen": "orders-view-operations",
+   "width": 360,
+   "role": "operations",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "Operations role: no money controls, disputes or log.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5486,
+   "flags": [],
+   "slices": 4,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1440
+  },
+  {
+   "screen": "orders-reconciliation",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/reconciliation",
+   "note": "Every section with rows.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 6227,
+   "flags": [],
+   "slices": 5,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1579
+  },
+  {
+   "screen": "media-upload-dialog",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/media",
+   "note": "The upload dialog, open.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 3537,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 3709
+  },
+  {
+   "screen": "media-delete-dialog",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/media",
+   "note": "The delete confirmation of an image that is used nowhere.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 4694,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 3788
+  },
+  {
+   "screen": "media-picker-dialog",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+   "note": "The library picker opened from a post cover.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2916,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 27,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 4863
+  },
+  {
+   "screen": "email-replay-dialog",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/email",
+   "note": "Confirmation before replaying mail that may already have been delivered.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 3110,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 2840
+  },
+  {
+   "screen": "orders-view-refund-confirm",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "The refund form filled in, at its confirmation step.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 7673,
+   "flags": [],
+   "slices": 6,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1711
+  },
+  {
+   "screen": "orders-view-dispute-form",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "The «تسجيل اعتراض» form, open.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 9221,
+   "flags": [],
+   "slices": 7,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1851
+  },
+  {
+   "screen": "team-step-up-dialog",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/team",
+   "note": "An invitation asks for a fresh authenticator code (the step-up dialog).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+     "url": "https://mock.supabase.invalid/functions/v1/staff-admin"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2058,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 3395
+  },
+  {
+   "screen": "content-posts-new",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=7788b39e-6244-49a4-afab-0855575e97b4",
+   "note": "A new post: the empty form (no publish bar, no history).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2074,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1523
+  },
+  {
+   "screen": "store-products-new",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/products/edit?id=new",
+   "note": "A new product: the empty form.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1757,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1306
+  },
+  {
+   "screen": "email",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/email",
+   "note": "Mail problems listed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 3110,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1438
+  },
+  {
+   "screen": "stats",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/stats",
+   "note": "The store figures for 30 days and the visits.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1884,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1408
+  },
+  {
+   "screen": "settings",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/settings",
+   "note": "Commerce settings, site state, socials.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 3730,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1643
+  },
+  {
+   "screen": "security",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/security",
+   "note": "TOTP enrolled.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1468
+  },
+  {
+   "screen": "security-enroll",
+   "width": 360,
+   "role": "editor",
+   "url": "http://localhost:3210/admin/security",
+   "note": "No authenticator yet: the enrolment step with a placeholder QR.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1382
+  },
+  {
+   "screen": "team",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/team",
+   "note": "Four members, one revoked.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2058,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1476
+  },
+  {
+   "screen": "team-editor",
+   "width": 360,
+   "role": "editor",
+   "url": "http://localhost:3210/admin/team",
+   "note": "Role gate: owner only.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1188
+  },
+  {
+   "screen": "gate-error",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin",
+   "note": "The shell's gate when the role cannot be read.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+     "url": "https://mock.supabase.invalid/rest/v1/rpc/current_staff_role"
+    },
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+     "url": "https://mock.supabase.invalid/rest/v1/rpc/current_staff_role"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "QA-03",
+      "severity": "P1",
+      "message": "0 visible <h1>",
+      "count": 1,
+      "evidence": ""
+     }
+    ],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1295
+  },
+  {
+   "screen": "sign-in",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/sign-in",
+   "note": "Signed out. Turnstile cannot load here, so the send button stays off.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:heading": "Thmanyah Serif Display",
+     "arabic:text": "Thmanyah Sans"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 674
+  },
+  {
+   "screen": "sign-in-widget",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/sign-in",
+   "note": "Signed out, with a 300x65 placeholder where Cloudflare's widget would be (the real one is never loaded); the send button is on.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "TY-12",
+      "severity": "P0",
+      "message": "latin body line-height 1.30 (< 1.35)",
+      "count": 1,
+      "evidence": "div > div > span"
+     },
+     {
+      "id": "TY-13",
+      "severity": "P1",
+      "message": "text 9px",
+      "count": 1,
+      "evidence": "div > div > span"
+     },
+     {
+      "id": "QA-01",
+      "severity": "P0",
+      "message": "contrast 4.29:1 < 4.5:1",
+      "count": 1,
+      "evidence": "div > div > span"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:heading": "Thmanyah Serif Display",
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "system-ui"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 778
+  },
+  {
+   "screen": "sign-in-code",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/sign-in",
+   "note": "The second step of the sign-in: the 8-digit code.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:heading": "Thmanyah Serif Display",
+     "arabic:text": "Thmanyah Sans"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1409
+  },
+  {
+   "screen": "preview-built",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/preview?collection=rooms&id=built",
+   "note": "Draft preview of a room, drawn with the public view.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 6625,
+   "flags": [],
+   "slices": 5,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 7,
+      "evidence": "div.built-module__xQJsLq__filmCell > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | div.built-module__xQJsLq__filmCell > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | div.motion-expand > div.video-module__LHbloq__tile > button.video-module__LHbloq__play"
+     }
+    ],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1908
+  },
+  {
+   "screen": "preview-post",
+   "width": 360,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/preview?collection=posts&id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+   "note": "Draft preview of a post.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1726,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "header.band-module__D_o5aq__band > nav.journal-module__-XRgIq__crumbs > a"
+     }
+    ],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 360,
+   "ms": 1501
+  },
+  {
+   "screen": "home",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin",
+   "note": "Owner home with every section filled.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1430,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "ul.admin-module__nc4JNq__metaList > li > a.admin-module__nc4JNq__target"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1441
+  },
+  {
+   "screen": "home-editor",
+   "width": 1440,
+   "role": "editor",
+   "url": "http://localhost:3210/admin",
+   "note": "Editor role: the nav and the sections differ.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1405
+  },
+  {
+   "screen": "home-operations",
+   "width": 1440,
+   "role": "operations",
+   "url": "http://localhost:3210/admin",
+   "note": "Operations role.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 936,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1514
+  },
+  {
+   "screen": "content",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content",
+   "note": "The content collections (tiles).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "div.admin-module__nc4JNq__page > div.admin-module__nc4JNq__grid > a.admin-module__nc4JNq__tile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1138
+  },
+  {
+   "screen": "content-rooms",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/rooms",
+   "note": "The five rooms with their states.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1392
+  },
+  {
+   "screen": "content-rooms-edit-built",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/rooms/edit?id=built",
+   "note": "The long room form (unpublished changes).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 13180,
+   "flags": [],
+   "slices": 14,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 3588
+  },
+  {
+   "screen": "content-rooms-edit-book",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/rooms/edit?id=book",
+   "note": "A room with a pending schedule.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 14820,
+   "flags": [],
+   "slices": 15,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 3989
+  },
+  {
+   "screen": "content-posts",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts",
+   "note": "Posts in mixed states: live, unpublished changes, draft, overdue and future schedule.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1513
+  },
+  {
+   "screen": "content-posts-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+   "note": "A live post: rich text, taxonomies, cover, publish bar, version history.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2432,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1824
+  },
+  {
+   "screen": "content-posts-edit-overdue",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=87fbf26e-c2a6-44bf-94ab-dca0688c39d9",
+   "note": "A post whose schedule time has passed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2019,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1795
+  },
+  {
+   "screen": "content-site-settings",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/site_settings",
+   "note": "The one site-settings document, listed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1502
+  },
+  {
+   "screen": "content-site-settings-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/site_settings/edit?id=site",
+   "note": "The longest form: nav, footer, home, SEO, contact, socials, contact page.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 16306,
+   "flags": [],
+   "slices": 17,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 4205
+  },
+  {
+   "screen": "content-taxonomies",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/taxonomies",
+   "note": "Categories and tags, with the new-slug field.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1441
+  },
+  {
+   "screen": "content-taxonomies-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/taxonomies/edit?id=places",
+   "note": "One taxonomy (a category).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1548
+  },
+  {
+   "screen": "content-policies",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/policies",
+   "note": "The four policy documents (one never published).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1529
+  },
+  {
+   "screen": "content-policies-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/policies/edit?id=store",
+   "note": "A policy: title and rich text, with the approval warning.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1287,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1671
+  },
+  {
+   "screen": "content-scenes",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/scenes",
+   "note": "The scenes gallery document, listed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1419
+  },
+  {
+   "screen": "content-scenes-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/scenes/edit?id=gallery",
+   "note": "The gallery: 19 photos as repeating groups.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 12799,
+   "flags": [],
+   "slices": 13,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 3649
+  },
+  {
+   "screen": "media",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/media",
+   "note": "Library grid with the first image selected (details, where-used).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2628,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 2530
+  },
+  {
+   "screen": "store",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store",
+   "note": "The store tiles, with the demo-data line.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 2,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__grid > a.admin-module__nc4JNq__tile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__grid > a.admin-module__nc4JNq__tile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1280
+  },
+  {
+   "screen": "store-products",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/products",
+   "note": "Five products (one demo, one draft, one archived).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1298
+  },
+  {
+   "screen": "store-products-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/products/edit?id=a841a517-0614-4bc5-ae22-6f8f2ed1fdfb",
+   "note": "A product with its variants listed below.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1817,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1735
+  },
+  {
+   "screen": "store-variants-edit-ebook",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/variants/edit?id=237e10e7-3bcf-4fec-a8a2-1f3241ee257f&product=a841a517-0614-4bc5-ae22-6f8f2ed1fdfb",
+   "note": "A digital variant with its paid file.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1248,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1678
+  },
+  {
+   "screen": "store-variants-edit-preorder",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/variants/edit?id=eb25bd4e-7d25-457d-a223-254ddd2f8063&product=bf0d5ffc-d152-4461-9dc7-3a4512114b5e",
+   "note": "A preorder variant.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1458,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1602
+  },
+  {
+   "screen": "store-shipping-rates",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/shipping-rates",
+   "note": "Nine city rates (one unpriced, one switched off).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1382
+  },
+  {
+   "screen": "store-shipping-rates-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/shipping-rates/edit?id=3bbb98c2-f1ea-48b4-9471-dca0233731fc",
+   "note": "A city rate form.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1482
+  },
+  {
+   "screen": "store-coupons",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/coupons",
+   "note": "Three coupons (percent, fixed, expired).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1444
+  },
+  {
+   "screen": "store-coupons-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/coupons/edit?id=23de6612-ba9e-446b-a095-a312f2216f0c",
+   "note": "A coupon form with its product scope.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1285,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "latin:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1589
+  },
+  {
+   "screen": "store-customers",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/customers",
+   "note": "Customers with their «طلباته» links.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1131,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 1,
+      "evidence": "tr > th > span.visually-hidden"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1386
+  },
+  {
+   "screen": "store-customers-edit",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/customers/edit?id=7ba6d2d0-3e0e-47f1-a876-915d8f1987e9",
+   "note": "A customer: read-only email, editable name and phone.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1627
+  },
+  {
+   "screen": "store-notifications",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/notifications",
+   "note": "Availability sign-ups (a read-only list).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1322
+  },
+  {
+   "screen": "store-editor",
+   "width": 1440,
+   "role": "editor",
+   "url": "http://localhost:3210/admin/store",
+   "note": "Role gate: editors see nothing of the store.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "QA-03",
+      "severity": "P1",
+      "message": "0 visible <h1>",
+      "count": 1,
+      "evidence": ""
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1110
+  },
+  {
+   "screen": "orders",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Twelve orders in mixed states.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1379,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1514
+  },
+  {
+   "screen": "orders-operations",
+   "width": 1440,
+   "role": "operations",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Operations role: no reconciliation link.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1306,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1327
+  },
+  {
+   "screen": "orders-empty",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Empty state: orders_list answers no rows.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1376
+  },
+  {
+   "screen": "orders-failed",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders",
+   "note": "Failed state: orders_list answers 500.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+     "url": "https://mock.supabase.invalid/rest/v1/rpc/orders_list"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1303
+  },
+  {
+   "screen": "orders-view",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "Paid order: items, payment, shipping, files, return, refund, dispute, log.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5786,
+   "flags": [],
+   "slices": 6,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1861
+  },
+  {
+   "screen": "orders-view-resolution",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=b6066992-e578-4824-baa6-f81f0618e65c",
+   "note": "Paid but needs resolution: open review payment, chargeback in two steps.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5790,
+   "flags": [],
+   "slices": 6,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1933
+  },
+  {
+   "screen": "orders-view-operations",
+   "width": 1440,
+   "role": "operations",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "Operations role: no money controls, disputes or log.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 3759,
+   "flags": [],
+   "slices": 4,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1549
+  },
+  {
+   "screen": "orders-reconciliation",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/reconciliation",
+   "note": "Every section with rows.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5850,
+   "flags": [],
+   "slices": 6,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1849
+  },
+  {
+   "screen": "media-upload-dialog",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/media",
+   "note": "The upload dialog, open.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1800,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 3076
+  },
+  {
+   "screen": "media-delete-dialog",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/media",
+   "note": "The delete confirmation of an image that is used nowhere.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2628,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 3596
+  },
+  {
+   "screen": "media-picker-dialog",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+   "note": "The library picker opened from a post cover.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2432,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 24,
+      "evidence": "div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile | div.admin-module__nc4JNq__field > div.admin-module__nc4JNq__mediaGrid > button.admin-module__nc4JNq__mediaTile"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 4098
+  },
+  {
+   "screen": "email-replay-dialog",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/email",
+   "note": "Confirmation before replaying mail that may already have been delivered.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1012,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 1,
+      "evidence": "tr > th > span.visually-hidden"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 2975
+  },
+  {
+   "screen": "orders-view-refund-confirm",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "The refund form filled in, at its confirmation step.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 5223,
+   "flags": [],
+   "slices": 6,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 2332
+  },
+  {
+   "screen": "orders-view-dispute-form",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+   "note": "The «تسجيل اعتراض» form, open.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 6638,
+   "flags": [],
+   "slices": 7,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 2685
+  },
+  {
+   "screen": "team-step-up-dialog",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/team",
+   "note": "An invitation asks for a fresh authenticator code (the step-up dialog).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 403 (Forbidden)",
+     "url": "https://mock.supabase.invalid/functions/v1/staff-admin"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 958,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 3551
+  },
+  {
+   "screen": "content-posts-new",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/content/posts/edit?id=7788b39e-6244-49a4-afab-0855575e97b4",
+   "note": "A new post: the empty form (no publish bar, no history).",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1794,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1824
+  },
+  {
+   "screen": "store-products-new",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/store/products/edit?id=new",
+   "note": "A new product: the empty form.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1476,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1470
+  },
+  {
+   "screen": "email",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/email",
+   "note": "Mail problems listed.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1012,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "SC-15",
+      "severity": "P1",
+      "message": "arabic marks clipped by overflow",
+      "count": 1,
+      "evidence": "tr > th > span.visually-hidden"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1545
+  },
+  {
+   "screen": "stats",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/stats",
+   "note": "The store figures for 30 days and the visits.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 1700,
+   "flags": [],
+   "slices": 2,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1545
+  },
+  {
+   "screen": "settings",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/settings",
+   "note": "Commerce settings, site state, socials.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2877,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1834
+  },
+  {
+   "screen": "security",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/security",
+   "note": "TOTP enrolled.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1405
+  },
+  {
+   "screen": "security-enroll",
+   "width": 1440,
+   "role": "editor",
+   "url": "http://localhost:3210/admin/security",
+   "note": "No authenticator yet: the enrolment step with a placeholder QR.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1467
+  },
+  {
+   "screen": "team",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/team",
+   "note": "Four members, one revoked.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 958,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1438
+  },
+  {
+   "screen": "team-editor",
+   "width": 1440,
+   "role": "editor",
+   "url": "http://localhost:3210/admin/team",
+   "note": "Role gate: owner only.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1164
+  },
+  {
+   "screen": "gate-error",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin",
+   "note": "The shell's gate when the role cannot be read.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+     "url": "https://mock.supabase.invalid/rest/v1/rpc/current_staff_role"
+    },
+    {
+     "tag": "expected",
+     "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)",
+     "url": "https://mock.supabase.invalid/rest/v1/rpc/current_staff_role"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "QA-03",
+      "severity": "P1",
+      "message": "0 visible <h1>",
+      "count": 1,
+      "evidence": ""
+     }
+    ],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1405
+  },
+  {
+   "screen": "sign-in",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/sign-in",
+   "note": "Signed out. Turnstile cannot load here, so the send button stays off.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [
+    {
+     "tag": "app",
+     "text": "A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:\n\n- A server/client branch `if (typeof window !== 'undefined')`.\n- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.\n- Date formatting in a user's locale which doesn't match the server.\n- External changing data without sending a snapshot of it along with the HTML.\n- Invalid HTML tag nesting.\n\nIt can also happen if the client has a browser extension installed which messes with the",
+     "url": "http://localhost:3210/_next/static/chunks/0l8u_next_dist_0puib1e._.js"
+    }
+   ],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:heading": "Thmanyah Serif Display",
+     "arabic:text": "Thmanyah Sans"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1168
+  },
+  {
+   "screen": "sign-in-widget",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/sign-in",
+   "note": "Signed out, with a 300x65 placeholder where Cloudflare's widget would be (the real one is never loaded); the send button is on.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [
+     {
+      "id": "TY-12",
+      "severity": "P0",
+      "message": "latin body line-height 1.30 (< 1.35)",
+      "count": 1,
+      "evidence": "div > div > span"
+     },
+     {
+      "id": "TY-13",
+      "severity": "P1",
+      "message": "text 9px",
+      "count": 1,
+      "evidence": "div > div > span"
+     },
+     {
+      "id": "QA-01",
+      "severity": "P0",
+      "message": "contrast 4.29:1 < 4.5:1",
+      "count": 1,
+      "evidence": "div > div > span"
+     }
+    ],
+    "scripts": [
+     "arabic",
+     "latin"
+    ],
+    "fonts": {
+     "arabic:heading": "Thmanyah Serif Display",
+     "arabic:text": "Thmanyah Sans",
+     "latin:text": "system-ui"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 760
+  },
+  {
+   "screen": "sign-in-code",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/sign-in",
+   "note": "The second step of the sign-in: the 8-digit code.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 900,
+   "flags": [],
+   "slices": 0,
+   "eval": {
+    "findings": [],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:heading": "Thmanyah Serif Display",
+     "arabic:text": "Thmanyah Sans"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1298
+  },
+  {
+   "screen": "preview-built",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/preview?collection=rooms&id=built",
+   "note": "Draft preview of a room, drawn with the public view.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 7703,
+   "flags": [],
+   "slices": 8,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 2,
+      "evidence": "figure.built-module__xQJsLq__teamFilm > div.video-module__LHbloq__tile > button.video-module__LHbloq__play | figure.built-module__xQJsLq__teamFilm > div.video-module__LHbloq__tile > button.video-module__LHbloq__play"
+     }
+    ],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 2847
+  },
+  {
+   "screen": "preview-post",
+   "width": 1440,
+   "role": "owner",
+   "url": "http://localhost:3210/admin/preview?collection=posts&id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+   "note": "Draft preview of a post.",
+   "settled": true,
+   "problems": [],
+   "consoleErrors": [],
+   "pageErrors": [],
+   "unmocked": [],
+   "blockedExternal": [],
+   "badResponses": [],
+   "overflowPx": 0,
+   "offenders": [],
+   "pageHeight": 2429,
+   "flags": [],
+   "slices": 3,
+   "eval": {
+    "findings": [
+     {
+      "id": "LA-22",
+      "severity": "P1",
+      "message": "control label wraps to two lines",
+      "count": 1,
+      "evidence": "header.band-module__D_o5aq__band > nav.journal-module__-XRgIq__crumbs > a"
+     }
+    ],
+    "scripts": [
+     "arabic"
+    ],
+    "fonts": {
+     "arabic:text": "Thmanyah Sans",
+     "arabic:heading": "Thmanyah Serif Display"
+    },
+    "lang": "ar",
+    "dir": "rtl"
+   },
+   "imageWidth": 1440,
+   "ms": 1542
+  }
+ ]
+}

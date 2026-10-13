@@ -69,6 +69,12 @@
   --size-flavour: clamp(40px, 4.2vw, 60px); /* a flavour's name on الرفّ */
   --size-menu: clamp(26px, 6.6vw, 38px); /* a band in the full-screen menu */
   --size-brand: 30px; /* «أنس» in the header */
+  --size-admin-title: clamp(34px, 1.6vw + 24px, 46px); /* an admin screen's title */
+  --size-admin-section: clamp(24px, 0.8vw + 18px, 30px); /* a section's title in the admin */
+  --size-admin-door: 28px; /* a collection's door in the admin */
+  --size-admin-dialog: 26px; /* an admin dialog's title; the admin shell's own message */
+  --size-admin-legend: 22px; /* a group's legend in the admin */
+  --size-sign-in: clamp(38px, 2.4vw + 26px, 56px); /* «لوحة أنس» on the admin's sign-in band */
 
   --leading-read: 2.05;
   --leading-body: 1.9;

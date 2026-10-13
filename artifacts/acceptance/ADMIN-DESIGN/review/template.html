@@ -1,0 +1,597 @@
+<title>Anas Admin Redesign</title>
+<style>
+/* Layout: a night masthead closed by the palm-weave strip; a sticky control strip; on wide screens an index of the screens at the start and the screens beside it, each a paper panel with the before and after shots side by side and a verdict strip at its foot. */
+:root {
+  --sand: #e0c6ad;        /* the ground: the admin's own page colour */
+  --paper: #eadac8;       /* panels (sand-50) */
+  --slip: #f7f0e5;        /* fields, shot frames (paper-page) */
+  --rule: #d5b89c;        /* quiet rules (sand-300) */
+  --ink: #54353b;         /* aubergine: text, frames, the pressed state */
+  --ink-muted: #684a50;   /* secondary text: 4.8:1 on sand, 5.7:1 on paper */
+  --night: #412a2f;       /* the masthead (aub-800) */
+  --night-ink: #eadac8;   /* text on night, 9.6:1 */
+  --night-muted: #cdb39c; /* secondary text on night, 6.6:1 */
+  --coral: #e1654d;       /* shapes only: the mark */
+  --coral-deep: #8e3324;  /* "needs a change": 5.8:1 on paper, 7:1 under slip text */
+  --saffron: #efa032;     /* focus on night */
+  --font-display: 'Thmanyah Serif Display', 'Iowan Old Style', 'Times New Roman', serif;
+  --font-body: 'Thmanyah Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --bar-h: 64px;
+  color-scheme: light;
+}
+@font-face { font-family: 'Thmanyah Sans'; src: url(data:font/woff2;base64,{{FONT_SANS_400}}) format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Thmanyah Sans'; src: url(data:font/woff2;base64,{{FONT_SANS_700}}) format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'Thmanyah Serif Display'; src: url(data:font/woff2;base64,{{FONT_SERIF_500}}) format('woff2'); font-weight: 500; font-display: swap; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; background: var(--sand); }
+body { margin: 0; background: var(--sand); color: var(--ink); font: 400 16px/1.6 var(--font-body); }
+a { color: inherit; text-underline-offset: 3px; }
+button, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+code { font-family: var(--font-mono); font-size: 0.875em; overflow-wrap: anywhere; }
+[lang='ar'] { font-family: var(--font-display); }
+
+.wrap { max-width: 1720px; margin-inline: auto; padding-inline: clamp(16px, 3vw, 40px); }
+
+/* ---- masthead */
+.mast { background: var(--night); color: var(--night-ink); }
+.mast :focus-visible { outline-color: var(--saffron); }
+.mast .wrap { display: grid; gap: 18px; padding-block: clamp(28px, 4vw, 60px) clamp(26px, 3vw, 44px); }
+.mast::after { content: ''; display: block; height: 14px; background: url("{{WEAVE}}") 0 0 / 14px 14px repeat-x; }
+.kicker { display: flex; align-items: center; gap: 14px; margin: 0; font-size: 15px; font-weight: 700; color: var(--night-muted); }
+.mark { flex: none; inline-size: 36px; block-size: 12px; background: conic-gradient(from 135deg at 50% 0, var(--coral) 90deg, transparent 0) 0 0 / 12px 12px repeat-x; }
+.mast h1 { margin: 0; font: 500 clamp(40px, 2.6vw + 24px, 68px)/1.08 var(--font-display); text-wrap: balance; }
+.lede { margin: 0; max-width: 70ch; font-size: clamp(17px, 0.3vw + 16px, 19px); }
+.facts { display: flex; flex-wrap: wrap; gap: 10px 32px; margin: 8px 0 0; }
+.facts div { display: grid; }
+.facts dt { font-size: 14px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--night-muted); }
+.facts dd { margin: 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+
+/* ---- the brief */
+main { padding-block: clamp(24px, 3vw, 40px) 64px; }
+.brief { display: grid; gap: 16px; }
+@media (min-width: 1100px) { .brief { grid-template-columns: 1fr 1.25fr 1fr; } }
+.panel { min-width: 0; background: var(--paper); border: 2px solid var(--ink); padding: clamp(16px, 1.6vw, 24px); }
+.panel h2 { margin: 0 0 10px; font: 500 26px/1.25 var(--font-display); }
+.panel ol, .panel ul { margin: 0; padding-inline-start: 1.2em; display: grid; gap: 8px; }
+.panel li::marker { color: var(--ink-muted); }
+.panel p { margin: 0; }
+.pending { color: var(--coral-deep); font-weight: 700; }
+
+/* ---- the review ledger */
+.ledger { margin-top: 28px; display: grid; gap: 12px; }
+.ledger-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+.ledger h2 { margin: 0; font: 500 30px/1.2 var(--font-display); }
+.counts { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.counts .c-change { color: var(--coral-deep); }
+.cells { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.cells a { display: grid; place-items: center; inline-size: 30px; block-size: 30px; text-decoration: none; }
+.cells a:hover .glyph { transform: scale(1.18); }
+.glyph { display: block; inline-size: 18px; block-size: 18px; border: 2px solid var(--ink); background: var(--slip); }
+.glyph[data-state='approve'] { background: var(--ink); }
+.glyph[data-state='change'] { border: 0; background: var(--coral-deep); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.db-note { margin: 0; padding: 10px 14px; border: 2px solid var(--coral-deep); background: var(--slip); color: var(--coral-deep); font-weight: 700; }
+
+/* ---- the control strip */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; margin-top: 20px; background: var(--sand); border-block: 2px solid var(--ink); }
+.bar-in { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 22px; padding-block: 8px; }
+.seg { display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.seg legend { float: left; margin-inline-end: 8px; font-size: 14px; font-weight: 700; color: var(--ink-muted); }
+.seg-buttons { display: flex; }
+.seg button { min-block-size: 44px; padding: 0 14px; border: 2px solid var(--ink); background: var(--slip); font-weight: 700; font-size: 15px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.seg button + button { border-inline-start-width: 0; }
+.seg button[aria-pressed='true'] { background: var(--ink); color: var(--slip); }
+@media (max-width: 759px) { .bar { position: static; } .seg-buttons { flex-wrap: wrap; } }
+.seg button:hover:not([aria-pressed='true']) { background: var(--paper); }
+
+/* ---- the body: index + screens */
+.body { display: grid; gap: 28px; margin-top: 24px; }
+@media (min-width: 1180px) { .body { grid-template-columns: 16rem minmax(0, 1fr); align-items: start; } }
+.index { display: none; }
+@media (min-width: 1180px) {
+  .index { display: block; position: sticky; top: calc(var(--bar-h) + 16px); max-block-size: calc(100dvh - var(--bar-h) - 32px); overflow: auto; padding-inline-end: 6px; font-size: 15px; }
+}
+.index ol { list-style: none; margin: 0; padding: 0; }
+.area-name { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 16px 0 4px; padding-block-end: 4px; border-block-end: 2px solid var(--ink); font-weight: 700; }
+.index > ol > li:first-child .area-name { margin-top: 0; }
+.area-name [lang='ar'] { font-size: 17px; font-weight: 500; }
+.index a { display: flex; align-items: center; gap: 10px; min-block-size: 34px; padding: 2px 8px; text-decoration: none; }
+.index a .glyph { inline-size: 12px; block-size: 12px; }
+.index a:hover { background: var(--paper); }
+.index a[aria-current='true'] { background: var(--ink); color: var(--slip); }
+.index a[aria-current='true'] .glyph:not([data-state='change']) { border-color: var(--slip); }
+.index a[aria-current='true'] .glyph[data-state='approve'] { background: var(--slip); }
+
+.screens { display: grid; gap: 28px; min-width: 0; }
+.screen { min-width: 0; display: grid; gap: 18px; background: var(--paper); border: 2px solid var(--ink); padding: clamp(14px, 1.8vw, 28px); scroll-margin-top: calc(var(--bar-h) + 16px); }
+.screen-head { display: grid; gap: 2px; }
+.crumb { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; font-size: 14px; font-weight: 700; color: var(--ink-muted); }
+.crumb .no { min-inline-size: 2.4em; padding: 0 6px; background: var(--ink); color: var(--slip); text-align: center; font-variant-numeric: tabular-nums; }
+.crumb .role { padding: 0 8px; border: 2px solid var(--ink-muted); }
+.screen h2 { margin: 4px 0 0; font: 500 clamp(26px, 0.8vw + 20px, 34px)/1.25 var(--font-display); text-wrap: balance; }
+.screen .ar-title { margin: 0; font-size: clamp(20px, 0.4vw + 18px, 24px); line-height: 1.5; color: var(--ink-muted); text-align: left; }
+.screen .note { margin: 4px 0 0; max-width: 80ch; }
+.screen .path { margin: 0; color: var(--ink-muted); font-size: 15px; }
+
+.pair { display: grid; gap: 18px 28px; align-items: start; }
+@media (min-width: 760px) {
+  .pair[data-show='both'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pair[data-show='both'][data-w='360'] { grid-template-columns: repeat(2, minmax(0, 360px)); justify-content: start; }
+}
+.pair[data-w='360']:not([data-show='both']) { grid-template-columns: minmax(0, 360px); }
+.shot { margin: 0; display: grid; gap: 8px; min-width: 0; }
+.shot figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 10px; font-size: 14px; font-weight: 700; }
+.tag { padding: 0 10px; border: 2px solid var(--ink); }
+.shot[data-k='after'] .tag { background: var(--ink); color: var(--slip); }
+.dim { color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.frame { position: relative; display: block; inline-size: 100%; max-block-size: var(--clip); overflow: hidden; padding: 0; border: 2px solid var(--ink); background: var(--slip); cursor: zoom-in; }
+.frame img { display: block; inline-size: 100%; block-size: auto; max-width: 100%; }
+.frame[data-clipped='true']::after { content: ''; position: absolute; inset: auto 0 0 0; block-size: 120px; background: linear-gradient(to bottom, rgb(234 218 200 / 0), var(--paper) 88%); pointer-events: none; }
+.screen[data-open='true'] .frame { max-block-size: none; }
+.screen[data-open='true'] .frame::after { display: none; }
+.more-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.more-row[hidden] { display: none; }
+
+.btn { min-block-size: 46px; padding: 0 18px; border: 2px solid var(--ink); background: var(--slip); font-weight: 700; font-size: 16px; cursor: pointer; }
+.btn:hover:not(:disabled) { background: var(--paper); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.verdict { display: grid; gap: 12px; padding-top: 16px; border-top: 2px solid var(--ink); }
+@media (min-width: 900px) { .verdict { grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; } }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice[aria-pressed='true'][data-v='approve'] { background: var(--ink); color: var(--slip); }
+.choice[aria-pressed='true'][data-v='change'] { background: var(--coral-deep); border-color: var(--coral-deep); color: var(--slip); }
+.note-field { display: grid; gap: 4px; min-width: 0; }
+.note-field label { font-size: 14px; font-weight: 700; color: var(--ink-muted); }
+.note-field textarea { inline-size: 100%; min-block-size: 46px; padding: 9px 12px; border: 2px solid var(--ink-muted); background: var(--slip); line-height: 1.5; resize: vertical; }
+.note-field textarea:disabled { opacity: 0.6; }
+.status { grid-column: 1 / -1; margin: 0; min-block-size: 1.6em; font-size: 15px; color: var(--ink-muted); }
+.status[data-tone='change'] { color: var(--coral-deep); font-weight: 700; }
+.empty-filter { padding: 24px; border: 2px dashed var(--ink-muted); text-align: center; font-weight: 700; }
+
+/* ---- the full-size viewer */
+.viewer { inline-size: 100vw; block-size: 100dvh; max-inline-size: none; max-block-size: none; margin: 0; padding: 0; border: 0; background: var(--night); color: var(--night-ink); }
+.viewer::backdrop { background: rgb(42 25 29 / 0.7); }
+.viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.viewer :focus-visible { outline-color: var(--saffron); }
+.viewer-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: calc(10px + env(safe-area-inset-top, 0px)) clamp(12px, 2vw, 24px) 10px; border-bottom: 3px solid var(--coral); }
+.viewer-title { margin: 0; flex: 1 1 16rem; min-width: 0; font: 500 22px/1.3 var(--font-display); }
+.viewer-title small { display: block; font: 700 14px/1.4 var(--font-body); color: var(--night-muted); }
+.viewer .seg button { border-color: var(--night-ink); background: var(--night); color: var(--night-ink); }
+.viewer .seg button[aria-pressed='true'] { background: var(--night-ink); color: var(--night); }
+.viewer .seg button:hover:not([aria-pressed='true']) { background: #54353b; }
+.viewer .btn { border-color: var(--night-ink); background: var(--night); color: var(--night-ink); min-block-size: 44px; }
+.viewer .btn:hover:not(:disabled) { background: #54353b; }
+.viewer-body { overflow: auto; padding: 16px; background: var(--sand); overscroll-behavior: contain; }
+.viewer-body img { display: block; margin-inline: auto; max-width: none; block-size: auto; }
+.viewer-body[data-fit='true'] img { max-width: 100%; }
+.viewer-hint { margin: 0; font-size: 14px; color: var(--night-muted); }
+@media (max-width: 700px) { .viewer-hint { display: none; } }
+
+@media (prefers-reduced-motion: reduce) { .cells a:hover .glyph, .btn:active:not(:disabled) { transform: none; } }
+</style>
+
+<header class="mast">
+  <div class="wrap">
+    <p class="kicker"><span class="mark" aria-hidden="true"></span><span>anas.studio · the admin · D49</span></p>
+    <h1>Anas admin redesign</h1>
+    <p class="lede">Every admin screen, drawn before and after the redesign at phone width (360 px) and laptop width (1440 px). Both sets use the same mock data and the same fixed clock, so any difference you see is the design. The redesign changes how the screens look; every route, label, role and control stays as it was.</p>
+    <dl class="facts">
+      <div><dt>Screens</dt><dd>{{SCREEN_COUNT}}</dd></div>
+      <div><dt>Shots per set</dt><dd>{{SHOT_COUNT}}</dd></div>
+      <div><dt>Before</dt><dd><code>{{BEFORE}}</code></dd></div>
+      <div><dt>After</dt><dd><code>{{AFTER}}</code></dd></div>
+      <div><dt>Clock in the shots</dt><dd>8 Oct 2026, 10:30 Riyadh</dd></div>
+    </dl>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="brief" aria-label="About this review">
+    <div class="panel">
+      <h2>How to review</h2>
+      <ol>
+        <li>Go through the screens and mark each one <strong>Approve</strong> or <strong>Needs a change</strong>.</li>
+        <li>When something should change, say what and where in the note. Arabic or English both work.</li>
+        <li>Click a shot to open it at full size. In that view, press <kbd>B</kbd> and <kbd>A</kbd> to flip between before and after at the same place.</li>
+      </ol>
+      <p style="margin-top:12px">Your marks are saved with this page, and I read them from here.</p>
+    </div>
+    <div class="panel">
+      <h2>What changed</h2>
+      <ul>{{CHANGED}}</ul>
+    </div>
+    <div class="panel">
+      <h2>What was checked</h2>
+      <ul>{{CHECKED}}</ul>
+    </div>
+  </section>
+
+  <section class="ledger" aria-labelledby="ledger-title">
+    <div class="ledger-head">
+      <h2 id="ledger-title">Your review</h2>
+      <p class="counts" id="counts" aria-live="polite"></p>
+    </div>
+    <ol class="cells" id="cells" aria-label="Every screen, in order, with its mark"></ol>
+    <p class="db-note" id="db-note" hidden></p>
+  </section>
+
+  <div class="bar" id="bar">
+    <div class="bar-in">
+      <fieldset class="seg"><legend>Width</legend><div class="seg-buttons" data-key="w">
+        <button type="button" data-value="1440">Laptop 1440</button><button type="button" data-value="360">Phone 360</button>
+      </div></fieldset>
+      <fieldset class="seg"><legend>Show</legend><div class="seg-buttons" data-key="show">
+        <button type="button" data-value="both">Both</button><button type="button" data-value="after">After</button><button type="button" data-value="before">Before</button>
+      </div></fieldset>
+      <fieldset class="seg"><legend>Screens</legend><div class="seg-buttons" data-key="filter">
+        <button type="button" data-value="all">All</button><button type="button" data-value="todo">To review</button><button type="button" data-value="change">Changes</button><button type="button" data-value="approve">Approved</button>
+      </div></fieldset>
+    </div>
+  </div>
+
+  <div class="body">
+    <nav class="index" id="index" aria-label="Screens"></nav>
+    <div class="screens" id="screens"></div>
+  </div>
+</main>
+
+<dialog class="viewer" id="viewer" aria-labelledby="viewer-title">
+  <div class="viewer-bar">
+    <p class="viewer-title" id="viewer-title"></p>
+    <div class="seg"><div class="seg-buttons" role="group" aria-label="Which shot" id="viewer-kind">
+      <button type="button" data-value="before">Before</button><button type="button" data-value="after">After</button>
+    </div></div>
+    <div class="seg"><div class="seg-buttons" role="group" aria-label="Size" id="viewer-fit">
+      <button type="button" data-value="true">Fit</button><button type="button" data-value="false">Actual size</button>
+    </div></div>
+    <button type="button" class="btn" id="viewer-prev">Previous</button>
+    <button type="button" class="btn" id="viewer-next">Next</button>
+    <button type="button" class="btn" id="viewer-close">Close</button>
+    <p class="viewer-hint">B and A flip · ← and → change screen · Esc closes</p>
+  </div>
+  <div class="viewer-body" id="viewer-body" tabindex="0" data-fit="true"></div>
+</dialog>
+
+<script>
+const DATA = {{DATA}};
+(function () {
+  'use strict'
+  const screens = DATA.screens
+  const byId = new Map(screens.map((s) => [s.id, s]))
+  const LABEL = { approve: 'Approved', change: 'Needs a change' }
+  const ui = { w: window.innerWidth < 760 ? '360' : '1440', show: 'both', filter: 'all' }
+  try {
+    const saved = JSON.parse(localStorage.getItem('anas-admin-review-ui') || '{}')
+    if (saved.w === '360' || saved.w === '1440') ui.w = saved.w
+    if (['both', 'after', 'before'].includes(saved.show)) ui.show = saved.show
+  } catch (_) {}
+  const keepUi = () => { try { localStorage.setItem('anas-admin-review-ui', JSON.stringify({ w: ui.w, show: ui.show })) } catch (_) {} }
+
+  const reviews = new Map()
+  const queues = new Map()
+  const dirty = new Set()
+  let db = null
+  let canWrite = false
+
+  const el = (tag, attrs = {}, ...kids) => {
+    const node = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue
+      if (k === 'text') node.textContent = v
+      else if (k === 'dataset') Object.assign(node.dataset, v)
+      else node.setAttribute(k, v === true ? '' : String(v))
+    }
+    for (const kid of kids) if (kid) node.append(kid)
+    return node
+  }
+  const fmt = (n) => n.toLocaleString('en-US')
+  const stateOf = (id) => reviews.get(id)?.verdict || 'none'
+
+  // ---------------------------------------------------------------- the index and the ledger
+  const index = document.getElementById('index')
+  const indexList = el('ol')
+  for (const area of DATA.areas) {
+    const items = el('ol')
+    for (const id of area.ids) {
+      const s = byId.get(id)
+      items.append(el('li', {}, el('a', { href: '#' + id, 'data-id': id }, el('span', { class: 'glyph', 'aria-hidden': 'true' }), el('span', { text: s.label }))))
+    }
+    indexList.append(el('li', {}, el('p', { class: 'area-name' }, el('span', { text: area.name }), el('span', { lang: 'ar', dir: 'rtl', text: area.ar })), items))
+  }
+  index.append(indexList)
+
+  const cells = document.getElementById('cells')
+  for (const s of screens) {
+    cells.append(el('li', {}, el('a', { href: '#' + s.id, 'data-id': s.id }, el('span', { class: 'glyph', 'aria-hidden': 'true' }))))
+  }
+
+  // ---------------------------------------------------------------- the screens
+  const host = document.getElementById('screens')
+  const sections = new Map()
+  for (const s of screens) {
+    const head = el('header', { class: 'screen-head' },
+      el('p', { class: 'crumb' }, el('span', { class: 'no', text: String(s.n) }), el('span', { text: s.areaName }), el('span', { class: 'role', text: s.roleLabel })),
+      el('h2', { id: 't-' + s.id, text: s.label }),
+      s.ar ? el('p', { class: 'ar-title', lang: 'ar', dir: 'rtl', text: s.ar }) : null,
+      el('p', { class: 'note', text: s.note }),
+      el('p', { class: 'path' }, el('code', { text: s.path })))
+    const pair = el('div', { class: 'pair' })
+    const moreRow = el('div', { class: 'more-row' }, el('button', { type: 'button', class: 'btn more', 'aria-expanded': 'false', text: 'Show the whole screen' }))
+    const noteId = 'note-' + s.id
+    const verdict = el('div', { class: 'verdict' },
+      el('div', { class: 'choices', role: 'group', 'aria-label': 'Your mark for ' + s.label },
+        el('button', { type: 'button', class: 'btn choice', 'data-v': 'approve', 'aria-pressed': 'false', disabled: true, text: 'Approve' }),
+        el('button', { type: 'button', class: 'btn choice', 'data-v': 'change', 'aria-pressed': 'false', disabled: true, text: 'Needs a change' })),
+      el('div', { class: 'note-field' },
+        el('label', { for: noteId, text: 'Note' }),
+        el('textarea', { id: noteId, rows: '2', dir: 'auto', disabled: true, placeholder: 'What should change, and where on the screen' })),
+      el('button', { type: 'button', class: 'btn save', disabled: true, text: 'Save note' }),
+      el('p', { class: 'status', role: 'status' }))
+    const section = el('section', { class: 'screen', id: s.id, 'aria-labelledby': 't-' + s.id, 'data-open': 'false' }, head, pair, moreRow, verdict)
+    host.append(section)
+    sections.set(s.id, section)
+  }
+  const emptyFilter = el('p', { class: 'empty-filter', hidden: true })
+  host.append(emptyFilter)
+
+  function shotsOf(s, kind) { return s.shots[ui.w][kind] }
+  function heightOf(parts) { return parts.reduce((sum, p) => sum + p.h, 0) }
+
+  function renderPair(s) {
+    const section = sections.get(s.id)
+    const pair = section.querySelector('.pair')
+    pair.dataset.w = ui.w
+    pair.dataset.show = ui.show
+    pair.replaceChildren()
+    for (const kind of ['before', 'after']) {
+      if (ui.show !== 'both' && ui.show !== kind) continue
+      const parts = shotsOf(s, kind)
+      const frame = el('button', { type: 'button', class: 'frame', 'aria-label': 'Open the ' + kind + ' shot of ' + s.label + ' at full size', 'data-kind': kind })
+      for (const p of parts) frame.append(el('img', { src: p.src, width: p.w, height: p.h, alt: '', loading: 'lazy', decoding: 'async' }))
+      pair.append(el('figure', { class: 'shot', 'data-k': kind },
+        el('figcaption', {}, el('span', { class: 'tag', text: kind === 'before' ? 'Before' : 'After' }), el('span', { class: 'dim', text: fmt(parts[0].w) + ' × ' + fmt(heightOf(parts)) + ' px' })),
+        frame))
+    }
+    measure(s)
+  }
+
+  const CLIP = { '1440': 1100, '360': 1300 }
+  function measure(s) {
+    const section = sections.get(s.id)
+    const frames = section.querySelectorAll('.frame')
+    let clipped = false
+    for (const frame of frames) {
+      const parts = shotsOf(s, frame.dataset.kind)
+      const width = frame.clientWidth || 1
+      const shown = heightOf(parts) * (width / parts[0].w)
+      const cut = shown > CLIP[ui.w]
+      frame.dataset.clipped = String(cut)
+      frame.style.setProperty('--clip', CLIP[ui.w] + 'px')
+      clipped ||= cut
+    }
+    section.querySelector('.more-row').hidden = !clipped
+  }
+
+  function renderAll() {
+    for (const s of screens) renderPair(s)
+    for (const group of document.querySelectorAll('.bar .seg-buttons')) {
+      for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.value === ui[group.dataset.key]))
+    }
+  }
+
+  // ---------------------------------------------------------------- marks
+  function renderMarks() {
+    let approve = 0, change = 0
+    for (const s of screens) {
+      const st = stateOf(s.id)
+      if (st === 'approve') approve++
+      if (st === 'change') change++
+      const section = sections.get(s.id)
+      for (const b of section.querySelectorAll('.choice')) b.setAttribute('aria-pressed', String(b.dataset.v === st))
+      const ta = section.querySelector('textarea')
+      const saved = reviews.get(s.id)
+      if (!dirty.has(s.id) && document.activeElement !== ta) ta.value = saved?.note || ''
+      const status = section.querySelector('.status')
+      if (!status.dataset.busy) {
+        status.dataset.tone = st
+        status.textContent = saved?.updatedAt && st !== 'none' ? LABEL[st] + ' · saved ' + new Date(saved.updatedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : (saved?.note ? 'Note saved, no mark yet' : '')
+      }
+      const word = st === 'none' ? 'to review' : LABEL[st].toLowerCase()
+      for (const a of document.querySelectorAll('a[data-id="' + s.id + '"]')) {
+        a.querySelector('.glyph').dataset.state = st
+        if (a.closest('#cells')) { a.setAttribute('aria-label', 'Screen ' + s.n + ', ' + s.label + ': ' + word); a.title = s.n + '. ' + s.label + ' (' + word + ')' }
+      }
+    }
+    const todo = screens.length - approve - change
+    const counts = document.getElementById('counts')
+    counts.replaceChildren(
+      el('span', { text: fmt(approve) + ' approved' }), document.createTextNode(' · '),
+      el('span', { class: 'c-change', text: fmt(change) + (change === 1 ? ' needs a change' : ' need a change') }), document.createTextNode(' · '),
+      el('span', { text: fmt(todo) + ' to review' }))
+  }
+
+  function applyFilter() {
+    let shown = 0
+    for (const s of screens) {
+      const st = stateOf(s.id)
+      const on = ui.filter === 'all' || (ui.filter === 'todo' ? st === 'none' : st === ui.filter)
+      sections.get(s.id).hidden = !on
+      if (on) shown++
+    }
+    emptyFilter.hidden = shown > 0
+    emptyFilter.textContent = ui.filter === 'todo' ? 'Every screen has a mark.' : ui.filter === 'change' ? 'No screen is marked Needs a change.' : 'No screen is approved yet.'
+    for (const s of screens) if (!sections.get(s.id).hidden) measure(s)
+  }
+
+  function setBusy(id, text) {
+    const status = sections.get(id).querySelector('.status')
+    status.dataset.busy = text ? '1' : ''
+    if (text) { status.dataset.tone = 'none'; status.textContent = text }
+  }
+
+  function save(id, patch) {
+    if (!db || !canWrite) return
+    const s = byId.get(id)
+    const current = reviews.get(id) || {}
+    const body = { screen: s.label, verdict: current.verdict || null, note: current.note || '', ...patch, updatedAt: new Date().toISOString() }
+    reviews.set(id, body)
+    setBusy(id, 'Saving…')
+    renderMarks()
+    const previous = queues.get(id) || Promise.resolve()
+    const next = previous.then(() => db.doc('reviews/' + id).set(body)).then(
+      () => { setBusy(id, ''); renderMarks() },
+      (err) => {
+        if (err && (err.code === 'invalid_argument' || err.code === 'revoked' || err.code === 'not_granted')) readOnly('This view can read the marks but not change them.')
+        setBusy(id, 'Not saved (' + ((err && err.code) || 'error') + '). Try again in a moment.')
+      })
+    queues.set(id, next)
+  }
+
+  function enable(on) {
+    for (const section of sections.values()) for (const c of section.querySelectorAll('.choice, textarea, .save')) c.disabled = !on
+  }
+  function readOnly(text) {
+    canWrite = false
+    enable(false)
+    const note = document.getElementById('db-note')
+    note.textContent = text
+    note.hidden = false
+  }
+
+  host.addEventListener('click', (event) => {
+    const choice = event.target.closest('.choice')
+    const more = event.target.closest('.more')
+    const frame = event.target.closest('.frame')
+    const saveBtn = event.target.closest('.save')
+    const section = event.target.closest('.screen')
+    if (!section) return
+    const id = section.id
+    if (choice) {
+      const v = choice.dataset.v
+      const ta = section.querySelector('textarea')
+      dirty.delete(id)
+      save(id, { verdict: stateOf(id) === v ? null : v, note: ta.value.trim() })
+      if (v === 'change' && !ta.value.trim()) ta.focus()
+    } else if (saveBtn) {
+      const ta = section.querySelector('textarea')
+      dirty.delete(id)
+      save(id, { note: ta.value.trim() })
+    } else if (more) {
+      const open = section.dataset.open !== 'true'
+      section.dataset.open = String(open)
+      more.setAttribute('aria-expanded', String(open))
+      more.textContent = open ? 'Show less' : 'Show the whole screen'
+      if (!open) section.scrollIntoView({ block: 'start' })
+    } else if (frame) {
+      openViewer(id, frame.dataset.kind)
+    }
+  })
+  host.addEventListener('input', (event) => {
+    const section = event.target.closest('.screen')
+    if (section && event.target.matches('textarea')) dirty.add(section.id)
+  })
+
+  // ---------------------------------------------------------------- the control strip
+  document.getElementById('bar').addEventListener('click', (event) => {
+    const b = event.target.closest('button[data-value]')
+    if (!b) return
+    const key = b.parentElement.dataset.key
+    ui[key] = b.dataset.value
+    keepUi()
+    for (const x of b.parentElement.querySelectorAll('button')) x.setAttribute('aria-pressed', String(x === b))
+    if (key === 'filter') applyFilter()
+    else for (const s of screens) renderPair(s)
+  })
+  const bar = document.getElementById('bar')
+  const setBar = () => document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px')
+  new ResizeObserver(setBar).observe(bar)
+  let resizeTimer = 0
+  window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { for (const s of screens) measure(s) }, 120) })
+
+  // the screen in view, marked in the index
+  const indexLinks = new Map([...index.querySelectorAll('a')].map((a) => [a.dataset.id, a]))
+  const seen = new Map()
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) seen.set(e.target.id, e.isIntersecting ? e.intersectionRect.height : 0)
+    let best = null, top = 0
+    for (const [id, h] of seen) if (h > top) { top = h; best = id }
+    for (const [id, a] of indexLinks) a.setAttribute('aria-current', String(id === best))
+  }, { threshold: [0, 0.1, 0.25, 0.5, 0.75, 1] })
+  for (const section of sections.values()) io.observe(section)
+
+  // ---------------------------------------------------------------- the viewer
+  const viewer = document.getElementById('viewer')
+  const vBody = document.getElementById('viewer-body')
+  const vTitle = document.getElementById('viewer-title')
+  const v = { id: null, kind: 'after', fit: true }
+  function drawViewer(keepPlace) {
+    const s = byId.get(v.id)
+    const ratio = keepPlace && vBody.scrollHeight > vBody.clientHeight ? vBody.scrollTop / (vBody.scrollHeight - vBody.clientHeight) : 0
+    vTitle.replaceChildren(el('small', { text: s.n + ' of ' + screens.length + ' · ' + s.areaName + ' · ' + ui.w + ' px · ' + (v.kind === 'before' ? 'Before' : 'After') }), document.createTextNode(s.label))
+    const parts = shotsOf(s, v.kind)
+    vBody.replaceChildren(...parts.map((p) => el('img', { src: p.src, width: p.w, height: p.h, alt: (v.kind === 'before' ? 'Before: ' : 'After: ') + s.label + (parts.length > 1 ? ' (part)' : '') })))
+    vBody.dataset.fit = String(v.fit)
+    for (const b of document.querySelectorAll('#viewer-kind button')) b.setAttribute('aria-pressed', String(b.dataset.value === v.kind))
+    for (const b of document.querySelectorAll('#viewer-fit button')) b.setAttribute('aria-pressed', String(b.dataset.value === String(v.fit)))
+    const i = screens.indexOf(s)
+    document.getElementById('viewer-prev').disabled = i === 0
+    document.getElementById('viewer-next').disabled = i === screens.length - 1
+    requestAnimationFrame(() => { vBody.scrollTop = ratio * Math.max(0, vBody.scrollHeight - vBody.clientHeight) })
+  }
+  function openViewer(id, kind) {
+    v.id = id
+    v.kind = kind
+    drawViewer(false)
+    if (!viewer.open) viewer.showModal()
+    vBody.focus()
+  }
+  function step(delta) {
+    const i = screens.findIndex((s) => s.id === v.id) + delta
+    if (i < 0 || i >= screens.length) return
+    v.id = screens[i].id
+    drawViewer(false)
+  }
+  document.getElementById('viewer-kind').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { v.kind = b.dataset.value; drawViewer(true) } })
+  document.getElementById('viewer-fit').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { v.fit = b.dataset.value === 'true'; drawViewer(true) } })
+  document.getElementById('viewer-prev').addEventListener('click', () => step(-1))
+  document.getElementById('viewer-next').addEventListener('click', () => step(1))
+  document.getElementById('viewer-close').addEventListener('click', () => viewer.close())
+  viewer.addEventListener('close', () => { const s = sections.get(v.id); if (s) s.scrollIntoView({ block: 'start' }) })
+  viewer.addEventListener('keydown', (e) => {
+    if (e.target.closest('button') && (e.key === ' ' || e.key === 'Enter')) return
+    const k = e.key.toLowerCase()
+    if (k === 'b' || k === 'a') { v.kind = k === 'b' ? 'before' : 'after'; drawViewer(true); e.preventDefault() }
+    else if (k === 'f') { v.kind = v.kind === 'before' ? 'after' : 'before'; drawViewer(true); e.preventDefault() }
+    else if (e.key === 'ArrowRight') { step(1); e.preventDefault() }
+    else if (e.key === 'ArrowLeft') { step(-1); e.preventDefault() }
+  })
+
+  // ---------------------------------------------------------------- start
+  renderAll()
+  renderMarks()
+  applyFilter()
+  setBar()
+  if (location.hash.length > 1) { const target = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (target) target.scrollIntoView({ block: 'start' }) }
+
+  const unavailable = () => readOnly('Marks cannot be saved in this view. Open the page in claude.ai, signed in, or leave a comment on a screen instead.')
+  if (!window.claude || typeof window.claude.use !== 'function') { unavailable(); return }
+  window.claude.use('db').then((handle) => {
+    if (!handle) { unavailable(); return }
+    db = handle
+    canWrite = true
+    enable(true)
+    db.collection('reviews').onSnapshot((snap) => {
+      reviews.clear()
+      for (const d of snap.docs) if (d.exists && byId.has(d.id)) reviews.set(d.id, d.data())
+      renderMarks()
+    }, (err) => {
+      if (err && err.code === 'revoked') readOnly('This view can no longer save marks. Reload the page.')
+      else readOnly('The saved marks could not be loaded (' + ((err && err.code) || 'error') + '). Reload the page.')
+    })
+  }, unavailable)
+})()
+</script>

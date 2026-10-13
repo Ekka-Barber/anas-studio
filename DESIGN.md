@@ -48,7 +48,7 @@ Every band is one of seven surfaces, set with `data-tone`. A tone sets `--bg`, `
 Rules:
 - Coral text only on aubergine and only at display size (it is 3.2:1): `.t-accent` on an aubergine band.
 - Errors are words, never colour alone; on light surfaces they are coral-deep (4.9:1).
-- Field borders are 3px aubergine on the public site; the admin uses aubergine-muted (4.8:1, WCAG 1.4.11).
+- Field borders are 3px aubergine on the public site; the admin uses a 2px aubergine-muted line on `--paper-page` (6.9:1, WCAG 1.4.11; section 10).
 - The focus ring is 3px, 3px outside the control, in its band's `--focus`. A control that carries its own tone (a door, «القائمة», a menu band, a dialog's «إغلاق», a caption) draws its ring 6px inside itself, on the surface whose tone chose the colour. Over a photograph the ring is two-tone: its colour framed in aub-900.
 - A state cue drawn as a shape (the header's "you are here" triangle) takes the text colour, never coral on sand (2.1:1).
 - Hover styles live inside `@media (hover: hover)`, so a tap never leaves an underline behind. A pressed button moves down 1px (`translate`, set once in `globals.css` for every button on the site).
@@ -78,7 +78,7 @@ Text roles are classes in `globals.css`. A component picks a role and never rest
 
 Control sizes are tokens without a class: `--size-action` (18px, a full-size button and a price), `--size-control` (17px, fields), `--size-small` (16px, compact controls such as filters, the header's buttons and a film's chip). 15px (`--size-label`) is the floor for Arabic text anywhere.
 
-A size that belongs to one place is still a token, named for its place: `--size-thura`, `--size-post-title`, `--size-opening` (a room's opening line and the line beside Anas's name), `--size-flavour`, `--size-menu`, `--size-brand`. No component module sets a size in pixels.
+A size that belongs to one place is still a token, named for its place: `--size-thura`, `--size-post-title`, `--size-opening` (a room's opening line and the line beside Anas's name), `--size-flavour`, `--size-menu`, `--size-brand`, and the admin's `--size-admin-*` and `--size-sign-in` (section 10). No component module sets a size in pixels.
 
 Anas's texts are rendered through `<Lines>`, which keeps his line breaks and runs `typeset()`: a comma glued to the next word gets its space, and closing punctuation never starts a line alone. The stored text is never changed.
 
@@ -97,7 +97,7 @@ The two-tone headline. The 404 and the error page set their headline in two part
 - A reading column is at most 700px (`--measure`); a journal article 33em.
 - Text beside a picture: `layout.split` with `layout.text` (flex 520px, max 700) and `layout.aside` (flex 300px, max 480); they stack when the room runs out. No breakpoints to maintain.
 - A grid of equal tiles on 1px lines: `layout.lattice` (set `--tile` for the minimum width). A gap-free photo grid: `layout.mosaic`.
-- Breakpoints: the header shows the rooms inline from 1024px; in the store, a cart line card becomes a row from 768px and the order summary sits beside the form from 1024px; the book reader shows one page below an 800px container (with tighter chrome below 480px); admin tables become stacked cards at 480px and below; everything else flows without breakpoints.
+- Breakpoints: the header shows the rooms inline from 1024px; in the store, a cart line card becomes a row from 768px and the order summary sits beside the form from 1024px; the book reader shows one page below an 800px container (with tighter chrome below 480px); admin tables become stacked cards at 480px and below and their one-line cells may wrap below 1440px, the admin's rail stands at the start side from 1280px and tightens on a window under 820px and again under 700px of height, and the library's details sit beside its grid from 1200px (section 10); everything else flows without breakpoints.
 
 ## 4. Edges: the signature
 
@@ -212,7 +212,25 @@ Anas edits his words in the admin. The composition (which picture goes where, th
 - **Change a type size everywhere:** edit its `--size-*` token.
 - **Turn a motion off:** remove its `data-reveal`/`enter()`; the element is already in its final state.
 
-## 10. Checks
+## 10. The admin
+
+The admin (`/admin`) is the back room of the same house (D49, owner, 2026-10-08: "the best dashboard ever"): Anas and his staff keep his words, pictures, catalogue and orders there, on a phone between shifts or at a laptop at night. It is set as an operating surface: finding and finishing a task comes first, and the brand lives in exact places. It uses the site's palette, tones and Thmanyah, and changes how the screens look, never what they do.
+
+- Files: `src/components/admin/admin.module.css` (every screen's styles), `src/components/admin/AdminShell.tsx` (the rail and the nav).
+- **The rail.** A night band (`data-tone="night"`) on the start side of a wide screen (16.5rem from 1280px), a bar on top of a phone, a tablet and a small laptop (below 1280px the widest tables need the whole width). It holds the house's mark, «أنس» in Serif Display with «anas.studio» under it (beside it on a phone), and the nav in four groups the rail draws apart (the day's work; the words and pictures; the store and its orders; the house), in the order every role has always had. The rail runs the page's whole height and its contents stay in view; on a short laptop window it tightens twice (under 820px and under 700px of height) so that the owner's whole rail fits a window 600px tall. Below 1280px the nav is one strip that scrolls sideways, faded at an end with more links past it, never a menu dialog; it keeps the current page's link and any control focused in it whole in view: there is one `<nav aria-label="لوحة التحكم">`, always visible.
+- **The signature.** The palm-weave strip (`public/brand/weave.svg`) runs down the rail's inner edge, and under the bar on a phone. The current page's link (`aria-current="page"`) is cut out of the rail as a tab in the page's sand, runs over the weave and meets the page, with a triangle in its text colour (section 1: a state cue drawn as a shape takes the text colour); in forced colours the triangle, and a badge's box, are drawn in the system's text colour.
+- **A screen.** The sand ground; the screen's title (its `h1`) in Serif Display (34 to 46px) after the three-triangle mark, closed by a 3px rule, as the site's serious pages are; section titles (`h2`) in Serif Display; everything read or pressed in Sans, 15px the floor. A `section` is a paper panel; a group inside it (`.fieldset`, `.listItem`) is a lighter slip (`--paper-page`), so no card sits in a card of its own colour. Fact lists (`.metaList`) are ruled rows. Wide screens (the orders, an order, the mail, the team, a store table) take the width; no field, and not the rich-text editor, runs past the reading measure (700px, `--measure`), and the short forms keep a 40rem column.
+- **Controls.** Square corners. Fields: 46px, a 2px aubergine-muted line on `--paper-page` (6.9:1, WCAG 1.4.11), text in aubergine (9.5:1). Buttons: 46px, Sans bold; the primary solid aubergine, the secondary a 2px aubergine-muted outline; a disabled or `aria-disabled` one at half strength; a press moves 1px. A form's buttons stand at its start. Buttons, fields, the nav, and every link or checkbox that stands as a control of its own (`.target`) are 44px targets; a link inside a sentence keeps the sentence's line. The focus ring is 3px in the tone's `--focus` (saffron in the rail): 3px outside a button or a link, 2px outside a field, and inside a box that clips what lies outside it, 3px into the rich-text editor and 6px into a link or the sign-out of the rail (on the current page's sand tab, the ring is aubergine; the skip link's ring over the night bar is saffron).
+- **Tables.** A paper box, the header row (a header may take two lines; below 1440px a one-line cell may too, at its spaces, never inside a word) on sand-300 with a 2px aubergine rule (aubergine on sand-300 is 5.7:1; aubergine-muted text never stands there: 4.2:1), rows ruled, tabular figures. At 480px and below each row becomes a labelled card (the `data-label` of each cell).
+- **The owner home.** Its panels flow in two columns as the width allows; each panel that has a screen of its own ends with its way onward («فتح …»), drawn with the forward triangle. Counts stay sentences with their numbers (D21: unavailable is «تعذّر التحميل», never 0); a problem is coral-deep words.
+- **The content home.** Each collection is a door: a paper tile framed in aubergine, its name in Serif Display, the crenel along its top.
+- **The library.** On a wide screen the chosen picture's details stand beside the grid and stay in view; every picture is shown whole on the same square.
+- **Sign-in.** The one admin screen a visitor can reach: the mark and «لوحة أنس» on a night band closed by the weave, then the form on a paper panel.
+- **Measured contrast (new pairs):** aubergine on `--paper-page` 9.5:1; aubergine-muted on `--paper-page` 6.9:1, on paper 5.7:1, on sand 4.8:1; coral-deep on paper 5.8:1, on `--paper-page` 7.0:1, on sand 4.85:1; sand-50 on night 9.6:1; sand-muted on night 6.6:1; aubergine on sand-300 5.7:1; coral on night 3.9:1 (a shape only, never text).
+- **What the e2e specs rely on, kept:** the one nav and its links in their order, the sign-out button inside it, `section`/`ul`/`h2` in `main` exactly as the screens draw them, the class names `listItem`, `field`, `secret` and `tableWrap`, table markup and `data-label`s, every text a spec reads in one element.
+- **Checks.** The admin's screens are drawn in a browser with mock data (the harness of the FABLE-AUDIT cloud continuation, `artifacts/acceptance/ADMIN-DESIGN/`), at 360 and 1440: no horizontal overflow, tasmeem's scan and its render checks, impeccable's detector; the admin e2e suites on the owner's machine before acceptance.
+
+## 11. Checks
 
 - `pnpm check` (lint, types, frozen sources, copy rules, unit tests);
 - `pnpm build`, `pnpm check:export`, `pnpm check:budgets` (the largest public page is under 150 KiB of script);

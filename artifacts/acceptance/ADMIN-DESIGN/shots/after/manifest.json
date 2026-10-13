@@ -1,0 +1,885 @@
+{
+ "home-360": [
+  {
+   "name": "home-360.webp",
+   "width": 360,
+   "height": 2390
+  }
+ ],
+ "home-editor-360": [
+  {
+   "name": "home-editor-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "home-operations-360": [
+  {
+   "name": "home-operations-360.webp",
+   "width": 360,
+   "height": 1721
+  }
+ ],
+ "content-360": [
+  {
+   "name": "content-360.webp",
+   "width": 360,
+   "height": 1296
+  }
+ ],
+ "content-rooms-360": [
+  {
+   "name": "content-rooms-360.webp",
+   "width": 360,
+   "height": 1101
+  }
+ ],
+ "content-rooms-edit-built-360": [
+  {
+   "name": "content-rooms-edit-built-360.webp",
+   "width": 360,
+   "height": 15908
+  }
+ ],
+ "content-rooms-edit-book-360": [
+  {
+   "name": "content-rooms-edit-book-360.1.webp",
+   "width": 360,
+   "height": 16000
+  },
+  {
+   "name": "content-rooms-edit-book-360.2.webp",
+   "width": 360,
+   "height": 316
+  }
+ ],
+ "content-posts-360": [
+  {
+   "name": "content-posts-360.webp",
+   "width": 360,
+   "height": 1155
+  }
+ ],
+ "content-posts-edit-360": [
+  {
+   "name": "content-posts-edit-360.webp",
+   "width": 360,
+   "height": 2916
+  }
+ ],
+ "content-posts-edit-overdue-360": [
+  {
+   "name": "content-posts-edit-overdue-360.webp",
+   "width": 360,
+   "height": 2360
+  }
+ ],
+ "content-site-settings-360": [
+  {
+   "name": "content-site-settings-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "content-site-settings-edit-360": [
+  {
+   "name": "content-site-settings-edit-360.1.webp",
+   "width": 360,
+   "height": 16000
+  },
+  {
+   "name": "content-site-settings-edit-360.2.webp",
+   "width": 360,
+   "height": 2203
+  }
+ ],
+ "content-taxonomies-360": [
+  {
+   "name": "content-taxonomies-360.webp",
+   "width": 360,
+   "height": 1395
+  }
+ ],
+ "content-taxonomies-edit-360": [
+  {
+   "name": "content-taxonomies-edit-360.webp",
+   "width": 360,
+   "height": 1063
+  }
+ ],
+ "content-policies-360": [
+  {
+   "name": "content-policies-360.webp",
+   "width": 360,
+   "height": 953
+  }
+ ],
+ "content-policies-edit-360": [
+  {
+   "name": "content-policies-edit-360.webp",
+   "width": 360,
+   "height": 1660
+  }
+ ],
+ "content-scenes-360": [
+  {
+   "name": "content-scenes-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "content-scenes-edit-360": [
+  {
+   "name": "content-scenes-edit-360.webp",
+   "width": 360,
+   "height": 14065
+  }
+ ],
+ "media-360": [
+  {
+   "name": "media-360.webp",
+   "width": 360,
+   "height": 4815
+  }
+ ],
+ "store-360": [
+  {
+   "name": "store-360.webp",
+   "width": 360,
+   "height": 1378
+  }
+ ],
+ "store-products-360": [
+  {
+   "name": "store-products-360.webp",
+   "width": 360,
+   "height": 1587
+  }
+ ],
+ "store-products-edit-360": [
+  {
+   "name": "store-products-edit-360.webp",
+   "width": 360,
+   "height": 2708
+  }
+ ],
+ "store-variants-edit-ebook-360": [
+  {
+   "name": "store-variants-edit-ebook-360.webp",
+   "width": 360,
+   "height": 1435
+  }
+ ],
+ "store-variants-edit-preorder-360": [
+  {
+   "name": "store-variants-edit-preorder-360.webp",
+   "width": 360,
+   "height": 1641
+  }
+ ],
+ "store-shipping-rates-360": [
+  {
+   "name": "store-shipping-rates-360.webp",
+   "width": 360,
+   "height": 2490
+  }
+ ],
+ "store-shipping-rates-edit-360": [
+  {
+   "name": "store-shipping-rates-edit-360.webp",
+   "width": 360,
+   "height": 882
+  }
+ ],
+ "store-coupons-360": [
+  {
+   "name": "store-coupons-360.webp",
+   "width": 360,
+   "height": 1135
+  }
+ ],
+ "store-coupons-edit-360": [
+  {
+   "name": "store-coupons-edit-360.webp",
+   "width": 360,
+   "height": 1462
+  }
+ ],
+ "store-customers-360": [
+  {
+   "name": "store-customers-360.webp",
+   "width": 360,
+   "height": 3386
+  }
+ ],
+ "store-customers-edit-360": [
+  {
+   "name": "store-customers-edit-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "store-notifications-360": [
+  {
+   "name": "store-notifications-360.webp",
+   "width": 360,
+   "height": 1562
+  }
+ ],
+ "store-editor-360": [
+  {
+   "name": "store-editor-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "orders-360": [
+  {
+   "name": "orders-360.webp",
+   "width": 360,
+   "height": 5233
+  }
+ ],
+ "orders-operations-360": [
+  {
+   "name": "orders-operations-360.webp",
+   "width": 360,
+   "height": 5133
+  }
+ ],
+ "orders-empty-360": [
+  {
+   "name": "orders-empty-360.webp",
+   "width": 360,
+   "height": 833
+  }
+ ],
+ "orders-failed-360": [
+  {
+   "name": "orders-failed-360.webp",
+   "width": 360,
+   "height": 879
+  }
+ ],
+ "orders-view-360": [
+  {
+   "name": "orders-view-360.webp",
+   "width": 360,
+   "height": 8332
+  }
+ ],
+ "orders-view-resolution-360": [
+  {
+   "name": "orders-view-resolution-360.webp",
+   "width": 360,
+   "height": 7340
+  }
+ ],
+ "orders-view-operations-360": [
+  {
+   "name": "orders-view-operations-360.webp",
+   "width": 360,
+   "height": 5486
+  }
+ ],
+ "orders-reconciliation-360": [
+  {
+   "name": "orders-reconciliation-360.webp",
+   "width": 360,
+   "height": 6227
+  }
+ ],
+ "media-upload-dialog-360": [
+  {
+   "name": "media-upload-dialog-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "media-delete-dialog-360": [
+  {
+   "name": "media-delete-dialog-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "media-picker-dialog-360": [
+  {
+   "name": "media-picker-dialog-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "email-replay-dialog-360": [
+  {
+   "name": "email-replay-dialog-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "orders-view-refund-confirm-360": [
+  {
+   "name": "orders-view-refund-confirm-360.webp",
+   "width": 360,
+   "height": 7673
+  }
+ ],
+ "orders-view-dispute-form-360": [
+  {
+   "name": "orders-view-dispute-form-360.webp",
+   "width": 360,
+   "height": 9221
+  }
+ ],
+ "team-step-up-dialog-360": [
+  {
+   "name": "team-step-up-dialog-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "content-posts-new-360": [
+  {
+   "name": "content-posts-new-360.webp",
+   "width": 360,
+   "height": 2074
+  }
+ ],
+ "store-products-new-360": [
+  {
+   "name": "store-products-new-360.webp",
+   "width": 360,
+   "height": 1757
+  }
+ ],
+ "email-360": [
+  {
+   "name": "email-360.webp",
+   "width": 360,
+   "height": 3110
+  }
+ ],
+ "stats-360": [
+  {
+   "name": "stats-360.webp",
+   "width": 360,
+   "height": 1884
+  }
+ ],
+ "settings-360": [
+  {
+   "name": "settings-360.webp",
+   "width": 360,
+   "height": 3730
+  }
+ ],
+ "security-360": [
+  {
+   "name": "security-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "security-enroll-360": [
+  {
+   "name": "security-enroll-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "team-360": [
+  {
+   "name": "team-360.webp",
+   "width": 360,
+   "height": 2058
+  }
+ ],
+ "team-editor-360": [
+  {
+   "name": "team-editor-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "gate-error-360": [
+  {
+   "name": "gate-error-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "sign-in-360": [
+  {
+   "name": "sign-in-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "sign-in-widget-360": [
+  {
+   "name": "sign-in-widget-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "sign-in-code-360": [
+  {
+   "name": "sign-in-code-360.webp",
+   "width": 360,
+   "height": 800
+  }
+ ],
+ "preview-built-360": [
+  {
+   "name": "preview-built-360.webp",
+   "width": 360,
+   "height": 6625
+  }
+ ],
+ "preview-post-360": [
+  {
+   "name": "preview-post-360.webp",
+   "width": 360,
+   "height": 1726
+  }
+ ],
+ "home-1440": [
+  {
+   "name": "home-1440.webp",
+   "width": 1440,
+   "height": 1430
+  }
+ ],
+ "home-editor-1440": [
+  {
+   "name": "home-editor-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "home-operations-1440": [
+  {
+   "name": "home-operations-1440.webp",
+   "width": 1440,
+   "height": 936
+  }
+ ],
+ "content-1440": [
+  {
+   "name": "content-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-rooms-1440": [
+  {
+   "name": "content-rooms-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-rooms-edit-built-1440": [
+  {
+   "name": "content-rooms-edit-built-1440.webp",
+   "width": 1440,
+   "height": 13180
+  }
+ ],
+ "content-rooms-edit-book-1440": [
+  {
+   "name": "content-rooms-edit-book-1440.webp",
+   "width": 1440,
+   "height": 14820
+  }
+ ],
+ "content-posts-1440": [
+  {
+   "name": "content-posts-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-posts-edit-1440": [
+  {
+   "name": "content-posts-edit-1440.webp",
+   "width": 1440,
+   "height": 2432
+  }
+ ],
+ "content-posts-edit-overdue-1440": [
+  {
+   "name": "content-posts-edit-overdue-1440.webp",
+   "width": 1440,
+   "height": 2019
+  }
+ ],
+ "content-site-settings-1440": [
+  {
+   "name": "content-site-settings-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-site-settings-edit-1440": [
+  {
+   "name": "content-site-settings-edit-1440.1.webp",
+   "width": 1440,
+   "height": 16000
+  },
+  {
+   "name": "content-site-settings-edit-1440.2.webp",
+   "width": 1440,
+   "height": 306
+  }
+ ],
+ "content-taxonomies-1440": [
+  {
+   "name": "content-taxonomies-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-taxonomies-edit-1440": [
+  {
+   "name": "content-taxonomies-edit-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-policies-1440": [
+  {
+   "name": "content-policies-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-policies-edit-1440": [
+  {
+   "name": "content-policies-edit-1440.webp",
+   "width": 1440,
+   "height": 1287
+  }
+ ],
+ "content-scenes-1440": [
+  {
+   "name": "content-scenes-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-scenes-edit-1440": [
+  {
+   "name": "content-scenes-edit-1440.webp",
+   "width": 1440,
+   "height": 12799
+  }
+ ],
+ "media-1440": [
+  {
+   "name": "media-1440.webp",
+   "width": 1440,
+   "height": 2628
+  }
+ ],
+ "store-1440": [
+  {
+   "name": "store-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-products-1440": [
+  {
+   "name": "store-products-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-products-edit-1440": [
+  {
+   "name": "store-products-edit-1440.webp",
+   "width": 1440,
+   "height": 1817
+  }
+ ],
+ "store-variants-edit-ebook-1440": [
+  {
+   "name": "store-variants-edit-ebook-1440.webp",
+   "width": 1440,
+   "height": 1248
+  }
+ ],
+ "store-variants-edit-preorder-1440": [
+  {
+   "name": "store-variants-edit-preorder-1440.webp",
+   "width": 1440,
+   "height": 1458
+  }
+ ],
+ "store-shipping-rates-1440": [
+  {
+   "name": "store-shipping-rates-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-shipping-rates-edit-1440": [
+  {
+   "name": "store-shipping-rates-edit-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-coupons-1440": [
+  {
+   "name": "store-coupons-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-coupons-edit-1440": [
+  {
+   "name": "store-coupons-edit-1440.webp",
+   "width": 1440,
+   "height": 1285
+  }
+ ],
+ "store-customers-1440": [
+  {
+   "name": "store-customers-1440.webp",
+   "width": 1440,
+   "height": 1131
+  }
+ ],
+ "store-customers-edit-1440": [
+  {
+   "name": "store-customers-edit-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-notifications-1440": [
+  {
+   "name": "store-notifications-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "store-editor-1440": [
+  {
+   "name": "store-editor-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "orders-1440": [
+  {
+   "name": "orders-1440.webp",
+   "width": 1440,
+   "height": 1379
+  }
+ ],
+ "orders-operations-1440": [
+  {
+   "name": "orders-operations-1440.webp",
+   "width": 1440,
+   "height": 1306
+  }
+ ],
+ "orders-empty-1440": [
+  {
+   "name": "orders-empty-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "orders-failed-1440": [
+  {
+   "name": "orders-failed-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "orders-view-1440": [
+  {
+   "name": "orders-view-1440.webp",
+   "width": 1440,
+   "height": 5786
+  }
+ ],
+ "orders-view-resolution-1440": [
+  {
+   "name": "orders-view-resolution-1440.webp",
+   "width": 1440,
+   "height": 5790
+  }
+ ],
+ "orders-view-operations-1440": [
+  {
+   "name": "orders-view-operations-1440.webp",
+   "width": 1440,
+   "height": 3759
+  }
+ ],
+ "orders-reconciliation-1440": [
+  {
+   "name": "orders-reconciliation-1440.webp",
+   "width": 1440,
+   "height": 5850
+  }
+ ],
+ "media-upload-dialog-1440": [
+  {
+   "name": "media-upload-dialog-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "media-delete-dialog-1440": [
+  {
+   "name": "media-delete-dialog-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "media-picker-dialog-1440": [
+  {
+   "name": "media-picker-dialog-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "email-replay-dialog-1440": [
+  {
+   "name": "email-replay-dialog-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "orders-view-refund-confirm-1440": [
+  {
+   "name": "orders-view-refund-confirm-1440.webp",
+   "width": 1440,
+   "height": 5223
+  }
+ ],
+ "orders-view-dispute-form-1440": [
+  {
+   "name": "orders-view-dispute-form-1440.webp",
+   "width": 1440,
+   "height": 6638
+  }
+ ],
+ "team-step-up-dialog-1440": [
+  {
+   "name": "team-step-up-dialog-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "content-posts-new-1440": [
+  {
+   "name": "content-posts-new-1440.webp",
+   "width": 1440,
+   "height": 1794
+  }
+ ],
+ "store-products-new-1440": [
+  {
+   "name": "store-products-new-1440.webp",
+   "width": 1440,
+   "height": 1476
+  }
+ ],
+ "email-1440": [
+  {
+   "name": "email-1440.webp",
+   "width": 1440,
+   "height": 1012
+  }
+ ],
+ "stats-1440": [
+  {
+   "name": "stats-1440.webp",
+   "width": 1440,
+   "height": 1700
+  }
+ ],
+ "settings-1440": [
+  {
+   "name": "settings-1440.webp",
+   "width": 1440,
+   "height": 2877
+  }
+ ],
+ "security-1440": [
+  {
+   "name": "security-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "security-enroll-1440": [
+  {
+   "name": "security-enroll-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "team-1440": [
+  {
+   "name": "team-1440.webp",
+   "width": 1440,
+   "height": 958
+  }
+ ],
+ "team-editor-1440": [
+  {
+   "name": "team-editor-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "gate-error-1440": [
+  {
+   "name": "gate-error-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "sign-in-1440": [
+  {
+   "name": "sign-in-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "sign-in-widget-1440": [
+  {
+   "name": "sign-in-widget-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "sign-in-code-1440": [
+  {
+   "name": "sign-in-code-1440.webp",
+   "width": 1440,
+   "height": 900
+  }
+ ],
+ "preview-built-1440": [
+  {
+   "name": "preview-built-1440.webp",
+   "width": 1440,
+   "height": 7703
+  }
+ ],
+ "preview-post-1440": [
+  {
+   "name": "preview-post-1440.webp",
+   "width": 1440,
+   "height": 2429
+  }
+ ]
+}

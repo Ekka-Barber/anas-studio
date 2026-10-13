@@ -1,0 +1,1180 @@
+[
+ {
+  "id": "home",
+  "path": "/admin",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "لوحة أنس",
+  "note": "Owner home with every section filled.",
+  "h": {
+   "360": {
+    "before": 1464,
+    "after": 2390
+   },
+   "1440": {
+    "before": 1324,
+    "after": 1430
+   }
+  }
+ },
+ {
+  "id": "home-editor",
+  "path": "/admin",
+  "role": "editor",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "لوحة أنس",
+  "note": "Editor role: the nav and the sections differ.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "home-operations",
+  "path": "/admin",
+  "role": "operations",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "لوحة أنس",
+  "note": "Operations role.",
+  "h": {
+   "360": {
+    "before": 983,
+    "after": 1721
+   },
+   "1440": {
+    "before": 913,
+    "after": 936
+   }
+  }
+ },
+ {
+  "id": "content",
+  "path": "/admin/content",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المحتوى",
+  "note": "The content collections (tiles).",
+  "h": {
+   "360": {
+    "before": 860,
+    "after": 1296
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-rooms",
+  "path": "/admin/content/rooms",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الغرف",
+  "note": "The five rooms with their states.",
+  "h": {
+   "360": {
+    "before": 888,
+    "after": 1101
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-rooms-edit-built",
+  "path": "/admin/content/rooms/edit?id=built",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "بنيتُ هنا",
+  "note": "The long room form (unpublished changes).",
+  "h": {
+   "360": {
+    "before": 11274,
+    "after": 15908
+   },
+   "1440": {
+    "before": 11090,
+    "after": 13180
+   }
+  }
+ },
+ {
+  "id": "content-rooms-edit-book",
+  "path": "/admin/content/rooms/edit?id=book",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "خوص",
+  "note": "A room with a pending schedule.",
+  "h": {
+   "360": {
+    "before": 12961,
+    "after": 16316
+   },
+   "1440": {
+    "before": 12737,
+    "after": 14820
+   }
+  }
+ },
+ {
+  "id": "content-posts",
+  "path": "/admin/content/posts",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المقالات",
+  "note": "Posts in mixed states: live, unpublished changes, draft, overdue and future schedule.",
+  "h": {
+   "360": {
+    "before": 938,
+    "after": 1155
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-posts-edit",
+  "path": "/admin/content/posts/edit?id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "لماذا أكتب عن الأماكن",
+  "note": "A live post: rich text, taxonomies, cover, publish bar, version history.",
+  "h": {
+   "360": {
+    "before": 2484,
+    "after": 2916
+   },
+   "1440": {
+    "before": 2090,
+    "after": 2432
+   }
+  }
+ },
+ {
+  "id": "content-posts-edit-overdue",
+  "path": "/admin/content/posts/edit?id=87fbf26e-c2a6-44bf-94ab-dca0688c39d9",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "يوم افتتاح المقهى",
+  "note": "A post whose schedule time has passed.",
+  "h": {
+   "360": {
+    "before": 2081,
+    "after": 2360
+   },
+   "1440": {
+    "before": 1747,
+    "after": 2019
+   }
+  }
+ },
+ {
+  "id": "content-site-settings",
+  "path": "/admin/content/site_settings",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "إعدادات الموقع",
+  "note": "The one site-settings document, listed.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-site-settings-edit",
+  "path": "/admin/content/site_settings/edit?id=site",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "إعدادات الموقع",
+  "note": "The longest form: nav, footer, home, SEO, contact, socials, contact page.",
+  "h": {
+   "360": {
+    "before": 14331,
+    "after": 18203
+   },
+   "1440": {
+    "before": 14147,
+    "after": 16306
+   }
+  }
+ },
+ {
+  "id": "content-taxonomies",
+  "path": "/admin/content/taxonomies",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "التصنيفات",
+  "note": "Categories and tags, with the new-slug field.",
+  "h": {
+   "360": {
+    "before": 1132,
+    "after": 1395
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-taxonomies-edit",
+  "path": "/admin/content/taxonomies/edit?id=places",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "أماكن",
+  "note": "One taxonomy (a category).",
+  "h": {
+   "360": {
+    "before": 996,
+    "after": 1063
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-policies",
+  "path": "/admin/content/policies",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "السياسات",
+  "note": "The four policy documents (one never published).",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 953
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-policies-edit",
+  "path": "/admin/content/policies/edit?id=store",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "سياسة المتجر",
+  "note": "A policy: title and rich text, with the approval warning.",
+  "h": {
+   "360": {
+    "before": 1550,
+    "after": 1660
+   },
+   "1440": {
+    "before": 1196,
+    "after": 1287
+   }
+  }
+ },
+ {
+  "id": "content-scenes",
+  "path": "/admin/content/scenes",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المَشاهد",
+  "note": "The scenes gallery document, listed.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "content-scenes-edit",
+  "path": "/admin/content/scenes/edit?id=gallery",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المَشاهد",
+  "note": "The gallery: 19 photos as repeating groups.",
+  "h": {
+   "360": {
+    "before": 11467,
+    "after": 14065
+   },
+   "1440": {
+    "before": 11283,
+    "after": 12799
+   }
+  }
+ },
+ {
+  "id": "media",
+  "path": "/admin/media",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المكتبة",
+  "note": "Library grid with the first image selected (details, where-used).",
+  "h": {
+   "360": {
+    "before": 4541,
+    "after": 4815
+   },
+   "1440": {
+    "before": 3109,
+    "after": 2628
+   }
+  }
+ },
+ {
+  "id": "store",
+  "path": "/admin/store",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المتجر",
+  "note": "The store tiles, with the demo-data line.",
+  "h": {
+   "360": {
+    "before": 896,
+    "after": 1378
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-products",
+  "path": "/admin/store/products",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المنتجات",
+  "note": "Five products (one demo, one draft, one archived).",
+  "h": {
+   "360": {
+    "before": 1280,
+    "after": 1587
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-products-edit",
+  "path": "/admin/store/products/edit?id=a841a517-0614-4bc5-ae22-6f8f2ed1fdfb",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "خوص",
+  "note": "A product with its variants listed below.",
+  "h": {
+   "360": {
+    "before": 2278,
+    "after": 2708
+   },
+   "1440": {
+    "before": 1578,
+    "after": 1817
+   }
+  }
+ },
+ {
+  "id": "store-variants-edit-ebook",
+  "path": "/admin/store/variants/edit?id=237e10e7-3bcf-4fec-a8a2-1f3241ee257f&product=a841a517-0614-4bc5-ae22-6f8f2ed1fdfb",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "نسخة إلكترونية",
+  "note": "A digital variant with its paid file.",
+  "h": {
+   "360": {
+    "before": 1290,
+    "after": 1435
+   },
+   "1440": {
+    "before": 1146,
+    "after": 1248
+   }
+  }
+ },
+ {
+  "id": "store-variants-edit-preorder",
+  "path": "/admin/store/variants/edit?id=eb25bd4e-7d25-457d-a223-254ddd2f8063&product=bf0d5ffc-d152-4461-9dc7-3a4512114b5e",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الدفعة الثانية",
+  "note": "A preorder variant.",
+  "h": {
+   "360": {
+    "before": 1464,
+    "after": 1641
+   },
+   "1440": {
+    "before": 1320,
+    "after": 1458
+   }
+  }
+ },
+ {
+  "id": "store-shipping-rates",
+  "path": "/admin/store/shipping-rates",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "التوصيل",
+  "note": "Nine city rates (one unpriced, one switched off).",
+  "h": {
+   "360": {
+    "before": 1956,
+    "after": 2490
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-shipping-rates-edit",
+  "path": "/admin/store/shipping-rates/edit?id=3bbb98c2-f1ea-48b4-9471-dca0233731fc",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الرياض",
+  "note": "A city rate form.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 882
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-coupons",
+  "path": "/admin/store/coupons",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "أكواد الخصم",
+  "note": "Three coupons (percent, fixed, expired).",
+  "h": {
+   "360": {
+    "before": 936,
+    "after": 1135
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-coupons-edit",
+  "path": "/admin/store/coupons/edit?id=23de6612-ba9e-446b-a095-a312f2216f0c",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "DEMO10",
+  "note": "A coupon form with its product scope.",
+  "h": {
+   "360": {
+    "before": 1223,
+    "after": 1462
+   },
+   "1440": {
+    "before": 1119,
+    "after": 1285
+   }
+  }
+ },
+ {
+  "id": "store-customers",
+  "path": "/admin/store/customers",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "العملاء",
+  "note": "Customers with their «طلباته» links.",
+  "h": {
+   "360": {
+    "before": 2804,
+    "after": 3386
+   },
+   "1440": {
+    "before": 1041,
+    "after": 1131
+   }
+  }
+ },
+ {
+  "id": "store-customers-edit",
+  "path": "/admin/store/customers/edit?id=7ba6d2d0-3e0e-47f1-a876-915d8f1987e9",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": ".+",
+  "note": "A customer: read-only email, editable name and phone.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-notifications",
+  "path": "/admin/store/notifications",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "طلبات الإشعار",
+  "note": "Availability sign-ups (a read-only list).",
+  "h": {
+   "360": {
+    "before": 1248,
+    "after": 1562
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "store-editor",
+  "path": "/admin/store",
+  "role": "editor",
+  "signedOut": false,
+  "dialog": false,
+  "h1": null,
+  "note": "Role gate: editors see nothing of the store.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "orders",
+  "path": "/admin/orders",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الطلبات",
+  "note": "Twelve orders in mixed states.",
+  "h": {
+   "360": {
+    "before": 4150,
+    "after": 5233
+   },
+   "1440": {
+    "before": 1271,
+    "after": 1379
+   }
+  }
+ },
+ {
+  "id": "orders-operations",
+  "path": "/admin/orders",
+  "role": "operations",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الطلبات",
+  "note": "Operations role: no reconciliation link.",
+  "h": {
+   "360": {
+    "before": 3994,
+    "after": 5133
+   },
+   "1440": {
+    "before": 1187,
+    "after": 1306
+   }
+  }
+ },
+ {
+  "id": "orders-empty",
+  "path": "/admin/orders",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الطلبات",
+  "note": "Empty state: orders_list answers no rows.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 833
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "orders-failed",
+  "path": "/admin/orders",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الطلبات",
+  "note": "Failed state: orders_list answers 500.",
+  "h": {
+   "360": {
+    "before": 826,
+    "after": 879
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "orders-view",
+  "path": "/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "R3VN8HC5",
+  "note": "Paid order: items, payment, shipping, files, return, refund, dispute, log.",
+  "h": {
+   "360": {
+    "before": 5856,
+    "after": 8332
+   },
+   "1440": {
+    "before": 4046,
+    "after": 5786
+   }
+  }
+ },
+ {
+  "id": "orders-view-resolution",
+  "path": "/admin/orders/view?id=b6066992-e578-4824-baa6-f81f0618e65c",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "W9TD4PZ2",
+  "note": "Paid but needs resolution: open review payment, chargeback in two steps.",
+  "h": {
+   "360": {
+    "before": 5131,
+    "after": 7340
+   },
+   "1440": {
+    "before": 3970,
+    "after": 5790
+   }
+  }
+ },
+ {
+  "id": "orders-view-operations",
+  "path": "/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+  "role": "operations",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "R3VN8HC5",
+  "note": "Operations role: no money controls, disputes or log.",
+  "h": {
+   "360": {
+    "before": 3786,
+    "after": 5486
+   },
+   "1440": {
+    "before": 2496,
+    "after": 3759
+   }
+  }
+ },
+ {
+  "id": "orders-reconciliation",
+  "path": "/admin/orders/reconciliation",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المطابقة",
+  "note": "Every section with rows.",
+  "h": {
+   "360": {
+    "before": 4295,
+    "after": 6227
+   },
+   "1440": {
+    "before": 3973,
+    "after": 5850
+   }
+  }
+ },
+ {
+  "id": "media-upload-dialog",
+  "path": "/admin/media",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": true,
+  "h1": "المكتبة",
+  "note": "The upload dialog, open.",
+  "h": {
+   "360": {
+    "before": 3526,
+    "after": 3537
+   },
+   "1440": {
+    "before": 2114,
+    "after": 1800
+   }
+  }
+ },
+ {
+  "id": "media-delete-dialog",
+  "path": "/admin/media",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": true,
+  "h1": "المكتبة",
+  "note": "The delete confirmation of an image that is used nowhere.",
+  "h": {
+   "360": {
+    "before": 4497,
+    "after": 4694
+   },
+   "1440": {
+    "before": 3065,
+    "after": 2628
+   }
+  }
+ },
+ {
+  "id": "media-picker-dialog",
+  "path": "/admin/content/posts/edit?id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": true,
+  "h1": "لماذا أكتب عن الأماكن",
+  "note": "The library picker opened from a post cover.",
+  "h": {
+   "360": {
+    "before": 2484,
+    "after": 2916
+   },
+   "1440": {
+    "before": 2090,
+    "after": 2432
+   }
+  }
+ },
+ {
+  "id": "email-replay-dialog",
+  "path": "/admin/email",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": true,
+  "h1": "البريد",
+  "note": "Confirmation before replaying mail that may already have been delivered.",
+  "h": {
+   "360": {
+    "before": 2426,
+    "after": 3110
+   },
+   "1440": {
+    "before": 900,
+    "after": 1012
+   }
+  }
+ },
+ {
+  "id": "orders-view-refund-confirm",
+  "path": "/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "R3VN8HC5",
+  "note": "The refund form filled in, at its confirmation step.",
+  "h": {
+   "360": {
+    "before": 5376,
+    "after": 7673
+   },
+   "1440": {
+    "before": 3566,
+    "after": 5223
+   }
+  }
+ },
+ {
+  "id": "orders-view-dispute-form",
+  "path": "/admin/orders/view?id=0dc42d06-8326-4f83-b063-208ed299e7da",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "R3VN8HC5",
+  "note": "The «تسجيل اعتراض» form, open.",
+  "h": {
+   "360": {
+    "before": 6628,
+    "after": 9221
+   },
+   "1440": {
+    "before": 4790,
+    "after": 6638
+   }
+  }
+ },
+ {
+  "id": "team-step-up-dialog",
+  "path": "/admin/team",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": true,
+  "h1": "الفريق",
+  "note": "An invitation asks for a fresh authenticator code (the step-up dialog).",
+  "h": {
+   "360": {
+    "before": 1748,
+    "after": 2058
+   },
+   "1440": {
+    "before": 900,
+    "after": 958
+   }
+  }
+ },
+ {
+  "id": "content-posts-new",
+  "path": "/admin/content/posts/edit?id=7788b39e-6244-49a4-afab-0855575e97b4",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "بلا عنوان",
+  "note": "A new post: the empty form (no publish bar, no history).",
+  "h": {
+   "360": {
+    "before": 1791,
+    "after": 2074
+   },
+   "1440": {
+    "before": 1517,
+    "after": 1794
+   }
+  }
+ },
+ {
+  "id": "store-products-new",
+  "path": "/admin/store/products/edit?id=new",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "المنتجات",
+  "note": "A new product: the empty form.",
+  "h": {
+   "360": {
+    "before": 1555,
+    "after": 1757
+   },
+   "1440": {
+    "before": 1281,
+    "after": 1476
+   }
+  }
+ },
+ {
+  "id": "email",
+  "path": "/admin/email",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "البريد",
+  "note": "Mail problems listed.",
+  "h": {
+   "360": {
+    "before": 2426,
+    "after": 3110
+   },
+   "1440": {
+    "before": 900,
+    "after": 1012
+   }
+  }
+ },
+ {
+  "id": "stats",
+  "path": "/admin/stats",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الإحصاءات",
+  "note": "The store figures for 30 days and the visits.",
+  "h": {
+   "360": {
+    "before": 1515,
+    "after": 1884
+   },
+   "1440": {
+    "before": 1311,
+    "after": 1700
+   }
+  }
+ },
+ {
+  "id": "settings",
+  "path": "/admin/settings",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الإعدادات",
+  "note": "Commerce settings, site state, socials.",
+  "h": {
+   "360": {
+    "before": 2561,
+    "after": 3730
+   },
+   "1440": {
+    "before": 2009,
+    "after": 2877
+   }
+  }
+ },
+ {
+  "id": "security",
+  "path": "/admin/security",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الأمان",
+  "note": "TOTP enrolled.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "security-enroll",
+  "path": "/admin/security",
+  "role": "editor",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الأمان",
+  "note": "No authenticator yet: the enrolment step with a placeholder QR.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "team",
+  "path": "/admin/team",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الفريق",
+  "note": "Four members, one revoked.",
+  "h": {
+   "360": {
+    "before": 1748,
+    "after": 2058
+   },
+   "1440": {
+    "before": 900,
+    "after": 958
+   }
+  }
+ },
+ {
+  "id": "team-editor",
+  "path": "/admin/team",
+  "role": "editor",
+  "signedOut": false,
+  "dialog": false,
+  "h1": "الفريق",
+  "note": "Role gate: owner only.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "gate-error",
+  "path": "/admin",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": null,
+  "note": "The shell's gate when the role cannot be read.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "sign-in",
+  "path": "/admin/sign-in",
+  "role": "owner",
+  "signedOut": true,
+  "dialog": false,
+  "h1": "لوحة أنس",
+  "note": "Signed out. Turnstile cannot load here, so the send button stays off.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "sign-in-widget",
+  "path": "/admin/sign-in",
+  "role": "owner",
+  "signedOut": true,
+  "dialog": false,
+  "h1": "لوحة أنس",
+  "note": "Signed out, with a 300x65 placeholder where Cloudflare's widget would be (the real one is never loaded); the send button is on.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "sign-in-code",
+  "path": "/admin/sign-in",
+  "role": "owner",
+  "signedOut": true,
+  "dialog": false,
+  "h1": "لوحة أنس",
+  "note": "The second step of the sign-in: the 8-digit code.",
+  "h": {
+   "360": {
+    "before": 800,
+    "after": 800
+   },
+   "1440": {
+    "before": 900,
+    "after": 900
+   }
+  }
+ },
+ {
+  "id": "preview-built",
+  "path": "/admin/preview?collection=rooms&id=built",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": null,
+  "note": "Draft preview of a room, drawn with the public view.",
+  "h": {
+   "360": {
+    "before": 6623,
+    "after": 6625
+   },
+   "1440": {
+    "before": 7701,
+    "after": 7703
+   }
+  }
+ },
+ {
+  "id": "preview-post",
+  "path": "/admin/preview?collection=posts&id=c0318291-aee7-4f3f-a538-bfc617e0932b",
+  "role": "owner",
+  "signedOut": false,
+  "dialog": false,
+  "h1": null,
+  "note": "Draft preview of a post.",
+  "h": {
+   "360": {
+    "before": 1704,
+    "after": 1726
+   },
+   "1440": {
+    "before": 2427,
+    "after": 2429
+   }
+  }
+ }
+]
