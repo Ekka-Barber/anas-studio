@@ -13,10 +13,13 @@ time, and the server only verifies what arrived.
   The public site is built with this text as the image's alt wherever a page
   draws a library image (the room pages, the story figures, a journal post's
   cover); a card in the journal list is empty on purpose, because it sits
-  inside a link that already carries the post's title. Editing the text in the
-  library does not request a site rebuild (only a publish, an archive, a
-  scheduled go-live or a catalog change does), so the live pages keep the old
-  text until the next build.
+  inside a link that already carries the post's title. Editing the alt text or
+  the caption of an image that a published document or a published product
+  uses asks for a site rebuild, as a publish does (the `media_request_build`
+  trigger, round M2 of the FABLE-AUDIT); the live pages show the new text once
+  that build has run (`docs/operations.md`, "Site rebuilds"). An edit of an
+  image nobody shows, and an edit of its name, folder or rights, asks for
+  nothing.
 - **The rights statement is required.** A short Arabic note naming who owns
   the image and what allows us to publish it (for example the photographer
   and the licence, or "تصوير أنس" for our own work). If you do not have the
@@ -48,7 +51,9 @@ future crop does not lose quality.
 ## What stays private
 
 - The **original** (`originals/<id>`) is never served to visitors. It stays
-  in the private bucket for re-cropping later.
+  in the private bucket for re-cropping later. It is kept exactly as uploaded,
+  so a phone photo's camera and GPS data stays in it; only the public WebP
+  sizes lose that data.
 - During upload, derivatives wait in a private **quarantine** area until
   every part has been verified. Anything that fails verification is deleted
   immediately.
@@ -57,6 +62,25 @@ future crop does not lose quality.
   `image/webp` only. No content-security-policy is set on those responses,
   and `nosniff` there is unverified until the P11 hosted check (I32). A
   visitor can never list the library or fetch another image by guessing.
+
+## People in pictures and films
+
+The rights statement above says who owns an image and what allows us to
+publish it. It is not a record that the people shown agreed, and nothing in
+the library checks for one. Photographs and films of identifiable people,
+children among them, are personal data (`docs/privacy-data-map.md`).
+
+The five films that show children (`46-kid-picnic-jam` to
+`50-kid-cafe-croissant-jam`, in «بدأتُ من هنا») are on the site because of
+the owner's decision D44 (3), 2026-10-01: they "are consented, on Anas's
+word". They are room films listed in `public/media/manifest.json`, made by
+`scripts/prepare-media.mjs`, not library images. The written consent Anas
+said he would send has not reached the project: the FABLE-AUDIT found no
+record of it (PLAN-GAPS-02), and the content gate it belongs to, E05 (the
+per-record rights and content approvals, `PLANS/DECISIONS.md`), is open.
+Both facts stand: the owner's decision is recorded, and the written consent
+is still owed. This guide chooses neither. Open decision for the owner:
+whether the five films stay on the site until the written consent is in hand.
 
 ## Reuse and deletion
 

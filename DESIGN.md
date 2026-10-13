@@ -109,7 +109,7 @@ B's identity is what sits between the bands.
 
 Use a crenel to open a band of a new colour; use the weave after a page title and before the footer. Never both on the same seam.
 
-The serious pages, the cart, the checkout and the policies, carry no edge at their head: a plain paper band closed by a 3px rule (`.docHead`). They also use a modest title (`--size-card`), and the order summary in a bordered panel beside the form from 1024px (first on a phone). Money is set in tabular digits. The footer keeps its weave (owner, 2026-09-28: "money related pages … look serious and official").
+The serious pages, the cart, the checkout and its return page, the policies, the order page (`/orders`) and the two pages of the availability mails (`/notify/*`), carry no edge at their head: a plain paper band closed by a 3px rule (`.docHead`). They also use a modest title (`--size-card`). The cart and the checkout set the order summary in a bordered panel beside the form from 1024px (first on a phone). Money is set in tabular digits. The footer keeps its weave (owner, 2026-09-28: "money related pages … look serious and official").
 
 Both start from the right, the reading start, so a partial tile always falls on the left.
 
@@ -141,14 +141,14 @@ Everything is visible without motion, without JavaScript, when printed and in a 
 - Two easings: `--ease-out` for movement, `--ease-weave` for wipes.
 - Durations: `--dur-ui` (280ms) for what answers the visitor (the header's slide, the section bar, the lightbox opening, a photo step), `--dur-quick` for hover and press, `--dur-base` (560ms) for the menu's woven bands. Entrances and reveals are slower on purpose; `--enter-dur` shortens one, as the home portrait's 500ms wipe, which starts at once because it is the first screen's largest picture.
 - A page plays its entrances once per visit: opened again after a client navigation, it comes back without them (`data-seen` on the root, set by `MotionLayer` before paint). Its scroll reveals below the fold still play (owner, 2026-09-28). React's development double run of an effect is not a return. A filtered grid animates only the tiles that arrive, never the ones already shown.
-- The serious pages (`/cart`, `/checkout`, `/policies/*`, `CALM` in `MotionLayer`) have no scroll reveals: only the title's 280ms fade (`calmEnter`). On the store list and a product, the pictures and titles move; prices and the buy controls never do.
+- The serious pages (the `CALM` list in `MotionLayer`: `/cart`, `/checkout` with `/checkout/return`, `/policies/*`, `/orders` and `/notify/*`) have no scroll reveals: only the title's 280ms fade (`calmEnter`). On the store list and a product, the pictures and titles move; prices and the buy controls never do.
 - The book's section bar follows the header's slide by animating its sticky `top`, the one layout property animated on purpose. A transform cannot do this, because it would also move the bar when it is not stuck: a browser test on 2026-09-28 caught the bar drawn up to 66px out of place on a quick scroll up.
 - The book reader's page turn (900ms) and the book's slide to the middle when it closes (700ms) are longer than the interface's 280ms, on purpose: opening and turning a book is the section's moment, and it happens only when the visitor asks.
 - `prefers-reduced-motion: reduce` turns all of it off, including the header's slide and the lightbox wipes. A turn of the book becomes a 150ms fade instead of a rotation.
 
-Two checks guard it:
+Two checks guard it, and only the first can be rerun:
 - `tests/e2e/motion.spec.ts`, on the dev server and on the export: every held reveal plays on every story page; the serious pages stay still apart from the title; a return visit skips the entrances but plays the reveals; reduced motion holds nothing.
-- `stuck.mjs` in the DESIGN-B evidence: no reveal is left held after scrolling. On its own it cannot catch reveals that never mount; the audit of 2026-09-28 found exactly that on the dev server.
+- `stuck.mjs`, a one-off script of the DESIGN-B session (`artifacts/acceptance/DESIGN-B/commands.txt` calls it "session scratchpad"; it was never committed): motion on, a slow scroll to the end of each page of the export, then no reveal left held (0 held on the 10 pages then built, at 1440 and 390). On its own it cannot catch reveals that never mount; the audit of 2026-09-28 found exactly that on the dev server. `tests/e2e/no-js.spec.ts` repeats it on the home page with JavaScript on, and `tests/e2e/motion.spec.ts` on each of its ten story pages; no spec runs it on every page of the export.
 
 ### The book reader
 
@@ -195,8 +195,8 @@ Anas edits his words in the admin. The composition (which picture goes where, th
 
 - A section waiting for Anas's material is left out, never shown as a placeholder: the sketches.
 - Content not yet published shows nothing, not an old copy: with no social links the footer has no handle, and /contact lists only the WhatsApp tile, or no channels at all when WhatsApp is not set either; with no published gallery, /scenes says «لا توجد مَشاهد بعد.».
-- A form whose backend does not exist yet is not shown:
-  - the availability sign-ups arrive with P08;
+- A form shows only where its backend exists and the page can use it:
+  - the availability sign-up (P08) shows on a product page only, for a variant whose public state is `out_of_stock`, and answers every valid address with the same generic words (`src/components/store/VariantAction.tsx`; `tests/e2e/product-availability.spec.ts`);
   - session booking arrives with P09 (a service's «اطلب جلسة» fills the contact form instead).
 - The book's reader holds only the pages Anas approved for free reading (P02, E04 range); the whole book is never on the site, and the reader's last leaf says the rest is in the book.
 - The contact form is real: the `contact` Edge Function with Turnstile, a honeypot, and one submission key per message.
@@ -234,4 +234,4 @@ The admin (`/admin`) is the back room of the same house (D49, owner, 2026-10-08:
 
 - `pnpm check` (lint, types, frozen sources, copy rules, unit tests);
 - `pnpm build`, `pnpm check:export`, `pnpm check:budgets` (the largest public page is under 150 KiB of script);
-- `tests/e2e/public.spec.ts` (every page, the menu, the gallery and lightbox, films, the book's contents, the contact form, JavaScript off) and `tests/e2e/visual.spec.ts` (every page at 360, 768, 1024 and 1440 without horizontal overflow; screenshots in `artifacts/acceptance/DESIGN-B/screenshots/`).
+- `tests/e2e/public.spec.ts` (every page, the menu, the gallery and lightbox, films, the book's contents, the contact form, JavaScript off) and `tests/e2e/visual.spec.ts` (the thirteen pages it lists, namely the home page, the four rooms, `/book`, `/journal`, `/scenes`, `/contact`, `/store`, `/orders` and the two `/notify/*` pages, at 360, 768, 1024 and 1440 without horizontal overflow, and at 768 with JavaScript off; screenshots in `artifacts/acceptance/DESIGN-B/screenshots/`). A product, the cart, the checkout, the held order and the return page are measured for overflow at 360 and 1440 only (`tests/e2e/cart-checkout.spec.ts`); the policy pages, a journal post and the 404 are measured at no width by any spec, so a tablet-width regression where the store's layout changes (section 3) is not guarded for them.

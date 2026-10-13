@@ -1,6 +1,6 @@
 # Source findings and precedence
 
-Inspected 2026-09-21. `evidence/source-manifest.json` records SHA-256/bytes for 272 source files (after D33; `verify-plan.ps1` checks all 272) across deploy, offer v3, book assets and original fonts, plus mission/AGENTS/PRD/brand documents. It is a read-only baseline, not permission to ship every asset. `_archive/` was not inspected or changed.
+Inspected 2026-09-21. `evidence/source-manifest.json` records SHA-256/bytes for 162 source files (272 after D33; D42 removed the 110 WhatsApp-export entries, commit 397f4d3; `verify-plan.ps1` checks all 162) across deploy, offer v3, book assets and original fonts, plus mission/AGENTS/PRD/brand documents. It is a read-only baseline, not permission to ship every asset. `_archive/` was not inspected or changed.
 
 ## Product and visual sources
 

@@ -10,8 +10,10 @@ Supabase CLI stack.
 | --- | --- | --- |
 | Node.js | 24.19.0 | `.node-version`, and `engines.node` (`>=24.9.0 <25`) in `package.json` |
 | pnpm | 10.34.6 | `packageManager` in `package.json` |
+| Next.js | 16.3.8 | `next` and `eslint-config-next` in `package.json` (exact; `pnpm install` brings them) |
 | Docker | any recent release | runs the Supabase CLI stack |
-| Supabase CLI | 2.106.0 | `version:` of the `supabase/setup-cli` step in `.github/workflows/ci.yml` |
+| Supabase CLI | 2.106.0 | `version:` of the `supabase/setup-cli` step in `.github/workflows/ci.yml`; install it as a global command, because the scripts run `supabase` by name (scoop on Windows, Homebrew on macOS: [operations](operations.md#commands)) |
+| Deno | 2.9.6 | `deno-version` of the `denoland/setup-deno` step in the same file; only to type-check the Edge Functions (`deno check`, "Tests and checks") |
 
 `.npmrc` sets `engine-strict=true`, `strict-peer-dependencies=true` and
 `save-exact=true`: a wrong Node version, an unresolved peer range or a floating
@@ -20,6 +22,7 @@ version fails loudly instead of being silently accepted.
 ```sh
 corepack enable          # activates the pnpm version from packageManager
 pnpm install --frozen-lockfile
+pnpm exec playwright install chromium   # the e2e browser: `pnpm install` does not download one
 ```
 
 ## Environment
@@ -62,8 +65,9 @@ feature is unavailable instead of quietly wrong.
   `MOYASAR_API_BASE_URL`, `MOYASAR_SECRET_KEY`, `MOYASAR_WEBHOOK_SECRET`,
   `PAYMENTS_MODE` and `FUNCTIONS_PUBLIC_URL` (and `PAYMENTS_TEST_ACCESS_CODE`,
   for a hosted site in test mode only; see "Payments locally (P08)").
-  `SUPABASE_URL` and the service-role key
-  are provided by Supabase to every function and never set by hand.
+  `SUPABASE_URL` and the project's API keys (`SUPABASE_SECRET_KEYS`, else the
+  legacy service-role key, `supabase/functions/_shared/db.ts`) are provided by
+  Supabase to every function and never set by hand.
 
 ## Local database
 
@@ -73,7 +77,8 @@ pnpm db:reset            # supabase db reset — rebuilds from supabase/migratio
 ```
 
 `supabase/migrations/` is the only migration history; there is no second,
-hand-written schema stream. It also creates the two Storage buckets. The seed
+hand-written schema stream. It also creates the three Storage buckets
+(`media-private`, `media-public` and, from P08, `paid-files`). The seed
 (`supabase/seed.sql`) holds no data and no secret; never run
 `supabase db push --include-seed` against the hosted project anyway.
 
@@ -81,6 +86,16 @@ The Edge Functions reach the database as `service_role` through the Data API
 (D32); server-only SQL functions are granted to `service_role` alone, never to
 `anon` or `authenticated`. Migrations run over `DATABASE_URL`, a separate
 non-pooled connection.
+
+The stack's ports are fixed: the API on 54321, the database on 54322, Studio on
+54323 and Mailpit on 54324 (the shadow database is on 54320 and the pooler on
+54329), the payment emulator on 54390 and `pnpm dev` on 3000, the only origin
+the local `contact` function accepts. Several scripts and tests also write these
+addresses down (`scripts/local-env.mjs`, `tests/support/moyasar-emulator.ts`,
+`tests/integration/support.ts`), so moving a port in `supabase/config.toml`
+breaks them. Another Supabase project on the same machine holds the same ports
+by default: stop it first (`supabase stop --project-id <its id>`), or
+`supabase start` will not come up.
 
 `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres pnpm db:demo-catalog`
 seeds the local demo catalog (D37): three demo products
@@ -106,8 +121,15 @@ further members from `/admin/team`. A failed invite can leave an Auth user with
 no staff row; the next invite of that address adopts it (docs/operations.md,
 "Team invites and admin function errors").
 
-Sign in at `/admin/sign-in` with the bootstrapped email; the 6-digit code
-arrives at Mailpit, `http://127.0.0.1:54324` (`MAILPIT_URL`), not a real inbox.
+Sign in at `/admin/sign-in` with the bootstrapped email; the 8-digit code
+(`otp_length` in `supabase/config.toml`, round F2a) arrives at Mailpit,
+`http://127.0.0.1:54324` (`MAILPIT_URL`), not a real inbox. The e-mail step shows
+a Turnstile widget and «أرسل الرمز» waits for its token: locally the site key
+`pnpm db:env` writes is Cloudflare's always-pass test key and Auth checks the
+token against the always-pass test secret (`[auth.captcha]` in
+`supabase/config.toml`), but the widget's script still loads from Cloudflare, so
+offline the button stays off («التحقق غير متاح حاليًا.» or «تعذّر تحميل
+التحقق؛ حدّث الصفحة.»).
 Enrol the authenticator app at `/admin/security` before using `/admin/team`:
 invite, role change and revoke all require a TOTP code from the last 5 minutes.
 
@@ -168,8 +190,8 @@ coalescing.
 Signed-in owners and editors see a "المحتوى" link in `/admin`'s nav, leading
 to `/admin/content`: the six collections (`rooms`, `site_settings`, `posts`,
 `taxonomies`, `policies`, and `scenes`, whose one document `gallery` holds the
-scenes, C05). `/admin/content/[collection]` lists its documents — the four
-fixed rooms, the one `site_settings` document, the four policies and the `gallery` always appear
+scenes, C05). `/admin/content/[collection]` lists its documents — the five
+fixed room documents (started, built, passed, shelf, book), the one `site_settings` document, the four policies and the `gallery` always appear
 even before they have been edited; `posts` and `taxonomies` add a "جديد" control that
 creates a new document id (a generated uuid for posts, a typed slug for
 taxonomies).
@@ -198,7 +220,7 @@ preview stay outside the group, and the URLs do not change.
 "معاينة" opens `/admin/preview?id=<room>` (a journal post:
 `/admin/preview?collection=posts&id=<post>`) in a new tab: the latest saved
 draft, read under RLS and drawn with the public view component of the room or
-the post, for the four built rooms and the posts. The home page and the
+the post, for the five rooms and the posts. The home page and the
 scenes have no preview. "سجل النسخ" lists
 every saved version and can restore an older one as a new version.
 
@@ -426,6 +448,10 @@ pnpm check:copy      # Latin digits only, no placeholder copy (src, supabase/fun
 pnpm check:budgets   # public JavaScript budget, on out/
 pnpm check:export    # the static export has all 59 required files and holds no secret
 pnpm check           # lint + typecheck + check:frozen + check:copy + test
+pnpm audit --prod --audit-level=high   # runtime dependency advisories; CI runs it right after the install
+for index in supabase/functions/*/index.ts; do
+  deno check --no-lock --config "$(dirname "$index")/deno.json" "$index"
+done                 # the Edge Functions (Deno), which pnpm typecheck does not see; CI runs it on Linux
 ```
 
 `pnpm test:e2e` starts `pnpm dev` itself unless one is already running at
