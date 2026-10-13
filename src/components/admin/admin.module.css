@@ -528,10 +528,13 @@
   overflow-wrap: anywhere;
 }
 
-/* A code kept whole on its line in a table (a shipment's tracking number): the
-   browser may break after its hyphen, and a squeezed column would. */
-.whole {
-  white-space: nowrap;
+/* A code in a table (a shipment's tracking number): from 768px its column keeps
+   the usual codes, up to about 18 characters, on one line; a longer one, or a
+   narrower table, breaks (.break) rather than push the table past its box. */
+@media (min-width: 768px) {
+  .table td.cellCode {
+    min-inline-size: 20ch;
+  }
 }
 
 .metaList {
@@ -945,17 +948,12 @@ section .tableWrap {
     font-weight: 700;
   }
 
-  /* Cards show the full text wrapped, not the one-line ellipsis, and a code too
-     long for the card breaks. */
+  /* Cards show the full text wrapped, not the one-line ellipsis. */
   .responsive .cellEllipsis {
     max-inline-size: none;
     overflow: visible;
     white-space: normal;
     text-overflow: clip;
-  }
-
-  .responsive .whole {
-    white-space: normal;
   }
 }
 

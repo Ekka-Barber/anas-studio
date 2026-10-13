@@ -1,6 +1,6 @@
 {
  "label": "final5",
- "generatedAt": "2026-10-13T17:29:52.664Z",
+ "generatedAt": "2026-10-13T19:06:11.537Z",
  "clock": "2026-10-08T07:30:00.000Z",
  "browser": "Chromium 141.0.7390.37",
  "lenient": false,
@@ -1421,7 +1421,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1760
+   "ms": 1616
   },
   {
    "screen": "orders-view-resolution",
@@ -1456,7 +1456,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1525
+   "ms": 1449
   },
   {
    "screen": "orders-view-operations",
@@ -1491,7 +1491,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1416
+   "ms": 1429
   },
   {
    "screen": "orders-reconciliation",
@@ -1725,7 +1725,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1728
+   "ms": 1657
   },
   {
    "screen": "orders-view-dispute-form",
@@ -1760,7 +1760,7 @@
     "dir": "rtl"
    },
    "imageWidth": 360,
-   "ms": 1894
+   "ms": 1771
   },
   {
    "screen": "team-step-up-dialog",
@@ -3702,7 +3702,7 @@
    "badResponses": [],
    "overflowPx": 0,
    "offenders": [],
-   "pageHeight": 5786,
+   "pageHeight": 5824,
    "flags": [],
    "slices": 6,
    "eval": {
@@ -3720,7 +3720,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1893
+   "ms": 1821
   },
   {
    "screen": "orders-view-resolution",
@@ -3755,7 +3755,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1884
+   "ms": 1699
   },
   {
    "screen": "orders-view-operations",
@@ -3772,7 +3772,7 @@
    "badResponses": [],
    "overflowPx": 0,
    "offenders": [],
-   "pageHeight": 3759,
+   "pageHeight": 3797,
    "flags": [],
    "slices": 4,
    "eval": {
@@ -3790,7 +3790,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 1673
+   "ms": 1579
   },
   {
    "screen": "orders-reconciliation",
@@ -4014,7 +4014,7 @@
    "badResponses": [],
    "overflowPx": 0,
    "offenders": [],
-   "pageHeight": 5223,
+   "pageHeight": 5261,
    "flags": [],
    "slices": 6,
    "eval": {
@@ -4032,7 +4032,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2092
+   "ms": 1751
   },
   {
    "screen": "orders-view-dispute-form",
@@ -4049,7 +4049,7 @@
    "badResponses": [],
    "overflowPx": 0,
    "offenders": [],
-   "pageHeight": 6638,
+   "pageHeight": 6676,
    "flags": [],
    "slices": 7,
    "eval": {
@@ -4067,7 +4067,7 @@
     "dir": "rtl"
    },
    "imageWidth": 1440,
-   "ms": 2241
+   "ms": 2056
   },
   {
    "screen": "team-step-up-dialog",

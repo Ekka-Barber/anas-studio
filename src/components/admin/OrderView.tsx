@@ -770,12 +770,8 @@ export function OrderView() {
                           )}
                         </td>
                         <td data-label="شركة الشحن">{entry.carrier !== null && <bdi>{entry.carrier}</bdi>}</td>
-                        <td data-label="رقم التتبع">
-                          {entry.tracking !== null && (
-                            <span dir="ltr" className={styles.whole}>
-                              {entry.tracking}
-                            </span>
-                          )}
+                        <td data-label="رقم التتبع" className={styles.cellCode}>
+                          {entry.tracking !== null && ltrLong(entry.tracking)}
                         </td>
                         <td data-label="الإهداء">{item?.fulfillment === 'signed' && (entry.dedicationDone ? 'نعم' : 'لا')}</td>
                         <td data-label="وقت الشحن" className={styles.cellNowrap}>

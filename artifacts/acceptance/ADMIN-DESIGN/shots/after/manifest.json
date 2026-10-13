@@ -704,7 +704,7 @@
   {
    "name": "orders-view-1440.webp",
    "width": 1440,
-   "height": 5786
+   "height": 5824
   }
  ],
  "orders-view-resolution-1440": [
@@ -718,7 +718,7 @@
   {
    "name": "orders-view-operations-1440.webp",
    "width": 1440,
-   "height": 3759
+   "height": 3797
   }
  ],
  "orders-reconciliation-1440": [
@@ -760,14 +760,14 @@
   {
    "name": "orders-view-refund-confirm-1440.webp",
    "width": 1440,
-   "height": 5223
+   "height": 5261
   }
  ],
  "orders-view-dispute-form-1440": [
   {
    "name": "orders-view-dispute-form-1440.webp",
    "width": 1440,
-   "height": 6638
+   "height": 6676
   }
  ],
  "team-step-up-dialog-1440": [

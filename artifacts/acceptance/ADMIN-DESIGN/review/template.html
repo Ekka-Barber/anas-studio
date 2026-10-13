@@ -109,6 +109,7 @@ main { padding-block: clamp(24px, 3vw, 40px) 64px; }
 .index a[aria-current='true'] { background: var(--ink); color: var(--slip); }
 .index a[aria-current='true'] .glyph:not([data-state='change']) { border-color: var(--slip); }
 .index a[aria-current='true'] .glyph[data-state='approve'] { background: var(--slip); }
+.index a[aria-current='true'] .glyph[data-state='change'] { background: var(--slip); } /* the shape tells it apart; coral on the ink fill is under 3:1 */
 
 .screens { display: grid; gap: 28px; min-width: 0; }
 .screen { min-width: 0; display: grid; gap: 18px; background: var(--paper); border: 2px solid var(--ink); padding: clamp(14px, 1.8vw, 28px); scroll-margin-top: calc(var(--bar-h) + 16px); }
