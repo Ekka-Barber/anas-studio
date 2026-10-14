@@ -32,7 +32,7 @@ database invariants (vitest --mode db, the eight HTTP files excluded) -> success
        Tests  712 passed (712)
 the same commit on the branch: run 38483042049 (2026-10-13T23:14:49Z), success, every step
 
-# against the before-battery at 3a30a91 (before/, the owner's machine, 2026-10-05 and 10-06)
+# against the before-battery at 3a30a91 (before/, the owner's machine, 2026-10-05T19:20Z to 2026-10-07T00:27Z)
 lint, typecheck, check:frozen, check:copy: 0 then, 0 now
 unit: exit 1 then (6 timeouts of 2,213 under the load of 33 starting agents; both files passed alone); now 2,587 passed and 1 skipped, here and in the container (summary.txt), no timeout
 the Deno check: CI only then (green on 3a30a91); now green in CI and in the container
@@ -40,8 +40,9 @@ the migrations: 27 then; 30 now, each replayed from scratch by every CI run
 test:db: 31 files, 814 of 814 then (the eight HTTP files included, on the owner's machine); CI now runs the 23 files that need no edge runtime, 712 of 712; the eight wait for the owner's machine
 build and check:export: green then (59 required files, 372 text files); green now (59, 377)
 check:budgets: largest 148.9 KiB then; 149.7 KiB now, 0.3 KiB left (ISSUES I49 (5), I50 (2))
+between the two, the owner's local ratification at e800fc5 (ratify-e800fc5/, 2026-10-08): test:db 874 of 874 in 31 files (the eight HTTP files included), unit 2536 of 2536, budgets 149.4 KiB, and seven specs (the six F3 and D1 changed, and reader.spec) 185 passed, 0 failed
 e2e: batch 1 170 of 170, batch 2 7 failed and 302 passed (one load-induced store-admin failure and what depended on it), orders.spec 12 passed and 8 not run at the 15-minute limit, all on a loaded machine; not run now (below)
 
 # not run here: the owner's machine, from a fresh `supabase db reset` on his word (D48)
 work/scripts/battery-db.sh after: reset, imports, the whole test:db (31 files, the eight HTTP files among them), build, check:export, check:budgets
-work/scripts/battery-e2e.sh after: batch 1 (9 specs), batch 2 (7 specs) and orders.spec: every spec file in tests/e2e/ (17), the admin's eight among them, with the cases this continuation wrote and could not run
+work/scripts/battery-e2e.sh after: batch 1 (9 specs), batch 2 (7 specs) and orders.spec: every spec file in tests/e2e/ (17), the admin's eight among them, and the deep audit's two new cases, which never ran (the F3 and D1 cases ran green at e800fc5)
