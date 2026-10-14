@@ -3,7 +3,10 @@
 # Usage: battery-db.sh <label>   -> logs under artifacts/acceptance/FABLE-AUDIT/<label>/
 set -u
 cd "/c/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME" || exit 1
-L="$1"; E="artifacts/acceptance/FABLE-AUDIT/$L"; mkdir -p "$E"
+L="${1:?usage: battery-db.sh <label>}"
+# a label names a new evidence folder: never an accepted folder or a path, in any case (NTFS ignores case; 2026-10-14)
+case "${L,,}" in -*|*/*|*\\*|.|..|before|ratify-e800fc5|cloud|work) echo "refusing label: $L" >&2; exit 2 ;; esac
+E="artifacts/acceptance/FABLE-AUDIT/$L"; mkdir -p "$E"
 DB="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 S="$E/summary-db.txt"
 echo "# stack battery ($L), commit $(git rev-parse --short HEAD), $(date -u +%FT%TZ)" > "$S"

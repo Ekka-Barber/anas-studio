@@ -188,7 +188,7 @@ Before: `3a30a91` on the owner's machine, 2026-10-05T19:20Z to 2026-10-07T00:27Z
   - every gate (E01 to E05, E07 to E11) stays open, those FABLE-AUDIT touched included (E02, E03, E05, E07, E08);
   - nothing in FABLE-AUDIT closes one;
   - nothing Moyasar moved after D48 (3).
-- **The lock** is held in the cloud checkout. Item 2 of "Next work" releases it at FABLE-AUDIT's end. The owner's local lock file, paused on 2026-10-07, is released on his machine once he has read `HANDOFF-2026-10-07.md`.
+- **The lock:** the cloud continuation released its lock on 2026-10-14, after pushing the local close's prompt (`LOCAL-CLOSE-2026-10-14.md`). The owner's local lock file, paused on 2026-10-07, is released on his machine once he has read `HANDOFF-2026-10-07.md`; the local close asks him, records its recovery and takes its own.
 
 ## 6. Incidents and lessons
 
