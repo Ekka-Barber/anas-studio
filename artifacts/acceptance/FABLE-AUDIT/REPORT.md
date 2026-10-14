@@ -2,7 +2,7 @@
 
 **Asked by the owner (2026-10-05):** an independent deep audit of everything built at `3a30a91` (P08 through round 12b), then fix rounds with red and green proofs. After the audit's session died (2026-10-07), the owner moved the rest of the work to a cloud session (D48) and ruled that `main` moves only "after independent deep audit and verfication done by another agent better than you like FABLE", and on his word.
 
-**Scope.** The audit read `main` at `3a30a91`. The fixes run from there to `b3fa932`, which is `main` since 2026-10-14. This report closes no E-gate and no owner decision.
+**Scope.** The audit read `main` at `3a30a91`. The fixes run from there to `b3fa932`, the last commit that changed code; `main` holds it, and this report, since 2026-10-14. This report closes no E-gate and no owner decision.
 
 **In short.** Thirty-three finders wrote 508 entries, none critical; the orchestrator rated twelve findings high. Ten of the twelve are fixed or written into the plan. One waits for a round with a browser (the scenes lightbox's fit, DSN-PAGES-10), and one waits for the owner (a host for the films that answers Range requests with 206, VENDOR-PLAT-04). The audit's own fix rounds made defects too: its third wave traced six to them, five now fixed (one except for the wording of the `policies_reset` alert, ISSUES I55 (3)) and one recorded open, and two more were caught between rounds and fixed (section 6). The deep audit before `main` found no critical or high finding; its fixes were verified. CI is green on `main`. Five things wait:
 - the owner's machine: the database and e2e half of the after-battery at `b3fa932` (the cases F3 and D1 wrote ran green once, at `e800fc5`, section 1; the deep audit's two cases never ran);
