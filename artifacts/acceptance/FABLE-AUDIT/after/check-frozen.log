@@ -1,0 +1,5 @@
+
+> anas-studio@0.0.0 check:frozen /home/user/anas-studio
+> node scripts/check-frozen.mjs
+
+check:frozen OK — 50 files under deploy/ unchanged.

@@ -50,4 +50,8 @@ The contract's "(it accepts `--mode=open`)" now reads "(to accept `--mode=open`)
 
 ## Checks after the fixes
 
-In the container (Node 24.19.0): see the commit's message for the final run (lint, typecheck, the whole unit suite, check:frozen, check:copy, verify-plan, `git diff --check`). Not run here: the two new e2e cases and every Playwright suite (the owner's machine), the build and `check:budgets` (CI).
+In the container (Node 24.19.0), before the commit (no Edge Function changed): lint 0, typecheck 0, unit 2,587 passed and 1 skipped, check:frozen 0, check:copy 0, `PLANS/verify-plan.ps1`'s checks (through a read-only Node port) passed, `git diff --check` clean. Committed as `b3fa932`; CI run 38483042049 green, every step: `check:budgets` largest `checkout.html` 149.7 KiB of 150 (`orders.html` 148.4, `cart.html` 147.0), the database invariants 712 tests in 23 files. Not run here: the two new e2e cases and every Playwright suite (the owner's machine).
+
+## `main`
+
+On the owner's word (2026-10-14: asked whether to fast-forward `main` now, he answered "Yes, move main now"), `main` was fast-forwarded from `d4fa953` to `b3fa932` (18 commits, no force) at 10:18Z. CI on `main` at `b3fa932`, run 38548605552: every step green. The after-battery's CI part on the same commit is in `../after/` (`summary.txt`, `summary-ci.txt`).

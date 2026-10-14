@@ -1,0 +1,47 @@
+# the after-battery's CI part (after), commit b3fa932, CI on main: run 38548605552, job 115800756264, 2026-10-14T10:18:12Z to 10:23:40Z, ubuntu-24.04, every step success
+# CI starts its own Supabase (CLI 2.106.0) without the edge runtime and Mailpit, so it runs every database file except the eight that call a served Edge Function, and no Playwright suite
+install (pnpm 10.34.6, frozen lockfile) -> success
+audit (pnpm audit --prod --audit-level=high) -> success
+  No known vulnerabilities found
+lint -> success
+typecheck -> success
+unit (pnpm test) -> success
+  Test Files  70 passed (70)
+       Tests  2587 passed | 1 skipped (2588)
+check:frozen -> success
+  check:frozen OK — 50 files under deploy/ unchanged.
+check:copy -> success
+  check:copy OK — 232 source files.
+deno check, the ten functions (Deno 2.9.6) -> success (10 of 10)
+supabase start -> success
+  30 migrations applied from scratch: exactly the 30 files in the tree, the last three FABLE-AUDIT's M1a, M1b and M2
+db:import -> success
+  Imported 7 document(s), skipped 0 already published.
+db:demo-catalog -> success
+  Demo catalog written: 3 product(s), 5 variant(s), 7 city rate(s), 1 coupon(s), 3 policy document(s), 1 settings update(s).
+db:env -> success
+build (Next.js 16.3.8, the static export) -> success
+  64 static pages
+check:export -> success (ci-check-export.log)
+  OK 59 required files present; 377 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)
+check:budgets -> success (ci-check-budgets.log)
+  OK largest 149.7 KiB (budget 150.0 KiB): checkout.html 149.7, orders.html 148.4, cart.html 147.0
+database invariants (vitest --mode db, the eight HTTP files excluded) -> success (ci-db-invariants.log)
+  Test Files  23 passed (23)
+       Tests  712 passed (712)
+the same commit on the branch: run 38483042049 (2026-10-13T23:14:49Z), success, every step
+
+# against the before-battery at 3a30a91 (before/, the owner's machine, 2026-10-05 and 10-06)
+lint, typecheck, check:frozen, check:copy: 0 then, 0 now
+unit: exit 1 then (6 timeouts of 2,213 under the load of 33 starting agents; both files passed alone); now 2,587 passed and 1 skipped, here and in the container (summary.txt), no timeout
+the Deno check: CI only then (green on 3a30a91); now green in CI and in the container
+the migrations: 27 then; 30 now, each replayed from scratch by every CI run
+test:db: 31 files, 814 of 814 then (the eight HTTP files included, on the owner's machine); CI now runs the 23 files that need no edge runtime, 712 of 712; the eight wait for the owner's machine
+build and check:export: green then (59 required files, 372 text files); green now (59, 377)
+check:budgets: largest 148.9 KiB then; 149.7 KiB now, 0.3 KiB left (ISSUES I49 (5), I50 (2))
+e2e: batch 1 170 of 170, batch 2 7 failed and 302 passed (one load-induced store-admin failure and what depended on it), orders.spec 12 passed and 8 not run at the 15-minute limit, all on a loaded machine; not run now (below)
+
+# not run here: the owner's machine, from a fresh `supabase db reset` on his word (D48)
+work/scripts/battery-db.sh after: reset, imports, the whole test:db (31 files, the eight HTTP files among them), build, check:export, check:budgets
+work/scripts/battery-e2e.sh after: batch 1 (9 specs), batch 2 (7 specs) and orders.spec: every spec file in tests/e2e/ (17), the admin's eight among them, with the cases this continuation wrote and could not run

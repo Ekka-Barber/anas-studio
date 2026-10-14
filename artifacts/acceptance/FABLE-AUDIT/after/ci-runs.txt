@@ -1,0 +1,54 @@
+# GitHub Actions, workflow CI, repository Ekka-Barber/anas-studio, read through the GitHub API on 2026-10-14 between 10:18Z and 10:26Z
+# main: the run on d4fa953 (where FABLE-AUDIT's packaging left main) and the run on b3fa932 (main fast-forwarded on the owner's word, 2026-10-14T10:18Z)
+38548605552	2026-10-14T10:18:09Z	main	b3fa932	completed	success	fix(fable-audit): the deep audit before main, and its fixes
+37680053882	2026-10-07T20:10:51Z	main	d4fa953	completed	success	docs(fable-audit): the CI addendum — run 1's demo-seed failure and ru…
+
+# claude/amazing-planck-qv3f7a (the cloud continuation, D48): all 18 runs, newest first; the two cancelled runs were cancelled by the next push, whose run covers their tree
+38483042049	2026-10-13T23:14:49Z	claude/amazing-planck-qv3f7a	b3fa932	completed	success	fix(fable-audit): the deep audit before main, and its fixes
+38476067045	2026-10-13T22:11:31Z	claude/amazing-planck-qv3f7a	264360e	completed	success	plan: the plan files after P08, FABLE-AUDIT and its cloud continuatio…
+38468642741	2026-10-13T21:11:03Z	claude/amazing-planck-qv3f7a	b46f174	completed	success	docs(fable-audit): round D, the operations documents and the P08 cont…
+38454672657	2026-10-13T19:25:10Z	claude/amazing-planck-qv3f7a	4001ee7	completed	success	FABLE-AUDIT D: the cloud brief of round D
+38454535252	2026-10-13T19:24:06Z	claude/amazing-planck-qv3f7a	e5e9aef	completed	cancelled	docs(admin): the review page as published to the owner (873a479)
+38452892063	2026-10-13T19:11:39Z	claude/amazing-planck-qv3f7a	873a479	completed	success	fix(admin): the fix check's findings (AD-G1 to AD-G3)
+38441417553	2026-10-13T17:46:55Z	claude/amazing-planck-qv3f7a	bc9c743	completed	success	fix(admin): the D49 final audit's fixes (AD-F1 to AD-F8)
+38425748094	2026-10-13T15:52:22Z	claude/amazing-planck-qv3f7a	e8072e5	completed	success	feat(admin): D49, the admin redesigned to the public site's standard,…
+38406727481	2026-10-13T13:39:22Z	claude/amazing-planck-qv3f7a	107054c	completed	success	fix(fable-audit): round S, the focused audit's fixes (S-F1 to S-F3)
+38399336312	2026-10-13T12:42:55Z	claude/amazing-planck-qv3f7a	4543c99	completed	success	fix(fable-audit): round S, supply chain, scripts and hygiene, with it…
+37723662461	2026-10-08T03:38:11Z	claude/amazing-planck-qv3f7a	e800fc5	completed	success	FABLE-AUDIT S: the cloud brief of round S
+37722653200	2026-10-08T03:25:30Z	claude/amazing-planck-qv3f7a	66c5744	completed	success	plan: D49 (the admin redesign) and D50 (P12 becomes «لوحة المشاريع»)
+37722354598	2026-10-08T03:21:48Z	claude/amazing-planck-qv3f7a	79a1e9c	completed	cancelled	fix(fable-audit): round D1's non-visual part, with its two audits' fixes
+37716782586	2026-10-08T02:13:09Z	claude/amazing-planck-qv3f7a	df642fe	completed	success	FABLE-AUDIT D1: the cloud brief of round D1's non-visual part
+37706544382	2026-10-08T00:12:41Z	claude/amazing-planck-qv3f7a	16397e5	completed	success	fix(fable-audit): round F3b, the admin and store screens of F3, with …
+37700513202	2026-10-07T23:08:31Z	claude/amazing-planck-qv3f7a	913b3af	completed	success	fix(fable-audit): F3a re-audit findings: the kept refund request test…
+37698313006	2026-10-07T22:46:42Z	claude/amazing-planck-qv3f7a	ddbf92b	completed	success	fix(fable-audit): round F3a, the functions-and-money half of F3, with…
+37690412621	2026-10-07T21:34:49Z	claude/amazing-planck-qv3f7a	60b6aff	completed	success	fix(fable-audit): F3-4, the shipping correction calls fulfillment_cor…
+
+# steps of the run on main's head b3fa932 (run 38548605552, job 115800756264, ubuntu-24.04, 10:18:12Z to 10:23:40Z)
+install, lint, typecheck, test, static export	Set up job	success
+install, lint, typecheck, test, static export	Check out the repository	success
+install, lint, typecheck, test, static export	Install pnpm	success
+install, lint, typecheck, test, static export	Install Node.js	success
+install, lint, typecheck, test, static export	Install dependencies	success
+install, lint, typecheck, test, static export	Audit the runtime dependencies	success
+install, lint, typecheck, test, static export	Lint	success
+install, lint, typecheck, test, static export	Typecheck	success
+install, lint, typecheck, test, static export	Unit tests	success
+install, lint, typecheck, test, static export	Frozen design sources unchanged	success
+install, lint, typecheck, test, static export	Copy rules	success
+install, lint, typecheck, test, static export	Install Deno	success
+install, lint, typecheck, test, static export	Type check the Edge Functions	success
+install, lint, typecheck, test, static export	Install the Supabase CLI	success
+install, lint, typecheck, test, static export	Start the local Supabase stack	success
+install, lint, typecheck, test, static export	Import content into the local database	success
+install, lint, typecheck, test, static export	Seed the demo catalog	success
+install, lint, typecheck, test, static export	Write .env.local from the local stack	success
+install, lint, typecheck, test, static export	Build the static site	success
+install, lint, typecheck, test, static export	Static export is complete and holds no secret	success
+install, lint, typecheck, test, static export	Public JavaScript budget	success
+install, lint, typecheck, test, static export	Database invariants (the files that need no edge runtime)	success
+install, lint, typecheck, test, static export	Post Install the Supabase CLI	success
+install, lint, typecheck, test, static export	Post Install Deno	success
+install, lint, typecheck, test, static export	Post Install Node.js	success
+install, lint, typecheck, test, static export	Post Install pnpm	success
+install, lint, typecheck, test, static export	Post Check out the repository	success
+install, lint, typecheck, test, static export	Complete job	success

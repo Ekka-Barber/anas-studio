@@ -1,0 +1,197 @@
+# CI run 38548605552 (main at b3fa932, 2026-10-14), step "Database invariants (the files that need no edge runtime)", on the stack the run started (every migration replayed from scratch, then db:import, db:demo-catalog, db:env); GitHub's timestamps removed, the output otherwise as logged
+##[group]Run pnpm exec vitest run --mode db --exclude "tests/integration/{staff-admin,checkout-http,disputes-http,notify-http,orders-http,payment-http,refunds-http,order-emails}.test.ts"
+pnpm exec vitest run --mode db --exclude "tests/integration/{staff-admin,checkout-http,disputes-http,notify-http,orders-http,payment-http,refunds-http,order-emails}.test.ts"
+shell: /usr/bin/bash -e {0}
+env:
+  PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+  SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+  TEST_ENV: local
+  DATABASE_URL: ***127.0.0.1:54322/postgres
+##[endgroup]
+
+ RUN  v5.0.1 /home/runner/work/anas-studio/anas-studio
+
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/payment.test.ts (83 tests) 4016ms
+   ✓ owner alerts (2)
+     ✓ creates one outbox row per active owner, none for a revoked owner or operations, and a second identical alert creates none 316ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/order-operations.test.ts (83 tests) 19729ms
+   ✓ fulfillment_update (14)
+     ✓ answers two identical calls at once with one move, one mail and one audit row 556ms
+   ✓ return_receive (7)
+     ✓ adds the stock once when two calls arrive at once: one receives, the other is refused 552ms
+   ✓ order_resolve (9)
+     ✓ resolves once when two calls arrive at once: one resolves, the other is refused, the stock moves once 549ms
+   ✓ locks (3)
+     ✓ every writer waits for the order's row before it decides, and finishes when it is freed 4608ms
+     ✓ decides on what it reads after the locks: a change committed while it waited is what it sees 4335ms
+     ✓ a restock waits for the variant's row, after the order and the return, and then applies 928ms
+   ✓ races between staff and the money functions (4)
+     ✓ shipping an item against a refund of that same item: no deadlock, and nothing ships for money that is going back, whichever comes first 1082ms
+     ✓ resolving an order against a refund of that same order: no deadlock, and the end state is one of the two valid orders of events 1081ms
+     ✓ receiving, deciding, a new return request and a file attached to a waiting digital line, all at one order: no deadlock, and each does what it does 1059ms
+     ✓ receiving goods against deciding the request: no deadlock, and the end state is one of the two valid orders of events 1088ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/refunds.test.ts (77 tests) 3180ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/checkout.test.ts (56 tests) 6123ms
+   ✓ grants and access (D32) (8)
+     ✓ anon and authenticated cannot execute the three checkout functions; service_role can 631ms
+     ✓ customers: the owner and operations read them, an editor and a revoked owner read nothing, nobody inserts or deletes, and only the owner corrects a name or phone 780ms
+     ✓ an editor and an operations member cannot insert or update catalog rows 436ms
+   ✓ concurrency (separate connections) (3)
+     ✓ two creates for a coupon limited to one use, on different variants, forced to race: exactly one keeps it 3019ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/notify.test.ts (68 tests) 15384ms
+   ✓ notify_subscribe (15)
+     ✓ decides under the availability row: a sign-up that waited behind a sweep which saw a restock stores nothing and does not undo the sweep 1530ms
+     ✓ makes one row and one mail of two sign-ups at once for one address and variant 3023ms
+   ✓ notify_token_info, notify_confirm and notify_unsubscribe (8)
+     ✓ answers two confirms at once with the same success, and two unsubscribes at once with one success and one NOT_FOUND 6033ms
+   ✓ finance.availability_sweep (15)
+     ✓ queues each mail once when two sweeps run at once 3044ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/stats.test.ts (47 tests) 4582ms
+   ✓ dispute_record (17)
+     ✓ two calls at once for the same place end the same way: one inserts, the other answers that row, never an error 1659ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/privacy-requests.test.ts (24 tests) 4794ms
+   ✓ privacy_buyer_erase (9)
+     ✓ locks the address's orders before it touches any notification or mail row: a writer that holds an order never meets a row the erase already took 4055ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/orders-access.test.ts (40 tests) 4178ms
+   ✓ recovery (11)
+     ✓ agrees on one new token when two requests for the same expired link apply at once: the version guard 435ms
+   ✓ return_request_create (10)
+     ✓ reads under no lock and compares the token before it locks the order: with the order held, the page and a wrong guess answer at once, the right token waits 1535ms
+     ✓ lets three requests for the last units race: one is taken, the others are told the quantity is no longer there 444ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/outbox.test.ts (31 tests) 4950ms
+   ✓ claiming (9)
+     ✓ a contact notice for a member who is no longer an active owner or operations is exhausted, never sent (S03.5) 434ms
+     ✓ a notice swept as RECIPIENT_INACTIVE is left out of outbox_attention; another exhausted row stays 301ms
+   ✓ a delivery event from a webhook transaction that overlaps the accept (1)
+     ✓ is applied to the row, not lost (S04.4 race) 519ms
+   ✓ outbox_close (1)
+     ✓ closes an uncertain or an exhausted mail: CLOSED_BY_STAFF, out of the attention list, never claimed or replayed, one audit row; any other status is BAD_STATUS 612ms
+   ✓ job runs (3)
+     ✓ job_run_record stores a run, and job_runs_latest is for owner and operations only 545ms
+     ✓ outbox_due_since answers owner and operations, refuses an editor, and no API role runs the finance one 540ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/audit-fixes.test.ts (20 tests) 1537ms
+   ✓ S01.4: no password sign-in (1)
+     ✓ a password grant is refused with 403 even for a staff member who has a password; the emailed code and a refresh still work 527ms
+   ✓ GAP-G5-1: publishing takes the document lock before any row lock (2)
+     ✓ archive_document waits for the document lock instead of racing a publish 633ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/download.test.ts (22 tests) 5996ms
+   ✓ download_issue (6)
+     ✓ compares the order token before it locks the entitlement: with the file held, a wrong guess is answered at once and the right token waits 1529ms
+   ✓ download_redeem (5)
+     ✓ never exceeds max_uses when redeems arrive at once, on two connections or five 855ms
+   ✓ paid_asset_set (7)
+     ✓ refuses a caller that is not an active owner with 42501, and writes nothing 327ms
+     ✓ fills each waiting entitlement exactly once when two files are attached at once 550ms
+     ✓ does not deadlock with a refund of the order that waits for the file, and mails only what was filled 530ms
+     ✓ fills an order that began to wait after the first read, and answers 55P03 and changes nothing when another writer holds it 1058ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/media-security.test.ts (23 tests) 4581ms
+   ✓ media_ticket (6)
+     ✓ two claims of one ticket at the same time: exactly one wins, the other waits and gets 55000 631ms
+   ✓ operations and inactive staff get nothing from the library functions (2)
+     ✓ media_where_used is refused (42501) for operations and for an inactive editor 369ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/email-delivery.test.ts (15 tests) 1040ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/commerce-settings.test.ts (19 tests) 1969ms
+   ✓ commerce_settings_get (3)
+     ✓ an editor or operations member gets nothing 408ms
+ ✓ tests/integration/static-site.test.ts (31 tests) 123ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/publish.test.ts (14 tests) 3416ms
+   ✓ publishDocument (4)
+     ✓ an operations member is refused, by the admin and by the database 385ms
+   ✓ scheduling, unscheduling, archiving and the media usage read (2)
+     ✓ an operations member and a revoked editor are refused by each with insufficient_privilege, and nothing changes 638ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/policy-approval.test.ts (8 tests) 1808ms
+   ✓ a policy publish that overlaps an approval (1)
+     ✓ an approval that starts while a publish of one policy holds the settings row waits for it, then approves the new seq, never the old one 1032ms
+ ✓ tests/integration/buyer-retention.test.ts (4 tests) 115ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+stderr | tests/integration/forms.test.ts > contact function email grammar > accepts a normal address
+{"requestId":"93f69b7b-b909-4b56-9198-c51ad96ed667","status":503,"code":"TURNSTILE_UNAVAILABLE"}
+
+stderr | tests/integration/forms.test.ts > contact function email grammar > accepts an internationalised Saudi domain, validated and stored as punycode
+{"requestId":"88dc8349-0a73-49b1-81c3-2092be83ec33","status":503,"code":"TURNSTILE_UNAVAILABLE"}
+
+ ✓ tests/integration/forms.test.ts (13 tests) 1850ms
+   ✓ contact_submit (5)
+     ✓ stores the message and queues one notice per active owner or operations member 568ms
+   ✓ contacts are server-only (D31: no admin inbox) (4)
+     ✓ owner, operations, editor, revoked and anonymous callers read nothing through the Data API 742ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/variant-admin-info.test.ts (9 tests) 1276ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/staff.test.ts (9 tests) 1937ms
+   ✓ owner (1)
+     ✓ reads all staff, the directory and audit, but cannot write staff through the Data API 334ms
+   ✓ current_staff_role (2)
+     ✓ a revoked owner keeps its session but reads no audit rows or directory, and cannot write staff 310ms
+   ✓ audit_events is append-only (2)
+     ✓ no staff JWT and not the service role can change or delete an audit row through the Data API, and the trigger refuses even the owner of the table 597ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/cron-jobs.test.ts (3 tests) 558ms
+   ✓ cron_failures_recent (2)
+     ✓ is for an owner or operations only: anon has no grant, an editor is refused; security definer with an empty search_path 418ms
+Stopped services: [supabase_inbucket_ANASAQ.ME supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_pg_meta_ANASAQ.ME supabase_studio_ANASAQ.ME supabase_edge_runtime_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+ ✓ tests/integration/content.test.ts (13 tests) 217ms
+
+ Test Files  23 passed (23)
+      Tests  712 passed (712)
+   Start at  10:21:36
+   Duration  116.98s (tests 81%, import 18%, transform 1%)
+

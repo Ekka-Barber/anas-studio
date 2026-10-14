@@ -1,0 +1,38 @@
+# CI run 38548605552 (main at b3fa932, 2026-10-14), step "Public JavaScript budget"; GitHub's timestamps removed, the output otherwise as logged
+##[group]Run pnpm check:budgets
+pnpm check:budgets
+shell: /usr/bin/bash -e {0}
+env:
+  PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+  SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+##[endgroup]
+
+> anas-studio@0.0.0 check:budgets /home/runner/work/anas-studio/anas-studio
+> node scripts/check-budgets.mjs
+
+check:budgets
+  404.html     initial JS gzip 136.9 KiB (6 scripts)
+  book.html    initial JS gzip 141.3 KiB (9 scripts)
+  built.html   initial JS gzip 139.7 KiB (9 scripts)
+  cart.html    initial JS gzip 147.0 KiB (9 scripts)
+  checkout.html initial JS gzip 149.7 KiB (10 scripts)
+  checkout/return.html initial JS gzip 145.5 KiB (9 scripts)
+  contact.html initial JS gzip 141.2 KiB (9 scripts)
+  index.html   initial JS gzip 138.0 KiB (8 scripts)
+  journal.html initial JS gzip 139.2 KiB (9 scripts)
+  notify/confirm.html initial JS gzip 145.2 KiB (9 scripts)
+  notify/unsubscribe.html initial JS gzip 145.2 KiB (9 scripts)
+  orders.html  initial JS gzip 148.4 KiB (9 scripts)
+  passed.html  initial JS gzip 139.7 KiB (9 scripts)
+  policies/delivery.html initial JS gzip 138.0 KiB (8 scripts)
+  policies/privacy.html initial JS gzip 138.0 KiB (8 scripts)
+  policies/refund.html initial JS gzip 138.0 KiB (8 scripts)
+  policies/store.html initial JS gzip 138.0 KiB (8 scripts)
+  scenes.html  initial JS gzip 140.1 KiB (9 scripts)
+  shelf.html   initial JS gzip 138.0 KiB (8 scripts)
+  started.html initial JS gzip 139.7 KiB (9 scripts)
+  store.html   initial JS gzip 142.0 KiB (9 scripts)
+  store/demo-khous.html initial JS gzip 145.2 KiB (9 scripts)
+  store/demo-moonlight-cup.html initial JS gzip 145.2 KiB (9 scripts)
+  store/demo-room-wallpapers.html initial JS gzip 145.2 KiB (9 scripts)
+  OK largest 149.7 KiB (budget 150.0 KiB)

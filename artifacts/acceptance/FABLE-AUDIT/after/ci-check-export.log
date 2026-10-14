@@ -1,0 +1,15 @@
+# CI run 38548605552 (main at b3fa932, 2026-10-14), step "Static export is complete and holds no secret"; GitHub's timestamps removed, the output otherwise as logged
+##[group]Run pnpm check:export
+pnpm check:export
+shell: /usr/bin/bash -e {0}
+env:
+  PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+  SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+##[endgroup]
+
+> anas-studio@0.0.0 check:export /home/runner/work/anas-studio/anas-studio
+> node scripts/check-export.mjs
+
+check:export
+  OK 59 required files present; 377 text files scanned, no secrets
+  OK demo content («تجريبي») on 7 page(s), allowed only in a build against a loopback Supabase (http://127.0.0.1:54321); a production build fails here (I40)

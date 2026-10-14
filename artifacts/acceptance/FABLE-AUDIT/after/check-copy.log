@@ -1,0 +1,5 @@
+
+> anas-studio@0.0.0 check:copy /home/user/anas-studio
+> node scripts/check-copy.mjs
+
+check:copy OK — 232 source files.

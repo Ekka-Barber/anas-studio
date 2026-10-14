@@ -32,6 +32,13 @@ The owner stopped the session ("stop here, will continue after limit reset"). No
 - `next-env.d.ts` is clean; `.next/e2e` removed. `.claude/launch.json`, `.claude/settings.json` and `.claude/settings.json.tmp` were already dirty before the audit (2026-10-03) and were left alone.
 
 
+## Update 2026-10-14 13:30 Riyadh: `main` moved; the after-battery's CI part (the cloud continuation)
+
+- Since the update of 2026-10-08: rounds F3, D1 (its non-visual part), S, the admin redesign (D49), D and the plan files, then the deep audit by four Claude Fable 5.1 auditors and its fixes (`b3fa932`), each recorded in `cloud/` (the admin redesign in `artifacts/acceptance/ADMIN-DESIGN/`); CI green on every finished run (`after/ci-runs.txt`).
+- On the owner's word (2026-10-14), `main` was fast-forwarded from `d4fa953` to `b3fa932`, no force; CI on `main` green (run 38548605552).
+- The after-battery's CI part on `b3fa932`, set against `before/`: `after/summary.txt` (lint, typecheck, unit 2,587 passed and 1 skipped, check:frozen, check:copy and the Deno check of the ten functions, in the container) and `after/summary-ci.txt` (`main`'s CI run: the audit gate, the 30 migrations replayed from scratch, the build, the export check, the budget at 149.7 KiB of 150, the database invariants 712 of 712).
+- Left: REPORT.md; on the owner's machine, `work/scripts/battery-db.sh after` and `battery-e2e.sh after` from a fresh reset on his word, his review marks on the admin redesign and the admin suites. The lock stays held in the cloud checkout.
+
 ## Update 2026-10-08 00:20 Riyadh: the cloud continuation takes over (Claude Opus 5.5 at effort max, under D48)
 
 Written by the cloud continuation session (Claude Code on the web, Claude Opus 5.5 at effort max; session `session_01FQkKvtRHvBR6eKdAaVaCnf`), which orchestrates the rest of the audit from the GitHub repository under D48.

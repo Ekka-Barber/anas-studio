@@ -1,0 +1,16 @@
+# the after-battery's stack-free part (after), commit b3fa932, 2026-10-14T10:20:22Z
+# in the cloud container: Node v24.19.0, deno 2.9.6 (stable, release, x86_64-unknown-linux-gnu), pnpm 10.34.6
+pnpm lint -> exit 0 (45s)
+pnpm typecheck -> exit 0 (7s)
+pnpm test -> exit 0 (33s)
+  Test Files  70 passed (70)
+       Tests  2587 passed | 1 skipped (2588)
+pnpm check:frozen -> exit 0 (1s)
+pnpm check:copy -> exit 0 (1s)
+deno check, the ten functions -> exit 0 (21s)
+  10 functions checked
+tree clean after the battery
+done 2026-10-14T10:22:20Z
+then, on the same commit (the only change in the tree: this untracked after/ folder):
+verify-plan (PLANS/verify-plan.ps1's checks through a read-only Node port; no PowerShell here) -> exit 0 at 2026-10-14T10:24:33Z
+  PASS: 13 documents; 13 packages; 40 unique scope owners; 162 frozen hashes.

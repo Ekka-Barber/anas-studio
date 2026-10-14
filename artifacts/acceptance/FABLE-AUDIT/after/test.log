@@ -1,0 +1,16 @@
+
+> anas-studio@0.0.0 test /home/user/anas-studio
+> vitest run
+
+
+ RUN  v5.0.1 /home/user/anas-studio
+
+
+ Test Files  70 passed (70)
+      Tests  2587 passed | 1 skipped (2588)
+   Start at  10:21:27
+   Duration  29.74s (tests 75%, import 15%, transform 9%, worker 1%)
+
+    Isolate  70 workers spawned · ~143ms startup each (spawn + environment, per file)
+             at least ~3.19s faster with isolate: false — reuses workers across files instead of one per file
+
