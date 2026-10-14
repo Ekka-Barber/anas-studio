@@ -39,6 +39,14 @@ The owner stopped the session ("stop here, will continue after limit reset"). No
 - The after-battery's CI part on `b3fa932`, set against `before/`: `after/summary.txt` (lint, typecheck, unit 2,587 passed and 1 skipped, check:frozen, check:copy and the Deno check of the ten functions, in the container) and `after/summary-ci.txt` (`main`'s CI run: the audit gate, the 30 migrations replayed from scratch, the build, the export check, the budget at 149.7 KiB of 150, the database invariants 712 of 712).
 - Left: REPORT.md; on the owner's machine, `work/scripts/battery-db.sh after` and `battery-e2e.sh after` from a fresh reset on his word, his review marks on the admin redesign and the admin suites. The lock stays held in the cloud checkout.
 
+## Update 2026-10-08 ~18:10 Riyadh: the resume note for the cloud continuation (ZCode)
+
+`CLOUD-RESUME-2026-10-08.md` beside this file is the wrap-up for the cloud session when it comes back live: where it stopped (after the S brief, `e800fc5`), the local ratification of that commit (below), its first task (audit `ef3196d`, the ratification evidence, against its own logs), and the original plan from round S onward — with S-3, the HELD visual round and the stack/e2e batteries marked as the owner's-machine lanes. The paste prompt for the owner is at the end of that note.
+
+## Update 2026-10-08 ~17:35 Riyadh: the cloud branch locally ratified (ZCode, owner-dispatched, verification only)
+
+The cloud continuation stopped after committing the round S brief (`e800fc5`, 06:38 Riyadh; CI green; nothing mid-flight lost — the S fix worker was never dispatched). At the owner's word, ZCode (GLM-5.3) ran the local ratification of that commit on the owner's machine: from-scratch stack, the whole integration suite (874/874, the eight edge-runtime HTTP files included — the set CI cannot run), lint/typecheck/unit (2,536/2,536, the local-only drift check included), build, export (no secrets), budgets (149.4 of 150.0), and all seven never-run Playwright specs (185 passed: no-js, reader, cms, orders-money, orders-admin, cart-checkout, orders — `orders.spec` in 6.2 minutes, so the baseline timeout was machine load). Everything green; nothing the cloud committed fails anywhere it had never run. Full record: `ratify-e800fc5/RECORD.md`. Still open: the HELD visual round, F3-16 (g) (owner decision), rounds S and D, the plan files, the after-battery, REPORT.md, and — per the owner's rule below — the independent deep audit before `main` moves.
+
 ## Update 2026-10-08 00:20 Riyadh: the cloud continuation takes over (Claude Opus 5.5 at effort max, under D48)
 
 Written by the cloud continuation session (Claude Code on the web, Claude Opus 5.5 at effort max; session `session_01FQkKvtRHvBR6eKdAaVaCnf`), which orchestrates the rest of the audit from the GitHub repository under D48.

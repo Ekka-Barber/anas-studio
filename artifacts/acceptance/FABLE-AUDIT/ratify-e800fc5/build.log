@@ -1,0 +1,88 @@
+▲ Next.js 16.3.5 (Turbopack)
+- Environments: .env.local, .env
+✓ Running next.config.ts took 159ms
+- Experiments (use with caution):
+  ✓ globalNotFound
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 4.4s
+  Running TypeScript ...
+  Finished TypeScript in 31.0s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/64) ...
+  Generating static pages using 11 workers (16/64) 
+  Generating static pages using 11 workers (32/64) 
+  Generating static pages using 11 workers (48/64) 
+✓ Generating static pages using 11 workers (64/64) in 1078ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin
+├ ○ /admin/content
+├   /admin/content/[collection]
+│ ├ ● /admin/content/site_settings
+│ ├ ● /admin/content/rooms
+│ ├ ● /admin/content/posts
+│ └ ● [+3 more paths]
+├   /admin/content/[collection]/edit
+│ ├ ● /admin/content/site_settings/edit
+│ ├ ● /admin/content/rooms/edit
+│ ├ ● /admin/content/posts/edit
+│ └ ● [+3 more paths]
+├ ○ /admin/email
+├ ○ /admin/media
+├ ○ /admin/orders
+├ ○ /admin/orders/reconciliation
+├ ○ /admin/orders/view
+├ ○ /admin/preview
+├ ○ /admin/security
+├ ○ /admin/settings
+├ ○ /admin/sign-in
+├ ○ /admin/stats
+├ ○ /admin/store
+├   /admin/store/[table]
+│ ├ ● /admin/store/products
+│ ├ ● /admin/store/shipping-rates
+│ ├ ● /admin/store/coupons
+│ └ ● [+2 more paths]
+├   /admin/store/[table]/edit
+│ ├ ● /admin/store/products/edit
+│ ├ ● /admin/store/variants/edit
+│ ├ ● /admin/store/shipping-rates/edit
+│ └ ● [+2 more paths]
+├ ○ /admin/team
+├ ○ /apple-icon.png
+├ ○ /book
+├ ○ /built
+├ ○ /cart
+├ ○ /checkout
+├ ○ /checkout/return
+├ ○ /contact
+├ ○ /icon.svg
+├ ○ /journal
+├   /journal/[slug]
+│ └ ● /journal/_
+├ ○ /notify/confirm
+├ ○ /notify/unsubscribe
+├ ○ /orders
+├ ○ /passed
+├   /policies/[slug]
+│ ├ ● /policies/store
+│ ├ ● /policies/delivery
+│ ├ ● /policies/refund
+│ └ ● /policies/privacy
+├ ○ /scenes
+├ ○ /shelf
+├ ○ /started
+├ ○ /store
+└   /store/[slug]
+  ├ ● /store/demo-room-wallpapers
+  ├ ● /store/demo-khous
+  └ ● /store/demo-moonlight-cup
+
+
+○  (Static)  prerendered as static content
+●  (SSG)     prerendered as static HTML (uses generateStaticParams)
+

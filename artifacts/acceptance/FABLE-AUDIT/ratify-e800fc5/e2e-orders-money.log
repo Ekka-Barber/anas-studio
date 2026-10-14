@@ -1,0 +1,55 @@
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+
+Running 36 tests using 1 worker
+
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+Stopped services: [supabase_realtime_ANASAQ.ME supabase_imgproxy_ANASAQ.ME supabase_analytics_ANASAQ.ME supabase_vector_ANASAQ.ME supabase_pooler_ANASAQ.ME]
+A new version of Supabase CLI is available: v2.120.0 (currently installed v2.106.0)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
+  ok  1 [chromium] › tests\e2e\orders-money.spec.ts:431:7 › at 360px › the owner › the order view: the payment’s events, and the owner’s money controls where they belong (1.4s)
+  ok  2 [chromium] › tests\e2e\orders-money.spec.ts:472:7 › at 360px › the owner › the refund form: what is left, the refusals under the fields, the confirmation, and one request that carries one key through the step-up (11.7s)
+  ok  3 [chromium] › tests\e2e\orders-money.spec.ts:581:7 › at 360px › the owner › every answer of a refund: made, sent and not yet confirmed, refused by the gateway, refused by the function, a refund the ledger lacks, a reply that cannot be read (13.6s)
+  ok  4 [chromium] › tests\e2e\orders-money.spec.ts:681:7 › at 360px › the owner › a network failure keeps the confirmation and the key, a change renews the key, and a double press sends one request (14.8s)
+  ok  5 [chromium] › tests\e2e\orders-money.spec.ts:724:7 › at 360px › the owner › an outage that takes the re-read down with the call leaves the order drawn with its confirmation and key, and the repeat is the same request (6.5s)
+  ok  6 [chromium] › tests\e2e\orders-money.spec.ts:755:7 › at 360px › the owner › a reading that fails after any other action leaves the order drawn too, so a refund waiting for its repeat keeps its key (8.6s)
+  ok  7 [chromium] › tests\e2e\orders-money.spec.ts:783:7 › at 360px › the owner › closing the code dialog says nothing and gives the focus back to the control that asked for it, the refund and the external record, and a repeat is the same request (8.8s)
+  ok  8 [chromium] › tests\e2e\orders-money.spec.ts:836:7 › at 360px › the owner › a review payment: refunded for what is left of it, with an empty allocation, the order named when it has one (7.4s)
+  ok  9 [chromium] › tests\e2e\orders-money.spec.ts:872:7 › at 360px › the owner › the rechecks: an attempt and a refund in flight, no code asked, and the order read again (9.5s)
+  ok 10 [chromium] › tests\e2e\orders-money.spec.ts:909:7 › at 360px › the owner › a refund made at Moyasar’s own dashboard is recorded through the step-up, for the paying attempt and for a review payment (9.8s)
+  ok 11 [chromium] › tests\e2e\orders-money.spec.ts:959:7 › at 360px › the owner › a dispute from the order: the paying attempt’s form, the item decision needing lines, the day not after today, recorded then repeated (22.9s)
+  ok 12 [chromium] › tests\e2e\orders-money.spec.ts:1072:7 › at 360px › the owner › the reconciliation screen: every section from the lists, its caps and empty lists, the rechecks, the review payment’s own controls and a dismissed event (15.4s)
+  ok 13 [chromium] › tests\e2e\orders-money.spec.ts:1186:7 › at 360px › the owner › the reconciliation screen: the external record of an attempt, the refund of a review payment that has no order, both through the step-up (4.1s)
+  ok 14 [chromium] › tests\e2e\orders-money.spec.ts:1225:7 › at 360px › the owner › disputes on the reconciliation screen: a difference with no payment, a follow-up locked to its reference, recorded then repeated (9.6s)
+  ok 15 [chromium] › tests\e2e\orders-money.spec.ts:1342:7 › at 360px › the owner › the owner’s count of what needs matching is a link to the reconciliation screen, on the list and on the home (2.5s)
+  ok 16 [chromium] › tests\e2e\orders-money.spec.ts:1366:7 › at 360px › the owner › a refunded order has no refund form and no external record, only the recheck and the dispute of its attempt (1.3s)
+  ok 17 [chromium] › tests\e2e\orders-money.spec.ts:1383:7 › at 360px › an operations member › sees the payment’s events and the refunds read-only, no money control, and no reconciliation: no call is made (3.6s)
+  ok 18 [chromium] › tests\e2e\orders-money.spec.ts:1423:7 › at 360px › an editor › is refused the reconciliation screen and the order view, and nothing is asked (1.6s)
+  ok 19 [chromium] › tests\e2e\orders-money.spec.ts:431:7 › at 1440px › the owner › the order view: the payment’s events, and the owner’s money controls where they belong (2.0s)
+  ok 20 [chromium] › tests\e2e\orders-money.spec.ts:472:7 › at 1440px › the owner › the refund form: what is left, the refusals under the fields, the confirmation, and one request that carries one key through the step-up (11.4s)
+  ok 21 [chromium] › tests\e2e\orders-money.spec.ts:581:7 › at 1440px › the owner › every answer of a refund: made, sent and not yet confirmed, refused by the gateway, refused by the function, a refund the ledger lacks, a reply that cannot be read (20.5s)
+  ok 22 [chromium] › tests\e2e\orders-money.spec.ts:681:7 › at 1440px › the owner › a network failure keeps the confirmation and the key, a change renews the key, and a double press sends one request (13.3s)
+  ok 23 [chromium] › tests\e2e\orders-money.spec.ts:724:7 › at 1440px › the owner › an outage that takes the re-read down with the call leaves the order drawn with its confirmation and key, and the repeat is the same request (5.8s)
+  ok 24 [chromium] › tests\e2e\orders-money.spec.ts:755:7 › at 1440px › the owner › a reading that fails after any other action leaves the order drawn too, so a refund waiting for its repeat keeps its key (8.2s)
+  ok 25 [chromium] › tests\e2e\orders-money.spec.ts:783:7 › at 1440px › the owner › closing the code dialog says nothing and gives the focus back to the control that asked for it, the refund and the external record, and a repeat is the same request (9.0s)
+  ok 26 [chromium] › tests\e2e\orders-money.spec.ts:836:7 › at 1440px › the owner › a review payment: refunded for what is left of it, with an empty allocation, the order named when it has one (5.3s)
+  ok 27 [chromium] › tests\e2e\orders-money.spec.ts:872:7 › at 1440px › the owner › the rechecks: an attempt and a refund in flight, no code asked, and the order read again (9.0s)
+  ok 28 [chromium] › tests\e2e\orders-money.spec.ts:909:7 › at 1440px › the owner › a refund made at Moyasar’s own dashboard is recorded through the step-up, for the paying attempt and for a review payment (8.4s)
+  ok 29 [chromium] › tests\e2e\orders-money.spec.ts:959:7 › at 1440px › the owner › a dispute from the order: the paying attempt’s form, the item decision needing lines, the day not after today, recorded then repeated (21.6s)
+  ok 30 [chromium] › tests\e2e\orders-money.spec.ts:1072:7 › at 1440px › the owner › the reconciliation screen: every section from the lists, its caps and empty lists, the rechecks, the review payment’s own controls and a dismissed event (16.9s)
+  ok 31 [chromium] › tests\e2e\orders-money.spec.ts:1186:7 › at 1440px › the owner › the reconciliation screen: the external record of an attempt, the refund of a review payment that has no order, both through the step-up (4.2s)
+  ok 32 [chromium] › tests\e2e\orders-money.spec.ts:1225:7 › at 1440px › the owner › disputes on the reconciliation screen: a difference with no payment, a follow-up locked to its reference, recorded then repeated (9.2s)
+  ok 33 [chromium] › tests\e2e\orders-money.spec.ts:1342:7 › at 1440px › the owner › the owner’s count of what needs matching is a link to the reconciliation screen, on the list and on the home (2.5s)
+  ok 34 [chromium] › tests\e2e\orders-money.spec.ts:1366:7 › at 1440px › the owner › a refunded order has no refund form and no external record, only the recheck and the dispute of its attempt (1.3s)
+  ok 35 [chromium] › tests\e2e\orders-money.spec.ts:1383:7 › at 1440px › an operations member › sees the payment’s events and the refunds read-only, no money control, and no reconciliation: no call is made (3.3s)
+  ok 36 [chromium] › tests\e2e\orders-money.spec.ts:1423:7 › at 1440px › an editor › is refused the reconciliation screen and the order view, and nothing is asked (1.5s)
+
+  Slow test file: [chromium] › tests\e2e\orders-money.spec.ts (5.1m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  36 passed (5.8m)

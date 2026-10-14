@@ -1,0 +1,23 @@
+
+Running 18 tests using 1 worker
+
+  ok  1 [chromium] › tests\e2e\reader.spec.ts:93:3 › the book preview › the published preview is the approved export, byte for byte, and no address or phone number is in it (375ms)
+  ok  2 [chromium] › tests\e2e\reader.spec.ts:122:3 › the book preview › closed, it loads nothing; open, it fetches only the preview and reads right to left (17.7s)
+  ok  3 [chromium] › tests\e2e\reader.spec.ts:161:3 › the book preview › opening keeps the page still, the closed book centred on the stage (10.1s)
+  ok  4 [chromium] › tests\e2e\reader.spec.ts:186:3 › the book preview › a part under the closed book opens the book at that part (5.5s)
+  ok  5 [chromium] › tests\e2e\reader.spec.ts:192:3 › the book preview › the pages carry their text, for selection and screen readers (5.6s)
+  ok  6 [chromium] › tests\e2e\reader.spec.ts:205:3 › the book preview › a drag from the left page to the right turns to the next spread (6.8s)
+  ok  7 [chromium] › tests\e2e\reader.spec.ts:218:3 › the book preview › without motion a turn is a short fade, never a rotation (3.3s)
+  ok  8 [chromium] › tests\e2e\reader.spec.ts:236:3 › the book preview › a resize redraws the pages at the new size (5.7s)
+  ok  9 [chromium] › tests\e2e\reader.spec.ts:246:3 › the book preview › full screen, then back (4.6s)
+  ok 10 [chromium] › tests\e2e\reader.spec.ts:254:3 › the book preview › the reading view opens at the page in view and ends with the way to the editions (8.5s)
+  ok 11 [chromium] › tests\e2e\reader.spec.ts:270:3 › the book preview › an odd page count and a single page still make a book (13.5s)
+  ok 12 [chromium] › tests\e2e\reader.spec.ts:289:3 › the book preview › a corrupt or unreachable file says so, and a retry opens the book (6.7s)
+  ok 13 [chromium] › tests\e2e\reader.spec.ts:306:3 › the book preview › a click on a corner turns that page, and closing the book slides it with the turn (9.6s)
+  ok 14 [chromium] › tests\e2e\reader.spec.ts:343:3 › one page at a time, by hand › a click turns by the half it is on, and never stops on an empty leaf (15.9s)
+  ok 15 [chromium] › tests\e2e\reader.spec.ts:379:3 › one page at a time, by hand › a drag that would stop on the blank back carries on to the next page (7.9s)
+  ok 16 [chromium] › tests\e2e\reader.spec.ts:425:3 › one page at a time, by hand › the corner hints: forward on page 1, both ways from page 2 (5.7s)
+  ok 17 [chromium] › tests\e2e\reader.spec.ts:439:3 › on a phone › the book turns one page at a time, and the reading view zooms (6.2s)
+  ok 18 [chromium] › tests\e2e\reader.spec.ts:456:1 › without JavaScript the closed book links to the preview itself (1.3s)
+
+  18 passed (2.4m)
