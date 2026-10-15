@@ -194,7 +194,7 @@ Anas edits his words in the admin. The composition (which picture goes where, th
 ## 8. Truthful states
 
 - A section waiting for Anas's material is left out, never shown as a placeholder: the sketches.
-- Content not yet published shows nothing, not an old copy: with no social links the footer has no handle, and /contact lists only the WhatsApp tile, or no channels at all when WhatsApp is not set either; with no published gallery, /scenes says «لا توجد مَشاهد بعد.».
+- Content not yet published shows nothing, not an old copy: with no social links the footer has no handle, and /contact lists only the WhatsApp and email tiles that are set (the email in the secondary style, its address wrapping inside the tile), or no channels at all when neither is set; with no published gallery, /scenes says «لا توجد مَشاهد بعد.».
 - A form shows only where its backend exists and the page can use it:
   - the availability sign-up (P08) shows on a product page only, for a variant whose public state is `out_of_stock`, and answers every valid address with the same generic words (`src/components/store/VariantAction.tsx`; `tests/e2e/product-availability.spec.ts`);
   - session booking arrives with P09 (a service's «اطلب جلسة» fills the contact form instead).

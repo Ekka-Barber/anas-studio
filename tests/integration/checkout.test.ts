@@ -218,6 +218,18 @@ type CreateSpec = {
   requestHash?: string
 }
 
+/** The titles a refused line of an existing variant carries (I51 (2)): the product's and the variant's own. */
+/** The names a refused line carries: its product's and its own, only while the product is published (none for a draft). */
+async function titlesOf(variantId: string): Promise<{ productTitle?: string; variantTitle?: string }> {
+  const row = (
+    await postgres.query<{ product_title: string; variant_title: string; status: string }>(
+      'select p.title as product_title, v.title as variant_title, p.status from public.product_variants v join public.products p on p.id = v.product_id where v.id = $1',
+      [variantId],
+    )
+  ).rows[0]!
+  return row.status === 'published' ? { productTitle: row.product_title, variantTitle: row.variant_title } : {}
+}
+
 /** Quotes the cart, then creates with that quote's hash unless the spec overrides it. */
 async function createOrder(client: Client, spec: CreateSpec): Promise<{ result?: any; code?: string }> {
   const priced = await quote(client, spec.lines, spec.cityKey, spec.couponCode)
@@ -713,13 +725,15 @@ describe('checkout_price refusals (AUDIT-2)', () => {
     // A digital line is one copy: the order grants one entitlement per line, so any other quantity is refused with the
     // line, the variant and its maximum (FABLE-AUDIT M2-4: the cart tells it from the 1 to 20 rule by `maximum`), in
     // quote and in create; one copy is priced.
-    expect(((await quote(pool[0]!, [{ variantId: digital, quantity: 2 }], city)) as any).errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: digital, maximum: 1 }])
+    expect(((await quote(pool[0]!, [{ variantId: digital, quantity: 2 }], city)) as any).errors).toEqual([
+      { code: 'INVALID_QUANTITY', line: 1, variantId: digital, maximum: 1, ...(await titlesOf(digital)) },
+    ])
     expect(((await quote(pool[0]!, [{ variantId: signed, quantity: 1 }, { variantId: digital, quantity: 20 }], city)) as any).errors).toEqual([
-      { code: 'INVALID_QUANTITY', line: 2, variantId: digital, maximum: 1 },
+      { code: 'INVALID_QUANTITY', line: 2, variantId: digital, maximum: 1, ...(await titlesOf(digital)) },
     ])
     const twice = await createOrder(pool[0]!, { lines: [{ variantId: digital, quantity: 2 }] })
     expect(twice.result).toMatchObject({ ok: false, code: 'INVALID_QUANTITY' })
-    expect(twice.result.quote.errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: digital, maximum: 1 }])
+    expect(twice.result.quote.errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: digital, maximum: 1, ...(await titlesOf(digital)) }])
     expect(await quote(pool[0]!, [{ variantId: digital, quantity: 1 }], city)).toMatchObject({ ok: true, errors: [], total: 1500 })
     // The 1 to 20 rule names no maximum: a physical line of 21, and a digital one of 21 (refused before its variant is read).
     const physical = await makeVariant(product, { fulfillment: 'physical', price: 4000, stock: 50 })
@@ -1294,7 +1308,7 @@ describe('preorder', () => {
     await setDay(await riyadhDay(-1))
     const past = await priced()
     expect(past.ok).toBe(false)
-    expect(past.errors).toEqual([{ code: 'UNAVAILABLE', line: 1, variantId: variant }])
+    expect(past.errors).toEqual([{ code: 'UNAVAILABLE', line: 1, variantId: variant, ...(await titlesOf(variant)) }])
     expect((await createOrder(pool[0]!, { lines })).result).toMatchObject({ ok: false, code: 'UNAVAILABLE' })
 
     for (const offset of [0, 1, 30]) {
@@ -1312,7 +1326,8 @@ describe('preorder', () => {
     const [first, second] = await Promise.all([createOrder(pool[0]!, { lines }), createOrder(pool[1]!, { lines })])
     expect([first.result?.ok, second.result?.ok].sort()).toEqual([false, true])
     const refused = first.result?.ok === true ? second : first
-    expect(refused.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK' })
+    // I50 (3): the refusal of `create` itself says the unit is held, beside the code.
+    expect(refused.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK', held: true })
     expect(refused.result.quote.errors[0]).toMatchObject({ held: true, available: 0 })
     const reserved = await postgres.query<{ n: string }>('select coalesce(sum(quantity), 0) as n from finance.inventory_reservations where variant_id = $1', [variant])
     expect(Number(reserved.rows[0]!.n)).toBe(1)
@@ -1327,7 +1342,10 @@ describe('preorder', () => {
     expect(ok).toHaveLength(2)
     expect(refused).toHaveLength(2)
     // The units exist, other orders' holds take them: the buyer is told to try again soon.
-    for (const answer of refused) expect(answer.result.quote.errors[0]).toMatchObject({ code: 'OUT_OF_STOCK', held: true, available: 0 })
+    for (const answer of refused) {
+      expect(answer.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK', held: true })
+      expect(answer.result.quote.errors[0]).toMatchObject({ code: 'OUT_OF_STOCK', held: true, available: 0 })
+    }
     const reserved = await postgres.query<{ n: string }>('select coalesce(sum(quantity), 0) as n from finance.inventory_reservations where variant_id = $1', [variant])
     expect(Number(reserved.rows[0]!.n)).toBe(2)
   })
@@ -1341,12 +1359,14 @@ describe('preorder', () => {
     const reservations = (await postgres.query<any>('select preorder, state, quantity from finance.inventory_reservations where order_id = $1', [first.result.order.id])).rows
     expect(reservations).toEqual([{ preorder: true, state: 'held', quantity: 1 }])
     // A digital line is one copy, whatever the capacity left.
-    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).errors).toEqual([{ code: 'INVALID_QUANTITY', line: 1, variantId: variant, maximum: 1 }])
+    expect(((await quote(pool[0]!, [{ variantId: variant, quantity: 2 }])) as any).errors).toEqual([
+      { code: 'INVALID_QUANTITY', line: 1, variantId: variant, maximum: 1, ...(await titlesOf(variant)) },
+    ])
 
     // One copy left: a second order takes it, and then a third is refused as a hold.
     expect((await createOrder(pool[0]!, { lines })).result.ok).toBe(true)
     expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([
-      { code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true },
+      { code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true, ...(await titlesOf(variant)) },
     ])
 
     // Cancelling the first order frees its copy.
@@ -1421,13 +1441,29 @@ describe('OUT_OF_STOCK says when only another order\'s hold is in the way', () =
 
     const errorsOf = async (variantId: string, quantity: number): Promise<any[]> =>
       ((await quote(pool[0]!, [{ variantId, quantity }], city)) as any).errors
-    expect(await errorsOf(one, 1)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: one, available: 0, held: true }])
+    expect(await errorsOf(one, 1)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: one, available: 0, held: true, ...(await titlesOf(one)) }])
+    // I50 (3): a create that loses the last unit to another order's unpaid hold answers OUT_OF_STOCK with `held: true`.
     const refused = await createOrder(pool[0]!, { lines: [{ variantId: one, quantity: 1 }], cityKey: city })
-    expect(refused.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK' })
+    expect(refused.result).toMatchObject({ ok: false, code: 'OUT_OF_STOCK', held: true })
     expect(refused.result.quote.errors[0]).toHaveProperty('held', true)
-    // Really zero, and asking for more than exists: no hold to wait for.
-    expect(await errorsOf(none, 1)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: none, available: 0 }])
-    expect(await errorsOf(one, 2)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: one, available: 0 }])
+    // Really zero, and asking for more than exists: no hold to wait for, and the create answers without `held`.
+    expect(await errorsOf(none, 1)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: none, available: 0, ...(await titlesOf(none)) }])
+    expect(await errorsOf(one, 2)).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: one, available: 0, ...(await titlesOf(one)) }])
+    for (const [variantId, quantity] of [
+      [none, 1],
+      [one, 2],
+    ] as const) {
+      const short = await createOrder(pool[0]!, { lines: [{ variantId, quantity }], cityKey: city })
+      expect(short.result, String(quantity) + ' of ' + variantId).toMatchObject({ ok: false, code: 'OUT_OF_STOCK' })
+      expect(short.result).not.toHaveProperty('held')
+      expect(short.result.quote.errors[0]).not.toHaveProperty('held')
+    }
+    // `held` is the first refusal's own: a cart whose first refusal is another code does not carry the second one's.
+    const gone = randomUUID()
+    const mixed = await createOrder(pool[0]!, { lines: [{ variantId: gone, quantity: 1 }, { variantId: one, quantity: 1 }], cityKey: city })
+    expect(mixed.result).toMatchObject({ ok: false, code: 'UNAVAILABLE' })
+    expect(mixed.result).not.toHaveProperty('held')
+    expect(mixed.result.quote.errors[1]).toMatchObject({ code: 'OUT_OF_STOCK', held: true })
   })
 
   it('a preorder whose units are committed (paid) is not a hold: no held flag', async () => {
@@ -1435,10 +1471,90 @@ describe('OUT_OF_STOCK says when only another order\'s hold is in the way', () =
     const lines = [{ variantId: variant, quantity: 1 }]
     const first = await createOrder(pool[0]!, { lines })
     expect(first.result.ok).toBe(true)
-    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true }])
+    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, held: true, ...(await titlesOf(variant)) }])
     // What payment does to the reservation: from a hold to a sale.
     await postgres.query("update finance.inventory_reservations set state = 'committed' where order_id = $1", [first.result.order.id])
-    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0 }])
+    expect(((await quote(pool[0]!, lines)) as any).errors).toEqual([{ code: 'OUT_OF_STOCK', line: 1, variantId: variant, available: 0, ...(await titlesOf(variant)) }])
+    // The create of a cart whose units are sold answers without `held`.
+    expect((await createOrder(pool[0]!, { lines })).result).not.toHaveProperty('held')
+  })
+})
+
+// --- the titles of a refused line (RESIDUALS-1, I51 (2)) -----------------------------------
+
+describe('a refused line carries the titles of its product and variant, when the variant exists', () => {
+  const errorOf = async (lines: Line[], cityKey?: string): Promise<any> => ((await quote(pool[0]!, lines, cityKey)) as any).errors[0]
+
+  it('every refusal made once the variant is read names it: sold out, held by another order, short, unavailable, one copy only, a dedication', async () => {
+    const product = await makeProduct()
+    const city = await makeRate(2500)
+    const soldOut = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 0 })
+    const last = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 1 })
+    expect((await createOrder(pool[0]!, { lines: [{ variantId: last, quantity: 1 }], cityKey: city })).result.ok).toBe(true)
+    const few = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 1 })
+    const disabled = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 5, enabled: false })
+    const ofDraft = await makeVariant(await makeProduct('draft'), { fulfillment: 'physical', price: 6900, stock: 5 })
+    const digital = await makeVariant(product, { fulfillment: 'digital', price: 1500 })
+    const signed = await makeVariant(product, { fulfillment: 'signed', price: 9000, stock: 5 })
+    const cases: Array<[string, Line, Record<string, unknown>]> = [
+      ['sold out', { variantId: soldOut, quantity: 1 }, { code: 'OUT_OF_STOCK', available: 0 }],
+      ['held by another order', { variantId: last, quantity: 1 }, { code: 'OUT_OF_STOCK', available: 0, held: true }],
+      ['short', { variantId: few, quantity: 2 }, { code: 'OUT_OF_STOCK', available: 1 }],
+      ['a disabled variant', { variantId: disabled, quantity: 1 }, { code: 'UNAVAILABLE' }],
+      ['a variant of a product that is not published', { variantId: ofDraft, quantity: 1 }, { code: 'UNAVAILABLE' }],
+      ['a digital line of two', { variantId: digital, quantity: 2 }, { code: 'INVALID_QUANTITY', maximum: 1 }],
+      ['a dedication on a line that cannot carry one', { variantId: digital, quantity: 1, dedication: 'x' }, { code: 'DEDICATION_NOT_ALLOWED' }],
+      ['a dedication that is too long', { variantId: signed, quantity: 1, dedication: 'ه'.repeat(201) }, { code: 'INVALID_DEDICATION' }],
+    ]
+    for (const [label, line, expected] of cases) {
+      expect(await errorOf([line], city), label).toEqual({ ...expected, line: 1, variantId: line.variantId, ...(await titlesOf(line.variantId)) })
+    }
+    // The same in a create's refusal, which carries the quote it priced under its locks.
+    const refused = await createOrder(pool[0]!, { lines: [{ variantId: soldOut, quantity: 1 }], cityKey: city })
+    expect(refused.result.quote.errors[0]).toMatchObject(await titlesOf(soldOut))
+  })
+
+  it('a variant that does not exist, or no longer does, keeps no titles: the cart names such a line generically', async () => {
+    const gone = randomUUID()
+    expect(await errorOf([{ variantId: gone, quantity: 1 }])).toEqual({ code: 'UNAVAILABLE', line: 1, variantId: gone })
+    const deleted = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 1500 })
+    await postgres.query('delete from public.product_variants where id = $1', [deleted])
+    expect(await errorOf([{ variantId: deleted, quantity: 1 }])).toEqual({ code: 'UNAVAILABLE', line: 1, variantId: deleted })
+  })
+
+  it('the titles are cut to what their tables allow, 200 and 120 characters, whatever spaces trail them', async () => {
+    const product = await makeProduct()
+    const variant = await makeVariant(product, { fulfillment: 'physical', price: 6900, stock: 0 })
+    // The tables check the trimmed length, so the trailing spaces take each title past what `left` keeps. Words, as real titles
+    // have: one unbroken run would make the admin's products table scroll sideways once the test is done.
+    const productTitle = 'كتاب طويل جدًا '.repeat(14).slice(0, 200)
+    const variantTitle = 'نسخة ورقية '.repeat(11).slice(0, 120)
+    await postgres.query('update public.products set title = $2 where id = $1', [product, `${productTitle}${' '.repeat(40)}`])
+    await postgres.query('update public.product_variants set title = $2 where id = $1', [variant, `${variantTitle}${' '.repeat(20)}`])
+    const error = await errorOf([{ variantId: variant, quantity: 1 }])
+    expect(error.productTitle).toBe(productTitle)
+    expect(error.variantTitle).toBe(variantTitle)
+  })
+
+  it('the quote hash is built from the priced lines and the totals: neither the titles nor a refused line beside them are in it', async () => {
+    const product = await makeProduct()
+    const city = await makeRate(2500)
+    const good = await makeVariant(product, { fulfillment: 'physical', price: 4000, stock: 5 })
+    const soldOut = await makeVariant(product, { fulfillment: 'physical', price: 4000, stock: 0 })
+    const lines = [{ variantId: good, quantity: 2 }]
+    const hash = ((await quote(pool[0]!, lines, city)) as any).quoteHash
+    expect(hash).toMatch(/^[0-9a-f]{64}$/)
+    await postgres.query("update public.products set title = 'اسم جديد تمامًا' where id = $1", [product])
+    await postgres.query("update public.product_variants set title = 'خيار جديد' where id = $1", [good])
+    expect(((await quote(pool[0]!, lines, city)) as any).quoteHash, 'renamed').toBe(hash)
+    // The lines are numbered, so the refused one comes second and the priced one keeps its place in the hash text.
+    const beside = (await quote(pool[0]!, [...lines, { variantId: soldOut, quantity: 1 }], city)) as any
+    expect(beside.ok).toBe(false)
+    expect(beside.quoteHash, 'a refused line beside it').toBe(hash)
+    // An order made from that quote still carries the priced lines' titles, unchanged by the refusal's.
+    const order = await createOrder(pool[0]!, { lines, cityKey: city })
+    expect(order.result.ok).toBe(true)
+    expect(order.result.order.lines[0]).toMatchObject({ productTitle: 'اسم جديد تمامًا', variantTitle: 'خيار جديد' })
   })
 })
 

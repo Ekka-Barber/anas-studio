@@ -683,6 +683,50 @@ test('the owner saves the store seller details through the step-up dialog', asyn
   await expect(page.getByLabel('رقم قيد شهادة العمل الحر')).toHaveValue(marker)
 })
 
+// RESIDUALS-1 R1, QUALITY-09 (I55 (9)): the team screen read a failed authenticator list as «no authenticator» and sent an enrolled owner
+// to enrol. It reads the list through `factorReading` now, as the store settings do, and says the list could not be read.
+test('the team screen does not send an enrolled owner to enrol when the authenticator list cannot be read', async ({ page }) => {
+  const owner = await createStaff('owner')
+
+  // Sign in once by email code and enrol TOTP, then sign in again by code (aal1): an invite must ask for a fresh code.
+  await page.goto('/admin/sign-in')
+  await page.getByLabel('البريد الإلكتروني').fill(owner.email)
+  await page.getByRole('button', { name: 'أرسل الرمز' }).click()
+  await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
+  const firstCode = await readCodeFromMailpit(owner.email)
+  await page.getByLabel('رمز الدخول').fill(firstCode)
+  await page.getByRole('button', { name: 'تحقق' }).click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await page.locator('nav').getByRole('link', { name: 'الأمان' }).click()
+  await expect(page).toHaveURL(/\/admin\/security$/)
+  const secret = await page.locator('[class*="secret"]').innerText()
+  await page.getByLabel('رمز التحقق').fill(totpCode(secret))
+  await page.getByRole('button', { name: 'تفعيل' }).click()
+  await expect(page.getByText('تطبيق المصادقة مفعّل')).toBeVisible()
+  await page.locator('nav').getByRole('button', { name: 'تسجيل الخروج' }).click()
+  await expect(page).toHaveURL(/\/admin\/sign-in$/)
+  await signInByCode(page, owner.email, firstCode)
+
+  await page.goto('/admin/team')
+  await expect(page.getByRole('heading', { level: 1, name: 'الفريق' })).toBeVisible()
+  await page.getByLabel('البريد الإلكتروني').fill(`invited-${Date.now()}@example.com`)
+  await page.getByLabel('الاسم').fill('مدعو الاختبار')
+
+  // The authenticators are listed through Auth, which fails once: the owner is told the list could not be read, and is not told to enrol.
+  await page.route('**/auth/v1/user', (route) => route.fulfill({ status: 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"msg":"down"}' }), { times: 1 })
+  await page.getByRole('button', { name: 'دعوة', exact: true }).click()
+  await expect(page.getByText('تعذّر قراءة حالة المصادقة؛ حدّث الصفحة.')).toBeVisible()
+  await expect(page.getByText('يلزم تفعيل تطبيق المصادقة أولًا')).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toBeHidden()
+
+  // Read again, the same press asks for the code with the owner's authenticator: nothing was invited meanwhile.
+  await page.getByRole('button', { name: 'دعوة', exact: true }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByText('يلزم تفعيل تطبيق المصادقة أولًا')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
+})
+
 test('screenshots at 360 and 1440 with no horizontal overflow', async ({ page }) => {
   const owner = await createStaff('owner')
   await signInByCode(page, owner.email)

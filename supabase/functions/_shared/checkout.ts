@@ -190,6 +190,8 @@ type SqlReply = {
   code?: string
   order?: unknown
   quote?: unknown
+  /** A cart refusal whose first error is an OUT_OF_STOCK held by another order's unpaid hold. */
+  held?: unknown
   policyRevisions?: unknown
   status?: unknown
   checkoutEnabled?: unknown
@@ -303,7 +305,8 @@ export async function handleCheckout(request: Request, deps: CheckoutDeps = {}):
         }
       }
     } else if (result?.quote !== undefined) {
-      fields = { quote: result.quote }
+      // `held`: the OUT_OF_STOCK units exist and only other orders' unpaid holds take them (I50 (3)); the page words it.
+      fields = { quote: result.quote, ...(result.held === true ? { held: true } : {}) }
     }
     return fail(mapped.status, code, mapped.message, fields)
   }

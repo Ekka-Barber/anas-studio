@@ -375,8 +375,8 @@ test('editor: a local copy is offered before anything is editable, survives a re
   const email = await createOwner('محرر النسخة المحلية')
   await signInByCode(page, email)
 
-  // Same key and shape as CollectionForm's autosave; no userId, like a copy
-  // written before the field existed, which is offered to whoever opens it.
+  // The key of a copy from before the tab id (`anasaq:draft:<collection>:<docId>`), which the editor reads as another tab's
+  // copy (ADMIN-CMS-01), and no userId, like a copy written before the field existed, which is offered to whoever opens it.
   const key = 'anasaq:draft:rooms:started'
   const localLine = `سطر محلي ${Date.now()}`
   const seed = () =>
@@ -700,4 +700,109 @@ test('a stale save is rejected with a conflict message and keeps the typed text'
 
   await context1.close()
   await context2.close()
+})
+
+// RESIDUALS-1 R1, ADMIN-CMS-01: the digest's recipe, in one browser context (one localStorage) with two pages (two sessionStorages,
+// so two tabs). The local copy is kept per tab: a save in one tab removes that tab's copy only.
+test('two tabs of one document keep a copy each: a save in one tab leaves the other\'s typed text, offered after its reload', async ({ browser }) => {
+  const email = await createOwner('مالك التبويبين')
+  const context = await browser.newContext()
+  const tabA = await context.newPage()
+  const tabB = await context.newPage()
+  await signInByCode(tabA, email)
+  await tabA.goto('/admin/content/posts')
+  await tabA.getByRole('button', { name: 'جديد' }).click()
+  await tabA.getByLabel('المعرّف').fill(`e2e-tabs-${Date.now()}`)
+  await tabA.getByLabel('العنوان').fill('نسخة أولى')
+  await tabA.getByLabel('مقتطف').fill('مقتطف الاختبار')
+  await tabA.getByLabel('الكاتب').fill('الكاتب')
+  await tabA.getByRole('button', { name: 'حفظ' }).click()
+  await expect(tabA.getByText('تم الحفظ.')).toBeVisible()
+  const docUrl = tabA.url()
+  const docId = new URL(docUrl).searchParams.get('id')!
+  // The document's local copies in this browser, as [key, the copy's excerpt].
+  const copies = (page: typeof tabA) =>
+    page.evaluate(
+      (id) =>
+        Object.keys(window.localStorage)
+          .filter((key) => key.startsWith(`anasaq:draft:posts:${id}`))
+          .map((key) => [key, (JSON.parse(window.localStorage.getItem(key)!) as { data: { excerpt?: string } }).data.excerpt]),
+      docId,
+    )
+
+  // Tab B opens the saved document and types in the excerpt, without saving: its autosave keeps its own copy.
+  await tabB.goto(docUrl)
+  await expect(tabB.getByLabel('العنوان')).toHaveValue('نسخة أولى')
+  await tabB.getByLabel('مقتطف').fill('B text')
+  await expect.poll(async () => (await copies(tabB)).map(([, excerpt]) => excerpt)).toEqual(['B text'])
+  const keyB = (await copies(tabB))[0]![0]
+
+  // Tab A changes the title and saves: its form equals the saved version, so its autosave removes its own copy and nothing else.
+  await tabA.getByLabel('العنوان').fill('نسخة ثانية')
+  await tabA.getByRole('button', { name: 'حفظ' }).click()
+  await expect(tabA.getByText('تم الحفظ.')).toBeVisible()
+  await expect.poll(async () => (await copies(tabA)).map(([key]) => key)).toEqual([keyB])
+  expect((await copies(tabA)).map(([, excerpt]) => excerpt)).toEqual(['B text'])
+
+  // Tab B saves from the old version: the conflict message says its text is kept, and after the reload it is offered.
+  await tabB.getByRole('button', { name: 'حفظ' }).click()
+  await expect(tabB.getByText(CONFLICT_MESSAGE)).toBeVisible()
+  await tabB.reload()
+  await expect(tabB.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })).toBeVisible()
+  await tabB.getByRole('button', { name: 'استرجاع', exact: true }).click()
+  await expect(tabB.getByLabel('مقتطف')).toHaveValue('B text')
+
+  // A tab with no copy of its own is offered the newest copy of another tab, and تجاهل removes the copy it was offered.
+  const tabC = await context.newPage()
+  await tabC.goto(docUrl)
+  await expect(tabC.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })).toBeVisible()
+  await tabC.getByRole('button', { name: 'تجاهل', exact: true }).click()
+  await expect(tabC.getByLabel('العنوان')).toHaveValue('نسخة ثانية')
+  await expect.poll(async () => await copies(tabC)).toEqual([])
+
+  // A tab that restores another tab's copy takes it over: the copy it came from goes and the autosave keeps the text under
+  // the restoring tab's key, so after that tab saves and reloads nothing is offered and no copy is left (R1 audit B, 1).
+  await tabB.getByLabel('مقتطف').fill('B text again')
+  await expect.poll(async () => (await copies(tabB)).map(([key, excerpt]) => [key, excerpt])).toEqual([[keyB, 'B text again']])
+  const tabD = await context.newPage()
+  await tabD.goto(docUrl)
+  await expect(tabD.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })).toBeVisible()
+  await tabD.getByRole('button', { name: 'استرجاع', exact: true }).click()
+  await expect(tabD.getByLabel('مقتطف')).toHaveValue('B text again')
+  await expect.poll(async () => (await copies(tabD)).map(([key, excerpt]) => [key === keyB, excerpt])).toEqual([[false, 'B text again']])
+  await tabD.getByRole('button', { name: 'حفظ' }).click()
+  await expect(tabD.getByText('تم الحفظ.')).toBeVisible()
+  await expect.poll(async () => await copies(tabD)).toEqual([])
+  await tabD.reload()
+  await expect(tabD.getByLabel('مقتطف')).toHaveValue('B text again')
+  await expect(tabD.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })).toHaveCount(0)
+  await context.close()
+})
+
+// RESIDUALS-1 R1, ADMIN-CMS-02: a document made with «جديد» exists only as a local copy until its first save.
+test('a new post typed and left without saving is listed at the top of the posts, and its link opens it with the text offered', async ({ page }) => {
+  const email = await createOwner('مالك المسودة')
+  await signInByCode(page, email)
+  await page.goto('/admin/content/posts')
+  await page.getByRole('button', { name: 'جديد' }).click()
+  await expect(page).toHaveURL(/\/admin\/content\/posts\/edit\?id=[0-9a-f-]{36}$/)
+  const docUrl = page.url()
+  const typed = `مسودة لم تُحفظ ${Date.now()}`
+  await page.getByLabel('العنوان').fill(typed)
+  // The autosave has kept it: the sign-out check would warn of it.
+  await expect.poll(() => page.evaluate(() => Object.keys(window.localStorage).filter((key) => key.startsWith('anasaq:draft:posts:')).length)).toBe(1)
+
+  // Left without saving: the list shows it first, titled from the copy, marked, and linking to the edit page.
+  await page.goto('/admin/content/posts')
+  const row = page.locator('table tbody tr').first()
+  await expect(row).toContainText(typed)
+  await expect(row).toContainText('مسودة غير محفوظة على هذا الجهاز')
+  await expect(row.getByRole('link', { name: typed })).toHaveAttribute('href', docUrl.replace(/^https?:\/\/[^/]+/, ''))
+
+  // The link opens the document, which offers the copy; استرجاع puts the text back.
+  await row.getByRole('link', { name: typed }).click()
+  await expect(page).toHaveURL(docUrl)
+  await expect(page.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })).toBeVisible()
+  await page.getByRole('button', { name: 'استرجاع', exact: true }).click()
+  await expect(page.getByLabel('العنوان')).toHaveValue(typed)
 })

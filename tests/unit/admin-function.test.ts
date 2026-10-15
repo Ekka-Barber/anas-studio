@@ -415,8 +415,9 @@ describe('admin function: commerce settings save (P06 round 3, D34)', () => {
   })
 })
 
-describe('admin function: commerce policies approve (P07 round 2)', () => {
-  const body = { action: 'commerce-policies-approve', expectedVersion: 3 }
+describe('admin function: commerce policies approve (P07 round 2; the revisions the owner reviewed, RESIDUALS-1 I44 (1))', () => {
+  const revisions = { store: 2, delivery: 1, refund: 1 }
+  const body = { action: 'commerce-policies-approve', expectedVersion: 3, revisions }
 
   it('an editor or operations member is refused with 403 and nothing runs', async () => {
     const rpc = vi.fn(async () => null)
@@ -448,6 +449,37 @@ describe('admin function: commerce policies approve (P07 round 2)', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
+  it('a body without revisions is 422 INVALID and nothing is called: an approval says what it approves', async () => {
+    const rpc = vi.fn(async () => null)
+    const response = await handleAdmin(post({ action: 'commerce-policies-approve', expectedVersion: 3 }), {
+      rpc,
+      staff: staffAs('owner', true),
+      store: memoryStore(),
+    })
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['null', null],
+    ['an array', []],
+    ['a number', 7],
+    ['text', 'store'],
+    ['an unknown policy', { ...revisions, other: 1 }],
+    ['a revision of 0', { ...revisions, store: 0 }],
+    ['a fractional revision', { ...revisions, store: 1.5 }],
+    ['a revision sent as text', { ...revisions, store: '2' }],
+    ['a revision beyond the database integer', { ...revisions, store: 2_147_483_648 }],
+    ['a null revision', { ...revisions, store: null }],
+  ])('revisions that are %s are 422 INVALID and nothing is called', async (_label, bad) => {
+    const rpc = vi.fn(async () => null)
+    const response = await handleAdmin(post({ ...body, revisions: bad }), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(422)
+    expect(await response.json()).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
   it('a stale version (SQL unique_violation 23505) answers 409 CONFLICT', async () => {
     const rpc: Rpc = async () => {
       throw Object.assign(new Error('stale version'), { code: '23505' })
@@ -455,6 +487,18 @@ describe('admin function: commerce policies approve (P07 round 2)', () => {
     const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
     expect(response.status).toBe(409)
     expect(await response.json()).toMatchObject({ error: { code: 'CONFLICT' } })
+  })
+
+  it('revisions that are no longer the published ones (SQL object_not_in_prerequisite_state 55000) answer 409 POLICIES_CHANGED, not the ticket error of the media actions', async () => {
+    const rpc: Rpc = async () => {
+      throw Object.assign(new Error('The published policies changed since the screen was read.'), { code: '55000' })
+    }
+    const response = await handleAdmin(post(body), { rpc, staff: staffAs('owner', true), store: memoryStore() })
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({
+      ok: false,
+      error: { code: 'POLICIES_CHANGED', message: 'تغيّرت السياسات منذ فتحت الصفحة. راجعها ثم اعتمدها من جديد.' },
+    })
   })
 
   it('a missing required policy (SQL P0001) answers 422 POLICIES_NOT_PUBLISHED', async () => {
@@ -479,7 +523,7 @@ describe('admin function: commerce policies approve (P07 round 2)', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ ok: true, data: reply })
     expect(calls).toEqual([
-      ['commerce_policies_approve', { p_actor: '11111111-1111-4111-8111-111111111111', p_expected_version: 3 }],
+      ['commerce_policies_approve', { p_actor: '11111111-1111-4111-8111-111111111111', p_expected_version: 3, p_revisions: revisions }],
     ])
   })
 })

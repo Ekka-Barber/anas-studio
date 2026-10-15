@@ -21,7 +21,9 @@ export function stepUpError(status: number | undefined, wrong = 'الرمز غي
 /**
  * Owner step-up (D13): a native `<dialog>` that verifies a fresh TOTP code
  * against the owner's already-enrolled factor, then hands control back to
- * the caller, which retries the original `staff-admin` call once.
+ * the caller, which retries the original call once (a call of `staff-admin`
+ * or of `admin`: both answer STEP_UP_REQUIRED for the actions that ask for a
+ * fresh code).
  */
 export function StepUp({
   open,

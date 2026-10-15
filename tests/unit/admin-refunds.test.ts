@@ -118,6 +118,8 @@ const create = (over: Record<string, unknown> = {}) => ({
   reason: 'عيب في الطباعة',
   allocation: { items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000 },
   idempotencyKey: KEY,
+  // Every screen sends the confirmed total it was built from, and the function refuses a refund without it (FD-A-02).
+  expectedRefunded: 0,
   ...over,
 })
 const createForReview = (over: Record<string, unknown> = {}) => ({
@@ -127,6 +129,7 @@ const createForReview = (over: Record<string, unknown> = {}) => ({
   reason: 'دفعة بمبلغ خاطئ',
   allocation: {},
   idempotencyKey: KEY,
+  expectedRefunded: 0,
   ...over,
 })
 const recheck = (over: Record<string, unknown> = {}) => ({ action: 'refund-recheck', refundId: REFUND, ...over })
@@ -257,6 +260,7 @@ describe('refund-create: the request is validated before anything is called', ()
     ['no idempotency key', { idempotencyKey: undefined }],
     ['an idempotency key that is not a uuid', { idempotencyKey: 'abc' }],
     ['a return id that is not a uuid', { returnId: 'RET-1' }],
+    ['no confirmed total (FD-A-02: the function refuses a refund that cannot be checked for STALE)', { expectedRefunded: undefined }],
     ['a confirmed total below zero', { expectedRefunded: -1 }],
     ['a fractional confirmed total', { expectedRefunded: 1.5 }],
     ['a confirmed total sent as text', { expectedRefunded: '0' }],
@@ -282,6 +286,17 @@ describe('refund-create: the request is validated before anything is called', ()
     ['refund-record-external with an amount (the provider decides it)', external({ amount: 100 })],
   ])('%s is 422 and nothing is called', async (_label, body) => {
     expect((await send(body)).status).toBe(422)
+    expect(calls).toHaveLength(0)
+    expect(client.fetchPayment).not.toHaveBeenCalled()
+  })
+
+  it('refuses a review payment without its confirmed total too, and a body that names it only as undefined, with nothing called', async () => {
+    for (const body of [createForReview({ expectedRefunded: undefined }), createForReview({ orderId: ORDER, expectedRefunded: undefined })]) {
+      const refused = await answer(await send(body))
+      expect(refused.status).toBe(422)
+      expect(refused.body).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+      expect(JSON.stringify(refused.body)).toContain('expectedRefunded')
+    }
     expect(calls).toHaveLength(0)
     expect(client.fetchPayment).not.toHaveBeenCalled()
   })
@@ -324,7 +339,7 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
       p_review_payment: null,
       p_amount: 5000,
       p_reason: 'عيب في الطباعة',
-      p_allocation: { items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000 },
+      p_allocation: { items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000, expectedRefunded: 0 },
       p_idempotency_key: KEY,
       p_request_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
       p_return: null,
@@ -353,7 +368,7 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
       p_order: null,
       p_attempt: null,
       p_review_payment: REVIEW,
-      p_allocation: {},
+      p_allocation: { expectedRefunded: 0 },
       p_return: null,
     })
     reply('refund_request', { ...NEW, providerPaymentId: REVIEW })
@@ -366,7 +381,7 @@ describe('refund-create: fetch first, reserve, one provider call, record', () =>
   it('a review payment with items or shipping in its allocation is sent as given: the SQL refuses it (INVALID_ALLOCATION)', async () => {
     reply('refund_request', { ok: false, code: 'INVALID_ALLOCATION' })
     const refused = await answer(await send(createForReview({ allocation: { shipping: 100 } })))
-    expect(called('refund_request')[0]!.args.p_allocation).toEqual({ items: [], shipping: 100 })
+    expect(called('refund_request')[0]!.args.p_allocation).toEqual({ items: [], shipping: 100, expectedRefunded: 0 })
     expect(refused).toMatchObject({ status: 422, body: { error: { code: 'INVALID_ALLOCATION' } } })
   })
 
@@ -549,16 +564,15 @@ describe('refund-create: expectedRefunded', () => {
     })
   })
 
-  it('is absent when it was not sent: the allocation is exactly what it was, for an attempt and for a review payment', async () => {
-    expect((await requested(create())).p_allocation).toEqual({ items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000 })
-    expect((await requested(createForReview())).p_allocation).toEqual({})
-    expect('expectedRefunded' in ((await requested(create())).p_allocation as object)).toBe(false)
+  it('is always there: the allocation the SQL takes it from is exactly the items and the shipping, with the total beside them', async () => {
+    expect((await requested(create())).p_allocation).toEqual({ items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000, expectedRefunded: 0 })
+    expect((await requested(createForReview())).p_allocation).toEqual({ expectedRefunded: 0 })
   })
 
-  it('is part of the request hash when sent, and a request without it hashes as it always did', async () => {
+  it('is part of the request hash, last: the canonical text of a request holds the total it was built from', async () => {
     const hash = async (over: Record<string, unknown>): Promise<unknown> => (await requested(create(over))).p_request_hash
-    // The hash of a request with no confirmed total is the digest of its canonical text before this field existed.
-    const before = JSON.stringify({
+    // The hash of a request is the digest of its canonical text, the confirmed total last (as the requests of F3 hashed).
+    const text = JSON.stringify({
       order: ORDER,
       attempt: ATTEMPT,
       review: null,
@@ -566,12 +580,13 @@ describe('refund-create: expectedRefunded', () => {
       reason: 'عيب في الطباعة',
       allocation: { items: [{ itemId: ITEM_A, amount: 4000 }], shipping: 1000 },
       returnId: null,
+      expectedRefunded: 0,
     })
-    expect(await hash({})).toBe(createHash('sha256').update(before).digest('hex'))
-    const none = await hash({})
+    expect(await hash({})).toBe(createHash('sha256').update(text).digest('hex'))
     const zero = await hash({ expectedRefunded: 0 })
     const some = await hash({ expectedRefunded: 2000 })
-    expect(new Set([none, zero, some]).size).toBe(3)
+    expect(zero).toBe(await hash({}))
+    expect(new Set([zero, some]).size).toBe(2)
     // The same total is the same request again, which is what lets a replay with the kept total be recognised.
     expect(await hash({ expectedRefunded: 2000 })).toBe(some)
     expect(await hash({ expectedRefunded: 2000, idempotencyKey: randomUUID() })).toBe(some)

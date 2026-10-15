@@ -237,7 +237,11 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
-# Staff have no passwords (D08); the hook below refuses password sign-in, this closes the change path too.
+# Staff have no passwords (D08). This setting only asks a session older than 24 hours to reauthenticate (a code mailed to
+# the staff inbox) before it sets a password; a session younger than that sets one with no code at all (GoTrue,
+# internal/api/user.go, as FABLE-AUDIT read it on 2026-10-07: VENDOR-PLAT-03). It does not close the password path. The control is the access-token hook
+# below, public.deny_password_tokens, which refuses every password sign-in: were it off or mis-wired (on the hosted
+# project it is a dashboard setting, I28), a password set in a young session would work.
 secure_password_change = true
 # Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
 max_frequency = "1s"
@@ -416,10 +420,14 @@ deno_version = 2
 # Local function values come from `supabase/functions/.env` (gitignored,
 # written by `pnpm db:env`); hosted ones from `supabase secrets set`.
 
-# D32: the public endpoints verify their own callers — the contact form with
-# Turnstile, the webhook with its Svix signature, the outbox with a bearer
-# JOBS_SECRET — so the gateway's JWT check is off for them. `admin` and
-# `staff-admin` keep it on and verify the staff token again inside.
+# D32: the eight public endpoints verify their own callers, so the gateway's JWT
+# check is off for them (`verify_jwt = false`, set below on each): `contact`
+# (Turnstile), `checkout` (the site origin, Turnstile, peppered hashes),
+# `resend-webhook` (its Svix signature), `outbox` (a bearer JOBS_SECRET),
+# `payments` (Moyasar's secret_token on the webhook, the invoice callback and
+# the return page's check) and `orders`, `download` and `notify` (the site
+# origin and a hashed token). `admin` and `staff-admin` keep the check on, which
+# authenticates nobody (see below); they verify the staff token themselves.
 [functions.contact]
 verify_jwt = false
 
@@ -451,7 +459,13 @@ verify_jwt = false
 verify_jwt = false
 
 # Pinned, not left to the CLI default: a future default change or a
-# --no-verify-jwt deploy flag must not silently expose the staff endpoints.
+# --no-verify-jwt deploy flag must not silently turn the platform check off for
+# the staff endpoints. The check is not authentication: it admits a user JWT and
+# also a publishable or secret key on either header, and the publishable key is
+# in every public page (Supabase's auth-headers page, as FABLE-AUDIT read it on 2026-10-07, VENDOR-PLAT-02: "the check
+# alone doesn't authenticate a caller that sends only an API key"). Both
+# functions therefore verify the caller (`staffFromRequest`) before any other
+# work, and every staff function must do the same.
 [functions.admin]
 verify_jwt = true
 

@@ -440,6 +440,84 @@ test('a signed line gets its dedication field in the cart', async ({ page }) => 
   await expect(signed.getByLabel('نص الإهداء')).toHaveValue('لأنس مع التحية')
 })
 
+// RESIDUALS-1 R1, I51 (2) (R12A-4): the stored cart holds only ids and quantities, so a line the quote refuses used to read
+// «منتج في السلة». The refusal now carries the titles of the product and the variant when the variant exists.
+test('a line the quote refuses is named by its product and variant; a variant that no longer exists keeps the generic name', async ({ page }) => {
+  // The sentence that closes the way on is shown only while the store takes orders.
+  await checkoutOn()
+  await addFixtures(page, [
+    { row: 'النسخة الورقية', quantity: 1 },
+    { row: 'النسخة الإلكترونية', quantity: 1 },
+  ])
+  const name = `${TITLE}: النسخة الورقية`
+  const refused = page.locator('li', { hasText: name })
+  try {
+    // Sold out: refused, and still called by its name, in the title, the controls and the sentence under it.
+    await db.query('update public.product_variants set stock = 0 where id = $1', [paperId])
+    await page.goto('/cart')
+    await expect(refused).toBeVisible()
+    await expect(refused).toContainText('الكمية المطلوبة غير متوفرة؛ المتاح: 0.')
+    await expect(refused.getByRole('button', { name: `حذف ${name}`, exact: true })).toBeVisible()
+    await expect(refused.getByRole('button', { name: `زيادة الكمية: ${name}`, exact: true })).toBeVisible()
+    await expect(page.getByText('منتج في السلة')).toHaveCount(0)
+    // The line the quote priced is as it was, and the way on is closed until the refused one is dealt with.
+    await expect(page.locator('li', { hasText: 'النسخة الإلكترونية' })).toContainText('12.40 ر.س')
+    await expect(page.getByText('أزل غير المتاح أو عدّل الكمية لإتمام الطلب.')).toBeVisible()
+
+    // A variant switched off: unavailable, a product that exists, named the same.
+    await db.query('update public.product_variants set stock = 10, enabled = false where id = $1', [paperId])
+    await page.reload()
+    await expect(refused).toContainText('هذا المنتج غير متاح حاليًا.')
+    await expect(refused.getByRole('button', { name: `حذف ${name}`, exact: true })).toBeVisible()
+    await expect(page.getByText('منتج في السلة')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'إزالة غير المتاح' })).toBeVisible()
+
+    // A variant that does not exist (deleted since it went into the cart): nothing to name it by.
+    await page.evaluate((key) => window.localStorage.setItem(key, JSON.stringify({ version: 1, lines: [{ variantId: crypto.randomUUID(), quantity: 1 }] })), CART_KEY)
+    await page.reload()
+    await expect(page.getByText('منتج في السلة')).toBeVisible()
+    await expect(page.getByText('هذا المنتج غير متاح حاليًا.')).toBeVisible()
+  } finally {
+    await db.query('update public.product_variants set stock = 10, enabled = true where id = $1', [paperId])
+  }
+})
+
+// RESIDUALS-1 R1, STORE-UI-12 (= QUALITY-08): the cart no longer swallows a failed city list. It says so, with the checkout's own
+// words and its «أعد المحاولة», and a retry brings the list; a list that loads empty says no city is served.
+test('a city list that cannot be read is said so with a retry that brings the list; an empty list says no city is served', async ({ page }) => {
+  // The shipping rates are down until the test says otherwise (`next dev` runs the cart's effect twice, so "fails once" would be answered by the second run).
+  let down = true
+  await page.route(/\/rest\/v1\/shipping_rates/, (route) =>
+    down
+      ? route.fulfill({ status: 500, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"message":"down"}' })
+      : route.continue(),
+  )
+  await addFixtures(page, [{ row: 'النسخة الورقية', quantity: 1 }])
+  await page.goto('/cart')
+  const cities = page.getByLabel('مدينة التوصيل')
+  await expect(page.getByText('تعذّر تحميل قائمة المدن.')).toBeVisible()
+  await expect(page.getByText('تعذّر تحميل قائمة المدن.')).toHaveAttribute('role', 'alert')
+  // The select holds only its prompt, and the retry sits beside the note.
+  await expect(cities.locator('option')).toHaveCount(1)
+  await expectNoOverflow(page, 'cart, cities failed')
+  down = false
+  await page.getByRole('button', { name: 'أعد المحاولة', exact: true }).click()
+  await expect(page.getByText('تعذّر تحميل قائمة المدن.')).toHaveCount(0)
+  await expect(cities).toContainText(`مدينة الاختبار ${marker}`)
+  await cities.selectOption(cityKey)
+  await expect(totalRow(page, 'التوصيل')).toContainText('11.30 ر.س')
+  await expect(page.getByText('لا نوصل إلى أي مدينة حاليًا.')).toHaveCount(0)
+
+  // A list that loads empty (no city is served): said so, with no retry to press. The route registered last answers first.
+  await page.route(/\/rest\/v1\/shipping_rates/, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '[]' }),
+  )
+  await page.reload()
+  await expect(page.getByText('لا نوصل إلى أي مدينة حاليًا.')).toBeVisible()
+  await expect(page.getByText('تعذّر تحميل قائمة المدن.')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'أعد المحاولة', exact: true })).toHaveCount(0)
+})
+
 test('with checkout on: order, hold view with its payment link, kept cart, reload and cancel', async ({ page }) => {
   await checkoutOn()
   await addFixtures(page, [

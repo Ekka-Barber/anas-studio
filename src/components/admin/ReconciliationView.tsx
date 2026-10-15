@@ -2,12 +2,13 @@
 
 /**
  * The reconciliation screen (P08 round 11b), the owner's alone: what does not yet agree with Moyasar. The
- * attempts that need a look, the review payments that are open, the refunds in flight, the webhook events
- * that need a person, and the disputes the owner has recorded. The data is `reconciliation_list` and
+ * attempts that need a look, the review payments that are open, the review payments with no order that the
+ * owner closed by hand and that can still be refunded (they would leave every screen otherwise), the refunds
+ * in flight, the webhook events that need a person, and the disputes the owner has recorded. The data is `reconciliation_list` and
  * `disputes_list` under the signed-in session (both owner-only in the SQL; an operations member or an editor
  * is told there is no access and nothing is asked). Every action is a call, and after it both lists are read
  * again: the screen shows what they say, never what the call was hoped to do. The SQL lists the newest 100 of
- * each without saying so; the screen says it.
+ * each (50 of the closed reviews) without saying so; the screen says it.
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -42,9 +43,12 @@ import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 import { DisputeForm, type DisputeMode } from './DisputeForm'
 import { Enum, Fact, ltr, ltrLong, NONE, TestBadge } from './OrdersView'
-import { ExternalRefund, recheckAttempt, recheckRefund, RefundView, useFocusBack, useStepUp, type Money, type Said } from './RefundView'
+import { ExternalRefund, recheckAttempt, recheckRefund, RefundView, useFocusBack, useStepUp, type Money, type RefundSubject, type Said } from './RefundView'
 
 type Data = { rec: Reconciliation; disputes: DisputeReference[] }
+type ReviewRow = Reconciliation['reviews'][number]
+/** The most review payments the SQL lists as closed by hand (`closedReviews`); the open lists show 100. */
+const CLOSED_CAP = 50
 type Load = { kind: 'loading' } | { kind: 'failed' } | { kind: 'ready'; data: Data }
 type Reply = { data: unknown; error: { code?: string } | null }
 /** The dispute form that is open: which control opened it, how, and the order whose lines a decision may name. */
@@ -87,13 +91,31 @@ const orderLink = (id: string, number: string): ReactNode => (
   </Link>
 )
 
-/** A list's two notes: nothing in it, or the SQL's silent cap. */
-function Notes({ count }: { count: number }) {
+/** A list's two notes: nothing in it, or the SQL's silent cap (100, or the closed reviews' 50). */
+function Notes({ count, cap = LIST_CAP }: { count: number; cap?: number }) {
   return (
     <>
       {count === 0 && <p className={styles.message}>{EMPTY_LIST}</p>}
-      {count >= LIST_CAP && <p className={styles.message}>{CAPPED}</p>}
+      {count >= cap && <p className={styles.message}>{cap === LIST_CAP ? CAPPED : `تُعرض أحدث ${cap}.`}</p>}
     </>
+  )
+}
+
+/** A review payment's facts, as the open and the closed cards show them. */
+function ReviewFacts({ review }: { review: ReviewRow }) {
+  return (
+    <ul className={styles.metaList}>
+      <Fact label="السبب">
+        <Enum labels={REVIEW_REASON_LABELS} code={review.reason} />
+      </Fact>
+      <Fact label="المبلغ">{review.amount === null ? NONE : formatMoney(review.amount)}</Fact>
+      <Fact label="المُعاد">{formatMoney(review.refunded)}</Fact>
+      <Fact label="الطلب">
+        {review.orderNumber === null || review.orderId === null ? 'بلا طلب' : orderLink(review.orderId, review.orderNumber)}{' '}
+        <TestBadge environment={review.environment} />
+      </Fact>
+      <Fact label="رقم الدفعة لدى Moyasar">{ltrLong(review.paymentId)}</Fact>
+    </ul>
   )
 }
 
@@ -226,6 +248,15 @@ export function ReconciliationView() {
   const off = busy !== null
   const money: Money = { busy: off, run, say: report, clear, ask: step.ask }
   const data = load.kind === 'ready' ? load.data : null
+  /** What a review payment's refund form is built from: the row's confirmed total (`refund_request` checks it: STALE) and whether one of its refunds is still settling. */
+  const reviewSubject = (review: ReviewRow): RefundSubject => ({
+    kind: 'review',
+    paymentId: review.paymentId,
+    orderId: review.orderId,
+    remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
+    refunded: review.refunded,
+    inFlight: (data?.rec.refunds ?? []).some((refund) => refund.reviewPaymentId === review.paymentId && refundInFlight(refund.status)),
+  })
   /** The order's lines for the open form: not asked for a form with no order, `'loading'` until they are read. */
   const linesOf = (open: OpenForm): DisputeLine[] | 'loading' | null =>
     open.orderNumber === null ? null : formLines?.order === open.orderNumber ? formLines.lines : 'loading'
@@ -317,18 +348,7 @@ export function ReconciliationView() {
                 }
                 return (
                   <div key={review.paymentId} className={styles.listItem}>
-                    <ul className={styles.metaList}>
-                      <Fact label="السبب">
-                        <Enum labels={REVIEW_REASON_LABELS} code={review.reason} />
-                      </Fact>
-                      <Fact label="المبلغ">{review.amount === null ? NONE : formatMoney(review.amount)}</Fact>
-                      <Fact label="المُعاد">{formatMoney(review.refunded)}</Fact>
-                      <Fact label="الطلب">
-                        {review.orderNumber === null || review.orderId === null ? 'بلا طلب' : orderLink(review.orderId, review.orderNumber)}{' '}
-                        <TestBadge environment={review.environment} />
-                      </Fact>
-                      <Fact label="رقم الدفعة لدى Moyasar">{ltrLong(review.paymentId)}</Fact>
-                    </ul>
+                    <ReviewFacts review={review} />
                     <div className={styles.form}>
                       <div className={styles.field}>
                         <label className={styles.label} htmlFor={`close-${review.paymentId}`}>
@@ -349,21 +369,10 @@ export function ReconciliationView() {
                         </button>
                       </div>
                       {review.orderId === null && (
-                        <p className={styles.message}>دفعة بلا طلب تختفي من اللوحة بعد إغلاقها ولا تُعاد منها؛ أعدها قبل الإغلاق إن لزم.</p>
+                        <p className={styles.message}>بعد الإغلاق تبقى هذه الدفعة في «دفعات بلا طلب أُغلقت مراجعتها» أدناه، ويمكن إعادتها من هناك.</p>
                       )}
                     </div>
-                    <RefundView
-                      subject={{
-                        kind: 'review',
-                        paymentId: review.paymentId,
-                        orderId: review.orderId,
-                        remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
-                        // The row's confirmed total (`refund_request` checks it: STALE) and whether one of its refunds is still settling.
-                        refunded: review.refunded,
-                        inFlight: data.rec.refunds.some((refund) => refund.reviewPaymentId === review.paymentId && refundInFlight(refund.status)),
-                      }}
-                      money={money}
-                    />
+                    <RefundView subject={reviewSubject(review)} money={money} />
                     <div className={styles.row}>
                       <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
                         تسجيل اعتراض
@@ -373,6 +382,19 @@ export function ReconciliationView() {
                   </div>
                 )
               })}
+            </div>
+          </section>
+
+          <section>
+            <h2>دفعات بلا طلب أُغلقت مراجعتها</h2>
+            <Notes count={data.rec.closedReviews.length} cap={CLOSED_CAP} />
+            <div className={styles.cards}>
+              {data.rec.closedReviews.map((review) => (
+                <div key={review.paymentId} className={styles.listItem}>
+                  <ReviewFacts review={review} />
+                  <RefundView subject={reviewSubject(review)} money={money} />
+                </div>
+              ))}
             </div>
           </section>
 

@@ -17,11 +17,13 @@
  *   `uncertain` and a timeout is never `failed`.
  * - A replay (the same idempotency key and the same request) answers the stored
  *   refund and never reaches the provider's refund route again.
- * - `refund-create` may carry `expectedRefunded`, the confirmed refunded total the owner's
- *   screen was built from. It is part of the request hash and travels inside `p_allocation`;
- *   `refund_request` answers STALE (409) when the ledger's confirmed total is another, before
- *   anything is written, so a stale screen never refunds the same money twice. A page that
- *   sends none is unchanged: without it every path is as before.
+ * - `refund-create` carries `expectedRefunded`, the confirmed refunded total the owner's
+ *   screen was built from, and is refused (422 INVALID) without it (RESIDUALS-1, FD-A-02: every
+ *   screen sends it, so a refund from a tab older than F3 can no longer skip the check). It is
+ *   part of the request hash and travels inside `p_allocation`; `refund_request` answers STALE
+ *   (409) when the ledger's confirmed total is another, before anything is written, so a stale
+ *   screen never refunds the same money twice. The SQL function still takes a call without it;
+ *   only this endpoint requires it.
  * - The answers carry `{refundId, status, amount}` and, on a refusal, its code.
  *   Nothing here logs but the cause of a failed database call (`logCause`: the function and
  *   the SQLSTATE, never a value), and no provider payload or buyer detail is kept.
@@ -77,7 +79,7 @@ const refundCreateSchema = z
     allocation: allocationSchema,
     idempotencyKey: uuid,
     returnId: uuid.optional(),
-    expectedRefunded: confirmedHalalas.optional(),
+    expectedRefunded: confirmedHalalas,
   })
   .refine(exactlyOneTarget)
   .refine((value) => value.attemptId === undefined || value.orderId !== undefined)
@@ -222,8 +224,8 @@ function requestHash(request: CreateRequest): Promise<string> {
       reason: request.reason,
       allocation: { items: items.map(({ itemId, amount }) => ({ itemId, amount })), shipping: request.allocation.shipping ?? 0 },
       returnId: request.returnId ?? null,
-      // Last, and only when sent: a request without it hashes as it always did.
-      ...(request.expectedRefunded === undefined ? {} : { expectedRefunded: request.expectedRefunded }),
+      // Last: a request hashes as it always did, with the total it was built from.
+      expectedRefunded: request.expectedRefunded,
     }),
   )
 }
@@ -255,7 +257,7 @@ export async function refundCreate(deps: RefundDeps, actor: string, body: unknow
     const items = request.allocation.items ?? []
     const shipping = request.allocation.shipping ?? 0
     // The SQL takes it out of the allocation before the allocation is checked or stored.
-    const expected = request.expectedRefunded === undefined ? {} : { expectedRefunded: request.expectedRefunded }
+    const expected = { expectedRefunded: request.expectedRefunded }
     requested = (await payments.rpc('refund_request', {
       p_actor: actor,
       p_order: request.orderId ?? null,

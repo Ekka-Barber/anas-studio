@@ -341,6 +341,8 @@ export interface AlertEmailData {
   paymentId?: string | null
   /** `payment_create_refused`: the code the provider's refusal was recorded with (`CREATE_REFUSED_401`). */
   error?: string | null
+  /** `confirm_mail_braked`: how many confirmation mails of the last 7 days bounced or drew a complaint. */
+  bounced?: number | null
 }
 
 /**
@@ -629,15 +631,41 @@ function alertText(alert: AlertEmailData): RenderedEmail {
         subject: 'تنبيه: بوابة الدفع ترفض إنشاء الفواتير',
         text: `رفضت بوابة الدفع إنشاء فاتورة (${alert.error ? one(alert.error) : UNKNOWN}). تحقق من مفتاح الدفع ووضعه في إعدادات الدوال؛ لا يستطيع أي مشترٍ الدفع حتى يُصلح ذلك.`,
       }
+    case 'policies_reset':
+      return {
+        subject: 'تنبيه: أُلغي اعتماد السياسات',
+        text: 'تغيّرت سياسة كانت معتمدة، فأُلغي اعتماد السياسات. لن يُفتح الشراء حتى تراجعها وتعتمدها من جديد من صفحة «الإعدادات».',
+      }
+    case 'confirm_mail_braked':
+      return {
+        subject: 'تنبيه: أوقفنا رسائل التأكيد مؤقتًا',
+        text: `ارتدّت ${typeof alert.bounced === 'number' ? one(alert.bounced) : UNKNOWN} من رسائل تأكيد «أخبرني عند توفره» أو عُلّمت كرسائل مزعجة خلال آخر 7 أيام، فأوقفنا إرسال رسائل التأكيد حمايةً لسمعة البريد. الطلبات محفوظة، ويعود الإرسال تلقائيًا حين يقل عددها عن 4 خلال 7 أيام.`,
+      }
     default:
       return { subject: 'تنبيه جديد في المتجر', text: `وصل تنبيه جديد (${one(alert.alert)}) يحتاج مراجعتك.` }
   }
 }
 
-/** An alert for an owner: one short text by type, the admin link, and no buyer contact detail (the data has none). */
+/**
+ * The admin page an alert's footer names: the two kinds that belong to another page (the store settings, where the
+ * policies are approved; the email screen) say which, every other kind the orders.
+ */
+function alertPage(kind: string | null): { label: string; path: string } {
+  switch (kind) {
+    case 'policies_reset':
+      return { label: 'صفحة الإعدادات:', path: '/admin/settings' }
+    case 'confirm_mail_braked':
+      return { label: 'صفحة البريد:', path: '/admin/email' }
+    default:
+      return { label: 'لوحة الطلبات:', path: '/admin/orders' }
+  }
+}
+
+/** An alert for an owner: one short text by type, its admin page's link, and no buyer contact detail (the data has none). */
 export function renderOwnerAlert(alert: AlertEmailData, siteUrl: string): RenderedEmail {
   const { subject, text } = alertText(alert)
-  return { subject, text: [text, '', 'لوحة الطلبات:', `${siteUrl}/admin/orders`].join('\n') }
+  const page = alertPage(alert.alert)
+  return { subject, text: [text, '', page.label, `${siteUrl}${page.path}`].join('\n') }
 }
 
 // ---------------------------------------------------------------------------

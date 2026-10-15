@@ -48,6 +48,7 @@ import {
   withStepUp,
   type Kept,
   type KeptForm,
+  type RefundBody,
   type Verdict,
 } from '@/lib/admin-money'
 import { clean, DISPUTE_DIRECTION_LABELS, DISPUTE_KIND_LABELS, labelOf, type OrderDetail } from '@/lib/admin-orders'
@@ -235,15 +236,16 @@ export function ExternalRefund({
  * What a refund form is for: an order's paying attempt (with its lines), or a review payment (with what is left of it).
  * An order's form reads the confirmed total and the refunds in flight from its detail. A review payment's screen says
  * both: `refunded`, the confirmed total of the row the form was built from, and whether one of its refunds is `inFlight`.
- * Without `refunded` the request carries no `expectedRefunded` (the function then does not check it).
+ * `refunded` is required: every request carries the total it was built from (`expectedRefunded`), and the function refuses
+ * one that does not (FD-A-02).
  */
 export type RefundSubject =
   | { kind: 'order'; detail: OrderDetail; attemptId: string }
-  | { kind: 'review'; paymentId: string; orderId: string | null; remainder: number; refunded?: number; inFlight?: boolean }
+  | { kind: 'review'; paymentId: string; orderId: string | null; remainder: number; refunded: number; inFlight?: boolean }
 
 /** The request under confirmation: its body, and what the confirmation repeats of it (the total and the lines with an amount). */
 interface Frozen {
-  body: Record<string, unknown>
+  body: RefundBody
   total: number
   lines: Array<{ key: string; label: string; halalas: number }>
 }

@@ -148,7 +148,27 @@ Deno.serve(async (req) => {
       }
       // RLS already denies a revoked member on the next query; the ban also
       // stops sign-in and refresh-token use.
-      const banError = active ? null : (await admin.auth.admin.updateUserById(userId, { ban_duration: BAN_FOREVER })).error
+      let banError = active ? null : (await admin.auth.admin.updateUserById(userId, { ban_duration: BAN_FOREVER })).error
+      // Two owners revoking one member at once (FD-A-01): the other call's ban may have landed while this call's failed.
+      // This call flipped the row, so rolling it back would leave the member banned in Auth and active for RLS. The
+      // account is read first: one banned now (a `banned_until` in the future) is a ban that held, whoever made it, and
+      // the revoke goes on as one. A read that fails, or an account that is not banned, rolls back as below.
+      let banFoundApplied = false
+      if (banError && changed) {
+        let until: string | undefined
+        try {
+          const read = await admin.auth.admin.getUserById(userId)
+          if (read.error) logCause('staff-admin', read.error)
+          until = read.data.user?.banned_until
+        } catch (error) {
+          // A read that fails proves nothing: the revoke is rolled back below, as it was before this check.
+          logCause('staff-admin', error)
+        }
+        if (until && Date.parse(until) > Date.now()) {
+          banError = null
+          banFoundApplied = true
+        }
+      }
       // A ban that failed puts the member this call revoked back to active, so the revoke stays on the screen and
       // can be tried again. What the reply may say rests on the rollback's own result: only a rollback that held
       // leaves the member as they were.
@@ -166,7 +186,7 @@ Deno.serve(async (req) => {
         userId,
         sessionsEnded === null
           ? { banApplied: !banError, ...(rolledBack === null ? {} : { rolledBack }), ...(changed ? {} : { alreadyRevoked: true }) }
-          : { banApplied: true, sessionsEnded },
+          : { banApplied: true, sessionsEnded, ...(banFoundApplied ? { banFoundApplied: true } : {}) },
       )
       if (banError && !changed) {
         return fail(500, 'BAN_INCOMPLETE', 'لم يكتمل إيقاف الدخول؛ العضو ما زال موقوفًا. حاول مرة أخرى.')

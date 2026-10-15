@@ -1,4 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
+import { Client } from 'pg'
+
+import { anonClient, createOwner, restoreLive, signInByCode, status } from './helpers'
 
 /**
  * The public site in direction B (D39): every page renders cleanly, the
@@ -149,6 +152,66 @@ test.describe('تواصل', () => {
     await page.getByRole('link', { name: /اطلب جلسة/ }).first().click()
     await expect(page.getByLabel('الرسالة')).toHaveValue(/بناء القائمة/)
     await expect(page.getByLabel('الرسالة')).toBeFocused()
+  })
+})
+
+// RESIDUALS-1 R1, I45 (3): «بريد التواصل» of the site settings is a mailto channel on /contact beside WhatsApp. The address is set
+// and cleared through the admin form, and published, the way owner-operations.spec.ts publishes the site settings; the version live at
+// the start is put back whether the test passes or not.
+test.describe('the contact email on تواصل', () => {
+  const ADDRESS = 'help@anas.studio'
+  const cleanups: Array<() => Promise<void>> = []
+  test.afterEach(async () => {
+    await Promise.all(cleanups.splice(0).map((run) => run()))
+  })
+
+  const liveEmail = async (): Promise<string | undefined> => {
+    const { data } = await anonClient().from('published_documents').select('data').eq('collection', 'site_settings').eq('doc_id', 'site').single()
+    return (data?.data as { contact?: { email?: string } } | undefined)?.contact?.email
+  }
+
+  test('a published address is a mailto channel, «البريد» then the address, as the social rows are; with none there is no mail channel', async ({ page, browser }) => {
+    const db = new Client({ connectionString: status.DB_URL })
+    await db.connect()
+    const live = await db.query<{ seq: number }>("select seq from public.published_documents where collection = 'site_settings' and doc_id = 'site'")
+    await db.end()
+    cleanups.push(() => restoreLive('site_settings', 'site', live.rows[0]!.seq))
+
+    await signInByCode(page, await createOwner('ناشر بريد التواصل'))
+    const publish = async (email: string): Promise<void> => {
+      await page.goto('/admin/content/site_settings/edit?id=site')
+      await page.getByLabel('بريد التواصل').fill(email)
+      await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+      await expect(page.getByText('تم الحفظ.')).toBeVisible()
+      await page.getByRole('button', { name: 'نشر' }).click()
+      await expect.poll(liveEmail).toBe(email)
+    }
+
+    const visitor = await (await browser.newContext({ viewport: { width: 360, height: 740 } })).newPage()
+    // With an address: the channel is there, a real mailto link, its visible text the address itself.
+    await publish(ADDRESS)
+    await visitor.goto('/contact')
+    const channels = visitor.getByRole('list', { name: 'قنوات التواصل' })
+    const mail = channels.getByRole('link', { name: /^البريد\s*help@anas\.studio$/ })
+    await expect(mail).toHaveCount(1)
+    await expect(mail).toHaveAttribute('href', `mailto:${ADDRESS}`)
+    await expect(mail.locator('bdi')).toHaveText(ADDRESS)
+    await expect(mail.locator('bdi')).toHaveAttribute('dir', 'ltr')
+    await expect(channels.locator('a[href^="mailto:"]')).toHaveCount(1)
+
+    // A long address wraps inside its channel at 360px: the page never scrolls sideways (R1 audit B, 4).
+    const LONG = 'a.very.long.mailbox.name.for.the.contact.page@mail.subdomain.anas.studio'
+    await publish(LONG)
+    await visitor.goto('/contact')
+    await expect(channels.locator(`a[href="mailto:${LONG}"] bdi`)).toHaveText(LONG)
+    expect(await visitor.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0)
+
+    // Cleared and published again: no mail channel, whatever the seeded data holds.
+    await publish('')
+    await visitor.goto('/contact')
+    await expect(visitor.locator('main a[href^="mailto:"]')).toHaveCount(0)
+    await expect(visitor.getByRole('link', { name: /^البريد/ })).toHaveCount(0)
+    await visitor.context().close()
   })
 })
 

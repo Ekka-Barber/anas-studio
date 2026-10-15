@@ -206,20 +206,30 @@ describe('staff-admin: set_active', () => {
     /** The last-owner trigger refuses the revoke (23514). */
     lastOwner: boolean
     sessionsFail: boolean
+    /** What the account read after a ban that failed says (FD-A-01): banned already, banned until a time that has passed, not banned, or the read fails or throws. */
+    account: 'free' | 'banned' | 'lapsed' | 'unreadable' | 'throws'
     bans: string[]
+    reads: string[]
     rpcs: Array<[string, Record<string, unknown>]>
     audits: Array<{ action: string; summary: Record<string, unknown> }>
   }
 
   /** A fake service client over one staff table, the auth bans, the audit table and `staff_sessions_end`. */
   function installActive(over: Partial<ActiveWorld> = {}): ActiveWorld {
-    const world: ActiveWorld = { active: new Map([[MEMBER, true]]), banFails: false, rollbackFails: false, rollbackEmpty: false, lastOwner: false, sessionsFail: false, bans: [], rpcs: [], audits: [], ...over }
+    const world: ActiveWorld = { active: new Map([[MEMBER, true]]), banFails: false, rollbackFails: false, rollbackEmpty: false, lastOwner: false, sessionsFail: false, account: 'free', bans: [], reads: [], rpcs: [], audits: [], ...over }
     hoisted.client = {
       auth: {
         admin: {
           updateUserById: async (_id: string, attributes: { ban_duration: string }) => {
             world.bans.push(attributes.ban_duration)
             return { data: {}, error: world.banFails && attributes.ban_duration !== 'none' ? { message: 'auth unavailable' } : null }
+          },
+          getUserById: async (id: string) => {
+            world.reads.push(id)
+            if (world.account === 'throws') throw new Error('network down')
+            if (world.account === 'unreadable') return { data: { user: null }, error: { message: 'auth unavailable' } }
+            const banned_until = world.account === 'banned' ? new Date(Date.now() + 876_000 * 3_600_000).toISOString() : world.account === 'lapsed' ? new Date(Date.now() - 1000).toISOString() : null
+            return { data: { user: { id, banned_until } }, error: null }
           },
         },
       },
@@ -307,6 +317,58 @@ describe('staff-admin: set_active', () => {
     expect((await setActive(false)).status).toBe(200)
     expect(world.active.get(MEMBER)).toBe(false)
     expect(world.rpcs).toEqual([['staff_sessions_end', { p_user: MEMBER }]])
+  })
+
+  // FD-A-01: two owners revoking one member at once. The other call's ban landed while this call's failed, and this call flipped
+  // the row: rolling it back would leave the member banned in Auth and active for RLS.
+  it('a ban that fails on an account that is already banned keeps the revoke: no rollback, the sessions end, the audit row says the ban was found, and the reply is ok', async () => {
+    const world = installActive({ banFails: true, account: 'banned' })
+    const response = await setActive(false)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ ok: true, data: { userId: MEMBER, active: false } })
+    expect(world.reads).toEqual([MEMBER])
+    expect(world.active.get(MEMBER)).toBe(false)
+    expect(world.bans).toEqual(['876000h'])
+    expect(world.rpcs).toEqual([['staff_sessions_end', { p_user: MEMBER }]])
+    expect(world.audits).toEqual([{ action: 'staff.revoke', summary: { banApplied: true, sessionsEnded: true, banFoundApplied: true } }])
+  })
+
+  it('a ban that fails on an account that is not banned, or banned until a time that has passed, rolls the revoke back as before', async () => {
+    for (const account of ['free', 'lapsed'] as const) {
+      const world = installActive({ banFails: true, account })
+      const response = await setActive(false)
+      expect(response.status, account).toBe(500)
+      expect(await response.json(), account).toMatchObject({ ok: false, error: { code: 'BAN_FAILED' } })
+      expect(world.reads, account).toEqual([MEMBER])
+      expect(world.active.get(MEMBER), account).toBe(true)
+      expect(world.rpcs, account).toEqual([])
+      expect(world.audits, account).toEqual([{ action: 'staff.revoke', summary: { banApplied: false, rolledBack: true } }])
+    }
+  })
+
+  it('a ban that fails and an account that cannot be read (an error, or a call that throws) rolls the revoke back as before: a failed read proves no ban', async () => {
+    for (const account of ['unreadable', 'throws'] as const) {
+      const world = installActive({ banFails: true, account })
+      const response = await setActive(false)
+      expect(response.status, account).toBe(500)
+      expect(await response.json(), account).toMatchObject({ ok: false, error: { code: 'BAN_FAILED' } })
+      expect(world.active.get(MEMBER), account).toBe(true)
+      expect(world.rpcs, account).toEqual([])
+      expect(world.audits, account).toEqual([{ action: 'staff.revoke', summary: { banApplied: false, rolledBack: true } }])
+    }
+  })
+
+  it('the account is read only after a ban that failed on a revoke this call made: a ban that held, a restore and a member already revoked read nothing', async () => {
+    const held = installActive()
+    expect((await setActive(false)).status).toBe(200)
+    expect(held.reads).toEqual([])
+    const restore = installActive({ active: new Map([[MEMBER, false]]), account: 'banned' })
+    expect((await setActive(true)).status).toBe(200)
+    expect(restore.reads).toEqual([])
+    const already = installActive({ active: new Map([[MEMBER, false]]), banFails: true, account: 'banned' })
+    const incomplete = await setActive(false)
+    expect(await incomplete.json()).toMatchObject({ error: { code: 'BAN_INCOMPLETE' } })
+    expect(already.reads).toEqual([])
   })
 
   it('a ban that fails and a rollback that fails too: the reply does not claim the state is unchanged, the audit row says so, and the revoke can be asked again', async () => {

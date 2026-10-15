@@ -352,6 +352,11 @@ The reply is counts only (`attempts`, `events`, `refunds`, `settled`, `cancelled
   `docker restart supabase_edge_runtime_ANASAQ.ME` before any test that calls a
   function over HTTP (`pnpm test:db` needs it too). If the functions answer 503
   the container has exited: `docker start supabase_edge_runtime_ANASAQ.ME`.
+  The HTTP integration files refuse a stale runtime themselves (TEST-DB-02): the first read of
+  `status.FUNCTIONS_URL` in a test file compares the container's start time with the newest
+  modification time of any file under `supabase/functions` (times only, with 5 seconds of
+  allowance for the Docker VM's clock) and stops with the `docker restart` line to run when a file
+  is newer. The files that only use the database never read it.
 - If sign-in e2e tests fail with `fetch failed: other side closed`, Mailpit's
   forwarded port (54324) died after a Docker restart while its container still
   runs: `docker restart supabase_inbucket_ANASAQ.ME`.

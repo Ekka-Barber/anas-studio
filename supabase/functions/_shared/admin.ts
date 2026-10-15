@@ -44,8 +44,11 @@
  *   owner can reload (D34: no tax field anywhere).
  * - `commerce-policies-approve` (owner, fresh TOTP): the P07 round 2
  *   approval of the published policy revisions through
- *   `commerce_policies_approve`; a stale version answers 409 and a missing
- *   required policy answers 422 POLICIES_NOT_PUBLISHED.
+ *   `commerce_policies_approve`. The body names `revisions`, the revisions
+ *   the owner's screen showed (RESIDUALS-1, I44 (1)), and the SQL approves
+ *   exactly those: a stale version answers 409 CONFLICT, revisions that are no
+ *   longer the published ones 409 POLICIES_CHANGED, and a missing required
+ *   policy 422 POLICIES_NOT_PUBLISHED.
  * - `commerce-checkout-set` (owner, fresh TOTP; P08): the checkout switch
  *   through `commerce_checkout_set`. Turning it on is refused (409
  *   PAYMENTS_NOT_CONFIGURED) while the payment settings are not working, and
@@ -481,20 +484,40 @@ async function commerceSettingsSave(deps: AdminDeps, actor: string, body: Record
   }
 }
 
+/**
+ * The revisions the approval covers, by the four fixed policy documents (the SQL's own list): each a published revision
+ * (`seq`). The screen sends the ones that are published, so none is required here: the SQL answers a required policy that
+ * is not published (POLICIES_NOT_PUBLISHED) and any difference from what is published now (POLICIES_CHANGED).
+ */
+const approvedRevision = z.number().int().min(1).max(2_147_483_647)
+const policiesApproveSchema = commercePoliciesApproveSchema.extend({
+  revisions: z.strictObject({
+    store: approvedRevision.optional(),
+    delivery: approvedRevision.optional(),
+    refund: approvedRevision.optional(),
+    privacy: approvedRevision.optional(),
+  }),
+})
+
 /** The P07 round 2 policy approval. The role and step-up checks ran in `handleAdmin`. */
 async function commercePoliciesApprove(deps: AdminDeps, actor: string, body: Record<string, unknown>): Promise<Response> {
-  const parsed = commercePoliciesApproveSchema.safeParse(body)
+  const parsed = policiesApproveSchema.safeParse(body)
   if (!parsed.success) return fail(422, 'INVALID', 'بيانات غير صالحة.', parsed.error.flatten())
   try {
     const result = await deps.rpc('commerce_policies_approve', {
       p_actor: actor,
       p_expected_version: parsed.data.expectedVersion,
+      p_revisions: parsed.data.revisions,
     })
     return ok(result)
   } catch (error) {
     const code = (error as { code?: string } | null)?.code
     if (code === '23505') {
       return fail(409, 'CONFLICT', 'تغيّرت الإعدادات من جلسة أخرى. أعد تحميل الصفحة.')
+    }
+    // object_not_in_prerequisite_state: a policy was published, or its set changed, since the owner's screen was read.
+    if (code === '55000') {
+      return fail(409, 'POLICIES_CHANGED', 'تغيّرت السياسات منذ فتحت الصفحة. راجعها ثم اعتمدها من جديد.')
     }
     if (code === 'P0001') {
       return fail(422, 'POLICIES_NOT_PUBLISHED', 'انشر سياسات المتجر والتوصيل والاسترجاع أولًا.')

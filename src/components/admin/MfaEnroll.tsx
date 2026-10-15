@@ -17,9 +17,13 @@ type State =
   | { status: 'error' }
 
 /**
- * Owner TOTP enrolment (P03/D13): step-up for invite, role change and
- * revoke relies on a verified factor here. A stale unverified enrolment is
- * cleared before a fresh one is created, so retrying never piles up factors.
+ * Owner TOTP enrolment (P03/D13): every action that asks for a fresh code
+ * relies on a verified factor here: the team's (`staff-admin`: invite, role
+ * change, revoke, restore) and the `admin` function's (a refund, an external
+ * refund, a dispute, the store settings, the policies' approval, the checkout
+ * switch, an order link sent to another address). A stale unverified
+ * enrolment is cleared before a fresh one is created, so retrying never piles
+ * up factors.
  */
 export function MfaEnroll() {
   const [state, setState] = useState<State>({ status: 'loading' })
@@ -104,7 +108,12 @@ export function MfaEnroll() {
       {state.status === 'enrolled' && (
         <>
           <p>تطبيق المصادقة مفعّل.</p>
-          {role === 'owner' && <p className={styles.message}>مطلوب لتفعيل إجراءات الفريق: الدعوة وتغيير الدور والإيقاف.</p>}
+          {role === 'owner' && (
+            <p className={styles.message}>
+              مطلوب لكل إجراء يطلب رمزًا جديدًا: دعوة عضو وتغيير دوره وإيقافه واستعادته، وإعادة مبلغ وتسجيل استرداد خارجي وتسجيل اعتراض أو فرق أو متابعة، وحفظ إعدادات المتجر
+              واعتماد السياسات وفتح الشراء وإغلاقه، وإرسال رابط طلب إلى بريد آخر.
+            </p>
+          )}
         </>
       )}
       {state.status === 'enrolling' && (

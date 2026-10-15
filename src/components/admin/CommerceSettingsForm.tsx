@@ -8,7 +8,12 @@
  * opens the dialog and the same save retries exactly once. P07 round 2 adds
  * the policy approval (`commerce-policies-approve`) through the same dialog:
  * the owner approves the published policy revisions, listed here with their
- * names and version numbers, and the checkout policy is what he approved.
+ * names and version numbers, and the checkout policy is what he approved. The
+ * policies the approval would cover are listed above its button with the time
+ * each revision went live, and the approval sends exactly those revisions
+ * (`publishedPolicies`): when one was published since the page was read, the
+ * function answers POLICIES_CHANGED, the settings are read again and the owner
+ * approves from the new list.
  * P08 adds «الشراء»: the payments status the `admin` function's `status`
  * action reports (names and booleans, never a key, and the reason of a
  * refusal), whether the store takes new orders now (`checkoutOpen`, and why
@@ -20,7 +25,17 @@ import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
 
 import { POLICY_DOC_LABELS, type PolicyDocId } from '@/admin/collections/policies'
-import { afterSaved, checkoutLine, factorReading, FACTORS_UNREADABLE, paymentsLine } from '@/lib/admin-commerce'
+import {
+  afterSaved,
+  approvalRevisions,
+  checkoutLine,
+  factorReading,
+  FACTORS_UNREADABLE,
+  parsePublishedPolicies,
+  paymentsLine,
+  publishedPolicyLine,
+  type PublishedPolicy,
+} from '@/lib/admin-commerce'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 import type { SettingsStatus } from '../../../supabase/functions/_shared/admin.ts'
@@ -40,6 +55,8 @@ type CommerceRow = {
   version: number
   configuredAt: string | null
   policyRevisions: Record<string, unknown>
+  /** The policies an approval would cover now, with the revision each shows (I44 (1)). */
+  publishedPolicies: PublishedPolicy[]
   sellerLegalName: string | null
   sellerAddress: string | null
   sellerRegistration: string | null
@@ -48,7 +65,12 @@ type CommerceRow = {
 async function loadRow(): Promise<CommerceRow | null> {
   const { data, error } = await getSupabaseBrowserClient().rpc('commerce_settings_get')
   if (error || !data) return null
-  return data as CommerceRow
+  try {
+    // A reply that is not what it should be is a failed reading: nothing is approved from a list that was not read.
+    return { ...(data as CommerceRow), publishedPolicies: parsePublishedPolicies((data as { publishedPolicies?: unknown }).publishedPolicies) }
+  } catch {
+    return null
+  }
 }
 
 /** An empty input clears the field; the schema and the SQL take it from there. */
@@ -109,6 +131,20 @@ export function CommerceSettingsForm() {
         setError(next.sentence)
         setStale(next.stale)
       }
+      return
+    }
+    if (code === 'POLICIES_CHANGED') {
+      // A policy was published since this page was read: the settings are read again, so the list above the button and
+      // the revisions it sends are the new ones. A reading that fails leaves nothing to approve from: the screen keeps
+      // what it shows (nothing typed is lost) and sends nothing until the page is read again.
+      const fresh = await loadRow()
+      if (fresh === null) {
+        setStale(true)
+        setError('تغيّرت السياسات منذ فتحت الصفحة، وتعذّرت قراءتها من جديد. أعد تحميل الصفحة.')
+        return
+      }
+      setRow(fresh)
+      setError(message)
       return
     }
     if (code === 'STEP_UP_REQUIRED') {
@@ -243,12 +279,26 @@ export function CommerceSettingsForm() {
         انشر التعديلات من{' '}
         <Link href="/admin/content/policies">السياسات</Link> أولًا.
       </p>
+      {row.publishedPolicies.length > 0 && (
+        <ul className={styles.metaList}>
+          {row.publishedPolicies.map((policy) => (
+            <li key={policy.id}>
+              {publishedPolicyLine(policy.title !== '' ? policy.title : (POLICY_DOC_LABELS[policy.id as PolicyDocId] ?? policy.id), policy.publishedAt)}
+            </li>
+          ))}
+        </ul>
+      )}
       <div className={styles.row}>
         <button
           type="button"
           className={styles.button}
           disabled={off}
-          onClick={() => void runAction({ action: 'commerce-policies-approve', expectedVersion: row.version }, 'تم اعتماد السياسات.')}
+          onClick={() =>
+            void runAction(
+              { action: 'commerce-policies-approve', expectedVersion: row.version, revisions: approvalRevisions(row.publishedPolicies) },
+              'تم اعتماد السياسات.',
+            )
+          }
         >
           اعتماد السياسات المنشورة
         </button>

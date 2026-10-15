@@ -4,7 +4,9 @@
  * One collection's documents (P04 part 2): rows from `content_documents`,
  * plus the fixed rows (the rooms, `site_settings`, the four policies and the
  * scenes gallery) that may not have been edited yet. "جديد" creates a post (a generated uuid doc id) or a
- * taxonomy (a user-entered slug doc id).
+ * taxonomy (a user-entered slug doc id). A document made so exists only as this browser's local copy until its first
+ * save (ADMIN-CMS-02), so the list shows this user's local copies of such documents at its top, each linking to its edit
+ * page, which offers the copy.
  */
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -24,6 +26,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { documentHref } from '@/lib/supabase/functions'
 
 import { formatRiyadh } from '@/lib/format'
+import { localCopies } from './AdminShell'
 import styles from './admin.module.css'
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,79}$/
@@ -55,6 +58,8 @@ function statusFor(row: DocumentRow | undefined): string {
 export function CollectionList({ collection }: { collection: Collection }) {
   const router = useRouter()
   const [rows, setRows] = useState<Map<string, DocumentRow> | null>(null)
+  // This user's local copies of documents that have no row yet, newest first: the collections that offer «جديد».
+  const [unsaved, setUnsaved] = useState<Array<{ docId: string; title: string }>>([])
   const [error, setError] = useState<string | null>(null)
   const [newSlug, setNewSlug] = useState('')
   const [newSlugError, setNewSlugError] = useState<string | null>(null)
@@ -73,6 +78,19 @@ export function CollectionList({ collection }: { collection: Collection }) {
       const map = new Map<string, DocumentRow>()
       for (const row of (data as DocumentRow[]) ?? []) map.set(row.doc_id, row)
       setRows(map)
+      if (collection !== 'posts' && collection !== 'taxonomies') {
+        setUnsaved([])
+        return
+      }
+      const { data: sessionData } = await supabase.auth.getSession()
+      setUnsaved(
+        localCopies(collection, sessionData.session?.user.id)
+          .filter(({ docId }) => !map.has(docId))
+          .map(({ docId, draft }) => ({
+            docId,
+            title: documentTitle(collection, docId, typeof draft.data === 'object' && draft.data !== null ? (draft.data as Record<string, unknown>) : undefined),
+          })),
+      )
     })()
   }, [collection])
 
@@ -159,6 +177,15 @@ export function CollectionList({ collection }: { collection: Collection }) {
             </tr>
           </thead>
           <tbody>
+            {unsaved.map(({ docId, title }) => (
+              <tr key={`unsaved:${docId}`}>
+                <td data-label="العنوان">
+                  <Link href={documentHref(collection, docId)}>{title}</Link>
+                </td>
+                <td data-label="الحالة">مسودة غير محفوظة على هذا الجهاز</td>
+                <td data-label="آخر حفظ">لم يُحفظ بعد</td>
+              </tr>
+            ))}
             {docIds.map((docId) => {
               const row = rows?.get(docId)
               return (

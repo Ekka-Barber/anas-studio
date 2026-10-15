@@ -22,7 +22,17 @@ import {
   SCHEDULE_GRACE_MS,
   scheduleCutoff,
 } from '../../src/components/admin/AdminHome'
-import { clearDrafts, currentEntry, isWidePath } from '../../src/components/admin/AdminShell'
+import {
+  chooseCopy,
+  clearDrafts,
+  currentEntry,
+  draftKey,
+  isWidePath,
+  localCopies,
+  storedCopies,
+  tabId,
+  type StoredCopy,
+} from '../../src/components/admin/AdminShell'
 import { CLOSE_CONFIRM, CLOSED_MESSAGE, closeResult } from '../../src/components/admin/EmailView'
 import { sendOutcome } from '../../src/components/admin/SignIn'
 import { stepUpError } from '../../src/components/admin/StepUp'
@@ -32,6 +42,7 @@ import { otpDigits } from '../../src/lib/digits'
 // AdminHome, AdminShell, StepUp and TeamView import through the `@/` alias, which the unit config does not resolve.
 vi.mock('@/admin/collections', () => ({ COLLECTION_LABELS: {} }))
 vi.mock('@/lib/digits', () => ({ otpDigits: String }))
+vi.mock('@/lib/admin-commerce', async () => import('../../src/lib/admin-commerce'))
 vi.mock('@/lib/format', () => ({ formatNumber: String, formatRiyadh: String }))
 vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowserClient: () => ({}) }))
 vi.mock('@/lib/supabase/functions', () => ({ callFunction: async () => ({}), documentHref: () => '' }))
@@ -355,5 +366,147 @@ describe('the sign-in\'s request for a code (F3-10)', () => {
     for (const status of [500, 502, 503]) {
       expect(sendOutcome({ status }), String(status)).toEqual({ message: 'تعذّر الإرسال الآن. حاول بعد قليل.', step: 'email' })
     }
+  })
+})
+
+// RESIDUALS-1 R1, ADMIN-CMS-01 and ADMIN-CMS-02: the editor's local copy is kept per tab as well as per document, and a
+// document that was never saved is found again through its copy.
+describe('the editor\'s local copies', () => {
+  /** A storage: its keys are its own properties (what `Object.keys(localStorage)` lists), its methods are not. */
+  function storage(entries: Record<string, string> = {}): Record<string, string> {
+    const store: Record<string, string> = { ...entries }
+    Object.defineProperty(store, 'getItem', { value: (key: string) => store[key] ?? null, enumerable: false })
+    Object.defineProperty(store, 'setItem', { value: (key: string, value: string) => (store[key] = value), enumerable: false })
+    Object.defineProperty(store, 'removeItem', { value: (key: string) => delete store[key], enumerable: false })
+    return store
+  }
+  const draft = (over: Record<string, unknown> = {}) => JSON.stringify({ baseSeq: 1, data: { title: 'نص' }, savedAt: 1000, userId: 'u1', ...over })
+  const copy = (key: string, over: Record<string, unknown> = {}): StoredCopy => ({
+    key,
+    docId: 'doc',
+    draft: { baseSeq: 1, data: { title: 'نص' }, savedAt: 1000, userId: 'u1', ...over } as StoredCopy['draft'],
+  })
+
+  it('keys a copy by collection, document and tab, under the prefix the sign-out clears by', () => {
+    expect(draftKey('posts', 'abc', 'tab-1')).toBe('anasaq:draft:posts:abc:tab-1')
+    const store = storage({ [draftKey('posts', 'abc', 'tab-1')]: draft(), [draftKey('posts', 'abc', 'tab-2')]: draft(), 'sb-auth-token': 'keep' })
+    vi.stubGlobal('window', { localStorage: store })
+    clearDrafts()
+    expect(Object.keys(store)).toEqual(['sb-auth-token'])
+  })
+
+  it('gives a tab one id that its reloads keep, and another tab another: sessionStorage is per tab', () => {
+    const first = storage()
+    vi.stubGlobal('window', { sessionStorage: first })
+    const id = tabId()
+    expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(tabId()).toBe(id)
+    // The same tab after a reload: the same storage, the same id.
+    vi.stubGlobal('window', { sessionStorage: first })
+    expect(tabId()).toBe(id)
+    // Another tab of the same browser: its own storage, its own id.
+    vi.stubGlobal('window', { sessionStorage: storage() })
+    expect(tabId()).not.toBe(id)
+  })
+
+  it('keeps one id for the page load when sessionStorage is blocked, so the autosave never writes a key a second time under another name', () => {
+    const blocked = {
+      getItem: () => {
+        throw new Error('blocked')
+      },
+      setItem: () => {
+        throw new Error('blocked')
+      },
+    }
+    vi.stubGlobal('window', { sessionStorage: blocked })
+    const id = tabId()
+    expect(id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(tabId()).toBe(id)
+  })
+
+  it('finds every copy of one collection\'s documents, whatever tab wrote it, and an old key with no tab id; unreadable copies and other keys are skipped', () => {
+    const store = storage({
+      [draftKey('posts', 'a', 'tab-1')]: draft({ savedAt: 3 }),
+      [draftKey('posts', 'a', 'tab-2')]: draft({ savedAt: 5 }),
+      'anasaq:draft:posts:a': draft({ savedAt: 1 }),
+      [draftKey('posts', 'b', 'tab-1')]: '{ not json',
+      [draftKey('posts', 'c', 'tab-1')]: 'null',
+      [draftKey('taxonomies', 'a', 'tab-1')]: draft(),
+      'anasaq:draft:postsx:a': draft(),
+      'sb-auth-token': '{}',
+    })
+    vi.stubGlobal('window', { localStorage: store })
+    expect(storedCopies('posts').map(({ key, docId }) => [key, docId]).sort()).toEqual(
+      [
+        ['anasaq:draft:posts:a', 'a'],
+        [draftKey('posts', 'a', 'tab-1'), 'a'],
+        [draftKey('posts', 'a', 'tab-2'), 'a'],
+      ].sort(),
+    )
+    expect(storedCopies('taxonomies').map(({ docId }) => docId)).toEqual(['a'])
+    // Storage that cannot be listed has no copies.
+    vi.stubGlobal('window', {})
+    expect(storedCopies('posts')).toEqual([])
+  })
+
+  it('offers this tab\'s own copy first, else the newest copy another tab (or an old key) left', () => {
+    const own = copy('anasaq:draft:posts:doc:tab-me', { savedAt: 10 })
+    const newer = copy('anasaq:draft:posts:doc:tab-other', { savedAt: 99 })
+    const old = copy('anasaq:draft:posts:doc', { savedAt: 50 })
+    expect(chooseCopy([newer, old, own], own.key, 'u1')).toBe(own)
+    // No copy of its own: the newest of the others, an old key among them.
+    expect(chooseCopy([old, newer], own.key, 'u1')).toBe(newer)
+    expect(chooseCopy([old, copy('anasaq:draft:posts:doc:tab-x', { savedAt: 20 })], own.key, 'u1')).toBe(old)
+    expect(chooseCopy([], own.key, 'u1')).toBeNull()
+  })
+
+  it('offers only a copy this user wrote; one from before the user was recorded is anyone\'s', () => {
+    const mine = copy('anasaq:draft:posts:doc:a', { savedAt: 1, userId: 'u1' })
+    const theirs = copy('anasaq:draft:posts:doc:b', { savedAt: 9, userId: 'u2' })
+    const unsigned = copy('anasaq:draft:posts:doc:c', { savedAt: 5, userId: undefined })
+    expect(chooseCopy([mine, theirs], '', 'u1')).toBe(mine)
+    expect(chooseCopy([theirs], '', 'u1')).toBeNull()
+    expect(chooseCopy([mine, theirs, unsigned], '', 'u1')).toBe(unsigned)
+    // This tab's own copy, written by someone else, is not offered either; the user's other copy is.
+    expect(chooseCopy([copy('anasaq:draft:posts:doc:me', { userId: 'u2' }), mine], 'anasaq:draft:posts:doc:me', 'u1')).toBe(mine)
+    // A copy whose time cannot be read is the oldest.
+    const timeless = copy('anasaq:draft:posts:doc:d', { savedAt: 'yesterday' })
+    expect(chooseCopy([timeless, mine], '', 'u1')).toBe(mine)
+  })
+
+  it('ADMIN-CMS-01: a save in one tab removes only that tab\'s copy, so the other tab\'s text is offered after its reload', () => {
+    const store = storage()
+    vi.stubGlobal('window', { localStorage: store })
+    const a = draftKey('posts', 'doc', 'tab-a')
+    const b = draftKey('posts', 'doc', 'tab-b')
+    // Tab B types (its autosave writes its key); tab A types, saves, and its autosave removes ITS key.
+    store[b] = draft({ data: { excerpt: 'B text' }, savedAt: 10 })
+    store[a] = draft({ data: { title: 'A' }, savedAt: 20 })
+    delete store[a]
+    // Tab B reloads: its own key is still there and is the copy it is offered.
+    const offered = chooseCopy(storedCopies('posts').filter((entry) => entry.docId === 'doc'), b, 'u1')
+    expect(offered?.key).toBe(b)
+    expect(offered?.draft.data).toEqual({ excerpt: 'B text' })
+    // A new tab C is offered the same text, as the newest copy of another tab; «تجاهل» in C removes the key it was offered.
+    const forC = chooseCopy(storedCopies('posts'), draftKey('posts', 'doc', 'tab-c'), 'u1')
+    expect(forC?.key).toBe(b)
+    delete store[forC!.key]
+    expect(storedCopies('posts')).toEqual([])
+  })
+
+  it('ADMIN-CMS-02: lists this user\'s copies of a collection one per document, the newest copy of each, the newest document first', () => {
+    const store = storage({
+      [draftKey('posts', 'one', 'tab-1')]: draft({ data: { title: 'قديم' }, savedAt: 100 }),
+      [draftKey('posts', 'one', 'tab-2')]: draft({ data: { title: 'أحدث' }, savedAt: 300 }),
+      [draftKey('posts', 'two', 'tab-1')]: draft({ data: { title: 'ثانٍ' }, savedAt: 200 }),
+      [draftKey('posts', 'other-user', 'tab-1')]: draft({ userId: 'u2', savedAt: 900 }),
+      [draftKey('taxonomies', 'tag', 'tab-1')]: draft({ data: { label: 'وسم' }, savedAt: 400 }),
+    })
+    vi.stubGlobal('window', { localStorage: store })
+    const posts = localCopies('posts', 'u1')
+    expect(posts.map(({ docId }) => docId)).toEqual(['one', 'two'])
+    expect(posts[0]!.draft.data).toEqual({ title: 'أحدث' })
+    expect(localCopies('taxonomies', 'u1').map(({ docId }) => docId)).toEqual(['tag'])
+    expect(localCopies('posts', 'nobody')).toEqual([])
   })
 })

@@ -347,6 +347,8 @@ describe('a paid digital order, end to end', () => {
       amount: p.total,
       reason: 'استرداد كامل',
       allocation: { items: [{ itemId, amount: p.items[0]!.paid }], shipping: 0 },
+      // The confirmed refunded total the request is built from (required since RESIDUALS-1 R1, FD-A-02): none yet.
+      expectedRefunded: 0,
       idempotencyKey: randomUUID(),
     })
     expect(refund.status, JSON.stringify(refund.body)).toBe(200)

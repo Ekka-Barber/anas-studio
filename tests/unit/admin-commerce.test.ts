@@ -5,11 +5,14 @@
 // settings' «الشراء» box: the payments line with its reason, and whether the store takes orders now.
 // FABLE-AUDIT F3-5 and F3-16 add what the settings screen does with the owner's authenticators (a list that could not be
 // read is not «no authenticator») and with an action that went through whose re-read failed.
+// RESIDUALS-1 R1 (I44 (1)) adds the policies an approval covers: the strict reading of `publishedPolicies`, the revisions an
+// approval sends and the line of the list above its button.
 import { describe, expect, it } from 'vitest'
 
 import { PAID_FILE_MAX_BYTES as SERVER_MAX_BYTES } from '../../supabase/functions/_shared/paid-files.ts'
 import {
   afterSaved,
+  approvalRevisions,
   checkoutLine,
   checkPaidFile,
   COMMERCE_NOTE,
@@ -28,10 +31,12 @@ import {
   PAID_FILE_MAX_BYTES,
   paidFileMime,
   parseCommerceStats,
+  parsePublishedPolicies,
   parseUploadDone,
   parseUploadTicket,
   parseVariantInfo,
   paymentsLine,
+  publishedPolicyLine,
   RANGE_REVERSED,
   RANGE_TOO_LONG,
   riyadhToday,
@@ -466,5 +471,59 @@ describe('the store settings after an action that went through (FABLE-AUDIT F3-1
       throw new Error('Failed to fetch')
     }
     expect(await afterSaved(threw, 'تم اعتماد السياسات.')).toEqual({ row: null, stale: true, sentence: SAVED_NOT_REFRESHED })
+  })
+})
+
+describe('the policies an approval covers (RESIDUALS-1 I44 (1))', () => {
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: 'store',
+    title: 'سياسة المتجر',
+    seq: 4,
+    publishedAt: '2026-10-14T12:30:00.123456+00:00',
+    ...over,
+  })
+
+  it('reads publishedPolicies key by key, in the order the SQL gives them', () => {
+    const list = [entry(), entry({ id: 'delivery', title: 'سياسة التوصيل', seq: 2 }), entry({ id: 'privacy', title: '', seq: 1 })]
+    expect(parsePublishedPolicies(list)).toEqual(list)
+    expect(parsePublishedPolicies([])).toEqual([])
+  })
+
+  it('reads a missing or null title as empty (the screen then names the policy by its own label)', () => {
+    expect(parsePublishedPolicies([entry({ title: null })])[0]!.title).toBe('')
+    const { title: _title, ...untitled } = entry()
+    expect(parsePublishedPolicies([untitled])[0]!.title).toBe('')
+  })
+
+  it('throws on anything that is not that list: nothing is approved from a list that was not read', () => {
+    for (const bad of [
+      undefined,
+      null,
+      {},
+      'store',
+      [null],
+      [entry({ id: '' })],
+      [entry({ id: 4 })],
+      [entry({ seq: '4' })],
+      [entry({ seq: 1.5 })],
+      [entry({ seq: -1 })],
+      [entry({ publishedAt: 'yesterday' })],
+      [entry({ publishedAt: null })],
+    ]) {
+      expect(() => parsePublishedPolicies(bad), JSON.stringify(bad)).toThrow()
+    }
+  })
+
+  it('sends exactly the policies the screen lists, each at the revision it showed', () => {
+    const list = parsePublishedPolicies([entry(), entry({ id: 'delivery', seq: 2 }), entry({ id: 'refund', seq: 7 })])
+    expect(approvalRevisions(list)).toEqual({ store: 4, delivery: 2, refund: 7 })
+    expect(approvalRevisions([])).toEqual({})
+  })
+
+  it('words each policy as «<name>: نُشرت <Riyadh date and time>», in Riyadh time', () => {
+    // 12:30 UTC is 15:30 in Riyadh.
+    const line = publishedPolicyLine('سياسة المتجر', '2026-10-14T12:30:00.123456+00:00')
+    expect(line.startsWith('سياسة المتجر: نُشرت ')).toBe(true)
+    expect(line).toMatch(/15:30|3:30/)
   })
 })

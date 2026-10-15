@@ -22,7 +22,8 @@ import type { FunctionResult } from './supabase/functions'
  *
  * A refund also says which confirmed refunded total its form was built from (`expectedRefunded`), so the
  * function can refuse a request built from a stale reading (STALE) instead of refunding the same money
- * twice. That total is not part of what the idempotency key is bound to: see `refundRequest`.
+ * twice; every refund carries it, and the function refuses one that does not (FD-A-02). That total is not
+ * part of what the idempotency key is bound to: see `refundRequest`.
  */
 
 // ---------------------------------------------------------------------------
@@ -214,20 +215,23 @@ export interface RefundArgs {
   reason: string
   amounts: ReadonlyArray<{ field: RefundField; halalas: number }>
   returnId: string | null
-  /** The confirmed refunded total the form was built from; absent when the screen cannot say, and the request then carries none. */
-  expectedRefunded?: number | null
+  /** The confirmed refunded total the form was built from: every screen has it, and the function refuses a refund without it. */
+  expectedRefunded: number
 }
+
+/** The body of `refund-create` without its idempotency key: it always names the confirmed total its form was built from. */
+export type RefundBody = Record<string, unknown> & { expectedRefunded: number }
 
 /**
  * The body of `refund-create` without its idempotency key. An order's refund names the lines that have an
  * amount and the shipping only when it is above zero, and the amount is their sum; a review payment's
  * allocation is `{}`, and its `orderId` is sent only when the payment has one. `expectedRefunded` is the
- * confirmed total the form was built from, sent only when the screen has one.
+ * confirmed total the form was built from.
  */
-export function refundBody(args: RefundArgs): Record<string, unknown> {
+export function refundBody(args: RefundArgs): RefundBody {
   const amount = sum(args.amounts.map((entry) => entry.halalas))
   const reason = clean(args.reason)
-  const expected = typeof args.expectedRefunded === 'number' ? { expectedRefunded: args.expectedRefunded } : {}
+  const expected = { expectedRefunded: args.expectedRefunded }
   if (args.reviewPaymentId !== null) {
     return {
       action: 'refund-create',
@@ -261,8 +265,8 @@ export function refundBody(args: RefundArgs): Record<string, unknown> {
 export interface Kept {
   key: string
   fingerprint: string
-  /** The `expectedRefunded` the request carried when the key was minted; absent when it carried none. */
-  expectedRefunded?: number
+  /** The `expectedRefunded` the request carried when the key was minted. */
+  expectedRefunded: number
 }
 
 /**
@@ -270,10 +274,8 @@ export interface Kept {
  * retry after a network failure sends the same key, so a repeat answers the stored refund and never reaches
  * the provider twice), else a fresh key (the owner changed the form) that takes `expectedRefunded`.
  */
-export function keyFor(kept: Kept | null, fingerprint: string, mint: () => string, expectedRefunded?: number): Kept {
-  return kept !== null && kept.fingerprint === fingerprint
-    ? kept
-    : { key: mint(), fingerprint, ...(expectedRefunded === undefined ? {} : { expectedRefunded }) }
+export function keyFor(kept: Kept | null, fingerprint: string, mint: () => string, expectedRefunded: number): Kept {
+  return kept !== null && kept.fingerprint === fingerprint ? kept : { key: mint(), fingerprint, expectedRefunded }
 }
 
 /**
@@ -289,15 +291,12 @@ export function keyFor(kept: Kept | null, fingerprint: string, mint: () => strin
  */
 export function refundRequest(
   kept: Kept | null,
-  body: Readonly<Record<string, unknown>>,
+  body: Readonly<RefundBody>,
   mint: () => string,
-): { kept: Kept; body: Record<string, unknown> } {
+): { kept: Kept; body: RefundBody & { idempotencyKey: string } } {
   const { expectedRefunded, ...request } = body
-  const next = keyFor(kept, JSON.stringify(request), mint, typeof expectedRefunded === 'number' ? expectedRefunded : undefined)
-  return {
-    kept: next,
-    body: { ...request, ...(next.expectedRefunded === undefined ? {} : { expectedRefunded: next.expectedRefunded }), idempotencyKey: next.key },
-  }
+  const next = keyFor(kept, JSON.stringify(request), mint, expectedRefunded)
+  return { kept: next, body: { ...request, expectedRefunded: next.expectedRefunded, idempotencyKey: next.key } }
 }
 
 /**

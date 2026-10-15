@@ -1,5 +1,8 @@
 // P07 round 2: the owner's policy approval
-// (`public.commerce_policies_approve`, migration 20260927170000). The
+// (`public.commerce_policies_approve`, migration 20260927170000; RESIDUALS-1 R1
+// item 1 adds its third argument, the revisions the owner's screen showed, and
+// the `publishedPolicies` list of `commerce_settings_get` that the screen reads
+// them from). The
 // grants are read straight from the catalog; the SQL function's own guards
 // run as the roles that really call them (`service_role` through a direct
 // session that connects as the local superuser and switches role, like the
@@ -103,7 +106,50 @@ async function publishPolicy(docId: string): Promise<number> {
   return next
 }
 
-const APPROVE = 'public.commerce_policies_approve(uuid, integer)'
+const APPROVE = 'public.commerce_policies_approve(uuid, integer, jsonb)'
+
+/** The published revision of each policy that is published, as the approval reads them (the map a screen sends). */
+async function publishedMap(): Promise<Record<string, number>> {
+  let rows: Array<{ doc_id: string; seq: number }> = []
+  await asPostgres(async () => {
+    rows = (
+      await serviceDb.query<{ doc_id: string; seq: number }>(
+        "select doc_id, seq from public.published_documents where collection = 'policies' and doc_id in ('store', 'delivery', 'refund', 'privacy')",
+      )
+    ).rows
+  })
+  return Object.fromEntries(rows.map((row) => [row.doc_id, row.seq]))
+}
+
+/** The approval row as it stands: what a refused call must leave as it was. */
+async function approvalRow(): Promise<{ policy_revisions: unknown; version: number }> {
+  let row: { policy_revisions: unknown; version: number } | undefined
+  await asPostgres(async () => {
+    row = (await serviceDb.query<{ policy_revisions: unknown; version: number }>('select policy_revisions, version from finance.commerce_settings where id = 1')).rows[0]
+  })
+  return row!
+}
+
+/**
+ * An approval that must be refused with `code`, inside the open transaction: a savepoint is taken and rolled back to, so the
+ * transaction goes on and the state after the refusal can be read.
+ */
+async function refusedApproval(args: Record<string, unknown>, code: string): Promise<void> {
+  await serviceDb.query('savepoint refused')
+  await expect(pgRpc(serviceDb)('commerce_policies_approve', args)).rejects.toMatchObject({ code })
+  await serviceDb.query('rollback to savepoint refused')
+}
+
+/** `commerce_settings_get` as the signed-in owner reads it. */
+async function settingsAsOwner(ownerId: string): Promise<Record<string, unknown>> {
+  await serviceDb.query('set local role authenticated')
+  await serviceDb.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: ownerId, role: 'authenticated' })])
+  try {
+    return (await serviceDb.query<{ r: Record<string, unknown> }>('select public.commerce_settings_get() as r')).rows[0]!.r
+  } finally {
+    await serviceDb.query('set local role service_role')
+  }
+}
 
 /** The `policies_reset` owner alerts queued for one change (`<policy>:<seq>`, or `<policy>:removed`). */
 async function resetAlerts(subject: string): Promise<Array<{ recipient: string; payload: unknown }>> {
@@ -122,6 +168,15 @@ describe('grants (D32)', () => {
       expect(await canExecute(role, APPROVE)).toBe(false)
     }
   })
+
+  it('the two-argument signature is gone: no caller can approve without saying what it approves', async () => {
+    const old = await postgres.query<{ found: string | null }>("select to_regprocedure('public.commerce_policies_approve(uuid, integer)')::text as found")
+    expect(old.rows[0]!.found).toBeNull()
+    const rows = await postgres.query<{ args: string }>(
+      "select pg_get_function_identity_arguments(p.oid) as args from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'commerce_policies_approve'",
+    )
+    expect(rows.rows.map((row) => row.args)).toEqual(['p_actor uuid, p_expected_version integer, p_revisions jsonb'])
+  })
 })
 
 describe('commerce_policies_approve', () => {
@@ -129,7 +184,7 @@ describe('commerce_policies_approve', () => {
     const editor = await createStaff('editor')
     await rolledBack(serviceDb, () =>
       expect(
-        pgRpc(serviceDb)('commerce_policies_approve', { p_actor: editor.userId, p_expected_version: 0 }),
+        pgRpc(serviceDb)('commerce_policies_approve', { p_actor: editor.userId, p_expected_version: 0, p_revisions: {} }),
       ).rejects.toMatchObject({ code: '42501' }),
     )
     await rolledBack(serviceDb, () =>
@@ -137,6 +192,7 @@ describe('commerce_policies_approve', () => {
         pgRpc(serviceDb)('commerce_policies_approve', {
           p_actor: '00000000-0000-0000-0000-000000000000',
           p_expected_version: 0,
+          p_revisions: {},
         }),
       ).rejects.toMatchObject({ code: '42501' }),
     )
@@ -151,13 +207,14 @@ describe('commerce_policies_approve', () => {
         pgRpc(serviceDb)('commerce_policies_approve', {
           p_actor: owner.userId,
           p_expected_version: before + 5,
+          p_revisions: {},
         }),
       ).rejects.toMatchObject({ code: '23505' })
     })
     // A missing version is a conflict too, never a blind overwrite.
     await rolledBack(serviceDb, () =>
       expect(
-        pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: null }),
+        pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: null, p_revisions: {} }),
       ).rejects.toMatchObject({ code: '23505' }),
     )
   })
@@ -169,7 +226,7 @@ describe('commerce_policies_approve', () => {
     const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 8_000))
     const reply = await Promise.race([
       // Versions start at 0 and only grow, so -1 is always stale.
-      serviceClient.rpc('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: -1 }),
+      serviceClient.rpc('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: -1, p_revisions: {} }),
       timeout,
     ])
     expect(reply).not.toBe('timeout')
@@ -184,7 +241,7 @@ describe('commerce_policies_approve', () => {
       })
       const before = await settingsVersion()
       await expect(
-        pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: before }),
+        pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: before, p_revisions: {} }),
       ).rejects.toMatchObject({ code: 'P0001', message: 'Publish the store, delivery and refund policies first.' })
     })
   })
@@ -210,6 +267,7 @@ describe('commerce_policies_approve', () => {
       const first = (await pgRpc(serviceDb)('commerce_policies_approve', {
         p_actor: owner.userId,
         p_expected_version: before,
+        p_revisions: { store, delivery, refund },
       })) as { version: number; policyRevisions: Record<string, number> }
       expect(first.version).toBe(before + 1)
       expect(first.policyRevisions).toEqual({ store, delivery, refund })
@@ -241,9 +299,152 @@ describe('commerce_policies_approve', () => {
       const second = (await pgRpc(serviceDb)('commerce_policies_approve', {
         p_actor: owner.userId,
         p_expected_version: before + 1,
+        p_revisions: { store, delivery, refund, privacy },
       })) as { version: number; policyRevisions: Record<string, number> }
       expect(second.version).toBe(before + 2)
       expect(second.policyRevisions).toEqual({ store, delivery, refund, privacy })
+    })
+  })
+})
+
+// RESIDUALS-1 R1, I44 (1): the approval pins the revisions the owner reviewed, not whatever is published when he clicks.
+describe('the revisions the owner reviewed', () => {
+  it('the current map approves, privacy included only when it is published', async () => {
+    const owner = await createStaff('owner')
+    await rolledBack(serviceDb, async () => {
+      await asPostgres(async () => {
+        await serviceDb.query('delete from public.published_documents where collection = $1', ['policies'])
+        for (const doc of ['store', 'delivery', 'refund']) await publishPolicy(doc)
+      })
+      const map = await publishedMap()
+      expect(Object.keys(map).sort()).toEqual(['delivery', 'refund', 'store'])
+      const before = (await approvalRow()).version
+      const approved = (await pgRpc(serviceDb)('commerce_policies_approve', {
+        p_actor: owner.userId,
+        p_expected_version: before,
+        p_revisions: map,
+      })) as { version: number; policyRevisions: Record<string, number> }
+      expect(approved).toEqual({ version: before + 1, policyRevisions: map })
+    })
+  })
+
+  it('a revision published between the read and the approval refuses with a distinct error and leaves the approval as it was', async () => {
+    const owner = await createStaff('owner')
+    await rolledBack(serviceDb, async () => {
+      await asPostgres(async () => {
+        await serviceDb.query('delete from public.published_documents where collection = $1', ['policies'])
+        for (const doc of ['store', 'delivery', 'refund']) await publishPolicy(doc)
+        await serviceDb.query("update finance.commerce_settings set checkout_enabled = false, policy_revisions = '{}'::jsonb where id = 1")
+      })
+      // The owner's screen read these revisions.
+      const read = await publishedMap()
+      // A new revision of the refund policy goes live meanwhile.
+      let newer = 0
+      await asPostgres(async () => {
+        newer = await publishPolicy('refund')
+      })
+      const after = await approvalRow()
+      const audits = async (): Promise<number> => {
+        let n = 0
+        await asPostgres(async () => {
+          n = Number((await serviceDb.query<{ n: number }>("select count(*)::int as n from public.audit_events where action = 'commerce.policies' and actor = $1", [owner.userId])).rows[0]!.n)
+        })
+        return n
+      }
+      await refusedApproval({ p_actor: owner.userId, p_expected_version: after.version, p_revisions: read }, '55000')
+      expect(await approvalRow(), 'nothing is written').toEqual(after)
+      expect(await audits()).toBe(0)
+      // From the list as it is now, the approval goes through, with the new revision.
+      const approved = (await pgRpc(serviceDb)('commerce_policies_approve', {
+        p_actor: owner.userId,
+        p_expected_version: after.version,
+        p_revisions: await publishedMap(),
+      })) as { policyRevisions: Record<string, number> }
+      expect(approved.policyRevisions.refund).toBe(newer)
+    })
+  })
+
+  it('a set that changed since an approval (a policy published for the first time) leaves that approval standing', async () => {
+    const owner = await createStaff('owner')
+    await rolledBack(serviceDb, async () => {
+      await asPostgres(async () => {
+        await serviceDb.query('delete from public.published_documents where collection = $1', ['policies'])
+        for (const doc of ['store', 'delivery', 'refund']) await publishPolicy(doc)
+      })
+      const read = await publishedMap()
+      const first = (await pgRpc(serviceDb)('commerce_policies_approve', {
+        p_actor: owner.userId,
+        p_expected_version: (await approvalRow()).version,
+        p_revisions: read,
+      })) as { version: number }
+      // The privacy policy goes live: it is not in the approved set, so no reset, but the map the owner read lacks it.
+      await asPostgres(async () => {
+        await publishPolicy('privacy')
+      })
+      const standing = await approvalRow()
+      expect(standing).toEqual({ policy_revisions: read, version: first.version })
+      await refusedApproval({ p_actor: owner.userId, p_expected_version: standing.version, p_revisions: read }, '55000')
+      expect(await approvalRow()).toEqual(standing)
+    })
+  })
+
+  it('a policy missing from the map, an extra key, a wrong revision and a map that is not an object all refuse', async () => {
+    const owner = await createStaff('owner')
+    await rolledBack(serviceDb, async () => {
+      await asPostgres(async () => {
+        await serviceDb.query('delete from public.published_documents where collection = $1', ['policies'])
+        for (const doc of ['store', 'delivery', 'refund']) await publishPolicy(doc)
+        await serviceDb.query("update finance.commerce_settings set checkout_enabled = false, policy_revisions = '{}'::jsonb where id = 1")
+      })
+      const read = await publishedMap()
+      const standing = await approvalRow()
+      const cases: Array<[string, unknown]> = [
+        ['a policy missing', { store: read.store, delivery: read.delivery }],
+        ['the empty map', {}],
+        ['an extra key', { ...read, privacy: 1 }],
+        ['an unknown key', { ...read, other: 1 }],
+        ['a wrong revision', { ...read, store: read.store! + 1 }],
+        ['a revision sent as text', { ...read, store: String(read.store) }],
+        ['null', null],
+        ['an array', []],
+        ['a number', 7],
+      ]
+      for (const [label, map] of cases) {
+        await refusedApproval({ p_actor: owner.userId, p_expected_version: standing.version, p_revisions: map }, '55000')
+        expect(await approvalRow(), label).toEqual(standing)
+      }
+      // The version is checked first: a stale one is the conflict, whatever the map says.
+      await refusedApproval({ p_actor: owner.userId, p_expected_version: standing.version + 5, p_revisions: { other: 1 } }, '23505')
+    })
+  })
+
+  it('commerce_settings_get lists the policies an approval would cover: the published ones among the four, in order, each with its revision and when it went live', async () => {
+    const owner = await createStaff('owner')
+    await rolledBack(serviceDb, async () => {
+      await asPostgres(async () => {
+        await serviceDb.query('delete from public.published_documents where collection = $1', ['policies'])
+        for (const doc of ['privacy', 'refund', 'store', 'delivery']) await publishPolicy(doc)
+      })
+      const four = await publishedMap()
+      const listed = (await settingsAsOwner(owner.userId)).publishedPolicies as Array<{ id: string; title: string; seq: number; publishedAt: string }>
+      expect(listed.map((entry) => entry.id)).toEqual(['store', 'delivery', 'refund', 'privacy'])
+      expect(Object.fromEntries(listed.map((entry) => [entry.id, entry.seq]))).toEqual(four)
+      expect(listed.map((entry) => entry.title)).toEqual(['سياسة store', 'سياسة delivery', 'سياسة refund', 'سياسة privacy'])
+      for (const entry of listed) expect(Math.abs(Date.now() - Date.parse(entry.publishedAt)), entry.id).toBeLessThan(10 * 60_000)
+
+      // Privacy not published: it is not listed, and the list is the map that approves.
+      await asPostgres(async () => {
+        await serviceDb.query("delete from public.published_documents where collection = 'policies' and doc_id = 'privacy'")
+      })
+      const three = (await settingsAsOwner(owner.userId)).publishedPolicies as Array<{ id: string; seq: number }>
+      expect(three.map((entry) => entry.id)).toEqual(['store', 'delivery', 'refund'])
+      const map = Object.fromEntries(three.map((entry) => [entry.id, entry.seq]))
+      const approved = (await pgRpc(serviceDb)('commerce_policies_approve', {
+        p_actor: owner.userId,
+        p_expected_version: (await approvalRow()).version,
+        p_revisions: map,
+      })) as { policyRevisions: Record<string, number> }
+      expect(approved.policyRevisions).toEqual(map)
     })
   })
 })
@@ -254,7 +455,7 @@ describe('commerce_policies_approve', () => {
 // seeded policies (the demo catalog publishes them) and puts back the live store policy itself; the settings row is
 // restored after the file.
 describe('a policy publish that overlaps an approval', () => {
-  it('an approval that starts while a publish of one policy holds the settings row waits for it, then approves the new seq, never the old one', async () => {
+  it('an approval that starts while a publish of one policy holds the settings row waits for it and is refused (the screen showed the old seq); the new seq is approved only from a fresh list', async () => {
     const owner = await createStaff('owner')
     const live = (await postgres.query("select seq, data from public.published_documents where collection = 'policies' and doc_id = 'store'")).rows[0]
     const required = (await postgres.query("select doc_id from public.published_documents where collection = 'policies' and doc_id in ('store', 'delivery', 'refund')")).rows
@@ -277,21 +478,43 @@ describe('a policy publish that overlaps an approval', () => {
       ])
       await publisher.query("select public.content_go_live('policies', 'store', $1)", [next])
 
-      // The owner approves meanwhile, as the Edge Function does: it waits for the publish.
-      const approval = pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: version }) as Promise<{
+      // The owner approves meanwhile, as the Edge Function does, with the revisions his screen read before the publish:
+      // it waits for the publish.
+      const read = Object.fromEntries(
+        (await postgres.query("select doc_id, seq from public.published_documents where collection = 'policies' and doc_id in ('store', 'delivery', 'refund', 'privacy')")).rows.map(
+          (row: { doc_id: string; seq: number }) => [row.doc_id, row.seq],
+        ),
+      ) as Record<string, number>
+      expect(read.store).toBe(live.seq)
+      const approval = pgRpc(serviceDb)('commerce_policies_approve', { p_actor: owner.userId, p_expected_version: version, p_revisions: read }) as Promise<{
         version: number
         policyRevisions: Record<string, number>
       }>
-      approval.catch(() => undefined)
-      expect(await settledWithin(approval, 900)).toBe('blocked')
+      const refused = approval.then(
+        () => null,
+        (error: unknown) => error,
+      )
+      expect(await settledWithin(refused, 900)).toBe('blocked')
       await publisher.query('commit')
       open = false
 
-      // Then it reads what the publish committed: the new seq is approved, not the one the publish replaced.
-      const approved = await approval
+      // Then it reads what the publish committed: the old seq is never pinned. The revisions the owner read are no longer
+      // the published ones, so the approval is refused and nothing is written (RESIDUALS-1: it used to take the new seq).
+      expect(await refused).toMatchObject({ code: '55000' })
+      expect(next).toBeGreaterThan(live.seq)
+      expect((await postgres.query('select policy_revisions, version from finance.commerce_settings where id = 1')).rows[0]).toMatchObject({
+        version,
+        policy_revisions: {},
+      })
+
+      // An approval from the list as it is after the publish waits for nothing and pins the new seq.
+      const approved = (await pgRpc(serviceDb)('commerce_policies_approve', {
+        p_actor: owner.userId,
+        p_expected_version: version,
+        p_revisions: { ...read, store: next },
+      })) as { version: number; policyRevisions: Record<string, number> }
       expect(approved.version).toBe(version + 1)
       expect(approved.policyRevisions.store).toBe(next)
-      expect(next).toBeGreaterThan(live.seq)
       const settings = (await postgres.query('select policy_revisions, version from finance.commerce_settings where id = 1')).rows[0]
       expect(settings).toMatchObject({ version: version + 1, policy_revisions: { store: next } })
     } finally {

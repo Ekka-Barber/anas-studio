@@ -4,7 +4,8 @@
 // loopback `DATABASE_URL`, this is the same rule applied to the API host.
 import { execFileSync } from 'node:child_process'
 import { createHash, createHmac, randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import path from 'node:path'
 import { parseEnv } from 'node:util'
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -33,7 +34,68 @@ function readStatus(): Status {
   return status
 }
 
-export const status = readStatus()
+/**
+ * The Docker VM's clock and the host's can differ by a few seconds, and the container's start time comes from the VM while a
+ * file's modification time is the host's: a file changed up to this long after the container started counts as loaded.
+ */
+const CLOCK_SKEW_MS = 5_000
+
+/** The stack's `project_id` (supabase/config.toml), which names its containers: `supabase_edge_runtime_<id>`. */
+function projectId(): string {
+  const found = /^project_id\s*=\s*"([^"]+)"/m.exec(readFileSync('supabase/config.toml', 'utf8'))
+  if (!found) throw new Error('support: no project_id in supabase/config.toml')
+  return found[1]!
+}
+
+/** The newest modification time of any file under `dir`, in milliseconds. Times only: no file is ever read. */
+function newestMtime(dir: string): number {
+  // The folder's own time too: a deleted or renamed file changes only its folder's.
+  let newest = statSync(dir).mtimeMs
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name)
+    newest = Math.max(newest, entry.isDirectory() ? newestMtime(full) : statSync(full).mtimeMs)
+  }
+  return newest
+}
+
+let runtimeIsFresh = false
+
+/**
+ * The local edge runtime does not reload `supabase/functions` on its own, so a test that calls a function over HTTP
+ * against a runtime started before the last change proves the old code (TEST-DB-02). Refuses when a file under
+ * `supabase/functions` is newer than the container's start, or when that start cannot be read. Checked once per file.
+ */
+function assertRuntimeIsFresh(): void {
+  if (runtimeIsFresh) return
+  const container = `supabase_edge_runtime_${projectId()}`
+  let startedAt: string
+  try {
+    startedAt = execFileSync('docker', ['inspect', '-f', '{{.State.StartedAt}}', container], { encoding: 'utf8' }).trim()
+  } catch (error) {
+    throw new Error(`support: cannot read when ${container} started; is the stack up? ${String((error as Error).message).split('\n')[0]}`)
+  }
+  const started = Date.parse(startedAt)
+  if (Number.isNaN(started)) throw new Error(`support: cannot read when ${container} started: docker answered "${startedAt}"`)
+  if (newestMtime('supabase/functions') > started + CLOCK_SKEW_MS) {
+    throw new Error(`the edge runtime is older than supabase/functions: run \`docker restart ${container}\``)
+  }
+  runtimeIsFresh = true
+}
+
+const stack = readStatus()
+
+/**
+ * The local stack's addresses and keys. `FUNCTIONS_URL` is a getter: the first read in a test file checks that the edge
+ * runtime is not older than `supabase/functions`, so the HTTP tests never run against stale functions and the files that only
+ * use the database are not affected.
+ */
+export const status: Status = {
+  ...stack,
+  get FUNCTIONS_URL() {
+    assertRuntimeIsFresh()
+    return stack.FUNCTIONS_URL
+  },
+}
 
 /**
  * The local-only values `pnpm db:env` wrote to `.env.local` (never `.env`).

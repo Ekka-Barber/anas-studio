@@ -655,6 +655,55 @@ describe('renderOwnerAlert', () => {
     expect(renderOwnerAlert({ alert: 'payment_create_refused', error: 'CREATE_REFUSED_401' }, SITE).subject).toBe('تنبيه: بوابة الدفع ترفض إنشاء الفواتير')
   })
 
+  // RESIDUALS-1 R1, I55 (3): the two kinds that had only the generic line, each with its own page in the footer.
+  it('policies_reset words the lost approval, and its footer names the settings page, where the policies are approved again', () => {
+    const { subject, text } = renderOwnerAlert({ alert: 'policies_reset' }, SITE)
+    expect(subject).toBe('تنبيه: أُلغي اعتماد السياسات')
+    expect(text).toBe(
+      [
+        'تغيّرت سياسة كانت معتمدة، فأُلغي اعتماد السياسات. لن يُفتح الشراء حتى تراجعها وتعتمدها من جديد من صفحة «الإعدادات».',
+        '',
+        'صفحة الإعدادات:',
+        `${SITE}/admin/settings`,
+      ].join('\n'),
+    )
+    expect(text).not.toContain('/admin/orders')
+    expect(text).not.toContain('لوحة الطلبات')
+    // The payload's policy and revision are not in the words.
+    expect(renderOwnerAlert({ alert: 'policies_reset', policy: 'store', seq: 3 } as AlertEmailData, SITE).text).toBe(text)
+  })
+
+  it('confirm_mail_braked says how many confirmation mails bounced and that sending returns by itself, and its footer names the email page', () => {
+    const { subject, text } = renderOwnerAlert({ alert: 'confirm_mail_braked', bounced: 4 }, SITE)
+    expect(subject).toBe('تنبيه: أوقفنا رسائل التأكيد مؤقتًا')
+    expect(text).toBe(
+      [
+        `ارتدّت ${isolated('4')} من رسائل تأكيد «أخبرني عند توفره» أو عُلّمت كرسائل مزعجة خلال آخر 7 أيام، فأوقفنا إرسال رسائل التأكيد حمايةً لسمعة البريد. الطلبات محفوظة، ويعود الإرسال تلقائيًا حين يقل عددها عن 4 خلال 7 أيام.`,
+        '',
+        'صفحة البريد:',
+        `${SITE}/admin/email`,
+      ].join('\n'),
+    )
+    expect(text).not.toContain('/admin/orders')
+    // A count the data did not carry reads as unknown, never as the word null.
+    for (const bounced of [undefined, null]) {
+      const unknown = renderOwnerAlert({ alert: 'confirm_mail_braked', bounced }, SITE).text
+      expect(unknown).toContain('ارتدّت غير معروف من رسائل')
+      expect(unknown).not.toMatch(/null|undefined|NaN/u)
+    }
+  })
+
+  it('every other kind keeps the orders footer, and so does one it does not know', () => {
+    for (const [alert] of alerts) {
+      expect(renderOwnerAlert(alert, SITE).text.endsWith(`لوحة الطلبات:\n${ADMIN}`), String(alert.alert)).toBe(true)
+    }
+    expect(renderOwnerAlert({ alert: 'something_new' }, SITE).text.endsWith(`لوحة الطلبات:\n${ADMIN}`)).toBe(true)
+    expect(renderOwnerAlert({ alert: null }, SITE).text.endsWith(`لوحة الطلبات:\n${ADMIN}`)).toBe(true)
+    // The two new kinds have subjects of their own, different from the generic one and from each other.
+    const subjects = ['policies_reset', 'confirm_mail_braked'].map((alert) => renderOwnerAlert({ alert }, SITE).subject)
+    expect(new Set([...subjects, 'تنبيه جديد في المتجر']).size).toBe(3)
+  })
+
   it('what alert_email_data answers today for those kinds, the code alone, still reads: an unknown order and an unknown error (F1-17)', () => {
     const mode = renderOwnerAlert({ alert: 'attempt_mode_changed' }, SITE)
     expect(mode.subject).toBe('تنبيه: دفعة من وضع آخر تحتاج متابعة')

@@ -821,7 +821,15 @@ the same TOTP step-up dialog as the seller-details save. The approval
 records the published revisions of سياسة المتجر, سياسة التوصيل and
 سياسة الاسترجاع (plus سياسة الخصوصية when it is published) into
 `finance.commerce_settings.policy_revisions`, bumps the settings version and
-writes one audit row. Unpublished required policies answer «انشر سياسات
+writes one audit row. It approves the revisions the owner was shown, not whatever is
+published when he presses: above the button the screen lists each policy the approval
+covers as «<العنوان>: نُشرت <الوقت بتوقيت الرياض>» (`publishedPolicies` of
+`commerce_settings_get`), and sends exactly those revisions (`revisions` of the action;
+`commerce_policies_approve(p_actor, p_expected_version, p_revisions)`). When a policy was
+published since the page was read, or the set of published policies changed (a privacy
+policy published for the first time, say), nothing is approved: the action answers 409
+`POLICIES_CHANGED` («تغيّرت السياسات منذ فتحت الصفحة. راجعها ثم اعتمدها من جديد.»), the screen
+reads the settings again and the owner approves from the new list. Unpublished required policies answer «انشر سياسات
 المتجر والتوصيل والاسترجاع أولًا.», and a version changed in another
 session answers 409 like the seller save (the SQL raises the same 23505). The checkout compares the buyer's
 accepted revisions with the approved ones and refuses a mismatch. Buying
@@ -981,7 +989,7 @@ refunded total.
    «تم الشحن» queues renews the order's link to at least 7 days from the send,
    so the link in it opens (`fulfillment_update`, round M1b).
 5. **The alert emails** go to every active owner (not to operations), each with
-   a link to «لوحة الطلبات»:
+   a link to the admin page it concerns, «لوحة الطلبات» for all but two kinds:
 
 | Subject | Alert | Meaning and what to do |
 | --- | --- | --- |
@@ -999,8 +1007,8 @@ refunded total.
 | «تنبيه: دفعة من وضع آخر تحتاج متابعة» | `attempt_mode_changed` | `PAYMENTS_MODE` was changed while a payment attempt that has an invoice was still open, and the job parked it. Once per attempt. See "Changing the payment mode" in the payments runbook. |
 | «تنبيه: استرداد من وضع آخر يحتاج متابعة» | `refund_mode_changed` | The same for a refund in flight: it stays for a person to settle in Moyasar's dashboard. Once per refund. |
 | «تنبيه: بوابة الدفع ترفض إنشاء الفواتير» | `payment_create_refused` | Moyasar refused to create an invoice (a revoked or wrong key, an account that is not active): no buyer can pay until it is fixed. The mail names the code the refusal was recorded with (`CREATE_REFUSED_401`, for instance). At most one a UTC day. Check the key and the mode ([payments-runbook](payments-runbook.md#the-settings-names-only)). |
-| «تنبيه جديد في المتجر» | `policies_reset` | A policy change reset the approval while the checkout switch was on, so checkout is closed (`POLICIES_NOT_CONFIGURED`) until the owner approves again. Approve the policies. The renderer has no wording of its own for this kind yet: the mail is the generic one, which names the code. |
-| «تنبيه جديد في المتجر» | `confirm_mail_braked` | More than 3 confirmation mails of the last 7 days bounced or drew a complaint, so no more are queued until the count falls (the sign-ups wait in their rows). Once a UTC day while it holds. Generic wording as well. |
+| «تنبيه: أُلغي اعتماد السياسات» | `policies_reset` | A policy change reset the approval while the checkout switch was on, so checkout is closed (`POLICIES_NOT_CONFIGURED`) until the owner approves again. Approve the policies on «الإعدادات» («إعدادات المتجر»); the mail's link is «صفحة الإعدادات» (`/admin/settings`). |
+| «تنبيه: أوقفنا رسائل التأكيد مؤقتًا» | `confirm_mail_braked` | More than 3 confirmation mails of the last 7 days bounced or drew a complaint, so no more are queued until the count falls (the sign-ups wait in their rows). Once a UTC day while it holds. The mail says how many (`bounced`, from the alert's payload through `alert_email_data`) and that sending returns by itself when fewer than 4 do in 7 days; its link is «صفحة البريد» (`/admin/email`). An alert kind with no wording of its own still gets «تنبيه جديد في المتجر», which names the code. |
 
 ### Returns and the restock rule
 
@@ -1100,6 +1108,7 @@ live site is labelled «تجريبي». Each section and what to do:
 | --- | --- | --- |
 | «محاولات تحتاج فحصًا» | Attempts with a reason: «إنشاء غير مؤكد» (`UNCERTAIN`: the invoice creation's outcome is unknown), «لم يُتحقق منها» (`UNVERIFIED`: 24 hours after the invoice expired the last check still failed), «حالة مختلفة لدى Moyasar» (`PROVIDER_STATUS`: a paid payment that is no longer `paid` or `refunded`, a void for instance) and «استرداد لدى Moyasar غير مسجّل» (`EXTERNAL_REFUND`: Moyasar's refunded total is above the ledger's), or «تغيّر وضع الدفع» (`MODE_CHANGED`: `PAYMENTS_MODE` was changed while the attempt, which has an invoice, was still open, and the job parked it; round M1a) | «أعد الفحص» asks Moyasar now (it resolves an uncertain creation by listing the invoices, or settles from the invoice) and says «الحالة الآن: …»; an answered check clears `UNVERIFIED`. For the last two reasons look at the payment in Moyasar's dashboard, then «تسجيل استرداد خارجي» records the refund or the void. For `MODE_CHANGED` see "Changing the payment mode" in the payments runbook. |
 | «دفعات قيد المراجعة» | Open review payments, with or without an order | See "Review payments". |
+| «دفعات بلا طلب أُغلقت مراجعتها» | Review payments with no order that the owner closed by hand and that are not refunded in full, the newest closed 50 (`closedReviews`) | They are still refundable: «استرداد هذه الدفعة» and «تسجيل استرداد خارجي», as on an open one. A payment refunded in full leaves the list. See "Review payments". |
 | «استردادات قيد المعالجة» | Refunds in flight, with their status and error code | «أعد الفحص» settles one from a fresh fetch. The job does it by itself; one in flight for more than 24 hours has no due time and waits for this button. |
 | «إشعارات الدفع» | Webhook events not processed, or exhausted after ten tries, that still need a person | Look at the payment in Moyasar's dashboard; when it is settled or nothing is owed, «تمت المراجعة» files the event («سُجّلت المراجعة.»). An exhausted event whose payment the ledger has since settled leaves the list by itself. |
 | «النزاعات» | Every reference with its rows | «تسجيل فرق» for a payout or fee difference, «إضافة متابعة» under a reference (see "Disputes and payouts"). |
@@ -1129,10 +1138,12 @@ decide, then either:
   instance. Closing is the owner's deliberate act. The reason may not be the word
   `refunded`, which is the refund path's own («لا يُقبل هذا السبب؛ اكتب سببًا
   آخر.»); a closed payment can still be refunded; and a payment with no order
-  disappears from every screen once closed (the screen says «دفعة بلا طلب تختفي
-  من اللوحة بعد إغلاقها ولا تُعاد منها؛ أعدها قبل الإغلاق إن لزم.»), so refund it
-  first if it must be. A later refund is then made in Moyasar's dashboard
-  (ISSUES I50).
+  stays on the reconciliation screen once closed, under «دفعات بلا طلب أُغلقت
+  مراجعتها» (the screen says so beside the button: «بعد الإغلاق تبقى هذه الدفعة في
+  «دفعات بلا طلب أُغلقت مراجعتها» أدناه، ويمكن إعادتها من هناك.»), the newest 50 that
+  are not refunded in full, each with «استرداد هذه الدفعة» and «تسجيل استرداد خارجي» (the
+  refund and the external record refuse only a payment closed as `refunded`). A payment
+  with an order stays on its order's screen. The count «تحتاج مطابقة» is the open ones only.
 
 ### Disputes and payouts
 

@@ -21,8 +21,8 @@ Each design has a maintenance twin in `site/m/<letter>/`: the same page and styl
 The state is the Worker variable `MODE` in `wrangler.toml` (`soon` or `maintenance`). To switch it:
 
 ```sh
-node --env-file=.env artifacts/soon/deploy.cjs --mode=maintenance
-node --env-file=.env artifacts/soon/deploy.cjs --mode=soon
+node artifacts/soon/deploy.cjs --mode=maintenance
+node artifacts/soon/deploy.cjs --mode=soon
 ```
 
 A deploy without `--mode` publishes the mode written in `wrangler.toml`.
@@ -51,10 +51,10 @@ His name as «أنس القرني» (owner, 2026-10-02: no «عبدالله» he
 
 ```sh
 node artifacts/soon/shots.cjs --og
-node --env-file=.env artifacts/soon/deploy.cjs
+node artifacts/soon/deploy.cjs
 ```
 
-The deploy goes to Anas's Cloudflare account with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from `.env`, unless the shell already holds either one: Node's `--env-file` never overrides a variable the shell has, so a shell set up for another account deploys there (SOON-09, `PLANS/ISSUES.md` I55 (5)). The script passes wrangler nothing else from that file, and deploys from a copy outside the repository (the repository's wrangler cache pins another account).
+The deploy goes to Anas's Cloudflare account with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from `.env`, which the script reads itself, and from nowhere else (SOON-09, `PLANS/ISSUES.md` I55 (5)): it refuses when `.env` lacks either, and when the shell holds a different value for either it prints one line naming the variable, never its value, and uses `.env`'s (Node's `--env-file` never overrides a variable the shell already has, so a shell set up for another account used to deploy there). The script passes wrangler those two and nothing else from that file, and deploys from a copy outside the repository (the repository's wrangler cache pins another account).
 
 The zone adds Cloudflare Web Analytics to the page by itself, so the Content-Security-Policy allows that one script and its two endpoints. Nothing else leaves the domain.
 

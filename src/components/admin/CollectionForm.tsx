@@ -5,7 +5,11 @@
  * Save appends the next `content_versions` row through the Data API as the
  * signed-in user; publish/schedule/cancel/archive go through
  * `src/lib/admin-publish.ts`. Autosave keeps an unsaved local copy in
- * `localStorage` so a conflict or a closed tab never loses text.
+ * `localStorage` so a conflict or a closed tab never loses text. The copy is
+ * this tab's own (`draftKey`, ADMIN-CMS-01): the autosave writes and removes
+ * only that key, so a save in another tab of the same document cannot delete
+ * it, and a load offers this tab's copy, else the newest copy another tab
+ * left for this user.
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -24,6 +28,7 @@ import {
 import { formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
+import { chooseCopy, draftKey, storedCopies, tabId, type StoredCopy } from './AdminShell'
 import { FieldInput, type TaxonomiesByKind } from './FieldInput'
 import { PublishBar } from './PublishBar'
 import { VersionHistory } from './VersionHistory'
@@ -50,17 +55,10 @@ function previewPathFor(collection: Collection, docId: string): string | null {
   return null
 }
 
-function draftKey(collection: Collection, docId: string): string {
-  return `anasaq:draft:${collection}:${docId}`
-}
-
-function readStoredDraft(collection: Collection, docId: string): StoredDraft | null {
-  try {
-    const raw = window.localStorage.getItem(draftKey(collection, docId))
-    return raw ? (JSON.parse(raw) as StoredDraft) : null
-  } catch {
-    return null
-  }
+/** The copy this document opens with: this tab's own, else the newest one another tab (or an older version of the editor) left for this user. */
+function readStoredDraft(collection: Collection, docId: string, userId: string | undefined): StoredCopy | null {
+  const copies = storedCopies(collection).filter((copy) => copy.docId === docId)
+  return chooseCopy(copies, draftKey(collection, docId, tabId()), userId)
 }
 
 /** When a local copy was made, as Riyadh wall-clock text, or null for a time that cannot be read. */
@@ -99,6 +97,8 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   const offerHeadingRef = useRef<HTMLHeadingElement>(null)
   // Set when the user answers the offer, so focus can return to the page once the banner is gone.
   const answeredRef = useRef(false)
+  // The storage key of the copy on offer: «تجاهل» removes that copy, whichever tab wrote it.
+  const offeredKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
@@ -172,8 +172,10 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     setInitialData(loadedData)
     setData(loadedData)
 
-    // The next autosave replaces or removes a copy that is not offered.
-    const offer = draftOffer(readStoredDraft(collection, docId), userIdRef.current, loadedData, loadedSeq, fields)
+    // The next autosave replaces or removes this tab's copy when it is not offered; another tab's is never touched by it.
+    const stored = readStoredDraft(collection, docId, userIdRef.current)
+    const offer = draftOffer(stored?.draft ?? null, userIdRef.current, loadedData, loadedSeq, fields)
+    offeredKeyRef.current = offer.offered === null ? null : (stored?.key ?? null)
     setLocalOffer(offer.offered)
     setOfferSavedAt(offer.savedAt === null ? null : savedAtLabel(offer.savedAt))
     setStaleBase(offer.staleBase)
@@ -207,19 +209,15 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     try {
       const action = draftStorageAction(localOffer !== null, data, initialData)
       if (action === 'remove') {
-        window.localStorage.removeItem(draftKey(collection, docId))
+        window.localStorage.removeItem(draftKey(collection, docId, tabId()))
       } else if (action === 'write') {
         const draft: StoredDraft = { baseSeq, data, savedAt: Date.now(), userId: userIdRef.current }
-        window.localStorage.setItem(draftKey(collection, docId), JSON.stringify(draft))
+        window.localStorage.setItem(draftKey(collection, docId, tabId()), JSON.stringify(draft))
       }
     } catch {
       // Storage full or blocked: the form still works, only the local copy is lost.
     }
   }, [data, initialData, localOffer, baseSeq, collection, docId])
-
-  function clearStoredDraft() {
-    window.localStorage.removeItem(draftKey(collection, docId))
-  }
 
   // Focus follows the banner: onto its heading when a copy is offered, and onto
   // the page title once it is answered, because its buttons unmount with it.
@@ -237,12 +235,16 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
       setData(localOffer)
       setLoadGeneration((generation) => generation + 1)
     }
+    // The restored text is this tab's now: the autosave keeps it under this tab's key, so the copy it came from (another
+    // tab's, a closed tab's or an old key without a tab id) goes, or it would be offered again after the next save.
+    const offered = offeredKeyRef.current
+    if (offered !== null && offered !== draftKey(collection, docId, tabId())) window.localStorage.removeItem(offered)
     answeredRef.current = true
     setLocalOffer(null)
   }
 
   function discardLocalOffer() {
-    clearStoredDraft()
+    if (offeredKeyRef.current !== null) window.localStorage.removeItem(offeredKeyRef.current)
     answeredRef.current = true
     setLocalOffer(null)
   }

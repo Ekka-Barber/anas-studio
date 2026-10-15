@@ -299,6 +299,27 @@ async function lazyOwner(): Promise<SupabaseClient> {
   unverified ??= (await owner(false)).client
   return unverified
 }
+/**
+ * The confirmed total each refund key was first sent with. The function requires `expectedRefunded` (FD-A-02), as every
+ * screen sends it: the ledger's confirmed total when the form was built. A body that does not name one gets the ledger's
+ * total at its first send, and the same key keeps that total afterwards, as a screen's kept key does (a replay is the very
+ * same request). A body that names `expectedRefunded` itself, even as `undefined` (which JSON leaves out), is sent as it is.
+ */
+const keptTotals = new Map<string, number>()
+async function withTotal(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (body.action !== 'refund-create' || 'expectedRefunded' in body) return body
+  const key = String(body.idempotencyKey)
+  if (!keptTotals.has(key)) {
+    keptTotals.set(
+      key,
+      await count("select coalesce(sum(amount_halalas), 0)::int as n from finance.refunds where status = 'succeeded' and (attempt_id = $1 or review_payment_id = $2)", [
+        body.attemptId ?? null,
+        body.reviewPaymentId ?? null,
+      ]),
+    )
+  }
+  return { ...body, expectedRefunded: keptTotals.get(key) }
+}
 async function adminCall(client: SupabaseClient, body: Record<string, unknown>): Promise<{ status: number; body: any }> {
   const { data } = await client.auth.getSession()
   const response = await fetch(`${FUNCTIONS_URL}/admin`, {
@@ -308,7 +329,7 @@ async function adminCall(client: SupabaseClient, body: Record<string, unknown>):
       apikey: status.PUBLISHABLE_KEY,
       authorization: `Bearer ${data.session!.access_token}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(await withTotal(body)),
   })
   return { status: response.status, body: await response.json() }
 }
@@ -449,15 +470,25 @@ describe('refund-create against the emulator', () => {
     expect(refundCalls()).toHaveLength(2)
   })
 
-  it('a request without expectedRefunded is not checked against the total (a page loaded before this field existed), and one with the right total is', async () => {
+  // RESIDUALS-1 R1, FD-A-02: the function used to take a refund that named no total, unchecked (a page loaded before F3 sent
+  // none). Every screen sends it now, so the function refuses one that does not.
+  it('a request without expectedRefunded is 422 INVALID: nothing is reserved, the provider is not asked; with the right total it goes through', async () => {
     const p = await paid('physical')
     const client = await freshOwner()
-    expect(await adminCall(client, refundBody(p, 1500, itemOf(p, 1500)))).toMatchObject({ status: 200, body: { data: { status: 'succeeded', amount: 1500 } } })
-    // The ledger holds 1 500 now: a request that expects it is not stale, a request that expects nothing is as it always was.
+    const unchecked = { ...refundBody(p, 1500, itemOf(p, 1500)), expectedRefunded: undefined }
+    const refused = await adminCall(client, unchecked)
+    expect(refused.status, JSON.stringify(refused.body)).toBe(422)
+    expect(refused.body).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(JSON.stringify(refused.body)).toContain('expectedRefunded')
+    expect(await refundsOf(p.attemptId)).toHaveLength(0)
+    expect(refundCalls()).toHaveLength(0)
+    expect(paymentOnEmulator(p.paymentId)).toMatchObject({ refunded: 0 })
+    // The same request with the total the form was built from is made.
+    expect(await adminCall(client, { ...unchecked, expectedRefunded: 0 })).toMatchObject({ status: 200, body: { data: { status: 'succeeded', amount: 1500 } } })
+    // The ledger holds 1 500 now: a request that expects it is not stale.
     expect(await adminCall(client, refundBody(p, 500, itemOf(p, 500), { expectedRefunded: 1500 }))).toMatchObject({ status: 200, body: { data: { amount: 500 } } })
-    expect(await adminCall(client, refundBody(p, 500, itemOf(p, 500)))).toMatchObject({ status: 200, body: { data: { amount: 500 } } })
-    expect(await confirmed(p.attemptId)).toBe(2500)
-    expect(refundCalls()).toHaveLength(3)
+    expect(await confirmed(p.attemptId)).toBe(2000)
+    expect(refundCalls()).toHaveLength(2)
   })
 
   it('a replay carries the total it was made under: after the total moved it is still the stored refund (the provider is asked once), and the same key under another total is a conflict', async () => {

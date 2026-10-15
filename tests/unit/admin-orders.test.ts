@@ -869,16 +869,34 @@ const eventRow = {
   attempts: 10,
   nextCheckAt: null,
 }
-const reconciliation = { attempts: [attemptRow], reviews: [reviewRow], refunds: [refundRow], events: [eventRow] }
+// A payment with no order that the owner closed by hand and has not refunded in full (`closedReviews`, RESIDUALS-1 I50 (4)).
+const closedReviewRow = { ...reviewRow, orderId: null, attemptId: null, orderNumber: null, closedAt: ISO, closedReason: 'المال عاد من البنك' }
+const reconciliation = { attempts: [attemptRow], reviews: [reviewRow], closedReviews: [closedReviewRow], refunds: [refundRow], events: [eventRow] }
 
 describe('parseReconciliation', () => {
-  it('reads the four lists with what each carries beyond the order screen’s own rows', () => {
+  it('reads the five lists with what each carries beyond the order screen’s own rows', () => {
     const parsed = parseReconciliation(reconciliation)
     expect(parsed.attempts[0]).toMatchObject({ id: D, orderId: A, orderNumber: 'ABCD2345', refunded: 0, reasons: ['PROVIDER_STATUS', 'EXTERNAL_REFUND'], providerStatus: 'voided' })
     expect(parsed.reviews[0]).toMatchObject({ paymentId: reviewRow.paymentId, orderNumber: 'ABCD2345', closedAt: null })
     expect(parsed.refunds[0]).toMatchObject({ id: E, status: 'uncertain', orderNumber: 'ABCD2345', error: 'REFUND_TIMEOUT' })
     expect(parsed.events[0]).toMatchObject({ eventId: 'evt_1', outcome: 'exhausted', attempts: 10 })
-    expect(parseReconciliation({ attempts: [], reviews: [], refunds: [], events: [] })).toEqual({ attempts: [], reviews: [], refunds: [], events: [] })
+    const empty = { attempts: [], reviews: [], closedReviews: [], refunds: [], events: [] }
+    expect(parseReconciliation(empty)).toEqual(empty)
+  })
+
+  // One parser reads an open review and a closed one: the same row (`reviewOf`) and the order's number beside it.
+  it('reads closedReviews as it reads reviews: the same row shape, closed by hand, with no order', () => {
+    const parsed = parseReconciliation(reconciliation)
+    expect(parsed.closedReviews[0]).toMatchObject({ paymentId: reviewRow.paymentId, orderId: null, orderNumber: null, attemptId: null, closedAt: ISO, closedReason: 'المال عاد من البنك', refunded: reviewRow.refunded })
+    expect(Object.keys(parsed.closedReviews[0]!).sort()).toEqual(Object.keys(parsed.reviews[0]!).sort())
+    expect(parseReconciliation({ ...reconciliation, closedReviews: [] }).closedReviews).toEqual([])
+  })
+
+  it('refuses a reply without closedReviews, or with one that is not a list of review rows: the screen then says it could not read it', () => {
+    const { closedReviews: _closed, ...without } = reconciliation
+    expect(() => parseReconciliation(without)).toThrow()
+    expect(() => parseReconciliation({ ...reconciliation, closedReviews: 'x' })).toThrow()
+    expect(() => parseReconciliation({ ...reconciliation, closedReviews: [{ ...closedReviewRow, refunded: '0' }] })).toThrow()
   })
 
   it('refuses a missing key or a wrong type, in every list and every row', () => {

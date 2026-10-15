@@ -97,6 +97,10 @@
   font-weight: 700;
   text-decoration: none;
 }
+/* The contact email is one unbreakable word: a long address wraps inside the channel instead of widening the page. */
+.channel bdi {
+  overflow-wrap: anywhere;
+}
 @media (hover: hover) {
   .channel:hover > :first-child {
     text-decoration: underline;

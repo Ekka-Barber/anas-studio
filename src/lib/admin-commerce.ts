@@ -1,6 +1,6 @@
 // Relative, not `@/`: the unit tests and the variant table config import this file, and the unit config has no alias.
 import type { SettingsStatus } from '../../supabase/functions/_shared/admin.ts'
-import { formatMoney, formatNumber } from './format'
+import { formatMoney, formatNumber, formatRiyadh } from './format'
 
 /**
  * The owner's catalog and figures screens (P08 round 11c), the parts that need no React: the Riyadh day
@@ -294,6 +294,36 @@ export function checkoutLine(row: { checkoutOpen: boolean; checkoutClosedReason:
   if (row.checkoutClosedReason === 'POLICIES_UNAPPROVED') return 'الشراء مغلق: السياسات تحتاج اعتمادًا (انظر «اعتماد السياسات» أعلاه)'
   // SWITCH_OFF, or a reason this screen does not know.
   return 'الشراء مغلق'
+}
+
+/**
+ * A published policy as `commerce_settings_get` lists it in `publishedPolicies`: the revision (`seq`) an approval would pin
+ * and when that revision went live. The list is the policies an approval covers, in the order the SQL gives them.
+ */
+export interface PublishedPolicy {
+  id: string
+  title: string
+  seq: number
+  publishedAt: string
+}
+
+/** `publishedPolicies`, read key by key; a reply that is not what it should be throws (a missing title reads as empty). */
+export function parsePublishedPolicies(value: unknown): PublishedPolicy[] {
+  if (!Array.isArray(value)) return malformed()
+  return value.map((entry) => {
+    const o = obj(entry)
+    return { id: text(o.id), title: str(o.title ?? ''), seq: int(o.seq), publishedAt: time(o.publishedAt) }
+  })
+}
+
+/** The `revisions` of «اعتماد السياسات»: exactly the policies the screen lists, each at the revision it showed. */
+export function approvalRevisions(policies: readonly PublishedPolicy[]): Record<string, number> {
+  return Object.fromEntries(policies.map((policy) => [policy.id, policy.seq]))
+}
+
+/** One line of the list above «اعتماد السياسات»: «<name>: نُشرت <Riyadh date and time>». */
+export function publishedPolicyLine(name: string, publishedAt: string): string {
+  return `${name}: نُشرت ${formatRiyadh(publishedAt)}`
 }
 
 /** The figures of the «المتجر» section, one «label: value» line each, in the order the screen draws them. */

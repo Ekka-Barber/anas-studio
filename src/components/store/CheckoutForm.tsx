@@ -80,6 +80,7 @@ import { useTurnstile } from '@/lib/turnstile'
 import { useCart } from './CartProvider'
 import type { HoldStart, HoldView as HoldViewComponent } from './HoldView'
 import {
+  createRefusalMessage,
   fetchCities,
   fetchQuote,
   orderSchema,
@@ -416,7 +417,7 @@ export function CheckoutForm({ builtRevisions }: { builtRevisions: Record<string
         const fresh = priceSchema.parse(error.fields.quote)
         setQuote({ ...fresh, checkoutEnabled: quote.checkoutEnabled, policyRevisions: quote.policyRevisions, testMode: quote.testMode })
         setQuoteFailed(false)
-        setSubmitError(error.message)
+        setSubmitError(createRefusalMessage(error))
         return
       }
       if (error?.code === 'POLICY_CHANGED') {

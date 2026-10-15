@@ -40,7 +40,7 @@ export const commerceSettingsSaveSchema = z.strictObject({
   settings: commerceSettingsSchema,
 })
 
-/** The P07 round 2 approval's whole body: `{ action, expectedVersion }`. */
+/** The P07 round 2 approval's base body, `{ action, expectedVersion }`; `admin.ts` extends it with `revisions` (RESIDUALS-1, I44 (1)). */
 export const commercePoliciesApproveSchema = z.strictObject({
   action: z.literal('commerce-policies-approve'),
   expectedVersion: z.number().int().min(0),

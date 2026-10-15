@@ -1,9 +1,10 @@
 // P08 round 10b: the preorder's words and the held `OUT_OF_STOCK` sentence of
 // the cart and the checkout (src/components/store/quote.ts). The rest of the
-// quote's parsing is in tests/unit/store-checkout.test.ts.
+// quote's parsing is in tests/unit/store-checkout.test.ts. RESIDUALS-1 R1 adds the sentence of a refused `create`
+// (I50 (3)) and the titles a refused line carries (I51 (2)).
 import { describe, expect, it } from 'vitest'
 
-import { preorderSentence, priceSchema, quoteErrorMessage, RECEIVED } from '../../src/components/store/quote'
+import { createRefusalMessage, preorderSentence, priceSchema, quoteErrorMessage, RECEIVED } from '../../src/components/store/quote'
 
 const HASH = 'a'.repeat(64)
 const V = '11111111-1111-4111-8111-111111111111'
@@ -57,6 +58,51 @@ describe('the held OUT_OF_STOCK (P08 contract section 4)', () => {
       { code: 'OUT_OF_STOCK', line: 1, variantId: V, available: 0 },
     ])
     expect(() => priceSchema.parse(priced({ ok: false, errors: [{ code: 'OUT_OF_STOCK', held: 'true' }] }))).toThrow()
+  })
+})
+
+describe('the sentence of a refused create (RESIDUALS-1 I50 (3))', () => {
+  const refused = (code: string, fields?: Record<string, unknown>) => ({ code, message: 'رسالة الدالة.', ...(fields ? { fields } : {}) })
+
+  it('says the quantity is held for another order when the function says `held`, through the same sentence as the quote', () => {
+    expect(createRefusalMessage(refused('OUT_OF_STOCK', { quote: {}, held: true }))).toBe('الكمية محجوزة مؤقتًا لطلب آخر؛ حاول بعد قليل.')
+    expect(createRefusalMessage(refused('OUT_OF_STOCK', { held: true }))).toBe(quoteErrorMessage({ code: 'OUT_OF_STOCK', held: true }))
+  })
+
+  it('keeps the plain words for stock that is really short, which are the words of the function itself', () => {
+    expect(createRefusalMessage(refused('OUT_OF_STOCK', { quote: {} }))).toBe('الكمية المطلوبة غير متوفرة الآن.')
+    expect(createRefusalMessage(refused('OUT_OF_STOCK'))).toBe('الكمية المطلوبة غير متوفرة الآن.')
+    // Only a boolean `true` is a hold.
+    expect(createRefusalMessage(refused('OUT_OF_STOCK', { held: 'true' }))).toBe('الكمية المطلوبة غير متوفرة الآن.')
+  })
+
+  it('leaves every other refusal its own message', () => {
+    expect(createRefusalMessage(refused('QUOTE_CHANGED', { quote: {} }))).toBe('رسالة الدالة.')
+    // A `held` that comes with another code is not read as a hold.
+    expect(createRefusalMessage(refused('UNAVAILABLE', { held: true }))).toBe('رسالة الدالة.')
+  })
+})
+
+describe('the titles of a refused line (RESIDUALS-1 I51 (2))', () => {
+  const named = { code: 'OUT_OF_STOCK', line: 1, variantId: V, available: 0, productTitle: 'كتاب خوص', variantTitle: 'النسخة الورقية' }
+
+  it('reads productTitle and variantTitle from a refused line, when the function names it', () => {
+    expect(priceSchema.parse(priced({ ok: false, errors: [named] })).errors).toEqual([named])
+    expect(priceSchema.parse(priced({ ok: false, errors: [{ ...named, held: true }] })).errors[0]).toMatchObject({ held: true, productTitle: 'كتاب خوص' })
+  })
+
+  it('reads a refusal with no titles as one with none (a variant that no longer exists), and a title that is not text as a malformed reply', () => {
+    const bare = { code: 'UNAVAILABLE', line: 1, variantId: V }
+    expect(priceSchema.parse(priced({ ok: false, errors: [bare] })).errors).toEqual([bare])
+    expect(() => priceSchema.parse(priced({ ok: false, errors: [{ ...named, productTitle: 5 }] }))).toThrow()
+    expect(() => priceSchema.parse(priced({ ok: false, errors: [{ ...named, variantTitle: null }] }))).toThrow()
+  })
+
+  it('takes them whole: the SQL bounds them by character, so a character outside the BMP is never cut in half', () => {
+    const astral = { ...named, productTitle: `${'ا'.repeat(199)}🌙`, variantTitle: `${'ب'.repeat(119)}🌙` }
+    const [error] = priceSchema.parse(priced({ ok: false, errors: [astral] })).errors
+    expect(error!.productTitle).toBe(astral.productTitle)
+    expect(error!.variantTitle).toBe(astral.variantTitle)
   })
 })
 

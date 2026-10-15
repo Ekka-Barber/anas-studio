@@ -90,6 +90,8 @@ export function CartView() {
   const [quote, setQuote] = useState<Quote | null>(null)
   const [quoteFailed, setQuoteFailed] = useState(false)
   const [cities, setCities] = useState<CityRate[]>([])
+  const [citiesState, setCitiesState] = useState<'loading' | 'failed' | 'loaded'>('loading')
+  const [citiesTry, setCitiesTry] = useState(0)
   const [city, setCity] = useState('')
   const [couponDraft, setCouponDraft] = useState('')
   const [coupon, setCoupon] = useState('')
@@ -114,8 +116,17 @@ export function CartView() {
       }
       if (tooLong) setCouponNote('كود الخصم المحفوظ أطول من المسموح، فأُزيل. أعد إدخاله.')
     })
-    fetchCities().then(setCities).catch(() => setCities([]))
   }, [])
+
+  // The city list, loaded again by the «أعد المحاولة» button after a failure (the checkout's own pattern).
+  useEffect(() => {
+    fetchCities()
+      .then((rates) => {
+        setCities(rates)
+        setCitiesState('loaded')
+      })
+      .catch(() => setCitiesState('failed'))
+  }, [citiesTry])
 
   // The live quote: on load and after every change, debounced about 300 ms.
   // Stale replies are dropped by run number so a fast edit never shows an old
@@ -228,14 +239,16 @@ export function CartView() {
             {cart.lines.map((line) => {
               const quoteLine = quote?.lines.find((l) => l.variantId === line.variantId) ?? null
               const lineErrors = errors.filter((error) => error.variantId === line.variantId)
-              // The line's name for its controls: never empty, even when the quote refused the line.
-              const name = quoteLine ? `${quoteLine.productTitle}: ${quoteLine.variantTitle}` : 'منتج في السلة'
+              // The line's name for its controls: never empty. A line the quote refused is named by its refusal when its variant
+              // exists; one that no longer exists keeps the generic name.
+              const named = quoteLine ?? lineErrors.find((error) => error.productTitle !== undefined && error.variantTitle !== undefined)
+              const name = named ? `${named.productTitle}: ${named.variantTitle}` : 'منتج في السلة'
               const preorder = quoteLine?.preorder ?? null
               return (
                 <li key={line.variantId} className={styles.lineCard}>
                   <div className={styles.lineHead}>
                     <p className={styles.lineTitle}>
-                      {/* A line the quote refused carries no title; its error below says why. */}
+                      {/* Its error below says why a refused line is not priced. */}
                       {quote === null ? '…' : name}
                     </p>
                     <p className={styles.linePrice}>
@@ -341,23 +354,46 @@ export function CartView() {
         <div className={styles.summaryPanel}>
           <h2 className={styles.panelTitle}>ملخص الطلب</h2>
           {quote?.physical && (
-            <label className={styles.field}>
-              مدينة التوصيل
-              <select
-                value={city}
-                onChange={(event) => {
-                  setCity(event.target.value)
-                  writeSessionValue(CITY_KEY, event.target.value)
-                }}
-              >
-                <option value="">اختر المدينة</option>
-                {cities.map((rate) => (
-                  <option key={rate.city_key} value={rate.city_key}>
-                    {rate.name_ar}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className={styles.field}>
+                مدينة التوصيل
+                <select
+                  value={city}
+                  onChange={(event) => {
+                    setCity(event.target.value)
+                    writeSessionValue(CITY_KEY, event.target.value)
+                  }}
+                >
+                  <option value="">اختر المدينة</option>
+                  {cities.map((rate) => (
+                    <option key={rate.city_key} value={rate.city_key}>
+                      {rate.name_ar}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {citiesState === 'failed' && (
+                <div>
+                  <p className={styles.warning} role="alert">
+                    تعذّر تحميل قائمة المدن.
+                  </p>
+                  <ActionButton
+                    variant="outline"
+                    onClick={() => {
+                      setCitiesState('loading')
+                      setCitiesTry((n) => n + 1)
+                    }}
+                  >
+                    أعد المحاولة
+                  </ActionButton>
+                </div>
+              )}
+              {citiesState === 'loaded' && cities.length === 0 && (
+                <p className={styles.warning} role="alert">
+                  لا نوصل إلى أي مدينة حاليًا.
+                </p>
+              )}
+            </>
           )}
 
           <div className={styles.coupon}>

@@ -430,7 +430,7 @@ describe('who may call', () => {
     const client = await signIn(owner.email)
     const recon = await client.rpc('reconciliation_list')
     expect(recon.error).toBeNull()
-    sameKeys(recon.data as object, ['attempts', 'events', 'refunds', 'reviews'])
+    sameKeys(recon.data as object, ['attempts', 'closedReviews', 'events', 'refunds', 'reviews'])
     const restocked = await client.rpc('return_receive', { p_return: approvedForOwner, p_restock: [{ itemId: returnsOrder.items[0]!.id, quantity: 1 }] })
     expect(restocked.error).toBeNull()
     expect(restocked.data).toMatchObject({ ok: true, state: 'received' })
@@ -1756,7 +1756,7 @@ describe('reconciliation_list', () => {
     const variant = await h.physical(4000, 30)
     const p = await h.paid([{ variantId: variant, quantity: 1 }])
     const list = async (): Promise<Row> => ownerApi.recon()
-    sameKeys(await list(), ['attempts', 'events', 'refunds', 'reviews'])
+    sameKeys(await list(), ['attempts', 'closedReviews', 'events', 'refunds', 'reviews'])
 
     // Review payments: open ones only.
     const reviewPayment = await reviewOf(p)
@@ -1794,6 +1794,103 @@ describe('reconciliation_list', () => {
     expect(((await list()).events as Row[]).find((entry) => entry.eventId === gaveUp)).toMatchObject({ outcome: 'exhausted', attempts: 10 })
     expect(await ownerApi.dismiss(gaveUp)).toEqual({ ok: true, eventId: gaveUp })
     expect(((await list()).events as Row[]).map((entry) => entry.eventId)).not.toContain(gaveUp)
+  })
+
+  // RESIDUALS-1 R1, I50 (4): a payment with no order that the owner closed by hand used to leave every admin screen, while
+  // `refund_request` and `refund_record_external` still take it (they refuse only one closed as `refunded`).
+  describe('closedReviews', () => {
+    const REVIEW_KEYS = ['amount', 'attemptId', 'closedAt', 'closedReason', 'createdAt', 'currency', 'environment', 'invoiceId', 'orderId', 'orderNumber', 'paymentId', 'providerRefunded', 'providerStatus', 'reason', 'refunded']
+    const closedList = async (): Promise<Row[]> => (await ownerApi.recon()).closedReviews as Row[]
+    const openList = async (): Promise<Row[]> => (await ownerApi.recon()).reviews as Row[]
+    /** A charged payment of a invoice no attempt maps to: a review payment with no order. */
+    const noOrder = async (amount = 1234): Promise<string> => {
+      const invoice = randomUUID()
+      const paymentId = randomUUID()
+      const applied = await h.call('apply_verified_payment', {
+        p_invoice_id: invoice,
+        p_payment: { id: paymentId, status: 'paid', amount, currency: 'SAR', fee: 0, refunded: 0, invoiceId: invoice, sourceType: 'creditcard', sourceCompany: 'mada' },
+        p_invoice: { id: invoice, status: 'paid', amount, currency: 'SAR' },
+        p_mode: 'test',
+        p_live: null,
+        p_event_id: null,
+      })
+      expect(applied).toMatchObject({ outcome: 'unknown_invoice' })
+      return paymentId
+    }
+    /** A refund of `amount` of a review payment that the provider confirmed; `before` is what was confirmed refunded. */
+    const refund = async (paymentId: string, amount: number, before: number): Promise<void> => {
+      const key = randomUUID()
+      const asked = await h.call('refund_request', {
+        p_actor: owner.userId, p_order: null, p_attempt: null, p_review_payment: paymentId, p_amount: amount, p_reason: 'استرداد دفعة بلا طلب',
+        p_allocation: {}, p_idempotency_key: key, p_request_hash: sha256(`hash:${key}`), p_return: null, p_provider_refunded: before,
+      })
+      expect(asked, JSON.stringify(asked)).toMatchObject({ ok: true, state: 'new' })
+      expect(await h.call('refund_result', { p_refund: asked.refundId, p_outcome: 'succeeded', p_provider_refunded: before + amount, p_error: null })).toMatchObject({ ok: true, status: 'succeeded' })
+    }
+
+    it('lists a payment with no order that was closed by hand and not refunded in full, newest closed first, in the row shape of the open ones', async () => {
+      const openBefore = (await ownerApi.alerts()).review as number
+      const open = await noOrder()
+      const byHand = await noOrder()
+      const partly = await noOrder()
+      const fully = await noOrder()
+      const refundedFirst = await noOrder()
+      expect(await ownerApi.close(byHand, REVIEW_REASON)).toMatchObject({ ok: true })
+      expect(await ownerApi.close(partly, REVIEW_REASON)).toMatchObject({ ok: true })
+      await refund(partly, 500, 0)
+      expect(await ownerApi.close(fully, REVIEW_REASON)).toMatchObject({ ok: true })
+      await refund(fully, 1234, 0)
+      // Not closed by hand: its own full refund closes it, as `refunded`.
+      await refund(refundedFirst, 1234, 0)
+      // A payment that has an order, closed by hand, is on its order's screen and is not in this list.
+      const paid = await h.paid([{ variantId: await h.physical(4000, 10), quantity: 1 }])
+      const withOrder = await reviewOf(paid)
+      expect(await ownerApi.close(withOrder, REVIEW_REASON)).toMatchObject({ ok: true })
+
+      const closed = (await closedList()).map((entry) => entry.paymentId)
+      expect(closed).toContain(byHand)
+      expect(closed).toContain(partly)
+      for (const [label, id] of [['open', open], ['refunded in full after being closed by hand', fully], ['closed as refunded', refundedFirst], ['with an order', withOrder]] as const) {
+        expect(closed, label).not.toContain(id)
+      }
+      // The open list keeps the open ones only, and the count of what needs matching is theirs alone.
+      const opened = (await openList()).map((entry) => entry.paymentId)
+      expect(opened).toContain(open)
+      for (const id of [byHand, partly, fully, refundedFirst, withOrder]) expect(opened).not.toContain(id)
+      expect((await ownerApi.alerts()).review).toBe(openBefore + 1)
+
+      // The newest closed first: `partly` was closed after `byHand`.
+      expect(closed.indexOf(partly)).toBeLessThan(closed.indexOf(byHand))
+      const entry = (await closedList()).find((item) => item.paymentId === partly)!
+      sameKeys(entry, REVIEW_KEYS)
+      expect(entry).toMatchObject({ orderId: null, orderNumber: null, attemptId: null, reason: 'UNMAPPED_INVOICE', amount: 1234, refunded: 500, closedReason: REVIEW_REASON, closedAt: expect.any(String) })
+      sameKeys((await openList()).find((item) => item.paymentId === open)!, REVIEW_KEYS)
+
+      // It can still be refunded, for what is left, and the external refund can still be recorded: both are the owner's way back.
+      await refund(partly, 734, 500)
+      expect((await closedList()).map((item) => item.paymentId), 'refunded in full now').not.toContain(partly)
+      expect(await h.call('refund_record_external', { p_actor: owner.userId, p_attempt: null, p_review_payment: byHand, p_provider_refunded: 0, p_provider_status: 'voided', p_reason: 'إلغاء من لوحة البوابة' })).toMatchObject({ ok: true, amount: 1234 })
+      expect((await closedList()).map((item) => item.paymentId), 'voided').not.toContain(byHand)
+    })
+
+    it('lists at most 50, the newest closed first', async () => {
+      const prefix = randomUUID()
+      await h.postgres.query(
+        `insert into finance.payment_reviews (provider_payment_id, environment, amount_halalas, currency, provider_status, reason, closed_at, closed_reason)
+         select $1 || '-' || lpad(g::text, 3, '0'), 'test', 1000, 'SAR', 'paid', 'UNMAPPED_INVOICE', now() + interval '1 hour' + (g || ' seconds')::interval, 'اختبار السقف'
+           from generate_series(1, 51) g`,
+        [prefix],
+      )
+      try {
+        const closed = await closedList()
+        expect(closed).toHaveLength(50)
+        expect(closed.every((entry) => String(entry.paymentId).startsWith(prefix))).toBe(true)
+        expect(closed[0]!.paymentId).toBe(`${prefix}-051`)
+        expect(closed.map((entry) => entry.paymentId)).not.toContain(`${prefix}-001`)
+      } finally {
+        await h.postgres.query('delete from finance.payment_reviews where provider_payment_id like $1', [`${prefix}-%`])
+      }
+    })
   })
 
   it('clears the mark the job left on work of the other mode once a recheck reaches the provider: off the screen, out of the count, and its order erasable', async () => {

@@ -27,6 +27,7 @@ vi.mock('@/components/public/contact/ServiceRequest', () => ({
 }))
 vi.mock('@/components/public/contact/contact.module.css', async () => import('../../src/components/public/contact/contact.module.css'))
 vi.mock('@/components/public/home/HomeView', async () => import('../../src/components/public/home/HomeView'))
+vi.mock('@/admin/collections/site-settings', async () => import('../../src/admin/collections/site-settings'))
 // The four room pages draw a stub that shows the two names the page gave its view; the one real view is drawn by its relative path.
 vi.mock('next/navigation', () => ({ usePathname: () => '/' }))
 vi.mock('@/components/public/rooms/StartedRoomView', () => ({ StartedRoomView: namesOf }))
@@ -151,6 +152,56 @@ describe('the contact page words', () => {
     const { contactPage: _contactPage, ...withoutPage } = settings({})
     serve(withoutPage)
     await expect(render()).rejects.toThrow('missing contactPage')
+  })
+})
+
+// RESIDUALS-1 R1, I45 (3): «بريد التواصل» of the site settings, published and validated, is a channel on /contact.
+describe('the contact channels', () => {
+  const render = async () => renderToStaticMarkup(await ContactPage())
+  const EMAIL = 'help@anas.studio'
+
+  it('show the contact email as a mailto channel beside WhatsApp: «البريد» then the address in an LTR isolate, as the social rows are, WhatsApp first', async () => {
+    serve(settings({ contact: { email: EMAIL, whatsapp: '0501234567' }, social: [] }))
+    const html = await render()
+    expect(html).toContain(`href="mailto:${EMAIL}"`)
+    expect(html).toContain(`<span>البريد</span><bdi dir="ltr">${EMAIL}</bdi>`)
+    expect(html).toContain('data-tone="paper"')
+    expect(html).toContain('href="https://wa.me/966501234567"')
+    expect(html.indexOf('wa.me')).toBeLessThan(html.indexOf('mailto:'))
+    // WhatsApp keeps the main channel's style; the email has the secondary one only.
+    const [whatsapp, email] = [/<a href="https:\/\/wa\.me[^>]*>/.exec(html)![0], /<a href="mailto:[^>]*>/.exec(html)![0]]
+    expect(whatsapp).toMatch(/channelMain/)
+    expect(email).not.toMatch(/channelMain/)
+  })
+
+  it('show the block for the email alone, and for the social links with no email', async () => {
+    serve(settings({ contact: { email: EMAIL, whatsapp: '' }, social: [] }))
+    const alone = await render()
+    expect(alone).toContain('aria-label="قنوات التواصل"')
+    expect(alone).toContain(`href="mailto:${EMAIL}"`)
+    expect(alone).not.toContain('واتساب')
+    serve(settings({ contact: { email: '', whatsapp: '' } }))
+    const social = await render()
+    expect(social).toContain('aria-label="قنوات التواصل"')
+    expect(social).not.toContain('mailto:')
+  })
+
+  it('show no mail channel, and no block at all, when no address is set (or WhatsApp, or a social link)', async () => {
+    for (const patch of [{ contact: undefined }, { contact: { email: '', whatsapp: '' } }]) {
+      serve(settings({ ...patch, social: [] }))
+      const html = await render()
+      expect(html, JSON.stringify(patch)).not.toContain('mailto:')
+      expect(html, JSON.stringify(patch)).not.toContain('aria-label="قنوات التواصل"')
+    }
+  })
+
+  it('never make a link of a stored address that is not an address', async () => {
+    for (const email of ['not an address', 'a@b', 'x@y.zz?subject=hi', '<script>@x.co']) {
+      serve(settings({ contact: { email, whatsapp: '' }, social: [] }))
+      const html = await render()
+      expect(html, email).not.toContain('mailto:')
+      expect(html, email).not.toContain('aria-label="قنوات التواصل"')
+    }
   })
 })
 

@@ -410,7 +410,7 @@ const disputeJson = (over: Record<string, unknown> = {}) => ({
   orderNumber: null,
   ...over,
 })
-const emptyReconciliation = { attempts: [], reviews: [], refunds: [], events: [] }
+const emptyReconciliation = { attempts: [], reviews: [], closedReviews: [], refunds: [], events: [] }
 
 // ---- the specs ----------------------------------------------------------------------------------------------------
 
@@ -1079,12 +1079,15 @@ for (const width of [360, 1440]) {
         const voided = attemptJson({ providerStatus: 'voided', reasons: ['PROVIDER_STATUS'], orderNumber: 'JKLM2345' })
         const withOrder = reviewJson({ reason: 'SECOND_PAYMENT', orderId: order.id, orderNumber: order.number, attemptId: order.attemptId, refunded: 0 })
         const noOrder = reviewJson({ reason: 'UNMAPPED_INVOICE' })
+        // RESIDUALS-1 I50 (4): a payment with no order that the owner closed by hand, not refunded in full.
+        const closedNoOrder = reviewJson({ reason: 'UNMAPPED_INVOICE', amount: 10600, refunded: 2500, closedAt: ISO, closedReason: 'عكسها البنك' })
         const inflight = refundJson({ orderId: order.id, orderNumber: order.number })
         const exhausted = eventJson({ eventId: 'evt-exhausted-1', outcome: 'exhausted', error: 'FETCH_FAILED', attempts: 10, processedAt: ISO })
         const waiting = eventJson({ eventId: 'evt-waiting-1', type: 'payment_refunded', outcome: null })
         await answer(page, 'reconciliation_list', {
           attempts: [uncertain, external, voided],
           reviews: [withOrder, noOrder],
+          closedReviews: [closedNoOrder],
           refunds: [inflight],
           events: [exhausted, waiting, ...Array.from({ length: 98 }, () => eventJson())],
         })
@@ -1092,7 +1095,7 @@ for (const width of [360, 1440]) {
         const bodies = await mockAdmin(page, [ok({ status: 'paid' }), made(inflight.id, 'succeeded', 4000)])
         await page.goto('/admin/orders/reconciliation')
         await expect(page.getByRole('heading', { level: 1, name: 'المطابقة', exact: true })).toBeVisible()
-        await expect(main(page).locator('h2')).toHaveText(['محاولات تحتاج فحصًا', 'دفعات قيد المراجعة', 'استردادات قيد المعالجة', 'إشعارات الدفع', 'النزاعات'])
+        await expect(main(page).locator('h2')).toHaveText(['محاولات تحتاج فحصًا', 'دفعات قيد المراجعة', 'دفعات بلا طلب أُغلقت مراجعتها', 'استردادات قيد المعالجة', 'إشعارات الدفع', 'النزاعات'])
 
         // The attempts: the order's number as a link to its view, the status, the amount, both provider ids, every reason in words.
         const attempts = section(page, 'محاولات تحتاج فحصًا')
@@ -1118,11 +1121,25 @@ for (const width of [360, 1440]) {
         await expect(reviews).toContainText('الطلب: بلا طلب')
         await expect(card(page, withOrder.paymentId).getByRole('link', { name: order.number, exact: true })).toHaveAttribute('href', viewOf(order))
         await expect(card(page, noOrder.paymentId)).toContainText(`المُعاد: ${formatMoney(1000)}`)
-        // A test-mode review payment is labelled like a test order; one with no order warns that closing it removes it from the admin.
+        // A test-mode review payment is labelled like a test order; one with no order says that it stays reachable once closed, and where.
         await expect(card(page, noOrder.paymentId).getByText('تجريبي', { exact: true })).toBeVisible()
-        await expect(card(page, noOrder.paymentId)).toContainText('دفعة بلا طلب تختفي من اللوحة بعد إغلاقها ولا تُعاد منها؛ أعدها قبل الإغلاق إن لزم.')
-        await expect(card(page, withOrder.paymentId).getByText('دفعة بلا طلب تختفي', { exact: false })).toHaveCount(0)
+        await expect(card(page, noOrder.paymentId)).toContainText('بعد الإغلاق تبقى هذه الدفعة في «دفعات بلا طلب أُغلقت مراجعتها» أدناه، ويمكن إعادتها من هناك.')
+        await expect(card(page, withOrder.paymentId).getByText('بعد الإغلاق تبقى هذه الدفعة', { exact: false })).toHaveCount(0)
         for (const name of ['إغلاق المراجعة', 'استرداد هذه الدفعة', 'تسجيل اعتراض', 'تسجيل استرداد خارجي']) await expect(reviews.getByRole('button', { name, exact: true })).toHaveCount(2)
+        // The payments with no order that were closed by hand: the same facts, the test label, and the two ways to give the money back,
+        // but nothing to close again and no dispute button; not counted among the open ones.
+        const closedReviews = section(page, 'دفعات بلا طلب أُغلقت مراجعتها')
+        const closedCard = card(page, closedNoOrder.paymentId)
+        await expect(closedReviews.locator('[class*="listItem"]')).toHaveCount(1)
+        await expect(closedCard).toContainText('الطلب: بلا طلب')
+        await expect(closedCard).toContainText('السبب: فاتورة غير مرتبطة بطلب')
+        await expect(closedCard).toContainText(`المبلغ: ${formatMoney(10600)}`)
+        await expect(closedCard).toContainText(`المُعاد: ${formatMoney(2500)}`)
+        await expect(closedCard.getByText('تجريبي', { exact: true })).toBeVisible()
+        await expect(closedCard.locator('span[dir="ltr"]', { hasText: closedNoOrder.paymentId })).toBeVisible()
+        for (const name of ['استرداد هذه الدفعة', 'تسجيل استرداد خارجي']) await expect(closedReviews.getByRole('button', { name, exact: true })).toHaveCount(1)
+        for (const name of ['إغلاق المراجعة', 'تسجيل اعتراض']) await expect(closedReviews.getByRole('button', { name, exact: true })).toHaveCount(0)
+        await expect(closedReviews.getByText('لا شيء هنا.')).toHaveCount(0)
         // The refunds in flight: the order, the status, the time, the error code.
         const refunds = section(page, 'استردادات قيد المعالجة')
         await expect(refunds).toContainText('الحالة: غير مؤكد')
@@ -1135,6 +1152,7 @@ for (const width of [360, 1440]) {
         await expect(attempts.getByText('لا شيء هنا.')).toHaveCount(0)
         await expect(section(page, 'النزاعات').getByText('لا شيء هنا.')).toBeVisible()
         await expect(main(page).getByText('لا شيء هنا.')).toHaveCount(1)
+        await expect(closedReviews.getByText('تُعرض أحدث 50.')).toHaveCount(0)
         // Only an exhausted event can be filed, with the sentence that says where it was reviewed.
         await expect(eventsSection.getByRole('button', { name: 'تمت المراجعة', exact: true })).toHaveCount(1)
         await expect(eventsSection.locator('[class*="listItem"]').filter({ hasText: 'FETCH_FAILED' }).getByRole('button', { name: 'تمت المراجعة', exact: true })).toBeVisible()
@@ -1222,6 +1240,51 @@ for (const width of [360, 1440]) {
         expect(problems).toEqual([])
       })
 
+      // RESIDUALS-1 R1, I50 (4): a payment with no order that was closed by hand used to leave every admin screen. It stays in its own section, under the open reviews,
+      // and its refund and the record of an external refund work from there as they do on an open one (`refund_request` and `refund_record_external` refuse only a payment
+      // closed as refunded).
+      test('the reconciliation screen: a no-order payment closed by hand stays in its own section, and its refund and its external record work from there, both through the step-up', async ({ page }) => {
+        const problems = watchProblems(page)
+        const closed = reviewJson({ amount: 10600, refunded: 1000, closedAt: ISO, closedReason: 'عكسها البنك' })
+        await answer(page, 'reconciliation_list', { ...emptyReconciliation, closedReviews: [closed] })
+        await answer(page, 'disputes_list', { references: [] })
+        const refundId = randomUUID()
+        const bodies = await mockAdmin(page, [STEP_UP, made(refundId, 'succeeded', 3000), STEP_UP, made(refundId, 'succeeded', 7600)])
+        await page.goto('/admin/orders/reconciliation')
+        await expect(main(page).locator('h2')).toHaveText(['محاولات تحتاج فحصًا', 'دفعات قيد المراجعة', 'دفعات بلا طلب أُغلقت مراجعتها', 'استردادات قيد المعالجة', 'إشعارات الدفع', 'النزاعات'])
+        // The open review payments are empty, and the closed one is not lost: it is in its own section.
+        await expect(section(page, 'دفعات قيد المراجعة').getByText('لا شيء هنا.')).toBeVisible()
+        const review = card(page, closed.paymentId)
+        await expect(review).toBeVisible()
+        await expectNoOverflow(page, 'closed reviews', width)
+        await expectTargets(page, 'closed reviews')
+        await shoot(page, 'reconciliation-closed', width)
+
+        // Its refund: what is left of the payment, the confirmed total it was listed with, the code.
+        await expect(fieldOf(review, 'المبلغ')).toContainText(`المتبقي: ${formatMoney(9600)}`)
+        await review.getByLabel('المبلغ', { exact: true }).fill('30')
+        await review.getByLabel('السبب', { exact: true }).first().fill('دفعة أُغلقت بلا طلب')
+        await button(review, 'استرداد هذه الدفعة').click()
+        await button(review, 'تأكيد الاسترداد').click()
+        await expect.poll(() => bodies.length).toBe(1)
+        await enterCode(page)
+        await expect(statusLine(page)).toHaveText(`تمت إعادة ${formatMoney(3000)}.`)
+        const key = bodies[1]!.idempotencyKey
+        const refund = { action: 'refund-create', reviewPaymentId: closed.paymentId, amount: 3000, reason: 'دفعة أُغلقت بلا طلب', allocation: {}, expectedRefunded: 1000, idempotencyKey: key }
+        expect(bodies).toEqual([refund, refund])
+
+        // Its external record, the way an open review has it.
+        await button(review, 'تسجيل استرداد خارجي').click()
+        await review.getByRole('textbox', { name: 'السبب', exact: true }).last().fill('استرداد من لوحة Moyasar')
+        await button(review, 'تأكيد التسجيل').click()
+        await expect.poll(() => bodies.length).toBe(3)
+        await enterCode(page)
+        await expect(statusLine(page)).toHaveText(`سُجّل استرداد خارجي بمبلغ ${formatMoney(7600)}.`)
+        const record = { action: 'refund-record-external', reviewPaymentId: closed.paymentId, reason: 'استرداد من لوحة Moyasar' }
+        expect(bodies.slice(2)).toEqual([record, record])
+        expect(problems).toEqual([])
+      })
+
       test('disputes on the reconciliation screen: a difference with no payment, a follow-up locked to its reference, recorded then repeated', async ({ page }) => {
         const problems = watchProblems(page)
         const rpc = watchRpc(page)
@@ -1247,7 +1310,8 @@ for (const width of [360, 1440]) {
         await expect(reference.locator('ul').filter({ hasText: 'التسلسل' })).toHaveCount(2)
         await expect(card(page, 'PAYOUT-77')).toContainText('النوع: فرق تحويل')
         await expect(button(disputes, 'إضافة متابعة')).toHaveCount(2)
-        await expect(main(page).getByText('لا شيء هنا.')).toHaveCount(4)
+        // Five empty lists (the attempts, the open reviews, the closed reviews, the refunds, the events); the disputes have a record.
+        await expect(main(page).getByText('لا شيء هنا.')).toHaveCount(5)
 
         // «تسجيل فرق»: a payout or a fee difference, no payment, nothing that acts on lines.
         await button(disputes, 'تسجيل فرق').click()

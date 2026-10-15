@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState, type FormEvent } from 'react'
 
+import { factorReading, FACTORS_UNREADABLE } from '@/lib/admin-commerce'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 
@@ -136,13 +137,17 @@ export function TeamView() {
     }
     if (result.error.code === 'STEP_UP_REQUIRED') {
       const supabase = getSupabaseBrowserClient()
-      const { data } = await supabase.auth.mfa.listFactors()
-      const verified = data?.totp.find((factor) => factor.status === 'verified')
-      if (!verified) {
+      const reading = factorReading(await supabase.auth.mfa.listFactors().catch(() => ({ data: null, error: true })))
+      // A list that could not be read says nothing about enrolment: no «يلزم تفعيل تطبيق المصادقة» for an owner who has one.
+      if (reading.kind === 'failed') {
+        setActionError(FACTORS_UNREADABLE)
+        return false
+      }
+      if (reading.kind === 'none') {
         setNeedsEnrollment(true)
         return false
       }
-      setStepUp({ factorId: verified.id, body })
+      setStepUp({ factorId: reading.id, body })
       return false
     }
     // After a refusal the row shows the member as they really are: a role change the server refused is not kept in the select.

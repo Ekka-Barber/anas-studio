@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 
+import type { StoredDraft } from '@/admin/fields'
 import { forgetStoredSession, getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import styles from './admin.module.css'
@@ -86,9 +87,97 @@ export function currentEntry(pathname: string): string | null {
   return null
 }
 
-/** The editor's unsaved drafts (`draftKey` in CollectionForm). They hold a
- * person's work, so they do not outlive the person's session. */
-const DRAFT_PREFIX = 'anasaq:draft:'
+/**
+ * The editor's unsaved drafts. They hold a person's work, so they do not outlive the person's session (`hasDrafts` and
+ * `clearDrafts` work by the prefix). A copy is kept per tab as well as per document (ADMIN-CMS-01): two tabs of one
+ * document used to share one key, and a save, an edit or «تجاهل» in one tab removed or overwrote the other's copy. The key
+ * is `anasaq:draft:<collection>:<docId>:<tabId>`; a key from before the tab id (`anasaq:draft:<collection>:<docId>`) is
+ * read as another tab's copy.
+ */
+export const DRAFT_PREFIX = 'anasaq:draft:'
+const TAB_KEY = 'anasaq:tab'
+let tabInMemory: string | null = null
+
+/**
+ * This tab's id: random, kept in `sessionStorage` so this tab's reloads keep it. ponytail: a tab the browser duplicates
+ * copies `sessionStorage` and so shares the id until it is closed; both tabs then write one key, as every tab did before.
+ */
+export function tabId(): string {
+  try {
+    let id = window.sessionStorage.getItem(TAB_KEY)
+    if (id === null) {
+      id = crypto.randomUUID()
+      window.sessionStorage.setItem(TAB_KEY, id)
+    }
+    return id
+  } catch {
+    // `sessionStorage` is blocked: this page load keeps one id in memory (the copies themselves need `localStorage`).
+    tabInMemory ??= crypto.randomUUID()
+    return tabInMemory
+  }
+}
+
+/** The key of one document's local copy as written by the tab `tab`. */
+export function draftKey(collection: string, docId: string, tab: string): string {
+  return `${DRAFT_PREFIX}${collection}:${docId}:${tab}`
+}
+
+/** A local copy as it sits in storage, with the document it belongs to. */
+export interface StoredCopy {
+  key: string
+  docId: string
+  draft: StoredDraft
+}
+
+/** The document a storage key is a local copy of (`collection` as written, with or without a tab id), or null for any other key. */
+function draftDocId(key: string, collection: string): string | null {
+  const head = `${DRAFT_PREFIX}${collection}:`
+  return key.startsWith(head) ? key.slice(head.length).split(':')[0] || null : null
+}
+
+/** Every local copy of `collection`'s documents, whatever tab wrote it; a key whose JSON cannot be read is skipped. */
+export function storedCopies(collection: string): StoredCopy[] {
+  const copies: StoredCopy[] = []
+  try {
+    for (const key of Object.keys(window.localStorage)) {
+      const docId = draftDocId(key, collection)
+      if (docId === null) continue
+      try {
+        const draft = JSON.parse(window.localStorage.getItem(key) ?? 'null') as StoredDraft | null
+        if (draft !== null && typeof draft === 'object') copies.push({ key, docId, draft })
+      } catch {
+        // One unreadable copy does not hide the others.
+      }
+    }
+  } catch {
+    // Storage is blocked: there are no copies to find.
+  }
+  return copies
+}
+
+/**
+ * The copy to offer among one document's: the one under `ownKey` (this tab's), else the newest of the others (another
+ * tab's, or an old key with no tab id). Only a copy this user wrote counts; one with no `userId` predates the field and
+ * is anyone's (`draftOffer` reads it the same way).
+ */
+export function chooseCopy(copies: readonly StoredCopy[], ownKey: string, userId: string | undefined): StoredCopy | null {
+  const mine = copies.filter(({ draft }) => draft.userId === undefined || draft.userId === userId)
+  return (
+    mine.find(({ key }) => key === ownKey) ??
+    mine.reduce<StoredCopy | null>((newest, copy) => (newest === null || copySavedAt(copy) > copySavedAt(newest) ? copy : newest), null)
+  )
+}
+
+/** When a copy was made, as a number to compare by; a copy whose time cannot be read is the oldest. */
+const copySavedAt = ({ draft }: StoredCopy): number => (typeof draft.savedAt === 'number' ? draft.savedAt : 0)
+
+/** This user's local copies of `collection`'s documents, one for each document (its newest), the newest document first. */
+export function localCopies(collection: string, userId: string | undefined): StoredCopy[] {
+  const byDocument = new Map<string, StoredCopy[]>()
+  for (const copy of storedCopies(collection)) byDocument.set(copy.docId, [...(byDocument.get(copy.docId) ?? []), copy])
+  const newest = [...byDocument.values()].flatMap((copies) => chooseCopy(copies, '', userId) ?? [])
+  return newest.sort((a, b) => copySavedAt(b) - copySavedAt(a))
+}
 
 export function hasDrafts(): boolean {
   try {

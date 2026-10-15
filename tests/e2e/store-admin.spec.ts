@@ -357,6 +357,98 @@ test('the owner closes and reopens checkout with the switch, through the step-up
   )
 })
 
+// RESIDUALS-1 R1, I44 (1): «اعتماد السياسات» approves the revisions the owner was shown. The list above its button names each policy
+// with when its published revision went live; a policy published after the page was read is refused (409 POLICIES_CHANGED), the settings
+// are read again, and the approval from the new list goes through. Also the security page's sentence of what asks for a fresh code (I55 (9)).
+test('the owner approves the policies he was shown; a policy published meanwhile is refused with a message and the list is read again', async ({ page }) => {
+  const approver = await createStaff('owner')
+  // Nothing approved yet: a publish then resets nothing and moves no version, so the refusal below is the policies' own.
+  await db.query("update finance.commerce_settings set checkout_enabled = false, policy_revisions = '{}'::jsonb, version = version + 1 where id = 1")
+  const policies = (
+    await db.query<{ doc_id: string; seq: number; data: { title: string } }>(
+      "select doc_id, seq, data from public.published_documents where collection = 'policies' and doc_id in ('store', 'delivery', 'refund', 'privacy')",
+    )
+  ).rows
+  const order = ['store', 'delivery', 'refund', 'privacy']
+  const shown = order.flatMap((id) => policies.filter((policy) => policy.doc_id === id))
+  expect(shown.map((policy) => policy.doc_id), 'the seeded store, delivery and refund policies').toEqual(expect.arrayContaining(['store', 'delivery', 'refund']))
+
+  // Sign in once by email code and enrol TOTP, then sign in again by code (aal1): the approval below must ask for a fresh code.
+  await page.goto('/admin/sign-in')
+  await page.getByLabel('البريد الإلكتروني').fill(approver.email)
+  await page.getByRole('button', { name: 'أرسل الرمز' }).click()
+  await expect(page.getByText(SENT_MESSAGE)).toBeVisible()
+  const firstCode = await readCodeFromMailpit(approver.email)
+  await page.getByLabel('رمز الدخول').fill(firstCode)
+  await page.getByRole('button', { name: 'تحقق' }).click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await page.locator('nav').getByRole('link', { name: 'الأمان' }).click()
+  await expect(page).toHaveURL(/\/admin\/security$/)
+  const secret = await page.locator('[class*="secret"]').innerText()
+  await page.getByLabel('رمز التحقق').fill(totpCode(secret))
+  await page.getByRole('button', { name: 'تفعيل' }).click()
+  await expect(page.getByText('تطبيق المصادقة مفعّل')).toBeVisible()
+  // What asks for a fresh code, all of it (I55 (9)): the team's actions and the `admin` function's.
+  await expect(
+    page.getByText(
+      'مطلوب لكل إجراء يطلب رمزًا جديدًا: دعوة عضو وتغيير دوره وإيقافه واستعادته، وإعادة مبلغ وتسجيل استرداد خارجي وتسجيل اعتراض أو فرق أو متابعة، وحفظ إعدادات المتجر واعتماد السياسات وفتح الشراء وإغلاقه، وإرسال رابط طلب إلى بريد آخر.',
+      { exact: true },
+    ),
+  ).toBeVisible()
+  await page.locator('nav').getByRole('button', { name: 'تسجيل الخروج' }).click()
+  await expect(page).toHaveURL(/\/admin\/sign-in$/)
+  await signInByCode(page, approver.email, firstCode)
+
+  const refund = policies.find((policy) => policy.doc_id === 'refund')!
+  const next = (await db.query<{ seq: number }>("select coalesce(max(seq), 0) + 1 as seq from public.content_versions where collection = 'policies' and doc_id = 'refund'")).rows[0]!.seq
+  let published = false
+  try {
+    await page.goto('/admin/settings')
+    await expect(page.getByRole('heading', { name: 'إعدادات المتجر' })).toBeVisible()
+
+    // The list above the button: each policy the approval covers, in order, with the time its revision went live.
+    const items = page.getByRole('listitem').filter({ hasText: ': نُشرت ' })
+    await expect(items).toHaveCount(shown.length)
+    for (const [index, policy] of shown.entries()) await expect(items.nth(index)).toContainText(`${policy.data.title}: نُشرت `)
+
+    // A new revision of the refund policy goes live after this page was read.
+    const newTitle = `سياسة الاسترجاع بعد التعديل ${marker}`
+    await db.query("insert into public.content_versions (collection, doc_id, seq, data) values ('policies', 'refund', $1, $2::jsonb)", [next, JSON.stringify({ ...refund.data, title: newTitle })])
+    await db.query("select public.content_go_live('policies', 'refund', $1)", [next])
+    published = true
+
+    // The approval of the list that was read: the code dialog, then the refusal in its words; nothing is approved.
+    const approve = page.getByRole('button', { name: 'اعتماد السياسات المنشورة' })
+    await approve.click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByLabel('رمز التحقق').fill(totpCode(secret))
+    await dialog.getByRole('button', { name: 'تحقق' }).click()
+    await expect(page.getByText('تغيّرت السياسات منذ فتحت الصفحة. راجعها ثم اعتمدها من جديد.')).toBeVisible()
+    expect((await db.query('select policy_revisions from finance.commerce_settings where id = 1')).rows[0]).toEqual({ policy_revisions: {} })
+    // The settings were read again: the list shows the new revision of the refund policy, and not the old one.
+    await expect(items.filter({ hasText: newTitle })).toHaveCount(1)
+    if (refund.data.title !== newTitle) await expect(items.filter({ hasText: `${refund.data.title}: نُشرت ` })).toHaveCount(0)
+
+    // The approval from the list as it is now goes through, with the code still fresh, and approves what the list shows.
+    await approve.click()
+    await expect(page.getByText('تم اعتماد السياسات.')).toBeVisible()
+    const approved = (await db.query<{ policy_revisions: Record<string, number> }>('select policy_revisions from finance.commerce_settings where id = 1')).rows[0]!.policy_revisions
+    expect(approved).toEqual({ ...Object.fromEntries(shown.map((policy) => [policy.doc_id, policy.seq])), refund: next })
+  } finally {
+    if (published) {
+      // The refund policy as it was; the approval is put back with the rest of the settings after the file.
+      await db.query("update public.published_documents set seq = $1, data = $2::jsonb where collection = 'policies' and doc_id = 'refund'", [refund.seq, JSON.stringify(refund.data)])
+      await db.query("delete from public.content_versions where collection = 'policies' and doc_id = 'refund' and seq = $1", [next])
+    }
+    // This test cleared the approval, and the restore above is a policy change, which clears it again (the publish trigger): the
+    // later screenshots find the store as the earlier tests left it, approved and open (afterAll restores what the database held).
+    await db.query(
+      "update finance.commerce_settings set checkout_enabled = true, version = version + 1, policy_revisions = (select jsonb_object_agg(doc_id, seq) from public.published_documents where collection = 'policies' and doc_id in ('store', 'delivery', 'refund', 'privacy')) where id = 1",
+    )
+  }
+})
+
 test('an operations member does not see the checkout switch', async ({ page }) => {
   const operations = await createStaff('operations')
   await signInByCode(page, operations.email)

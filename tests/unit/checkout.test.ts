@@ -949,6 +949,23 @@ describe('SQL refusals map to their status', () => {
     expect(reply.error?.fields).toEqual({ quote })
   })
 
+  // RESIDUALS-1 I50 (3): the unit exists and another order's unpaid hold takes it; the page words it from `fields.held`.
+  it('OUT_OF_STOCK passes the SQL\'s `held` through in fields, beside the quote, and only when it is true', async () => {
+    const quote = { ok: false, errors: [{ code: 'OUT_OF_STOCK', line: 1, available: 0, held: true }] }
+    sqlReply = { ok: false, code: 'OUT_OF_STOCK', held: true, quote }
+    const held = await checkoutPost(request(createBody()))
+    expect(held.status).toBe(409)
+    const heldReply = await replyOf(held)
+    expect(heldReply.error).toMatchObject({ code: 'OUT_OF_STOCK', message: 'الكمية المطلوبة غير متوفرة الآن.' })
+    expect(heldReply.error?.fields).toEqual({ quote, held: true })
+
+    // Without it (stock really short), and with anything that is not `true`, there is no `held` to pass on.
+    for (const odd of [undefined, false, 'true', 1, null]) {
+      sqlReply = { ok: false, code: 'OUT_OF_STOCK', held: odd, quote }
+      expect((await replyOf(await checkoutPost(request(createBody())))).error?.fields, String(odd)).toEqual({ quote })
+    }
+  })
+
   it('QUOTE_CHANGED carries the new quote in fields', async () => {
     sqlReply = { ok: false, code: 'QUOTE_CHANGED', quote: { total: 7100 } }
     const response = await checkoutPost(request(createBody()))

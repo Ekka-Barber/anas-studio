@@ -495,10 +495,15 @@ export type OrderDetail = Extract<ReturnType<typeof parseOrderDetail>, { found: 
 // The reconciliation screen (round 11b)
 // ---------------------------------------------------------------------------
 
+/** A review payment as `reconciliation_list` lists it: the row and its order's number (null for none). */
+const reviewRow = (entry: unknown) => ({ ...reviewOf(entry), orderNumber: nstr(obj(entry).orderNumber) })
+
 /**
  * `reconciliation_list` (owner): the attempts that need a look (each with its order's number, what was
- * confirmed refunded and the reasons), the open review payments, the refunds in flight and the events that
- * need a person. Each list is the newest 100, which the reply does not say (the screen does).
+ * confirmed refunded and the reasons), the open review payments, the review payments with no order that the
+ * owner closed by hand and that are not refunded in full (`closedReviews`, the newest 50, still refundable), the
+ * refunds in flight and the events that need a person. Each list is the newest 100 (the closed reviews, 50),
+ * which the reply does not say (the screen does).
  */
 export function parseReconciliation(value: unknown) {
   const o = obj(value)
@@ -507,7 +512,8 @@ export function parseReconciliation(value: unknown) {
       const a = obj(entry)
       return { ...attemptOf(entry), orderNumber: number(a.orderNumber), refunded: int(a.refunded), reasons: list(a.reasons, str) }
     }),
-    reviews: list(o.reviews, (entry) => ({ ...reviewOf(entry), orderNumber: nstr(obj(entry).orderNumber) })),
+    reviews: list(o.reviews, reviewRow),
+    closedReviews: list(o.closedReviews, reviewRow),
     refunds: list(o.refunds, (entry) => ({ ...refundOf(entry), orderNumber: nstr(obj(entry).orderNumber) })),
     events: list(o.events, eventOf),
   }

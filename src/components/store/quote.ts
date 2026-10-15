@@ -92,6 +92,9 @@ export interface QuoteError {
   maximum?: number
   /** `OUT_OF_STOCK` only: the units exist and another order's unpaid hold takes them (true for at most 20 minutes). */
   held?: boolean
+  /** A line's refusal when its variant exists: what the cart names the line by (at most 200 and 120 characters). */
+  productTitle?: string
+  variantTitle?: string
 }
 
 /** A digital line holds more than its one copy: the refusal that names `maximum: 1`, and nothing else (the 1 to 20 rule does not). */
@@ -185,6 +188,9 @@ function parseError(value: unknown): QuoteError {
     ...(o.minimum === undefined ? {} : { minimum: count(o.minimum) }),
     ...(o.maximum === undefined ? {} : { maximum: count(o.maximum) }),
     ...(o.held === undefined ? {} : { held: bool(o.held) }),
+    // Bounded by the SQL (`left`, by character: 200 and 120), so a character outside the BMP is never cut in half here.
+    ...(o.productTitle === undefined ? {} : { productTitle: str(o.productTitle) }),
+    ...(o.variantTitle === undefined ? {} : { variantTitle: str(o.variantTitle) }),
   }
 }
 
@@ -315,6 +321,8 @@ export interface CheckoutError {
     order?: unknown
     accessToken?: unknown
     holdExpiresAt?: unknown
+    /** `OUT_OF_STOCK` of a refused `create`: other orders' unpaid holds take the units that exist. */
+    held?: unknown
   }
 }
 
@@ -391,6 +399,11 @@ export function quoteErrorMessage(error: QuoteError): string {
     default:
       return 'تحقق من محتويات السلة.'
   }
+}
+
+/** The sentence for a refused `create`: an OUT_OF_STOCK that other orders' unpaid holds cause (`fields.held`) says so, any other refusal its own message. */
+export function createRefusalMessage(error: CheckoutError): string {
+  return error.code === 'OUT_OF_STOCK' ? quoteErrorMessage({ code: error.code, held: error.fields?.held === true }) : error.message
 }
 
 export interface CityRate {

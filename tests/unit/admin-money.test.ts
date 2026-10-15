@@ -60,6 +60,7 @@ import {
   type DisputeLine,
   type Kept,
   type KeptForm,
+  type RefundBody,
   type RefundField,
   type Verdict,
 } from '../../src/lib/admin-money'
@@ -269,6 +270,7 @@ describe('the body of refund-create', () => {
     reason: ' استرداد ',
     amounts: amounts.map(([field, halalas]) => ({ field, halalas })),
     returnId: null,
+    expectedRefunded: 0,
     ...over,
   })
 
@@ -280,6 +282,7 @@ describe('the body of refund-create', () => {
       amount: 5000,
       reason: 'استرداد',
       allocation: { items: [{ itemId: A, amount: 3500 }], shipping: 1500 },
+      expectedRefunded: 0,
     })
     expect(refundBody(args([[lineA, 0], [lineB, 4000], [shipping, 0]]))).toEqual({
       action: 'refund-create',
@@ -288,6 +291,7 @@ describe('the body of refund-create', () => {
       amount: 4000,
       reason: 'استرداد',
       allocation: { items: [{ itemId: B, amount: 4000 }] },
+      expectedRefunded: 0,
     })
     // Shipping alone: no line, an empty list of them.
     expect(refundBody(args([[lineA, 0], [shipping, 2500]]))).toMatchObject({ amount: 2500, allocation: { items: [], shipping: 2500 } })
@@ -295,7 +299,7 @@ describe('the body of refund-create', () => {
 
   it('keeps the allocation equal to the amount, whatever the fields hold', () => {
     for (const amounts of [[3500, 0, 0], [1, 2, 3], [6000, 4000, 2500], [0, 0, 1]]) {
-      const body = refundBody(args([[lineA, amounts[0]!], [lineB, amounts[1]!], [shipping, amounts[2]!]])) as {
+      const body = refundBody(args([[lineA, amounts[0]!], [lineB, amounts[1]!], [shipping, amounts[2]!]])) as unknown as {
         amount: number
         allocation: { items: Array<{ amount: number }>; shipping?: number }
       }
@@ -311,7 +315,7 @@ describe('the body of refund-create', () => {
     expect('idempotencyKey' in refundBody(args([[lineA, 100]]))).toBe(false)
   })
 
-  it('says the confirmed total the form was built from, zero included, and says nothing when the screen has none', () => {
+  it('always says the confirmed total the form was built from, zero included (the function refuses a refund without it)', () => {
     expect(refundBody(args([[lineA, 3500]], { expectedRefunded: 3500 }))).toEqual({
       action: 'refund-create',
       orderId: C,
@@ -323,7 +327,7 @@ describe('the body of refund-create', () => {
     })
     // Zero is a total: nothing refunded yet is what the function compares with.
     expect(refundBody(args([[lineA, 100]], { expectedRefunded: 0 }))).toMatchObject({ expectedRefunded: 0 })
-    for (const none of [undefined, null]) expect('expectedRefunded' in refundBody(args([[lineA, 100]], { expectedRefunded: none })), String(none)).toBe(false)
+    expect(refundBody(args([[lineA, 100]]))).toHaveProperty('expectedRefunded', 0)
     const review: RefundField = { key: 'amount', itemId: null, label: 'المبلغ', remainder: 10600 }
     expect(refundBody(args([[review, 5000]], { orderId: null, attemptId: null, reviewPaymentId: PAYMENT, expectedRefunded: 1000 }))).toEqual({
       action: 'refund-create',
@@ -333,7 +337,7 @@ describe('the body of refund-create', () => {
       allocation: {},
       expectedRefunded: 1000,
     })
-    expect('expectedRefunded' in refundBody(args([[review, 5000]], { orderId: null, attemptId: null, reviewPaymentId: PAYMENT }))).toBe(false)
+    expect(refundBody(args([[review, 5000]], { orderId: null, attemptId: null, reviewPaymentId: PAYMENT }))).toHaveProperty('expectedRefunded', 0)
   })
 
   it('sends a review payment with its own id, an empty allocation, and its order only when it has one', () => {
@@ -345,34 +349,36 @@ describe('the body of refund-create', () => {
       amount: 5000,
       reason: 'استرداد',
       allocation: {},
+      expectedRefunded: 0,
     })
     const unmapped = refundBody(args([[review, 5000]], { orderId: null, attemptId: null, reviewPaymentId: PAYMENT }))
-    expect(unmapped).toEqual({ action: 'refund-create', reviewPaymentId: PAYMENT, amount: 5000, reason: 'استرداد', allocation: {} })
+    expect(unmapped).toEqual({ action: 'refund-create', reviewPaymentId: PAYMENT, amount: 5000, reason: 'استرداد', allocation: {}, expectedRefunded: 0 })
     expect('orderId' in unmapped).toBe(false)
   })
 })
 
 describe("the idempotency key's life", () => {
-  const body = (amount: number) => refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'سبب', amounts: [{ field: { key: A, itemId: A, label: 'أ', remainder: 9000 }, halalas: amount }], returnId: null })
+  const body = (amount: number) =>
+    refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'سبب', amounts: [{ field: { key: A, itemId: A, label: 'أ', remainder: 9000 }, halalas: amount }], returnId: null, expectedRefunded: 0 })
 
   it('mints a key for a request nothing was kept for, and keeps it for the same request', () => {
     const mint = vi.fn(() => 'key-1')
-    const first = keyFor(null, JSON.stringify(body(100)), mint)
+    const first = keyFor(null, JSON.stringify(body(100)), mint, 0)
     expect(first.key).toBe('key-1')
-    expect(keyFor(first, JSON.stringify(body(100)), mint)).toBe(first)
+    expect(keyFor(first, JSON.stringify(body(100)), mint, 0)).toBe(first)
     expect(mint).toHaveBeenCalledTimes(1)
   })
 
   it('renews it when the request changed: any field of it', () => {
     let n = 0
     const mint = () => `key-${(n += 1)}`
-    const first = keyFor(null, JSON.stringify(body(100)), mint)
-    const other = keyFor(first, JSON.stringify(body(101)), mint)
+    const first = keyFor(null, JSON.stringify(body(100)), mint, 0)
+    const other = keyFor(first, JSON.stringify(body(101)), mint, 0)
     expect(other.key).not.toBe(first.key)
-    const reason = keyFor(first, JSON.stringify({ ...body(100), reason: 'غيره' }), mint)
+    const reason = keyFor(first, JSON.stringify({ ...body(100), reason: 'غيره' }), mint, 0)
     expect(reason.key).not.toBe(first.key)
     // A change undone is the very same request again.
-    expect(keyFor(other, JSON.stringify(body(101)), mint)).toBe(other)
+    expect(keyFor(other, JSON.stringify(body(101)), mint, 0)).toBe(other)
   })
 
   it('goes through a step-up retry and a network retry, and goes with a final answer', () => {
@@ -381,7 +387,7 @@ describe("the idempotency key's life", () => {
     let kept: Kept | null = null
     // What the confirmation does for the body on screen, and what the answer then does to the kept request.
     const confirm = (amount: number): string => {
-      kept = keyFor(kept, JSON.stringify(body(amount)), mint)
+      kept = keyFor(kept, JSON.stringify(body(amount)), mint, 0)
       return kept.key
     }
     const answered = (result: FunctionResult<unknown> | null): void => {
@@ -420,10 +426,13 @@ describe("the idempotency key's life", () => {
 // the rest of the request, so the key must keep protecting the owner from a second refund: it goes with the form, and a kept key
 // sends the total it was minted with.
 describe('the idempotency key and the confirmed total', () => {
-  const framed = (amount: number, expectedRefunded?: number): Record<string, unknown> => ({
-    ...refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'سبب', amounts: [{ field: { key: A, itemId: A, label: 'أ', remainder: 9000 }, halalas: amount }], returnId: null }),
-    ...(expectedRefunded === undefined ? {} : { expectedRefunded }),
-  })
+  const framed = (amount: number, expectedRefunded = 0): RefundBody =>
+    refundBody({ orderId: C, attemptId: D, reviewPaymentId: null, reason: 'سبب', amounts: [{ field: { key: A, itemId: A, label: 'أ', remainder: 9000 }, halalas: amount }], returnId: null, expectedRefunded })
+  /** What the key is bound to: the body without its confirmed total. */
+  const fingerprintOf = (amount: number): string => {
+    const { expectedRefunded: _total, ...request } = framed(amount)
+    return JSON.stringify(request)
+  }
   const counter = () => {
     let n = 0
     return vi.fn(() => `key-${(n += 1)}`)
@@ -432,12 +441,12 @@ describe('the idempotency key and the confirmed total', () => {
   it('sends the body with a fresh key and the total it was built from', () => {
     const sent = refundRequest(null, framed(100, 3500), counter())
     expect(sent.body).toEqual({ ...framed(100, 3500), idempotencyKey: 'key-1' })
-    expect(sent.kept).toEqual({ key: 'key-1', fingerprint: JSON.stringify(framed(100)), expectedRefunded: 3500 })
-    // A screen that has no total sends none, and the key is the same kind of key.
+    expect(sent.kept).toEqual({ key: 'key-1', fingerprint: fingerprintOf(100), expectedRefunded: 3500 })
+    // Nothing refunded yet is a total too, and goes with the body.
     const none = refundRequest(null, framed(100), counter())
-    expect(none.body).toEqual({ ...framed(100), idempotencyKey: 'key-1' })
-    expect('expectedRefunded' in none.body).toBe(false)
-    expect('expectedRefunded' in none.kept).toBe(false)
+    expect(none.body).toEqual({ ...framed(100, 0), idempotencyKey: 'key-1' })
+    expect(none.body).toHaveProperty('expectedRefunded', 0)
+    expect(none.kept).toHaveProperty('expectedRefunded', 0)
   })
 
   it('(a) a retry of the same form after the order changed keeps the key and the total it was first sent with', () => {
