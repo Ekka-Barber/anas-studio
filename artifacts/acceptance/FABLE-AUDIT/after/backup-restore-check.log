@@ -1,0 +1,7 @@
+Decrypting the backup...
+Backup from 2026-10-14T18:03:14.989Z (source: local), 228 files.
+Rehearsal scratch stack: C:\Users\alazi\AppData\Local\Temp\anasaq-restore-Usysib
+Finished supabase init.
+Starting the throwaway stack (this can take a few minutes)...
+Scratch stack removed: no container or volume of anasaq-restore-check remains.
+Error: Refusing to restore: the scratch database is published beyond the loopback address (5432/tcp -> 0.0.0.0:55322; 5432/tcp -> [::]:55322), and it would hold the whole restored database behind the CLI's default credentials.

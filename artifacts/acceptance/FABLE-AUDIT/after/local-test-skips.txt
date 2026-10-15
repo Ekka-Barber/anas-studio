@@ -1,0 +1,6 @@
+# the unit suite on the owner's machine, re-run once with the JSON reporter to name its skips (commit 5107afa, 2026-10-14)
+# vitest run --reporter=json: 70 files, 2591 tests: 2562 passed, 0 failed, 29 skipped
+tests/unit/graft-helpers.test.ts: 8 x the graft helpers, run [skipped]
+tests/unit/restore-check.test.ts: 21 x restore-check rehearsal, with a stand-in for Docker and the Supabase CLI [skipped]
+link suite, tests/unit/backup-cli.test.ts: 5 x backup --out containment > through a link [passed]
+link suite, tests/unit/restore-check.test.ts: 5 x restore-check --extract containment through a link [passed]

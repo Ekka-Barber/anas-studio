@@ -120,16 +120,19 @@ Confirmed by its own measurements: AD-F1 closed (258 real presses of 258, mouse 
 | AD-G2 nit: on the review page, the "needs a change" triangle of the screen in view stayed coral-deep on the ink fill (1.69:1 in the new dark mode, 1.36:1 in light, older than the dark mode) | Fixed: on that row the triangle takes the fill's own light colour, as the approve square does; its shape tells it apart |
 | AD-G3 nit: DESIGN.md said the sign-in form sits on a paper panel (none below 360px); this README credited `sb5`'s pictures with the strip's scrollbar (full-page shots hide scrollbars); the review page said only 768 scrolls a table inside its box (481 to 900 do too) | Fixed: the three sentences say what is measured (Results: `mid5`, `fa-fix`) |
 
-The audits close on these fixes with the orchestrator's measurements, not a fourth audit: AD-G1's fix is the check's own, tried by it in the page and measured here at twelve widths and five lengths, and AD-G2 and AD-G3 change no product code. What the redesign still waits for before it is accepted is the owner's review and the admin e2e suites on the owner's machine ("Still open"); the Fable deep audit (D48) reads the whole round before `main` moves.
+The audits close on these fixes with the orchestrator's measurements, not a fourth audit: AD-G1's fix is the check's own, tried by it in the page and measured here at twelve widths and five lengths, and AD-G2 and AD-G3 change no product code. What the redesign still waits for before it is accepted is the owner's review, the admin e2e suites on his machine having run green on 2026-10-14 ("Still open"); the Fable deep audit (D48) reads the whole round before `main` moves.
 
 ## The owner's review
 
-`admin-review.html` is the review page: every screen before and after at both widths, with a mark (approve, or needs a change) and a note per screen, published to the owner as a private page. Its source is `review/` (`node tools/webp.mjs <run> before|after`, `node tools/meta.mjs`, `node review/build.mjs`). Published on 2026-10-13 with the after set of `873a479` (CI green, run 38452892063); the page keeps the owner's marks itself (its `reviews` store, checked with one written, read and deleted mark), and this README records them once the owner has reviewed.
+`admin-review.html` is the review page: every screen before and after at both widths, with a mark (approve, or needs a change) and a note per screen, published to the owner as a private page. Its source is `review/` (`node tools/webp.mjs <run> before|after`, `node tools/meta.mjs`, `node review/build.mjs`). Published on 2026-10-13 with the after set of `873a479` (CI green, run 38452892063); the page keeps the owner's marks itself (its `reviews` store, checked with one written, read and deleted mark), and this README records them once the owner has reviewed. On 2026-10-15 the store held no mark (read by FABLE-AUDIT's local close).
+
+## The admin e2e suites (2026-10-14)
+
+FABLE-AUDIT's local close ran them on the owner's machine against the redesigned admin, at `5107afa` (no product code changed since `b3fa932`), inside its e2e battery from a fresh reset (`artifacts/acceptance/FABLE-AUDIT/after/RECORD.md`, Phase 5): `auth` 2, `cms` 7, `media` 8, `owner-operations` 20, `store-admin` 41, `orders-admin` 52, `orders-money` 36 and `orders` 20, 186 passed and none failed.
 
 ## Still open
 
 - The owner's review of every screen (D49: "All screens, then review").
-- The admin e2e suites on the owner's machine before acceptance (the specs need the local stack): `auth`, `cms`, `media`, `owner-operations`, `store-admin`, `orders-admin`, `orders-money` and `orders` (`tests/e2e/`).
 - `store-editor` and the shell's gate have no `h1` (their markup is older than this round): P10's accessibility pass.
 - At 768, a tablet's width, the orders list and the mail scroll inside their own box, by 87 and 174px (at 360 they are cards, and from 1024 they fit): a narrower design of those two tables is P10's, if the owner wants one.
 - From 1280px wide and under about 590px tall, the rail scrolls with no visible bar (the final audit's AD-F7, accepted): the wheel, a finger and the keyboard reach all of it.

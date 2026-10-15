@@ -1,0 +1,12 @@
+
+ RUN  v5.0.1 C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME
+
+
+ Test Files  70 passed (70)
+      Tests  2562 passed | 29 skipped (2591)
+   Start at  20:10:41
+   Duration  12.90s (tests 57%, import 29%, transform 13%, worker 1%)
+
+    Isolate  70 workers spawned · ~394ms startup each (spawn + environment, per file)
+             at least ~2.12s faster with isolate: false — reuses workers across files instead of one per file
+

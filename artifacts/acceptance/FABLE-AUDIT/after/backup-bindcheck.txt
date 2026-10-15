@@ -1,0 +1,57 @@
+# Why the rehearsal's scratch database was published beyond loopback: the orchestrator's checks, 2026-10-14 ~18:10Z
+# Docker Desktop (containerized engine 29.8.0, kernel 6.18.54.1-microsoft-standard-WSL2), Windows 11 10.0.26200.9711,
+# Supabase CLI 2.106.0. Throwaway names anasaq-bindcheck*, removed after each check (0 containers, 0 networks left).
+
+## 1. A plain container on a network made the way restore-check makes it (scripts/restore-check.mjs:233)
+$ docker network create -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 anasaq-bindcheck-net
+$ docker network inspect anasaq-bindcheck-net --format 'options: {{json .Options}}'
+options: {"com.docker.network.bridge.host_binding_ipv4":"127.0.0.1","com.docker.network.enable_ipv4":"true","com.docker.network.enable_ipv6":"false"}
+$ docker run -d --rm --name anasaq-bindcheck --network anasaq-bindcheck-net -p 59999:5432 --entrypoint sleep postgres:17-alpine 120
+$ docker port anasaq-bindcheck
+5432/tcp -> 0.0.0.0:59999
+5432/tcp -> [::]:59999
+$ docker inspect anasaq-bindcheck --format '{{json .HostConfig.PortBindings}}'
+{"5432/tcp":[{"HostIp":"","HostPort":"59999"}]}
+=> the network's host_binding_ipv4 default is not applied: a port published with no host IP is bound on every address.
+
+## 2. An explicit host IP, and the default bridge
+$ docker run -d --rm --name anasaq-bindcheck --network anasaq-bindcheck-net -p 127.0.0.1:59999:5432 --entrypoint sleep postgres:17-alpine 120
+$ docker port anasaq-bindcheck
+5432/tcp -> 127.0.0.1:59999
+$ docker run -d --rm --name anasaq-bindcheck2 -p 59998:5432 --entrypoint sleep postgres:17-alpine 120
+$ docker port anasaq-bindcheck2
+5432/tcp -> 0.0.0.0:59998
+5432/tcp -> [::]:59998
+=> an explicit 127.0.0.1 is honoured; the loopback network behaves like the default bridge.
+
+## 3. What Windows actually listens on (Get-NetTCPConnection -State Listen), the same two kinds of container running
+59997 (explicit -p 127.0.0.1:59997:5432):       127.0.0.1 com.docker.backend
+59999 (loopback network, no host IP):          :: com.docker.backend; 127.0.0.1 and ::1 wslrelay
+54322 (the development stack's database):      :: com.docker.backend; 127.0.0.1 and ::1 wslrelay
+=> docker port tells the truth: with no host IP, com.docker.backend listens on every address (::), so the scratch
+   database would have been reachable from other devices on the network (subject to the Windows firewall). The
+   development stack ANASAQ.ME is published the same way (the Supabase CLI's default for every local stack).
+
+## 4. The Supabase CLI 2.106.0 publishes every port with no host IP and has no setting for one
+Source at tag v2.106.0 (commit bd39bcf5e613be87943f8bb8fe4ce75c8dfd84de), read with gh api:
+- apps/cli-go/internal/db/start/start.go:121  PortBindings: nat.PortMap{"5432/tcp": []nat.PortBinding{{HostPort: hostPort}}}
+- apps/cli-go/internal/start/start.go:556     PortBindings: ... []nat.PortBinding{{ HostPort: strconv.FormatUint(uint64(utils.Config.Api.Port), 10) }}
+  (and the same shape at :326, :801-810, :1120, :1197: HostPort only, never HostIP)
+- the running development stack: docker inspect supabase_db_ANASAQ.ME -> PortBindings {"5432/tcp":[{"HostIp":"","HostPort":"54322"}]}
+  and, read again on 2026-10-15T01:24:19Z for the record:
+  $ docker port supabase_db_ANASAQ.ME
+  5432/tcp -> 0.0.0.0:54322
+  5432/tcp -> [::]:54322
+  $ docker port supabase_kong_ANASAQ.ME
+  8000/tcp -> 0.0.0.0:54321
+  8000/tcp -> [::]:54321
+- "All services bind to 0.0.0.0 (network-accessible, not just localhost)", which the CLI printed during the rehearsal,
+  is a fixed notice (printSecurityNotice, apps/cli-go/internal/start/start.go:1442-1448), not a measurement.
+So the scratch stack's loopback binding rests entirely on the network option, as Supabase's own local-development
+guide recommends (a network made with com.docker.network.bridge.host_binding_ipv4=127.0.0.1, then
+`supabase start --network-id`), and this Docker Desktop does not apply that option.
+
+## 5. Docker's documentation (docs.docker.com/engine/network/port-publishing/, read 2026-10-14)
+Without a host address the daemon publishes to all host addresses; host_binding_ipv4 on a user-defined bridge, or
+default-network-opts for all of them, or "ip" in daemon.json for the default bridge, changes the default. The page does
+not mention Docker Desktop.

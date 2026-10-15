@@ -1,0 +1,16 @@
+# backup rehearsal (after), commit 5107afa, 2026-10-14T18:02:49Z
+development stack ANASAQ.ME: 9 containers running
+paid file uploaded for the rehearsal: assets/backup-rehearsal/20261014T180249Z.pdf, 262191 bytes, sha256 833ab8c03ac432ea7a3f2e36cbcf477f94558e40481ac10024a3a99be7b9ca3e
+paid-files holds 1 object(s) before the backup
+backup --local -> exit 0 (23s)
+Size: 723580 bytes (0.7 MB), files: 228, storage objects: 223.
+backup file: anasaq-backup-20261014-180255.enc, 723580 bytes, sha256 839e1016ec3a1d5cf9760af6b1ba272d6d9ce410855a4373ffd2a967e8472d05
+restore-check -> exit 1 (45s)
+no look at the scratch stack: restore-check stopped before uploading its objects
+after the run: by label, 0 container(s) and 0 volume(s) of anasaq-restore-check remain; by name, 0 container(s), 0 volume(s) and 0 network(s)
+the run ended with "Scratch stack removed"
+development stack ANASAQ.ME: the same 9 containers running after the run
+paid file removed after the rehearsal: assets/backup-rehearsal/20261014T180249Z.pdf
+backup file deleted (its passphrase existed only in this run); the full output stays in ~/ANASAQ-backups/rehearsal-20261014T180249Z
+verdict: FAIL (see the lines above and ~/ANASAQ-backups/rehearsal-20261014T180249Z)
+done 2026-10-14T18:04:09Z

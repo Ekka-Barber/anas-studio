@@ -1,0 +1,23 @@
+# e2e battery (after), commit 5107afa, 2026-10-14T17:21:39Z, free GB: 10.1
+e2e-db-reset -> exit 0 (35s)
+e2e-db-import -> exit 0 (1s)
+e2e-db-demo-catalog -> exit 0 (1s)
+e2e-db-env -> exit 0 (3s)
+# e2e-batch1 started 2026-10-14T17:23:00Z, commit 5107afa, free GB: 10.6
+e2e-batch1 -> exit 0 (641s)
+  ok 135 [chromium] › tests\e2e\visual.spec.ts:38:5 › passed @ 1440px, JS on, no horizontal overflow (2.5s)
+  ok 136 [chromium] › tests\e2e\visual.spec.ts:63:3 › passed, JS off, readable (1.3s)
+  181 passed (10.6m)
+# e2e-batch2 started 2026-10-14T17:34:20Z, commit 5107afa, free GB: 10.4
+e2e-batch2 -> exit 0 (1189s)
+  ok 238 [chromium] › tests\e2e\product-availability.spec.ts:666:7 › at 360px › a failed Turnstile check (400) shows a short message in an alert, keeps the form, resets the spent token and lets the next try through (1.7s)
+  ok 261 [chromium] › tests\e2e\product-availability.spec.ts:666:7 › at 1440px › a failed Turnstile check (400) shows a short message in an alert, keeps the form, resets the spent token and lets the next try through (1.7s)
+  311 passed (19.8m)
+# e2e-orders started 2026-10-14T17:54:31Z, commit 5107afa, free GB: 10.2
+e2e-orders -> exit 0 (383s)
+  ok  3 [chromium] › tests\e2e\orders.spec.ts:714:5 › at 360px › 3. a failed payment leaves the invoice payable; the return page says pending; the second try settles it once (11.6s)
+  ok 13 [chromium] › tests\e2e\orders.spec.ts:714:5 › at 1440px › 3. a failed payment leaves the invoice payable; the return page says pending; the second try settles it once (7.2s)
+  20 passed (6.4m)
+next-env.d.ts restored
+typecheck-after -> exit 0 (9s)
+done 2026-10-14T18:01:25Z

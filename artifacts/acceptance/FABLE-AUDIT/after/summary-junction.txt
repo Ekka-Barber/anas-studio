@@ -1,0 +1,9 @@
+# junction check (after), commit 5107afa, 2026-10-14T18:11:06Z
+scratch copy installed offline from the pnpm store -> exit 0
+junction made: links\into -> the scratch copy
+backup --out through the junction: refused (exit 1), as it must be
+backup --out to a plain folder outside: not refused (exit 1: No passphrase source: run in a terminal or set ANASAQ_BACKUP_PASSPHRASE.), as it must be
+restore-check --extract through the junction: refused (exit 1), as it must be
+restore-check --extract to a plain folder outside: not refused (exit 1: No passphrase source: run in a terminal or set ANASAQ_BACKUP_PASSPHRASE.), as it must be
+junction removed with rmdir, then the scratch folder
+done 2026-10-14T18:11:39Z

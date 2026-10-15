@@ -1,0 +1,9 @@
+# stack-free checks on the owner's machine, commit 5107afa, 2026-10-14T17:09:19Z, node v24.19.0, pnpm 10.34.6
+lint -> exit 0 (58s)
+typecheck -> exit 0 (20s)
+test -> exit 0 (15s)
+check:frozen -> exit 0 (2s)
+check:copy -> exit 0 (1s)
+ Test Files  70 passed (70)
+      Tests  2562 passed | 29 skipped (2591)
+verify-plan -> exit 0

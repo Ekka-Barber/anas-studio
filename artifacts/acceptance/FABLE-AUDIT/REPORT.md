@@ -1,13 +1,13 @@
-# FABLE-AUDIT: the report (2026-10-05 to 2026-10-14)
+# FABLE-AUDIT: the report (2026-10-05 to 2026-10-15)
 
 **Asked by the owner (2026-10-05):** an independent deep audit of everything built at `3a30a91` (P08 through round 12b), then fix rounds with red and green proofs. After the audit's session died (2026-10-07), the owner moved the rest of the work to a cloud session (D48) and ruled that `main` moves only "after independent deep audit and verfication done by another agent better than you like FABLE", and on his word.
 
 **Scope.** The audit read `main` at `3a30a91`. The fixes run from there to `b3fa932`, the last commit that changed code; `main` holds it, and this report, since 2026-10-14. This report closes no E-gate and no owner decision.
 
-**In short.** Thirty-three finders wrote 508 entries, none critical; the orchestrator rated twelve findings high. Ten of the twelve are fixed or written into the plan. One waits for a round with a browser (the scenes lightbox's fit, DSN-PAGES-10), and one waits for the owner (a host for the films that answers Range requests with 206, VENDOR-PLAT-04). The audit's own fix rounds made defects too: its third wave traced six to them, five now fixed (one except for the wording of the `policies_reset` alert, ISSUES I55 (3)) and one recorded open, and two more were caught between rounds and fixed (section 6). The deep audit before `main` found no critical or high finding; its fixes were verified. CI is green on `main`. Five things wait:
-- the owner's machine: the database and e2e half of the after-battery at `b3fa932` (the cases F3 and D1 wrote ran green once, at `e800fc5`, section 1; the deep audit's two cases never ran);
-- the owner's review of the admin redesign;
-- the round with a browser, for round D1's visual items;
+**In short.** Thirty-three finders wrote 508 entries, none critical; the orchestrator rated twelve findings high. Ten of the twelve are fixed or written into the plan. One waits for a round with a browser (the scenes lightbox's fit, DSN-PAGES-10), and one waits for the owner (a host for the films that answers Range requests with 206, VENDOR-PLAT-04). The audit's own fix rounds made defects too: its third wave traced six to them, five now fixed (one except for the wording of the `policies_reset` alert, ISSUES I55 (3)) and one recorded open, and two more were caught between rounds and fixed (section 6). The deep audit before `main` found no critical or high finding; its fixes were verified. CI is green on `main`. On the owner's machine (the local close, 2026-10-14) the after-battery's database and e2e half ran green on the code CI verified: `test:db` 874 of 874 with the eight HTTP files, and 512 e2e tests with none failed, the admin's eight suites and the deep audit's two cases among them (section 4). The backup with a paid file worked there, but its restore rehearsal stops at its own loopback guard on Docker Desktop, safely, before restoring anything (ISSUES I56). Five things wait:
+- the restore rehearsal's fix (ISSUES I56), a round of its own on the owner's word;
+- the owner's review of the admin redesign (its suites are green);
+- the round with a browser, for round D1's visual items and the visual pass's findings (ISSUES I55 (2));
 - the owner's decisions;
 - 154 entries recorded open, almost all low.
 
@@ -26,6 +26,7 @@
 | 9 | 2026-10-08 | The ratification of `e800fc5` (after F3 and D1, before S) on the owner's machine: the database suite, the unit suite, the build checks and seven Playwright specs, all green; pushed to origin's branch `cloud-ratify` with a resume note for this session | ZCode (GLM-5.3), the owner's local agent, at his dispatch | `ratify-e800fc5/RECORD.md`, `CLOUD-RESUME-2026-10-08.md` |
 | 10 | 2026-10-13 | The deep audit before `main`, then a verification of its fixes | four Fable 5.1 auditors at effort max, then a fifth | `cloud/DEEP-AUDIT.md` |
 | 11 | 2026-10-14 | `main` fast-forwarded from `d4fa953` to `b3fa932` on the owner's word; the after-battery's CI part; the ratification merged into the branch (`30db0f3`) | the orchestrator | `cloud/DEEP-AUDIT.md`, `after/` |
+| 12 | 2026-10-14 to 10-15 | The local close on the owner's machine at `5107afa`: the stack-free checks, the database and e2e batteries from fresh resets, the backup rehearsal with a paid file, round S's other proofs, the visual pass, the records | the orchestrator, Claude Opus 5.5 at effort max in Claude Desktop; through the Workflow tool, a Sonnet 5.5 capture worker and Opus 5.5 auditors, reviewers and verifiers, all at effort max | `after/RECORD.md` |
 
 The ratification ran on the owner's machine at `e800fc5` on 2026-10-08: `test:db` 874 of 874 in 31 files, the eight HTTP files included; unit 2,536 of 2,536, the content drift check included; lint, typecheck, the build, `check:export`, and `check:budgets` at 149.4 KiB; and seven Playwright specs, the six F3 and D1 had changed and `reader.spec.ts` (D1 changed the reader's end buttons), 185 passed and none failed. Its record and its resume note sat on origin's branch `cloud-ratify`, which this session did not read until the check of this report found it on 2026-10-14; they are merged into the branch now (`30db0f3`), after an audit of the record against its logs. The code changed after `e800fc5` (S, the admin redesign, D and the deep audit's fixes), so the after-battery runs everything again.
 
@@ -68,7 +69,7 @@ Some rows of the first three statuses also leave a decision to the owner. Exampl
 | EF-ADMIN-01 | The functions read only the legacy service key | F1-1: the secret keys first, the legacy key as the fallback |
 | DB-OPS-02 = P08-CKPT-10 | «إيقاف الشحن» stopped nothing, so goods could ship after a chargeback | M1b-2; then F3-3, for a follow-up that lifted the stop (ADMIN-COMMERCE-01) |
 | ARCH-09 = SUPPLY-07 = OPS-PRIVACY-01 = VENDOR-PLAT-06 | The restore runbook never redeployed the functions, re-pointed the build or moved the mail endpoint | Round D rewrote it in 21 steps; the deep audit moved the ledger's revokes to step 5 (FD-D-01) |
-| SUPPLY-11 | The restore rehearsal's scratch stack listened on every interface with default keys | S-5a: a loopback-only network, and the rehearsal refuses anything else |
+| SUPPLY-11 | The restore rehearsal's scratch stack listened on every interface with default keys | S-5a: a loopback-only network, and the rehearsal refuses anything else; on Docker Desktop the network option is not applied, so there the rehearsal refuses before restoring anything (the local close, 2026-10-14; ISSUES I56) |
 | VENDOR-PLAT-04 | Pages answers a Range request with 200, and Safari needs 206 to play the films | The owner's decision (I33) |
 | ADMIN-COMMERCE-01 | A dispute follow-up's default decision lifted the stop | F3-3 |
 | ADMIN-COMMERCE-04 | M1a-5 read Moyasar's `refunded` status as a full reversal, though it also follows a partial refund (a defect of this audit's own round) | M2-1 |
@@ -144,32 +145,30 @@ The cloud continuation, on `claude/amazing-planck-qv3f7a`, then on `main` from 2
 
 ## 4. The battery, before and after
 
-Before: `3a30a91` on the owner's machine, 2026-10-05T19:20Z to 2026-10-07T00:27Z, the unit run while 33 finders were starting and the stack and e2e runs while wave A's finders ran (`before/summary*.txt`). Ratified: `e800fc5` on the owner's machine, 2026-10-08 (`ratify-e800fc5/`). After: `b3fa932`, 2026-10-14, the stack-free checks in the cloud container (`after/summary.txt`) and CI on `main` (`after/summary-ci.txt`).
+Before: `3a30a91` on the owner's machine, 2026-10-05T19:20Z to 2026-10-07T00:27Z, the unit run while 33 finders were starting and the stack and e2e runs while wave A's finders ran (`before/summary*.txt`). Ratified: `e800fc5` on the owner's machine, 2026-10-08 (`ratify-e800fc5/`). After: `b3fa932`, 2026-10-14, the stack-free checks in the cloud container (`after/summary.txt`) and CI on `main` (`after/summary-ci.txt`). After, the owner's machine: `5107afa` (no product code, test or migration changed since `b3fa932`), 2026-10-14, the local close on a quiet machine from fresh resets on the owner's word (`after/RECORD.md`; `after/summary-local.txt`, `summary-db.txt`, `summary-e2e.txt`).
 
-| Check | Before | Ratified | After |
-|---|---|---|---|
-| lint, typecheck | 0 | 0 | 0, here and in CI |
-| Unit tests | Exit 1: 6 timeouts of 2,213 tests under the load of 33 starting agents (restore-check five, reader-mapping one; both files pass alone) | 2,536 of 2,536 in 69 files, the content drift check included | 2,587 passed, 1 skipped (the content check that needs the local book assets), here and in CI |
-| `check:frozen`, `check:copy` | 0 (50 files; 232 files) | not run | 0 (50; 232) |
-| The Deno check of the ten functions | CI only, green | CI only, green | 0, here and in CI |
-| `pnpm audit --prod` | not yet a gate | red, as expected before round S: 1 critical, 4 high | CI's gate at level high: no known vulnerabilities |
-| The migrations from scratch | 27, by `supabase db reset` | 30, by `supabase db reset` | 30, by every CI run |
-| The database tests | `test:db`: 31 files, 814 of 814 | `test:db`: 31 files, 874 of 874, the eight HTTP files included | CI: the 23 files that need no Edge Function, 712 of 712; the other eight wait for the owner's machine |
-| Build and `check:export` | 0; 59 required files, 372 text files, no secret | 0; 59, 377, no secret | 0; 59, 377, no secret |
-| `check:budgets` | largest 148.9 KiB of 150 | largest 149.4 KiB | largest 149.7 KiB (`checkout.html`): 0.3 KiB left (ISSUES I49 (5), I50 (2)) |
-| e2e | Batch 1, 170 of 170. Batch 2, 7 failed and 302 passed: one `store-admin` step timed out under load and the tests after it failed with it. `orders.spec`, 12 passed and 8 not run at its 15-minute limit. All on a loaded machine | Seven specs, the six F3 and D1 had changed and `reader.spec.ts`: 185 passed, none failed (`orders.spec` in 6.2 minutes) | Not run here: the owner's machine |
+| Check | Before | Ratified | After | After, the owner's machine |
+|---|---|---|---|---|
+| lint, typecheck | 0 | 0 | 0, here and in CI | 0 |
+| Unit tests | Exit 1: 6 timeouts of 2,213 tests under the load of 33 starting agents (restore-check five, reader-mapping one; both files pass alone) | 2,536 of 2,536 in 69 files, the content drift check included | 2,587 passed, 1 skipped (the content check that needs the local book assets), here and in CI | 2,562 passed and 29 skipped in 70 files: the skips are the two suites that need a POSIX shell (`graft-helpers.test.ts:44`, 8; `restore-check.test.ts:281`, 21); the content drift check and the two link suites, through real junctions, ran |
+| `check:frozen`, `check:copy` | 0 (50 files; 232 files) | not run | 0 (50; 232) | 0 (50; 232); `PLANS/verify-plan.ps1` PASS |
+| The Deno check of the ten functions | CI only, green | CI only, green | 0, here and in CI | CI only |
+| `pnpm audit --prod` | not yet a gate | red, as expected before round S: 1 critical, 4 high | CI's gate at level high: no known vulnerabilities | CI's gate |
+| The migrations from scratch | 27, by `supabase db reset` | 30, by `supabase db reset` | 30, by every CI run | 30, by `supabase db reset`, twice |
+| The database tests | `test:db`: 31 files, 814 of 814 | `test:db`: 31 files, 874 of 874, the eight HTTP files included | CI: the 23 files that need no Edge Function, 712 of 712; the other eight wait for the owner's machine | `test:db`: 31 files, 874 of 874, the eight HTTP files included |
+| Build and `check:export` | 0; 59 required files, 372 text files, no secret | 0; 59, 377, no secret | 0; 59, 377, no secret | 0; 59, 377, no secret |
+| `check:budgets` | largest 148.9 KiB of 150 | largest 149.4 KiB | largest 149.7 KiB (`checkout.html`): 0.3 KiB left (ISSUES I49 (5), I50 (2)) | largest 149.7 KiB (`checkout.html`) |
+| e2e | Batch 1, 170 of 170. Batch 2, 7 failed and 302 passed: one `store-admin` step timed out under load and the tests after it failed with it. `orders.spec`, 12 passed and 8 not run at its 15-minute limit. All on a loaded machine | Seven specs, the six F3 and D1 had changed and `reader.spec.ts`: 185 passed, none failed (`orders.spec` in 6.2 minutes) | Not run here: the owner's machine | All 17 spec files: 512 passed, none failed, skipped or flaky (batch 1, 181; batch 2, 311; `orders.spec`, 20 in 6.4 minutes) |
 
-**Still to run, on the owner's machine,** on a quiet machine from a fresh `supabase db reset` on his word (D48):
-- `work/scripts/battery-db.sh after` and `work/scripts/battery-e2e.sh after`. Between them they cover the whole `test:db`, the eight HTTP files included, and all 17 spec files, the admin's eight among them. They write `after/summary-db.txt` and `after/summary-e2e.txt` beside the CI part, and this section is completed from them.
-- The cases the rounds wrote:
-  - F3's (`orders-money.spec.ts`, `orders-admin.spec.ts`, `cart-checkout.spec.ts`, `cms.spec.ts`, and `tests/integration/refunds-http.test.ts`) and D1's (`no-js.spec.ts`, `cart-checkout.spec.ts`, `orders.spec.ts`) ran green once, at `e800fc5` (section 1), before the later rounds changed the code (round S's upgrade to Next.js 16.3.8 among them);
-  - the deep audit's two cases in `cart-checkout.spec.ts` have never run;
-  - the admin's eight suites have not run against the redesigned admin (D49).
-- A real `pnpm restore-check` with a paid file (I53 (3)).
+**What ran on the owner's machine, and what stays** (`after/RECORD.md`):
+- `work/scripts/battery-db.sh after` and `work/scripts/battery-e2e.sh after`, from fresh resets on the owner's word: green, as above.
+- The cases the rounds wrote, green again after the later rounds: F3's (`orders-money.spec.ts`, `orders-admin.spec.ts`, `cart-checkout.spec.ts`, `cms.spec.ts`, and `tests/integration/refunds-http.test.ts`) and D1's (`no-js.spec.ts`, `cart-checkout.spec.ts`, `orders.spec.ts`); the deep audit's two cases (`cart-checkout.spec.ts:900` and `:919`), run for the first time and passed; and the admin's eight suites (186 tests) against the redesigned admin (D49).
+- The backup rehearsal with a paid file: `pnpm backup --local` worked; `pnpm restore-check` refused before restoring anything, because Docker Desktop does not apply the loopback option the scratch stack rests on (adjudicated by two Opus auditors as a product defect; ISSUES I56, recorded on the owner's word "Record it, fix later (Recommended)"). Round S's other two proofs are green: a real junction refused by both scripts, and graft at 0.21.1. Ctrl+C and a closed console during a rehearsal stay the owner's to try (I53 (3)).
+- The visual pass of every screen F3 and D1 changed (`after/visual/visual-pass.md`): 62 screenshots, 84 findings, none high, 32 defects and 4 states to capture confirmed against their images, for the round with a browser (ISSUES I55 (2)); none fixed here.
 
 ## 5. What stays open, and where
 
-- **The owner's machine:** section 4, ISSUES I55 (1).
+- **The owner's machine:** the after-battery ran there green except the restore rehearsal (section 4, ISSUES I55 (1)). What stays is the restore rehearsal (ISSUES I56 and I53 (3)), the Ctrl+C and closed-console check of a rehearsal, and a tap and a mouse click on the admin's strip on his own devices (I55 (6)).
 - **The round with a browser:** Appendix A, 38 entries with one high (DSN-PAGES-10), ISSUES I55 (2). Round D1's held items:
   - D1-1: the lightbox's fit;
   - D1-2: the 320px header, and the header without JavaScript;
@@ -179,16 +178,16 @@ Before: `3a30a91` on the owner's machine, 2026-10-05T19:20Z to 2026-10-07T00:27Z
   - D1-6 (b) to (d) and D1-7: the money pages' layout shift, the font preloads, the tagline's entrance, the fallback faces;
   - D1-8 (a) and (b), D1-9, D1-10: the reader's full-screen centring, reading order, idle loop and touch release;
   - D1-12: ten small public defects;
-  - and the visual pass of every screen F3 and D1 changed.
+  - and the findings of the visual pass of every screen F3 and D1 changed, made on the owner's machine on 2026-10-14 and 10-15, 23:15Z to 00:45Z (`after/visual/visual-pass.md`: 32 defects and 4 states to capture, none high, and 41 nits).
 - **Recorded open:** Appendix B, 154 entries. Almost all are low. The six medium ones are EF-MONEY-12 (with E02), TEST-DB-02 (a stale edge runtime goes unnoticed), ADMIN-CMS-01 and ADMIN-CMS-02 (the editor's local copy across tabs; a post never saved), CLIENT-SEC-02 (the Auth API still tells a staff address from any other, against P03's proof) and PLAN-GAPS-04 (browser Sentry against the public budget, to settle before P10). "Next work" item 5 routes them. They are the material for P08's close, a residuals round and P10's passes (security, accessibility, performance).
 - **The continuation's follow-ups:** ISSUES I53 and I55 (3) to (9).
-- **The admin redesign:** the owner's marks on its private review page, then the admin suites on his machine (I55 (6)).
+- **The admin redesign:** the owner's marks on its private review page (none on 2026-10-15); its admin suites ran green on his machine on 2026-10-14 (section 4); a tap and a mouse click on its strip on his own devices (I55 (6)).
 - **The owner's decisions:** `PLANS/DECISIONS.md`, "Owner decisions FABLE-AUDIT and its continuation leave open"; Appendix D.
 - **The gates:**
   - every gate (E01 to E05, E07 to E11) stays open, those FABLE-AUDIT touched included (E02, E03, E05, E07, E08);
   - nothing in FABLE-AUDIT closes one;
   - nothing Moyasar moved after D48 (3).
-- **The lock:** the cloud continuation released its lock on 2026-10-14, after pushing the local close's prompt (`LOCAL-CLOSE-2026-10-14.md`). The owner's local lock file, paused on 2026-10-07, is released on his machine once he has read `HANDOFF-2026-10-07.md`; the local close asks him, records its recovery and takes its own.
+- **The lock:** the cloud continuation released its lock on 2026-10-14, after pushing the local close's prompt (`LOCAL-CLOSE-2026-10-14.md`). On the owner's machine the local close released the lock paused on 2026-10-07 on his delegation (his answer: "you decide , do the best"), with its recovery recorded in the new lock, took its own (2026-10-14T17:03:43Z) and releases it once its last record is written (`after/RECORD.md`).
 
 ## 6. Incidents and lessons
 
@@ -203,8 +202,9 @@ Before: `3a30a91` on the owner's machine, 2026-10-05T19:20Z to 2026-10-07T00:27Z
     - the state written before every pause. It let the packaging agent and the cloud session take over without guessing.
 - **The owner's machine.**
   - Another project's Supabase stack held the local ports. Its containers were stopped for the battery and started again (`before/paused-containers.txt`).
-  - The local stack binds every service to 0.0.0.0, as the CLI itself says. The restore rehearsal's scratch stack is loopback-only since S-5a.
+  - The local stack binds every service to every address, the CLI's default. The restore rehearsal's scratch stack is meant to be loopback-only since S-5a, through a Docker network option, but on the owner's machine Docker Desktop does not apply that option, so the rehearsal refuses there before restoring anything (the local close, 2026-10-14; ISSUES I56).
   - A process listing printed part of a Supabase personal access token that an MCP server on the owner's machine receives on its command line. The value is outside the repository and recorded nowhere here, but any process on that machine can read it and part of it went into the session's output: the owner should revoke and reissue the token in the Supabase dashboard, and give it to the MCP server through an environment variable or its configuration, not its command line.
+  - In the local close (2026-10-14), while looking for the source of a stray empty file, a `sed` meant to hide values printed a part of the owner's global Claude settings into the session's output with two credentials unmasked: that MCP server's Supabase token and a Context7 API key. Nothing reached the repository, a log or a commit. The owner was told at once to revoke and reissue both. Print key names only, never a settings file through a mask.
   - The F1-resume worker's search printed the local placeholder pepper, a fixed development string and not a secret.
 - **The audit's own mistakes.**
   - F2a's brief widened the rich-text link rule to `http:` and `mailto:`, against the plan; F3-11 restored HTTPS only.

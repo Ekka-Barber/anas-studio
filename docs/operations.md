@@ -1391,10 +1391,11 @@ like the others.
   form `pnpm backup` uses with `storage cp`), has not been run, so prefer the
   dashboard, and if you use the command, list the object again to confirm that it
   is gone.
-- **The checkout page's budget.** `checkout.html` is at 148.9 of the 150 KiB
-  public JavaScript budget, 1.1 KiB of headroom (`pnpm check:budgets`, ISSUES
-  I50). The next change to the checkout page, `quote.ts` or `cart.ts` that needs
-  room loads the checkout form body on demand, about 5 KiB.
+- **The checkout page's budget.** `checkout.html` is at 149.7 of the 150 KiB
+  public JavaScript budget, 0.3 KiB of headroom (`pnpm check:budgets` on the
+  owner's machine on 2026-10-14, as in CI on `b3fa932`; ISSUES I50). The next
+  change to the checkout page, `quote.ts` or `cart.ts` that needs room loads the
+  checkout form body on demand, about 5 KiB.
 - **Recovery and confirmation mail can be spent by others.** Someone who knows 20
   customer addresses can use the day's 20 `order_link` mails, and someone else can
   spend one address's 3 requests an hour. Someone with 30 addresses and 30
@@ -1411,10 +1412,15 @@ like the others.
   live").
 - **A review payment with no order** leaves every screen once the owner closes it
   by hand (ISSUES I50).
-- **No backup rehearsal with a paid file yet.** `pnpm backup` and
-  `pnpm restore-check` carry the `paid-files` bucket and their tests read the
-  scripts' text; one real `pnpm backup --local` and `pnpm restore-check <file>`
-  with a paid file in the bucket is still to be run and recorded.
+- **The backup rehearsal with a paid file stops before the restore on Docker
+  Desktop.** The first real run, on the owner's machine on 2026-10-14
+  (`artifacts/acceptance/FABLE-AUDIT/after/RECORD.md`, Phase 7): `pnpm backup
+  --local` with a paid file in the bucket worked (228 files, 223 storage
+  objects); `pnpm restore-check <file>` refused before restoring anything,
+  because Docker Desktop does not apply the scratch network's loopback option
+  and the scratch database came up on every address (ISSUES I56). Until I56 is
+  fixed, a backup can be made on that machine, but nothing there proves that it
+  restores: its restore is not rehearsed there.
 - **Other P08 residuals** are in ISSUES I50: the variant form reads the paid
   file's storage key, which the private bucket makes harmless on its own, and
   `create`'s own `OUT_OF_STOCK` refusal carries no «الكمية محجوزة مؤقتًا لطلب
@@ -1991,8 +1997,12 @@ every platform, their link cases where the machine can make a link (a junction o
 Windows). The tests prove what the scripts decide, not what Docker does: only a real `pnpm restore-check` on Anas's machine
 proves the Docker side — the loopback binding (an IPv6 `[::]` line would make the
 script refuse), `--network-id`, the project label on every container and volume,
-and the stop by project id leaving the development stack alone. That run has not
-been made (`PLANS/ISSUES.md`, I53 (3)).
+and the stop by project id leaving the development stack alone. That run was
+made on the owner's machine on 2026-10-14 (Docker Desktop 4.91.0): `--network-id`
+was accepted and the stops left the development stack alone, but the loopback
+binding does not hold there, since Docker Desktop does not apply the network's
+option, so the rehearsal refused before restoring anything and the label was not
+checked (`PLANS/ISSUES.md`, I53 (3) and I56).
 
 ### A real restore into a new hosted project
 
