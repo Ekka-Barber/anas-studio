@@ -164,3 +164,10 @@ nothing was loosened. CI is green on the fix.
 - The development stack ANASAQ.ME is published on every address, the CLI's default (ISSUES I55 (10)): the relay is the
   rehearsal's alone.
 - `main`: fast-forwarded to `agent/i56` only on the owner's word. The lock stays held until his answer.
+
+### 8. The owner's answer on `main` (2026-10-15)
+
+Asked "Fast-forward main to agent/i56 once CI is green, then delete the branch?", he answered, word for word: "Yes, move
+main: fast-forward main to agent/i56 once its CI is green, record my answer, release the lock, then delete agent/i56."
+So this commit records it; `main` is fast-forwarded to it once its CI is green (from `f022fed`, no force); the lock is
+released after it, this round's last commit; and `agent/i56` is then deleted, on GitHub and on his machine.
