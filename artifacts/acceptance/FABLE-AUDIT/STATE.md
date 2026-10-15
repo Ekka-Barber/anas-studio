@@ -32,6 +32,12 @@ The owner stopped the session ("stop here, will continue after limit reset"). No
 - `next-env.d.ts` is clean; `.next/e2e` removed. `.claude/launch.json`, `.claude/settings.json` and `.claude/settings.json.tmp` were already dirty before the audit (2026-10-03) and were left alone.
 
 
+## Update 2026-10-15 ~04:40 Riyadh: FABLE-AUDIT closed, P08 accepted, `main` moved (the owner's answers to the local close)
+
+- CI on the local close's records commit `4bfefe5` was green (run 38665948426). The owner's answers, word for word: on `main`, "Yes, move main (Recommended)"; on P08, "Accept P08"; on FABLE-AUDIT, "Close it (Recommended)". The question on accepting the admin redesign was not asked: its review store held no mark.
+- So P08 is accepted as built, with ISSUES I56, E02 and E03 open; FABLE-AUDIT is closed, what it leaves open routed in `REPORT.md` section 5; `main` takes the local close's last commit by fast-forward once its CI is green, and the branch `claude/amazing-planck-qv3f7a` is then deleted on GitHub and here.
+- The local close's lock is released after its last commit; no lock is held, and the next writer takes its own. This is the last update of this file.
+
 ## Update 2026-10-15 ~04:00 Riyadh: the local close on the owner's machine (Claude Opus 5.5 at effort max, in Claude Desktop)
 
 - From `LOCAL-CLOSE-2026-10-14.md`, at `5107afa` (no product code, test or migration changed since `b3fa932`), on the owner's machine, with workflow workers and auditors (Sonnet 5.5 capture worker; Opus 5.5 auditors, reviewers and verifiers; all at effort max). The full record is `after/RECORD.md`.

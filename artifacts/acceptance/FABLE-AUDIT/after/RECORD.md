@@ -391,3 +391,38 @@ capture and 41 nits wait for the round with a browser. No code changed in this s
 - The owner's open decisions (`PLANS/DECISIONS.md`) and the 154 entries recorded open (REPORT.md, Appendix B).
 - The owner's answers to this session's questions (`main`, P08, FABLE-AUDIT): to be recorded under Phase 11 once he
   answers.
+
+### Phase 10: the machine put back (2026-10-15 ~01:35Z)
+
+- No other project's containers were paused, so none is started again (there is no `paused-containers.txt`).
+- The stack's start log (it holds the local keys) was deleted in Phase 2, once its error lines were read.
+- The ANASAQ.ME stack stays running (nine containers). `next-env.d.ts` and `PLANS/evidence/planning-checks.json` are
+  clean, `.next/e2e` is gone, no temporary spec is left, and `git status --short` shows only the owner's two `.claude/`
+  files.
+- For the owner: the rehearsal's full output stays in `~/ANASAQ-backups/rehearsal-20261014T180249Z/` (62 KB: the
+  backup's and restore-check's whole output, the scratch stack's start output with its local keys among it; the backup
+  file itself was deleted); he may delete that folder. ChatGPT and ZCode, closed for memory in Phase 8, can be opened
+  again.
+
+### Phase 11: the owner's questions and answers (2026-10-15 ~01:37Z)
+
+CI on the records commit `4bfefe5` was green first (run 38665948426, every step). The owner was asked with one
+question call, each question giving the facts its answer rests on; the question on accepting the admin redesign was not
+asked, since its review store held no mark. His answers, word for word:
+
+1. `main` ("Move `main` to the branch once this session's last commit (recording your answers) is green? ... no product
+   code changed. Fast-forward only."): **"Yes, move main (Recommended)"**.
+2. P08 ("Accept P08 as built? ... The backup with a paid file works, but the restore rehearsal is red on Docker Desktop
+   (ISSUES I56, which you chose to fix later). E02 and E03 stay open either way."): **"Accept P08"**.
+3. FABLE-AUDIT ("Close FABLE-AUDIT? ... What stays open is routed in REPORT.md section 5 ... Once `main` holds the
+   branch, the branch is deleted on GitHub and here"): **"Close it (Recommended)"**.
+
+So: P08 is accepted as built, with I56, E02 and E03 open; FABLE-AUDIT is closed, what stays open routed as REPORT.md
+section 5 says. This last commit records the answers; once its CI is green, `main` is fast-forwarded to it (after `git
+merge-base --is-ancestor origin/main HEAD`, never forced) and CI is read on `main`; then the branch
+`claude/amazing-planck-qv3f7a` is deleted on GitHub and here (`-d`). This session's writes end with this commit: its
+lock (taken 2026-10-14T17:03:43Z) is deleted once nothing more is written, and a later session takes its own. The
+session's last message reports the CI runs, the move of `main` and the branch's deletion.
+
+Noticed and left (outside this session's lock): `PLANS/README.md` still says "Revised 2026-10-03 (D47; P08 in
+progress)".

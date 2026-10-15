@@ -100,4 +100,6 @@ file is proven on this machine, and its restore is not.
 ## The owner's answer
 
 Asked at the end of FABLE-AUDIT's local close, with the facts above (its acceptance battery is this run: green, except
-the restore rehearsal, which is red on Docker Desktop, ISSUES I56; E02 and E03 stay open): recorded below once given.
+the restore rehearsal, which is red on Docker Desktop, ISSUES I56; E02 and E03 stay open). His answer, on 2026-10-15,
+word for word: **"Accept P08"**. P08 is accepted as built, with ISSUES I56 (the restore rehearsal, a round of its own),
+E02 and E03 open.

@@ -124,7 +124,7 @@ The audits close on these fixes with the orchestrator's measurements, not a four
 
 ## The owner's review
 
-`admin-review.html` is the review page: every screen before and after at both widths, with a mark (approve, or needs a change) and a note per screen, published to the owner as a private page. Its source is `review/` (`node tools/webp.mjs <run> before|after`, `node tools/meta.mjs`, `node review/build.mjs`). Published on 2026-10-13 with the after set of `873a479` (CI green, run 38452892063); the page keeps the owner's marks itself (its `reviews` store, checked with one written, read and deleted mark), and this README records them once the owner has reviewed. On 2026-10-15 the store held no mark (read by FABLE-AUDIT's local close).
+`admin-review.html` is the review page: every screen before and after at both widths, with a mark (approve, or needs a change) and a note per screen, published to the owner as a private page. Its source is `review/` (`node tools/webp.mjs <run> before|after`, `node tools/meta.mjs`, `node review/build.mjs`). Published on 2026-10-13 with the after set of `873a479` (CI green, run 38452892063); the page keeps the owner's marks itself (its `reviews` store, checked with one written, read and deleted mark), and this README records them once the owner has reviewed. On 2026-10-15 the store held no mark (read by FABLE-AUDIT's local close), so the local close did not ask the owner to accept the redesign; it stays unaccepted until he has marked every screen.
 
 ## The admin e2e suites (2026-10-14)
 
