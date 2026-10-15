@@ -1412,15 +1412,13 @@ like the others.
   live").
 - **A review payment with no order** leaves every screen once the owner closes it
   by hand (ISSUES I50).
-- **The backup rehearsal with a paid file stops before the restore on Docker
-  Desktop.** The first real run, on the owner's machine on 2026-10-14
-  (`artifacts/acceptance/FABLE-AUDIT/after/RECORD.md`, Phase 7): `pnpm backup
-  --local` with a paid file in the bucket worked (228 files, 223 storage
-  objects); `pnpm restore-check <file>` refused before restoring anything,
-  because Docker Desktop does not apply the scratch network's loopback option
-  and the scratch database came up on every address (ISSUES I56). Until I56 is
-  fixed, a backup can be made on that machine, but nothing there proves that it
-  restores: its restore is not rehearsed there.
+- **An interrupted backup rehearsal is not proven on Windows.** The rehearsal
+  with a paid file passes on the owner's machine (Docker Desktop 4.91.0,
+  2026-10-15, after the fix of ISSUES I56: 66 tables, 223 storage objects with
+  the paid file and 15 schedules verified, every published port on 127.0.0.1;
+  `artifacts/acceptance/I56/RECORD.md`). A Ctrl+C is meant to clean up, and
+  closing the console can cut the stop short; neither has been tried there yet
+  (ISSUES I53 (3) names the commands that look for a leftover).
 - **Other P08 residuals** are in ISSUES I50: the variant form reads the paid
   file's storage key, which the private bucket makes harmless on its own, and
   `create`'s own `OUT_OF_STOCK` refusal carries no «الكمية محجوزة مؤقتًا لطلب
@@ -1994,9 +1992,9 @@ leaves behind:
   label=com.supabase.cli.project=anasaq-restore-check` commands to check by hand.
   Each cleanup step (the decrypted dumps, the relay, the stop, the network, the
   leftover check, the workdir) runs on its own: one that throws is reported and
-  also makes the run exit non-zero, and the others still run. The stop's and the network
-  removal's own exit codes are not checked; the leftover check after them is what
-  fails the run if a container or volume of the stack remains.
+  also makes the run exit non-zero, and the others still run. The stop's and the
+  network removal's own exit codes are not checked; the leftover check after them
+  is what fails the run if a container or volume of the stack remains.
 - **A network left from an earlier run** stops the rehearsal before anything
   starts, with the remedy: `docker network inspect
   supabase_network_anasaq-restore-check` lists what uses it, and `docker network
@@ -2004,25 +2002,28 @@ leaves behind:
 
 `tests/unit/restore-check.test.ts` proves the rehearsal's decisions against
 stand-ins for Docker and the Supabase CLI placed on the PATH; those cases run on
-POSIX machines only and are skipped on Windows, where Anas works. Among them is a
-`supabase start` that sends a real container create through the relay to a fake
-Docker, which must receive 127.0.0.1. `tests/unit/docker-loopback-relay.test.ts`
-runs the relay itself against a fake Docker on every platform, Windows included,
-over a real named pipe there. The `--extract`, argument and path-guard cases of
+POSIX machines only and are skipped on Windows, where Anas works. Among them is
+a `supabase start` that sends a real container create through the relay to a
+fake Docker, which must receive 127.0.0.1.
+`tests/unit/docker-loopback-relay.test.ts` runs the relay itself against a fake
+Docker on every platform, Windows included, over a real named pipe there. The
+`--extract`, argument and path-guard cases of
 `tests/unit/restore-check.test.ts`, and all of `tests/unit/backup-cli.test.ts`,
 run on every platform, their link cases where the machine can make a link (a
-junction on Windows). The tests prove what the scripts decide, not what Docker does: only a real `pnpm restore-check` on Anas's machine
-proves the Docker side — the loopback binding (the CLI reaching Docker through
-the relay's `DOCKER_HOST`, and Docker Desktop keeping the 127.0.0.1 it writes;
-an IPv6 `[::]` line would make the script refuse), `--network-id`, the project
-label on every container and volume, and the stop by project id leaving the
-development stack alone. That run was
-made on the owner's machine on 2026-10-14 (Docker Desktop 4.91.0): `--network-id`
-was accepted and the stops left the development stack alone, but the loopback
-binding does not hold there, since Docker Desktop does not apply the network's
-option, so the rehearsal refused before restoring anything and the label was not
-checked. The relay is the fix; the rehearsal is to be run again
-(`PLANS/ISSUES.md`, I53 (3) and I56).
+junction on Windows). The tests prove what the scripts decide, not what Docker
+does: only a real `pnpm restore-check` on Anas's machine proves the Docker side
+— the loopback binding (the CLI reaching Docker through the relay's
+`DOCKER_HOST`, and Docker Desktop keeping the 127.0.0.1 it writes; an IPv6
+`[::]` line would make the script refuse), `--network-id`, the project label on
+every container and volume, and the stop by project id leaving the development
+stack alone. The first such run, on the owner's machine on 2026-10-14 (Docker
+Desktop 4.91.0), refused before restoring anything: Docker Desktop does not
+apply the network's option, and there was no relay yet. The second, on
+2026-10-15 with the relay, passed: the start went through the relay, `docker
+port` showed the database and Kong on 127.0.0.1 only, the five containers and
+two volumes of the stack carried the label (the same by name), every table,
+object and schedule was verified, and nothing of the stack remained
+(`PLANS/ISSUES.md`, I53 (3); `artifacts/acceptance/I56/RECORD.md`).
 
 ### A real restore into a new hosted project
 

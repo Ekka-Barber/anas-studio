@@ -1,0 +1,102 @@
+Decrypting the backup...
+Backup from 2026-10-15T09:11:10.252Z (source: local), 228 files.
+Rehearsal scratch stack: C:\Users\alazi\AppData\Local\Temp\anasaq-restore-qwMVf3
+Finished supabase init.
+Starting the throwaway stack (this can take a few minutes)...
+Uploading storage objects...
+Comparing row counts and object digests...
+
+Table rows (COPY block -> restored count):
+  auth.audit_log_entries              266 -> 266  ok
+  auth.custom_oauth_providers         0 -> 0  ok
+  auth.flow_state                     49 -> 49  ok
+  auth.users                          50 -> 50  ok
+  auth.identities                     50 -> 50  ok
+  auth.instances                      0 -> 0  ok
+  auth.oauth_clients                  0 -> 0  ok
+  auth.sessions                       54 -> 54  ok
+  auth.mfa_amr_claims                 60 -> 60  ok
+  auth.mfa_factors                    6 -> 6  ok
+  auth.mfa_challenges                 31 -> 31  ok
+  auth.oauth_authorizations           0 -> 0  ok
+  auth.oauth_client_states            0 -> 0  ok
+  auth.oauth_consents                 0 -> 0  ok
+  auth.one_time_tokens                0 -> 0  ok
+  auth.refresh_tokens                 82 -> 82  ok
+  auth.sso_providers                  0 -> 0  ok
+  auth.saml_providers                 0 -> 0  ok
+  auth.saml_relay_states              0 -> 0  ok
+  auth.sso_domains                    0 -> 0  ok
+  auth.webauthn_challenges            0 -> 0  ok
+  auth.webauthn_credentials           0 -> 0  ok
+  finance.commerce_settings           1 -> 1  ok
+  finance.content_first_published     1 -> 1  ok
+  public.coupons                      2 -> 2  ok
+  public.customers                    66 -> 66  ok
+  finance.orders                      68 -> 68  ok
+  finance.coupon_redemptions          0 -> 0  ok
+  finance.payment_attempts            64 -> 64  ok
+  finance.payment_reviews             9 -> 9  ok
+  finance.disputes                    6 -> 6  ok
+  public.products                     83 -> 83  ok
+  public.product_variants             95 -> 95  ok
+  finance.order_items                 89 -> 89  ok
+  finance.paid_assets                 18 -> 18  ok
+  finance.entitlements                24 -> 24  ok
+  finance.download_tokens             2 -> 2  ok
+  finance.email_delivery_events       1 -> 1  ok
+  finance.email_outbox                14 -> 14  ok
+  finance.email_suppressions          0 -> 0  ok
+  finance.fulfillments                52 -> 52  ok
+  finance.inventory_reservations      64 -> 64  ok
+  finance.job_runs                    26 -> 26  ok
+  finance.payment_events              20 -> 20  ok
+  finance.rate_limits                 25 -> 25  ok
+  finance.return_requests             16 -> 16  ok
+  finance.refunds                     17 -> 17  ok
+  finance.site_builds                 1 -> 1  ok
+  finance.variant_availability        0 -> 0  ok
+  public.audit_events                 812 -> 812  ok
+  public.contacts                     1 -> 1  ok
+  public.content_versions             36 -> 36  ok
+  public.media                        45 -> 45  ok
+  public.media_upload_tickets         50 -> 50  ok
+  public.notifications                0 -> 0  ok
+  public.published_documents          13 -> 13  ok
+  public.shipping_rates               17 -> 17  ok
+  public.staff                        50 -> 50  ok
+  storage.buckets                     3 -> 3  ok
+  storage.buckets_analytics           0 -> 0  ok
+  storage.iceberg_namespaces          0 -> 0  ok
+  storage.iceberg_tables              0 -> 0  ok
+  storage.objects                     223 -> 223  ok
+  storage.s3_multipart_uploads        0 -> 0  ok
+  storage.s3_multipart_uploads_parts  0 -> 0  ok
+  supabase_functions.hooks            0 -> 0  ok
+
+Storage objects (sha256 verified):
+  media-private                       45 objects, 45 verified  ok
+  media-public                        177 objects, 177 verified  ok
+  paid-files                          1 objects, 1 verified  ok
+
+Caveat applied (runbook): re-ran 15 cron.schedule(...) statements from supabase/migrations (cron.job held 0 of them before).
+
+pg_cron schedules (every cron.schedule in supabase/migrations):
+  content-publish-due                 ok
+  rate-limits-purge                   ok
+  job-runs-purge                      ok
+  site-build-trigger                  ok
+  email-outbox                        ok
+  media-sweep                         ok
+  contacts-purge                      ok
+  checkout-expire                     ok
+  buyer-retention                     ok
+  cron-run-details-purge              ok
+  payments-reconcile                  ok
+  availability-sweep                  ok
+  notifications-purge                 ok
+  notify-confirm-backlog              ok
+  payment-events-purge                ok
+
+OK: 66 tables, 223 objects, 15 schedules verified in 48.6s (start to verified).
+Scratch stack removed: no container or volume of anasaq-restore-check remains.

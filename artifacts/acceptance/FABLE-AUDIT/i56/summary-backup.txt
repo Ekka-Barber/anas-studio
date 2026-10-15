@@ -1,0 +1,25 @@
+# backup rehearsal (i56), commit 5ab83b3, 2026-10-15T09:10:39Z
+development stack ANASAQ.ME: 9 containers running
+paid file uploaded for the rehearsal: assets/backup-rehearsal/20261015T091039Z.pdf, 262191 bytes, sha256 6006c42d773ddf431431c69918a42503abb0d8f34a5454223aaca2c1615052cd
+paid-files holds 1 object(s) before the backup
+backup --local -> exit 0 (28s)
+Size: 730838 bytes (0.7 MB), files: 228, storage objects: 223.
+backup file: anasaq-backup-20261015-091047.enc, 730838 bytes, sha256 cd874b0668200865892c1c68fb160b9282037894940277fb0299d84876ef6b1b
+restore-check -> exit 0 (57s)
+while the scratch stack ran: 5 container(s) and 2 volume(s) labelled com.supabase.cli.project=anasaq-restore-check; by name: 5 and 2
+  container supabase_storage_anasaq-restore-check
+  container supabase_rest_anasaq-restore-check
+  container supabase_auth_anasaq-restore-check
+  container supabase_kong_anasaq-restore-check
+  container supabase_db_anasaq-restore-check
+  volume supabase_db_anasaq-restore-check
+  volume supabase_storage_anasaq-restore-check
+  docker port: 5432/tcp -> 127.0.0.1:55322
+  docker port: 8000/tcp -> 127.0.0.1:55321
+after the run: by label, 0 container(s) and 0 volume(s) of anasaq-restore-check remain; by name, 0 container(s), 0 volume(s) and 0 network(s)
+the run ended with "Scratch stack removed"
+development stack ANASAQ.ME: the same 9 containers running after the run
+paid file removed after the rehearsal: assets/backup-rehearsal/20261015T091039Z.pdf
+backup file deleted (its passphrase existed only in this run); the full output stays in ~/ANASAQ-backups/rehearsal-20261015T091039Z
+verdict: PASS
+done 2026-10-15T09:12:18Z
