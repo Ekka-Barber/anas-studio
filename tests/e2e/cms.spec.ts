@@ -5,7 +5,7 @@
 // pattern as `auth.spec.ts`. D32: documents open at `edit?id=`, the draft
 // preview is an admin page, and publishing requests a site rebuild (the
 // public pages under `next dev` render live data, so a publish shows at once).
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 import { Client } from 'pg'
 
@@ -285,6 +285,9 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
   expect(original.length).toBeGreaterThan(0)
   const updated = `سطر معدّل ${Date.now()}`
   await heroLine.fill(updated)
+  // ADMIN-CMS-23: «معاينة» draws the saved version, so the bar says to save first while the edit is not saved.
+  const saveFirst = page.getByText('احفظ أولًا لترى تعديلاتك في المعاينة.')
+  await expect(saveFirst).toBeVisible()
 
   // Move the second movement (2018) up, ahead of the first (2013). Scoped to
   // each item's own direct div (`> div`) and its trailing button row
@@ -304,6 +307,7 @@ test('room: edit, preview, publish, restore (requires pnpm db:import)', async ({
 
   await page.getByRole('button', { name: 'حفظ' }).click()
   await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  await expect(saveFirst).toHaveCount(0)
 
   // The draft preview is an admin page (D32): the saved draft, drawn with the
   // public room's own view.
@@ -805,4 +809,210 @@ test('a new post typed and left without saving is listed at the top of the posts
   await expect(page.getByRole('heading', { name: 'يوجد تعديل غير محفوظ محليًا لهذا المستند.' })).toBeVisible()
   await page.getByRole('button', { name: 'استرجاع', exact: true }).click()
   await expect(page.getByLabel('العنوان')).toHaveValue(typed)
+})
+
+// RESIDUALS-1 R3a ------------------------------------------------------------------------------------------------------
+
+/** Creates a post with only «المعرّف» and «العنوان», saves it and returns its document id. */
+async function savePost(page: Page, { slug, title }: { slug: string; title: string }): Promise<string> {
+  await page.goto('/admin/content/posts')
+  await page.getByRole('button', { name: 'جديد' }).click()
+  await expect(page).toHaveURL(/\/admin\/content\/posts\/edit\?id=[0-9a-f-]{36}$/)
+  const docId = page.url().match(/id=([0-9a-f-]{36})$/)?.[1]
+  if (!docId) throw new Error('No post id in URL')
+  await page.getByLabel('المعرّف').fill(slug)
+  await page.getByLabel('العنوان').fill(title)
+  await page.getByRole('button', { name: 'حفظ' }).click()
+  await expect(page.getByText('تم الحفظ.')).toBeVisible()
+  return docId
+}
+
+/** This tab's local copies of a post (the keys end with the tab id): each copy's excerpt. */
+const copiedExcerpts = (page: Page, docId: string) =>
+  page.evaluate(
+    (id) =>
+      Object.keys(window.localStorage)
+        .filter((key) => key.startsWith(`anasaq:draft:posts:${id}`))
+        .map((key) => (JSON.parse(window.localStorage.getItem(key)!) as { data: { excerpt?: string } }).data.excerpt),
+    docId,
+  )
+
+// ADMIN-CMS-05: the digest's recipe, with the key as the editor writes it (the tab id follows the document id).
+test('a click into an empty body is not an edit: «نشر» stays on and no local copy is kept, also after typing and clearing', async ({ page }) => {
+  const email = await createOwner('مالك النص الفارغ')
+  await signInByCode(page, email)
+  const docId = await savePost(page, { slug: `e2e-empty-body-${Date.now()}`, title: 'مقال بلا نص' })
+  const publish = page.getByRole('button', { name: 'نشر' })
+  const editor = page.getByLabel('محرر النص المنسق')
+  await expect(publish).toBeEnabled()
+
+  // One click in the body, nothing typed, then a click on the page heading.
+  await editor.click()
+  await page.getByRole('heading', { level: 1 }).click()
+  await expect(publish).toBeEnabled()
+  expect(await copiedExcerpts(page, docId)).toEqual([])
+
+  // Typed, then cleared: the body is empty again, so the form is as saved.
+  await editor.pressSequentially('نص')
+  await expect(publish).toBeDisabled()
+  await expect.poll(() => copiedExcerpts(page, docId)).toHaveLength(1)
+  await editor.press('Control+a')
+  await editor.press('Backspace')
+  await expect(publish).toBeEnabled()
+  await expect.poll(() => copiedExcerpts(page, docId)).toEqual([])
+})
+
+// ADMIN-CMS-13: no existing test deletes an item with this button; a paragraph of the started room and a social link
+// of the site settings stand for the two kinds, and nothing is saved.
+test('«حذف» on a paragraph or a list item that holds text asks first; one with no text goes at once', async ({ page }) => {
+  const email = await createOwner('مالك الحذف')
+  await signInByCode(page, email)
+  const asked: string[] = []
+  let accept = false
+  page.on('dialog', async (dialog) => {
+    asked.push(dialog.message())
+    if (accept) await dialog.accept()
+    else await dialog.dismiss()
+  })
+
+  // A paragraph: dismissed keeps it, accepted removes it.
+  await page.goto('/admin/content/rooms/edit?id=started')
+  await expect(page.getByLabel('سطر البداية')).toHaveValue(/./)
+  const paragraphsGroup = page.getByRole('group', { name: 'المحطّات' }).locator('> div').first().getByRole('group', { name: 'الفقرات' })
+  const paragraphs = paragraphsGroup.locator('> div')
+  const before = await paragraphs.count()
+  expect(before).toBeGreaterThan(0)
+  await paragraphs.first().getByRole('button', { name: 'حذف' }).click()
+  expect(asked).toEqual(['حذف هذه الفقرة وما كُتب فيها؟'])
+  await expect(paragraphs).toHaveCount(before)
+  accept = true
+  await paragraphs.first().getByRole('button', { name: 'حذف' }).click()
+  expect(asked).toHaveLength(2)
+  await expect(paragraphs).toHaveCount(before - 1)
+  // A paragraph just added holds no text: no question.
+  await paragraphsGroup.getByRole('button', { name: 'أضف فقرة' }).click()
+  await expect(paragraphs).toHaveCount(before)
+  await paragraphs.last().getByRole('button', { name: 'حذف' }).click()
+  await expect(paragraphs).toHaveCount(before - 1)
+  expect(asked).toHaveLength(2)
+
+  // A list item (a social link): the same, in its own words.
+  asked.length = 0
+  accept = false
+  await page.goto('/admin/content/site_settings/edit?id=site')
+  const socialGroup = page.getByRole('group', { name: 'روابط التواصل' })
+  const links = socialGroup.locator('> div')
+  await expect(links).toHaveCount(4)
+  await links.first().getByRole('button', { name: 'حذف' }).click()
+  expect(asked).toEqual(['حذف هذا العنصر وما كُتب فيه؟'])
+  await expect(links).toHaveCount(4)
+  accept = true
+  await links.first().getByRole('button', { name: 'حذف' }).click()
+  expect(asked).toHaveLength(2)
+  await expect(links).toHaveCount(3)
+  await socialGroup.getByRole('button', { name: 'أضف عنصرًا' }).click()
+  await expect(links).toHaveCount(4)
+  await links.last().getByRole('button', { name: 'حذف' }).click()
+  await expect(links).toHaveCount(3)
+  expect(asked).toHaveLength(2)
+})
+
+// ADMIN-CMS-14: the digest's recipe with the delay set on the reload after «نشر».
+test('the fields are not editable while the editor reloads after «نشر»; typing once it has landed is kept', async ({ page }) => {
+  const email = await createOwner('مالك إعادة التحميل')
+  await signInByCode(page, email)
+  const docId = await savePost(page, { slug: `e2e-reload-${Date.now()}`, title: 'مقال إعادة التحميل' })
+  cleanups.push(() => unpublish('posts', docId))
+
+  // The reload reads the document again: hold that answer for 2 s.
+  await page.route('**/rest/v1/content_documents*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    await route.continue()
+  })
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+  const fields = page.locator('div[aria-busy="true"]')
+  await expect(fields).toHaveAttribute('inert', '')
+  await expect(page.getByText('يحمّل آخر نسخة محفوظة…')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'حفظ' })).toBeDisabled()
+
+  // Once it lands the fields are editable again, and what is typed shows in the field and in the local copy.
+  await expect(fields).toHaveCount(0)
+  await expect(page.getByText('يحمّل آخر نسخة محفوظة…')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'حفظ' })).toBeEnabled()
+  const excerpt = page.getByLabel('مقتطف')
+  await excerpt.fill('abc')
+  await expect(excerpt).toHaveValue('abc')
+  await expect.poll(() => copiedExcerpts(page, docId)).toEqual(['abc'])
+})
+
+// ADMIN-CMS-16
+test('a published post\'s «المعرّف», changed, says the old address stops working; the note goes when it is put back', async ({ page }) => {
+  const email = await createOwner('مالك المعرّف')
+  await signInByCode(page, email)
+  const slug = `e2e-slug-${Date.now()}`
+  const docId = await savePost(page, { slug, title: 'مقال المعرّف' })
+  cleanups.push(() => unpublish('posts', docId))
+  const field = page.getByLabel('المعرّف')
+  const noteText = 'تغيير المعرّف يغيّر رابط المقال المنشور، والروابط القديمة لن تعمل.'
+  const note = page.getByText(noteText)
+
+  // Not published yet: there is no address to move.
+  await field.fill(`${slug}-new`)
+  await expect(note).toHaveCount(0)
+  await field.fill(slug)
+
+  await page.getByRole('button', { name: 'نشر' }).click()
+  await expect(page.getByText('نشر: تم بنجاح.')).toBeVisible()
+  await expect(page.locator('div[aria-busy="true"]')).toHaveCount(0)
+
+  // Published: another المعرّف shows the note under the input, tied to it; the same one takes it away.
+  await field.fill(`${slug}-new`)
+  await expect(note).toBeVisible()
+  await expect(field).toHaveAccessibleDescription(noteText)
+  await field.fill(slug)
+  await expect(note).toHaveCount(0)
+})
+
+// ADMIN-CMS-18
+test('the documents list says it is loading, shows only the titles when the read fails, and says when an open collection has none', async ({ page }) => {
+  const email = await createOwner('مالك القوائم')
+  await signInByCode(page, email)
+
+  // A failed read: the error, the room titles to open, and nothing claimed about a status or a save.
+  await page.route('**/rest/v1/content_documents*', (route) => route.abort())
+  await page.goto('/admin/content/rooms')
+  await expect(page.getByText('تعذّر تحميل القائمة.')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'بدأتُ من هنا' })).toBeVisible()
+  await expect(page.getByRole('columnheader')).toHaveCount(1)
+  await expect(page.getByText('مسودة لم تُنشر')).toHaveCount(0)
+  await expect(page.getByText('لم يُحفظ بعد')).toHaveCount(0)
+  // An open collection has no titles to show without the read: the error stands alone.
+  await page.goto('/admin/content/posts')
+  await expect(page.getByText('تعذّر تحميل القائمة.')).toBeVisible()
+  await expect(page.locator('table')).toHaveCount(0)
+  await page.unroute('**/rest/v1/content_documents*')
+
+  // Until the read answers there is «يحمّل...» and no table.
+  await page.route('**/rest/v1/content_documents*', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    await route.continue()
+  })
+  await page.goto('/admin/content/rooms')
+  await expect(page.getByText('يحمّل...')).toBeVisible()
+  await expect(page.locator('table')).toHaveCount(0)
+  await expect(page.locator('table')).toBeVisible()
+  await expect(page.getByText('يحمّل...')).toHaveCount(0)
+  await page.unroute('**/rest/v1/content_documents*')
+
+  // An open collection that answered with no document says so in place of the table.
+  await page.route('**/rest/v1/content_documents*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '[]' }),
+  )
+  await page.goto('/admin/content/posts')
+  await expect(page.getByText('لا توجد مقالات بعد.')).toBeVisible()
+  await expect(page.locator('table')).toHaveCount(0)
+  await page.goto('/admin/content/taxonomies')
+  await expect(page.getByText('لا توجد تصنيفات بعد.')).toBeVisible()
+  await expect(page.locator('table')).toHaveCount(0)
 })

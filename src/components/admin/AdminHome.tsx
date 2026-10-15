@@ -12,7 +12,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-import { COLLECTION_LABELS } from '@/admin/collections'
+import { COLLECTION_LABELS, documentTitle, type Collection } from '@/admin/collections'
 import { formatNumber, formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction, documentHref } from '@/lib/supabase/functions'
@@ -20,6 +20,7 @@ import { callFunction, documentHref } from '@/lib/supabase/functions'
 import { alertCounts, parseOrdersAlerts, type OrdersAlerts } from '../../lib/admin-orders'
 
 import styles from './admin.module.css'
+import { attentionCapped } from './EmailView'
 import { ROLE_LABEL, type StaffRole } from './TableList'
 
 type Count = { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: number; capped?: boolean }
@@ -69,9 +70,9 @@ const NO_HOOK_TEXT = 'رابط بناء الموقع غير مضبوط، فلن 
 const PAYMENTS_OFF_TEXT = 'الدفع غير مضبوط؛ المطابقة متوقفة.'
 /** How far back the owner home lists `content.publish_due_failed` events. */
 const PUBLISH_FAILED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
-/** `outbox_attention()` caps its result at 200 rows (its SQL limit), so a
- * result at the cap renders its count followed by «+», not a silent total (L6). */
-const ATTENTION_CAP = 200
+/** `publish_due` records a post's slug clash as this SQLSTATE (the unique index on a published post's slug). */
+const UNIQUE_VIOLATION = '23505'
+const DUPLICATE_SLUG_TEXT = 'معرّف المقال مستخدم في مقال منشور آخر.'
 
 const LOADING: Count = { state: 'loading' }
 /** How many low-stock variants the home lists; the rest are counted. */
@@ -133,11 +134,13 @@ export function cronFailureText(row: CronFailure): string {
   return `مهام مجدولة فشلت خلال 24 ساعة: ${row.jobname} ×${formatNumber(row.failures)} (آخرها ${formatRiyadh(row.lastFailedAt)})`
 }
 
-type PublishFailure = { collection: string; docId: string }
+/** A scheduled publish that failed: its document, the version (`seq`) and the SQLSTATE `publish_due` recorded (null when absent). */
+export type PublishFailure = { collection: string; docId: string; seq: number | null; sqlstate: string | null }
 
 /** The documents behind `content.publish_due_failed` audit rows (newest
- * first), one entry each: a document that failed twice is listed once. */
-export function publishFailures(rows: readonly { entity: string; entity_id: string | null }[]): PublishFailure[] {
+ * first), one entry each: a document that failed twice is listed once, by its
+ * newest failure, with the `{seq, sqlstate}` summary `publish_due` wrote. */
+export function publishFailures(rows: readonly { entity: string; entity_id: string | null; summary?: unknown }[]): PublishFailure[] {
   const seen = new Set<string>()
   const failures: PublishFailure[] = []
   for (const row of rows) {
@@ -145,9 +148,47 @@ export function publishFailures(rows: readonly { entity: string; entity_id: stri
     const key = `${row.entity}/${row.entity_id}`
     if (seen.has(key)) continue
     seen.add(key)
-    failures.push({ collection: row.entity, docId: row.entity_id })
+    const { seq, sqlstate } = (typeof row.summary === 'object' && row.summary !== null ? row.summary : {}) as { seq?: unknown; sqlstate?: unknown }
+    failures.push({
+      collection: row.entity,
+      docId: row.entity_id,
+      seq: typeof seq === 'number' && Number.isInteger(seq) ? seq : null,
+      sqlstate: typeof sqlstate === 'string' ? sqlstate : null,
+    })
   }
   return failures
+}
+
+/** What the home reads of a failed document: where it is now (`content_documents`). */
+export interface FailureDocument {
+  collection: string
+  doc_id: string
+  latest_data: Record<string, unknown> | null
+  live_seq: number | null
+}
+
+/** A failure that still stands, with its document's title in place of the raw id (a post's id is a uuid). */
+export type StandingFailure = PublishFailure & { title: string }
+
+/**
+ * The failures the owner still has to act on (ADMIN-CMS-06): one whose document is live at its failed version or a later
+ * one was published since, by hand or by a later schedule, so its warning is over. A failure with no seq cannot be
+ * compared and stays, and so does one whose document was not found.
+ */
+export function standingFailures(failures: readonly PublishFailure[], documents: readonly FailureDocument[]): StandingFailure[] {
+  const byKey = new Map(documents.map((doc) => [`${doc.collection}/${doc.doc_id}`, doc]))
+  const standing: StandingFailure[] = []
+  for (const failure of failures) {
+    const doc = byKey.get(`${failure.collection}/${failure.docId}`)
+    if (failure.seq !== null && doc?.live_seq != null && doc.live_seq >= failure.seq) continue
+    standing.push({ ...failure, title: documentTitle(failure.collection as Collection, failure.docId, doc?.latest_data ?? undefined) })
+  }
+  return standing
+}
+
+/** The reason a failed schedule adds to its line, for the SQLSTATE that has words; null for any other. */
+export function publishFailureReason(sqlstate: string | null): string | null {
+  return sqlstate === UNIQUE_VIOLATION ? DUPLICATE_SLUG_TEXT : null
 }
 
 /** The `outbox_attention()` rows a person can still act on: the replayable
@@ -232,7 +273,7 @@ export function AdminHome() {
   })
   // The owner's audit trail (RLS: owner only) of scheduled publishes that failed.
   const [publishFailed, setPublishFailed] = useState<
-    { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: PublishFailure[] }
+    { state: 'loading' } | { state: 'error' } | { state: 'ok'; value: StandingFailure[] }
   >({ state: 'loading' })
   const [visits, setVisits] = useState<
     { state: 'loading' } | { state: 'error' } | { state: 'unavailable' } | { state: 'ok'; value: number }
@@ -252,7 +293,7 @@ export function AdminHome() {
       if (!active) return
       const rows = (data as { status: string }[] | null) ?? []
       setEmailProblems(
-        error ? { state: 'error' } : { state: 'ok', value: replayableCount(rows), capped: rows.length >= ATTENTION_CAP },
+        error ? { state: 'error' } : { state: 'ok', value: replayableCount(rows), capped: attentionCapped(rows.length) },
       )
     }
 
@@ -319,16 +360,31 @@ export function AdminHome() {
       const supabase = getSupabaseBrowserClient()
       const { data, error } = await supabase
         .from('audit_events')
-        .select('entity, entity_id')
+        .select('entity, entity_id, summary')
         .eq('action', 'content.publish_due_failed')
         .gte('at', new Date(Date.now() - PUBLISH_FAILED_WINDOW_MS).toISOString())
         .order('at', { ascending: false })
         .limit(100)
       if (!active) return
+      if (error) {
+        setPublishFailed({ state: 'error' })
+        return
+      }
+      const failures = publishFailures((data ?? []) as { entity: string; entity_id: string | null; summary: unknown }[])
+      if (failures.length === 0) {
+        setPublishFailed({ state: 'ok', value: [] })
+        return
+      }
+      // One read of the listed documents tells which were published since the failure (ADMIN-CMS-06).
+      const { data: documents, error: documentsError } = await supabase
+        .from('content_documents')
+        .select('collection, doc_id, latest_data, live_seq')
+        .in('doc_id', [...new Set(failures.map((failure) => failure.docId))])
+      if (!active) return
       setPublishFailed(
-        error
+        documentsError
           ? { state: 'error' }
-          : { state: 'ok', value: publishFailures((data ?? []) as { entity: string; entity_id: string | null }[]) },
+          : { state: 'ok', value: standingFailures(failures, (documents ?? []) as FailureDocument[]) },
       )
     }
 
@@ -510,14 +566,18 @@ export function AdminHome() {
                 تعذّر نشر {formatNumber(publishFailed.value.length)} من المحتوى المجدول في آخر 7 أيام:
               </p>
               <ul className={styles.metaList}>
-                {publishFailed.value.map((failure) => (
-                  <li key={`${failure.collection}/${failure.docId}`}>
-                    <Link href={documentHref(failure.collection, failure.docId)}>
-                      {(COLLECTION_LABELS as Record<string, string>)[failure.collection] ?? failure.collection}:{' '}
-                      <bdi>{failure.docId}</bdi>
-                    </Link>
-                  </li>
-                ))}
+                {publishFailed.value.map((failure) => {
+                  const reason = publishFailureReason(failure.sqlstate)
+                  return (
+                    <li key={`${failure.collection}/${failure.docId}`}>
+                      <Link href={documentHref(failure.collection, failure.docId)}>
+                        {(COLLECTION_LABELS as Record<string, string>)[failure.collection] ?? failure.collection}:{' '}
+                        <bdi>{failure.title}</bdi>
+                      </Link>
+                      {reason && ` ${reason}`}
+                    </li>
+                  )
+                })}
               </ul>
             </>
           )}

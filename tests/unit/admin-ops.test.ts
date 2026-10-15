@@ -8,6 +8,8 @@
 // FABLE-AUDIT F3-5 (g) and F3-15 add the owner home's failed run, passed schedule and failed scheduled jobs; F3-10 the
 // sign-in's refused Turnstile token and the one sentence for a lost connection or a limit across the three code
 // checks; F3-18 the reading of `outbox_close`.
+// RESIDUALS-1 R3a: the owner home's failed schedules (ADMIN-CMS-06), the email screen's cap (ADMIN-CMS-10) and the
+// documents list's states (ADMIN-CMS-18).
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { customersConfig } from '../../src/admin/tables/customers'
@@ -18,9 +20,12 @@ import {
   jobRunLine,
   overdueText,
   parseCronFailures,
+  publishFailureReason,
   publishFailures,
   SCHEDULE_GRACE_MS,
   scheduleCutoff,
+  standingFailures,
+  type FailureDocument,
 } from '../../src/components/admin/AdminHome'
 import {
   chooseCopy,
@@ -33,14 +38,17 @@ import {
   tabId,
   type StoredCopy,
 } from '../../src/components/admin/AdminShell'
-import { CLOSE_CONFIRM, CLOSED_MESSAGE, closeResult } from '../../src/components/admin/EmailView'
+import { listState } from '../../src/components/admin/CollectionList'
+import { ATTENTION_CAP, attentionCapped, CAPPED_NOTE, CLOSE_CONFIRM, CLOSED_MESSAGE, closeResult } from '../../src/components/admin/EmailView'
 import { sendOutcome } from '../../src/components/admin/SignIn'
 import { stepUpError } from '../../src/components/admin/StepUp'
 import { doneText, OWN_ROLE_CONFIRM, RETRY_REVOKE, unfinishedRevoke, withoutEdit } from '../../src/components/admin/TeamView'
 import { otpDigits } from '../../src/lib/digits'
 
-// AdminHome, AdminShell, StepUp and TeamView import through the `@/` alias, which the unit config does not resolve.
-vi.mock('@/admin/collections', () => ({ COLLECTION_LABELS: {} }))
+// AdminHome, AdminShell, CollectionList, StepUp and TeamView import through the `@/` alias, which the unit config does not
+// resolve. The home names a failed schedule's document by its real title, so the collections are the real ones.
+vi.mock('@/admin/collections', async () => import('../../src/admin/collections'))
+vi.mock('@/lib/admin-publish', async () => import('../../src/lib/admin-publish'))
 vi.mock('@/lib/digits', () => ({ otpDigits: String }))
 vi.mock('@/lib/admin-commerce', async () => import('../../src/lib/admin-commerce'))
 vi.mock('@/lib/format', () => ({ formatNumber: String, formatRiyadh: String }))
@@ -212,18 +220,113 @@ describe('the team screen and the step-up dialog', () => {
   })
 })
 
-describe('failed scheduled publishes', () => {
-  it('lists each document once, newest first', () => {
+describe('failed scheduled publishes (ADMIN-CMS-06)', () => {
+  it('lists each document once, newest first, by its newest failure with the seq and the SQLSTATE publish_due recorded', () => {
     const rows = [
-      { entity: 'posts', entity_id: 'b' },
-      { entity: 'rooms', entity_id: 'a' },
-      { entity: 'posts', entity_id: 'b' },
-      { entity: 'posts', entity_id: null },
+      { entity: 'posts', entity_id: 'b', summary: { seq: 5, sqlstate: '23505' } },
+      { entity: 'rooms', entity_id: 'a', summary: { seq: 2, sqlstate: '23514' } },
+      // The same document's older failure is not listed, nor is a row with no document.
+      { entity: 'posts', entity_id: 'b', summary: { seq: 3, sqlstate: '22023' } },
+      { entity: 'posts', entity_id: null, summary: { seq: 1, sqlstate: '23505' } },
     ]
     expect(publishFailures(rows)).toEqual([
-      { collection: 'posts', docId: 'b' },
-      { collection: 'rooms', docId: 'a' },
+      { collection: 'posts', docId: 'b', seq: 5, sqlstate: '23505' },
+      { collection: 'rooms', docId: 'a', seq: 2, sqlstate: '23514' },
     ])
+  })
+
+  it('reads a summary without a usable seq or sqlstate as null for each', () => {
+    const noSummary = [
+      { entity: 'posts', entity_id: 'a' },
+      { entity: 'posts', entity_id: 'b', summary: null },
+      { entity: 'posts', entity_id: 'c', summary: {} },
+      { entity: 'posts', entity_id: 'd', summary: { seq: '4', sqlstate: 23505 } },
+      { entity: 'posts', entity_id: 'e', summary: { seq: 1.5 } },
+      { entity: 'posts', entity_id: 'f', summary: 'text' },
+    ]
+    for (const failure of publishFailures(noSummary)) expect(failure, failure.docId).toMatchObject({ seq: null, sqlstate: null })
+    expect(publishFailures(noSummary)).toHaveLength(6)
+  })
+
+  describe('which failures still stand', () => {
+    const failure = (docId: string, seq: number | null) => ({ collection: 'posts', docId, seq, sqlstate: null })
+    const postRow = (docId: string, live: number | null, title = `مقال ${docId}`): FailureDocument => ({
+      collection: 'posts',
+      doc_id: docId,
+      latest_data: { title },
+      live_seq: live,
+    })
+    const standing = (failures: ReturnType<typeof failure>[], documents: FailureDocument[]) =>
+      standingFailures(failures, documents).map((entry) => entry.docId)
+
+    it('drops a failure once its document is live at the failed seq or later, and keeps it while the live one is older', () => {
+      const documents = [postRow('at', 4), postRow('after', 7), postRow('older', 3), postRow('never', null)]
+      const failures = [failure('at', 4), failure('after', 4), failure('older', 4), failure('never', 4)]
+      expect(standing(failures, documents)).toEqual(['older', 'never'])
+    })
+
+    it('keeps a failure with no seq, and one whose document was not found', () => {
+      expect(standing([failure('noseq', null), failure('gone', 2)], [postRow('noseq', 9)])).toEqual(['noseq', 'gone'])
+      expect(standing([], [postRow('x', 1)])).toEqual([])
+    })
+
+    it('matches a document by its collection and id together', () => {
+      const room = { collection: 'rooms', docId: 'started', seq: 3, sqlstate: null }
+      const postWithSameId: FailureDocument = { collection: 'posts', doc_id: 'started', latest_data: { title: 'مقال' }, live_seq: 9 }
+      expect(standingFailures([room], [postWithSameId])).toHaveLength(1)
+    })
+
+    it('labels each entry with its document\'s title, not its id (a post\'s id is a uuid)', () => {
+      const id = '3f9c2a1e-4b7d-4c1a-9e0f-5a6b7c8d9e01'
+      const [entry] = standingFailures([failure(id, 4)], [postRow(id, null, 'رحلتي إلى الدرعية')])
+      expect(entry).toMatchObject({ docId: id, title: 'رحلتي إلى الدرعية' })
+      // A post with no title, a room by its fixed label, a document not found at all.
+      expect(standingFailures([failure(id, 4)], [{ ...postRow(id, null), latest_data: {} }])[0]!.title).toBe('بلا عنوان')
+      expect(standingFailures([{ collection: 'rooms', docId: 'started', seq: 1, sqlstate: null }], [])[0]!.title).toBe('بدأتُ من هنا')
+      expect(standingFailures([failure(id, 4)], [])[0]!.title).toBe('بلا عنوان')
+    })
+  })
+
+  it('says why for a slug another post already has live (23505), and for no other SQLSTATE', () => {
+    expect(publishFailureReason('23505')).toBe('معرّف المقال مستخدم في مقال منشور آخر.')
+    for (const other of ['23514', '22023', 'P0001', '', null]) expect(publishFailureReason(other), String(other)).toBeNull()
+  })
+})
+
+describe('the email problems screen says when its list was cut (ADMIN-CMS-10)', () => {
+  it('shares one cap of 200 with the home, and the note shows when the list holds that many rows', () => {
+    expect(ATTENTION_CAP).toBe(200)
+    expect(attentionCapped(0)).toBe(false)
+    expect(attentionCapped(199)).toBe(false)
+    expect(attentionCapped(200)).toBe(true)
+    expect(attentionCapped(201)).toBe(true)
+  })
+
+  it('says it in the words of the brief', () => {
+    expect(CAPPED_NOTE).toBe('تُعرض 200 مشكلة فقط: ما يحتاج تدخلًا أولًا، ثم الأحدث.')
+  })
+})
+
+describe('the documents list: loading, failure and empty states (ADMIN-CMS-18)', () => {
+  const fixed = { fixed: true, rows: 0, unsaved: 0 }
+  const open = { fixed: false, rows: 0, unsaved: 0 }
+
+  it('shows «يحمّل...» until the query answers, whatever the collection', () => {
+    expect(listState({ ...fixed, loaded: false, failed: false })).toBe('loading')
+    expect(listState({ ...open, loaded: false, failed: false })).toBe('loading')
+  })
+
+  it('after a failed read, a collection of fixed documents keeps its titles and an open one shows the error alone', () => {
+    expect(listState({ ...fixed, loaded: false, failed: true })).toBe('titles')
+    expect(listState({ ...open, loaded: false, failed: true })).toBe('failed')
+  })
+
+  it('says «لا توجد مقالات بعد.» only for an open collection that answered with no document and no local copy', () => {
+    expect(listState({ ...open, loaded: true, failed: false })).toBe('empty')
+    expect(listState({ ...open, loaded: true, failed: false, rows: 1 })).toBe('table')
+    expect(listState({ ...open, loaded: true, failed: false, unsaved: 1 })).toBe('table')
+    // The fixed documents are listed whether or not any was saved.
+    expect(listState({ ...fixed, loaded: true, failed: false })).toBe('table')
   })
 })
 

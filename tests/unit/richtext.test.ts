@@ -54,6 +54,47 @@ describe('richTextSchema: rejects what is not allowlisted', () => {
   })
 })
 
+// ADMIN-CMS-12: the form prints a limit's message after the field's label, so each limit says in Arabic what to do.
+describe('richTextSchema: each document limit has its own message', () => {
+  const doc = (...blocks: unknown[]) => ({ root: { type: 'root', children: blocks } })
+  const paragraph = (...inline: unknown[]) => ({ type: 'paragraph', children: inline })
+  const words = (value: string) => ({ type: 'text', text: value, format: 0 })
+  const item = { type: 'listitem', children: [words('بند')] }
+  const issues = (value: unknown) => {
+    const result = richTextSchema.safeParse(value)
+    return result.success ? [] : result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message }))
+  }
+
+  it('a text node over 20000 characters', () => {
+    expect(issues(doc(paragraph(words('ا'.repeat(20000)))))).toEqual([])
+    expect(issues(doc(paragraph(words('ا'.repeat(20001)))))).toEqual([
+      { path: 'root.children.0.children.0.text', message: 'الفقرة أطول من 20000 حرف؛ قسّمها.' },
+    ])
+  })
+
+  it('a block with more than 2000 lines and formats in it', () => {
+    const lines = (count: number) => paragraph(...Array.from({ length: count }, () => ({ type: 'linebreak' })))
+    expect(issues(doc(lines(2000)))).toEqual([])
+    expect(issues(doc(lines(2001)))).toEqual([
+      { path: 'root.children.0.children', message: 'الفقرة فيها أسطر أو تنسيقات كثيرة جدًا؛ قسّمها إلى فقرات.' },
+    ])
+  })
+
+  it('a list over 500 items', () => {
+    const list = (count: number) => ({ type: 'list', listType: 'bullet', children: Array.from({ length: count }, () => item) })
+    expect(issues(doc(list(500)))).toEqual([])
+    expect(issues(doc(list(501)))).toEqual([{ path: 'root.children.0.children', message: 'القائمة أطول من 500 بند؛ قسّمها.' }])
+  })
+
+  it('a root over 1000 blocks', () => {
+    const blocks = (count: number) => doc(...Array.from({ length: count }, () => paragraph()))
+    expect(issues(blocks(1000))).toEqual([])
+    expect(issues(blocks(1001))).toEqual([
+      { path: 'root.children', message: 'النص أطول من 1000 فقرة؛ قسّمه أو احذف الأسطر الفارغة.' },
+    ])
+  })
+})
+
 describe('RichText renderer', () => {
   it('renders bold and italic text, links, headings, quotes and lists', () => {
     const doc = richTextSchema.parse({

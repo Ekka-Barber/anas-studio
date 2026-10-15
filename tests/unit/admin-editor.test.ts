@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { schemaFor, SCENES_DOC_ID } from '../../src/admin/collections'
 import { POLICY_BODY_ERROR } from '../../src/admin/collections/policies'
 import { LINE_NOT_A_PARAGRAPH_ERROR, passedRoomFields, startedRoomFields } from '../../src/admin/collections/rooms'
+import { postFields } from '../../src/admin/collections/posts'
 import { scenesFields } from '../../src/admin/collections/scenes'
 import {
   NAV_HREF_DUPLICATE_ERROR,
@@ -22,10 +23,15 @@ import {
   siteSettingsStoredSchema,
 } from '../../src/admin/collections/site-settings'
 import {
+  changesLiveSlug,
+  defaultsForFields,
   draftOffer,
   draftStorageAction,
+  emptyRichTextAsDefault,
   equalData,
   fieldPathLabel,
+  holdsText,
+  deleteAsks,
   schemaFromFields,
   withDefaults,
   type Field,
@@ -163,6 +169,106 @@ describe('fieldPathLabel: names the item and the field (FIX-admin-3)', () => {
     const result = schemaFor('scenes', SCENES_DOC_ID).safeParse({ items: [photo, photo, { ...photo, image: 'no-such-image' }] })
     expect(result.success).toBe(false)
     expect(fieldPathLabel(scenesFields, result.error!.issues[0]!.path)).toBe('الصور › 3 › الصورة')
+  })
+
+  // ADMIN-CMS-12: what lies inside a rich-text field is Lexical's tree of nodes, not words the owner can use.
+  it('stops at a rich-text field: its label alone, nothing of the path inside it', () => {
+    expect(fieldPathLabel(postFields, ['body'])).toBe('النص')
+    expect(fieldPathLabel(postFields, ['body', 'root', 'children', 0, 'children', 0, 'text'])).toBe('النص')
+    expect(fieldPathLabel(postFields, ['body', 'root', 'children'])).toBe('النص')
+    // The fields around it are named as before.
+    expect(fieldPathLabel(postFields, ['excerpt'])).toBe('مقتطف')
+  })
+
+  it('reads «النص: الفقرة أطول من 20000 حرف؛ قسّمها.» for a post body over the limit, as the form prints it', () => {
+    const result = schemaFor('posts', randomUUID()).safeParse({
+      slug: 'hello',
+      title: 'عنوان',
+      excerpt: '',
+      body: body('ا'.repeat(20001)),
+      author: '',
+      categories: [],
+      tags: [],
+      visible: true,
+    })
+    expect(result.success).toBe(false)
+    const lines = result.error!.issues.map((issue) => `${fieldPathLabel(postFields, issue.path)}: ${issue.message}`)
+    expect(lines).toEqual(['النص: الفقرة أطول من 20000 حرف؛ قسّمها.'])
+  })
+})
+
+describe('emptyRichTextAsDefault: an editor nobody typed in is the empty body, not a change (ADMIN-CMS-05)', () => {
+  const empty = () => ({ root: { type: 'root', children: [] } })
+  // The shape Lexical writes for a paragraph, with its own bookkeeping keys.
+  const paragraph = (...children: unknown[]) => ({ type: 'paragraph', children, direction: null, format: '', indent: 0, version: 1 })
+  const root = (...blocks: unknown[]) => ({ root: { type: 'root', direction: null, format: '', indent: 0, version: 1, children: blocks } }) as never
+
+  it('hands back the richtext field\'s default for a root holding one empty paragraph, so the form is not changed', () => {
+    const untouched = root(paragraph())
+    const handedBack = emptyRichTextAsDefault(untouched)
+    expect(handedBack).toEqual(empty())
+    expect(handedBack).toEqual(defaultsForFields([{ name: 'body', label: 'النص', type: 'richtext' }]).body)
+    expect(equalData(handedBack, empty())).toBe(true)
+    // What the editor reported before this rule could never match the stored empty body.
+    expect(equalData(untouched, empty())).toBe(false)
+  })
+
+  it('returns anything else as it is: a paragraph with text, two empty paragraphs, a heading, the empty root', () => {
+    const typed = root(paragraph({ type: 'text', text: 'نص', format: 0 }))
+    const twoEmpty = root(paragraph(), paragraph())
+    const heading = root({ type: 'heading', tag: 'h2', children: [] })
+    const emptyRoot = empty() as never
+    for (const value of [typed, twoEmpty, heading, emptyRoot]) expect(emptyRichTextAsDefault(value)).toBe(value)
+  })
+})
+
+describe('holdsText: whether a paragraph or a list item holds any text (ADMIN-CMS-13)', () => {
+  it('reads a paragraph by its text after trimming', () => {
+    expect(holdsText('')).toBe(false)
+    expect(holdsText('  \n\t ')).toBe(false)
+    expect(holdsText('سطر')).toBe(true)
+    expect(holdsText('  سطر  ')).toBe(true)
+  })
+
+  it('reads a list item by every string in it, at any depth, and counts neither numbers nor flags as text', () => {
+    expect(holdsText({ title: '', year: 2013, hidden: false, paragraphs: ['', '  '], media: { reels: [{ id: ' ', note: null }] } })).toBe(false)
+    expect(holdsText({ title: '', paragraphs: ['', 'فقرة'] })).toBe(true)
+    expect(holdsText({ title: '', media: { reels: [{ id: '45-animated-pottery-signature' }] } })).toBe(true)
+    for (const nothing of [{}, [], null, undefined, 0, false]) expect(holdsText(nothing)).toBe(false)
+  })
+})
+
+describe('deleteAsks: «حذف» asks only about an item that is more than what «أضف عنصرًا» made (R3a audit, N2)', () => {
+  // A home door as the list adds it: its select presets text («/started», «coral») though nothing was typed.
+  const fresh = { label: '', href: '/started', tone: 'coral', hidden: false }
+
+  it('lets a fresh item go at once, preset choices and all, in any key order', () => {
+    expect(deleteAsks({ ...fresh }, fresh)).toBe(false)
+    expect(deleteAsks({ hidden: false, tone: 'coral', href: '/started', label: '' }, fresh)).toBe(false)
+  })
+
+  it('asks once anything is typed or chosen, and never about an item with no text', () => {
+    expect(deleteAsks({ ...fresh, label: 'بدأت من هنا' }, fresh)).toBe(true)
+    expect(deleteAsks({ ...fresh, tone: 'sand' }, fresh)).toBe(true)
+    expect(deleteAsks({ label: '', note: '  ' }, { label: '', note: '' })).toBe(false)
+  })
+})
+
+describe('changesLiveSlug: a published post\'s «المعرّف» that differs from the live one (ADMIN-CMS-16)', () => {
+  it('has nothing to differ from when there is no live slug: a post never published, or a read that failed', () => {
+    expect(changesLiveSlug(null, 'a-post')).toBe(false)
+    expect(changesLiveSlug(null, '')).toBe(false)
+  })
+
+  it('is false for the same slug, so the note goes when it is put back', () => {
+    expect(changesLiveSlug('a-post', 'a-post')).toBe(false)
+  })
+
+  it('is true for another slug, an empty one and a value that is no text', () => {
+    expect(changesLiveSlug('a-post', 'b-post')).toBe(true)
+    expect(changesLiveSlug('a-post', 'a-post-2')).toBe(true)
+    expect(changesLiveSlug('a-post', '')).toBe(true)
+    expect(changesLiveSlug('a-post', undefined)).toBe(true)
   })
 })
 

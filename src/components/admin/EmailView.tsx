@@ -70,6 +70,19 @@ type ProblemFilter = 'all' | 'attention' | 'ended'
 const PROBLEM_FILTERS: ProblemFilter[] = ['all', 'attention', 'ended']
 const PROBLEM_FILTER_LABEL: Record<ProblemFilter, string> = { all: 'الكل', attention: 'تحتاج تدخل', ended: 'انتهت' }
 
+/**
+ * `outbox_attention()` returns at most 200 rows (its SQL limit; the replayable rows come first, then the newest): a list
+ * that long was cut. The owner home shares the cap to mark its count «+», this screen to say so under its filters
+ * (ADMIN-CMS-10).
+ */
+export const ATTENTION_CAP = 200
+export const CAPPED_NOTE = `تُعرض ${ATTENTION_CAP} مشكلة فقط: ما يحتاج تدخلًا أولًا، ثم الأحدث.`
+
+/** Whether a list of this many rows reached the cap, so more may exist than are shown. */
+export function attentionCapped(rowCount: number): boolean {
+  return rowCount >= ATTENTION_CAP
+}
+
 export const CLOSE_CONFIRM = 'إغلاق الرسالة يخرجها من القائمة ولا تُرسل بعد ذلك. متابعة؟'
 export const CLOSED_MESSAGE = 'أُغلقت الرسالة.'
 const CLOSE_FAILED_MESSAGE = 'تعذّر إغلاق الرسالة.'
@@ -235,6 +248,11 @@ export function EmailView() {
             </button>
           ))}
         </div>
+      )}
+      {rows !== null && attentionCapped(rows.length) && (
+        <p role="status" className={styles.message}>
+          {CAPPED_NOTE}
+        </p>
       )}
 
       {loadError && (

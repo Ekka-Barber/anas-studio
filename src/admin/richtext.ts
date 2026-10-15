@@ -12,11 +12,22 @@ export interface RichTextNode {
   [key: string]: unknown
 }
 
-const children = z.lazy(() => z.array(inlineOrBlock).max(2000))
+// Each document limit says in Arabic what to do about it (ADMIN-CMS-12): the form prints the message after the field's
+// label only, so a body over a limit was explained in English after a path of Lexical's node names.
+const TEXT_MAX = 20000
+const INLINE_MAX = 2000
+const LIST_MAX = 500
+const BLOCKS_MAX = 1000
+export const TEXT_TOO_LONG_ERROR = `الفقرة أطول من ${TEXT_MAX} حرف؛ قسّمها.`
+export const INLINE_TOO_MANY_ERROR = 'الفقرة فيها أسطر أو تنسيقات كثيرة جدًا؛ قسّمها إلى فقرات.'
+export const LIST_TOO_LONG_ERROR = `القائمة أطول من ${LIST_MAX} بند؛ قسّمها.`
+export const BLOCKS_TOO_MANY_ERROR = `النص أطول من ${BLOCKS_MAX} فقرة؛ قسّمه أو احذف الأسطر الفارغة.`
+
+const children = z.lazy(() => z.array(inlineOrBlock).max(INLINE_MAX, INLINE_TOO_MANY_ERROR))
 
 const text = z.looseObject({
   type: z.literal('text'),
-  text: z.string().max(20000),
+  text: z.string().max(TEXT_MAX, TEXT_TOO_LONG_ERROR),
   /** Lexical format bitmask; the renderer honours bold (1) and italic (2). */
   format: z.number().int().min(0).max(2047).default(0),
 })
@@ -47,7 +58,7 @@ const listitem = z.looseObject({ type: z.literal('listitem'), children })
 const list = z.looseObject({
   type: z.literal('list'),
   listType: z.enum(['bullet', 'number']),
-  children: z.array(listitem).max(500),
+  children: z.array(listitem).max(LIST_MAX, LIST_TOO_LONG_ERROR),
 })
 
 // zod's own message for a union is «Invalid input», in English and with no
@@ -62,7 +73,7 @@ const inlineOrBlock: z.ZodType<RichTextNode> = z.union(
 export const richTextSchema = z.looseObject({
   root: z.looseObject({
     type: z.literal('root'),
-    children: z.array(z.union([paragraph, heading, quote, list], badNode)).max(1000),
+    children: z.array(z.union([paragraph, heading, quote, list], badNode)).max(BLOCKS_MAX, BLOCKS_TOO_MANY_ERROR),
   }),
 })
 

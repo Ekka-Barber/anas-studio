@@ -79,12 +79,15 @@ Cloudflare Email Routing forwards to it.
      line is «تعذّر التحقق من المهام المجدولة.».
 3. **المحتوى المجدول** (owner and editors) — how many documents wait for their
    publish time. The owner also sees «تعذّر نشر N من المحتوى المجدول في آخر 7
-   أيام:» and one link per document (its collection and id, opening its
-   editor) when a scheduled publish failed in the last 7 days; the list comes
-   from the `content.publish_due_failed` audit rows, once per document. A
-   failed document has lost its schedule: fix the cause (usually a post slug
-   another live post uses) and schedule it again. If the audit read itself
-   fails the line says «تعذّر التحقق من نجاح النشر المجدول.».
+   أيام:» and one link per document (its collection and title, opening its
+   editor) when a scheduled publish failed in the last 7 days and the document
+   has not gone live at that version or a later one since; the list comes from
+   the `content.publish_due_failed` audit rows, the newest once per document.
+   A failure caused by a post slug another live post uses (23505) adds
+   «معرّف المقال مستخدم في مقال منشور آخر.». A failed document has lost its
+   schedule: fix the cause and schedule it again. If the audit read or the
+   documents' read fails the line says «تعذّر التحقق من نجاح النشر المجدول.»
+   (RESIDUALS-1 R3a).
 4. **الإحصاءات** (owner only) — see below. The visits line says «تعذّر
    التحميل» when the stats call itself failed, and «غير متاحة» only when the
    analytics report themselves unavailable.
@@ -307,7 +310,9 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   `replay_needs_confirmation` set for uncertain or exhausted rows past the
   23-hour window. The list is cut at 200 rows: the replayable ones
   (`exhausted`, `uncertain`) come first, the newest first, so while fewer than
-  200 rows are replayable the cut drops only rows nobody can act on.
+  200 rows are replayable the cut drops only rows nobody can act on. When the
+  list holds 200 rows the screen says so under its filters: «تُعرض 200 مشكلة
+  فقط: ما يحتاج تدخلًا أولًا، ثم الأحدث.» (RESIDUALS-1 R3a).
 
 ### Quota
 

@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { collections, COLLECTION_LABELS, documentTitle, schemaFor, type Collection } from '@/admin/collections'
 import {
+  changesLiveSlug,
   defaultsForFields,
   draftOffer,
   draftStorageAction,
@@ -38,6 +39,10 @@ import styles from './admin.module.css'
 const PREVIEW_ROOMS = new Set(['started', 'built', 'passed', 'shelf', 'book'])
 
 const CONFLICT_MESSAGE = 'تغيّر هذا المستند منذ فتحته. نصّك محفوظ هنا؛ حمّل آخر نسخة ثم أعد التعديل.'
+/** The status line while the form reloads after an action or a restore (ADMIN-CMS-14). */
+const RELOADING_MESSAGE = 'يحمّل آخر نسخة محفوظة…'
+/** Under a published post's «المعرّف» once it differs from the live one (ADMIN-CMS-16). */
+const SLUG_CHANGE_NOTE = 'تغيير المعرّف يغيّر رابط المقال المنشور، والروابط القديمة لن تعمل.'
 
 function fieldsFor(collection: Collection, docId: string): readonly Field[] {
   if (collection === 'rooms') {
@@ -61,6 +66,21 @@ function readStoredDraft(collection: Collection, docId: string, userId: string |
   return chooseCopy(copies, draftKey(collection, docId, tabId()), userId)
 }
 
+/** The «المعرّف» a post's live version carries; null when it has none or the read fails, and the form then shows no note. */
+async function readLiveSlug(docId: string, liveSeq: number | null): Promise<string | null> {
+  if (liveSeq === null) return null
+  // The slug alone, not the whole version (a body can be large).
+  const { data } = await getSupabaseBrowserClient()
+    .from('content_versions')
+    .select('slug:data->>slug')
+    .eq('collection', 'posts')
+    .eq('doc_id', docId)
+    .eq('seq', liveSeq)
+    .maybeSingle()
+  const slug = (data as { slug?: unknown } | null)?.slug
+  return typeof slug === 'string' ? slug : null
+}
+
 /** When a local copy was made, as Riyadh wall-clock text, or null for a time that cannot be read. */
 function savedAtLabel(savedAt: unknown): string | null {
   const date = typeof savedAt === 'number' ? new Date(savedAt) : null
@@ -72,11 +92,14 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   const schema = schemaFor(collection, docId)
   const needsTaxonomies = fields.some((field) => field.type === 'relation')
 
-  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // A load after the first one (the reload after an action or a restore) keeps the form on screen but not editable until it ends.
+  const [reloading, setReloading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [baseSeq, setBaseSeq] = useState(0)
   const [liveSeq, setLiveSeq] = useState<number | null>(null)
+  // The «المعرّف» the post's live version carries, read once per load; null for a post never published or a read that failed.
+  const [liveSlug, setLiveSlug] = useState<string | null>(null)
   const [scheduledAt, setScheduledAt] = useState<string | null>(null)
   const [scheduledSeq, setScheduledSeq] = useState<number | null>(null)
   const [initialData, setInitialData] = useState<Record<string, unknown>>({})
@@ -99,17 +122,6 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
   const answeredRef = useRef(false)
   // The storage key of the copy on offer: «تجاهل» removes that copy, whichever tab wrote it.
   const offeredKeyRef = useRef<string | null>(null)
-
-  useEffect(() => {
-    const supabase = getSupabaseBrowserClient()
-    supabase.auth
-      .getSession()
-      .then(({ data: sessionData }) => setAccessToken(sessionData.session?.access_token ?? null))
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) =>
-      setAccessToken(session?.access_token ?? null),
-    )
-    return () => subscription.subscription.unsubscribe()
-  }, [])
 
   useEffect(() => {
     if (!needsTaxonomies) return
@@ -139,8 +151,16 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     // Only the first load replaces the form with "يحمّل..."; a reload after
     // publish/schedule/archive/restore (via PublishBar's onChanged) must not
     // unmount PublishBar, or its just-set success message disappears before
-    // it can ever be seen.
+    // it can ever be seen. It stays on screen, but its fields are not editable
+    // until the reload ends (ADMIN-CMS-14): what is typed meanwhile would be
+    // replaced by the loaded text with no local copy. A load that is replaced by
+    // a newer one leaves the flag to that one; every other end clears it.
     if (!loadedOnceRef.current) setLoading(true)
+    else {
+      setReloading(true)
+      // The last «تم الحفظ.» is about the form before the action: it is not announced again after the reload.
+      setSaveMessage(null)
+    }
     setLoadError(null)
     const supabase = getSupabaseBrowserClient()
     const { data: row, error } = await supabase
@@ -153,9 +173,14 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     if (error) {
       setLoadError('تعذّر تحميل المستند.')
       setLoading(false)
+      setReloading(false)
       return
     }
-    const { data: sessionData } = await supabase.auth.getSession()
+    // ADMIN-CMS-16: a published post's live «المعرّف», read with the session, once per load.
+    const [{ data: sessionData }, loadedLiveSlug] = await Promise.all([
+      supabase.auth.getSession(),
+      collection === 'posts' ? readLiveSlug(docId, row?.live_seq ?? null) : null,
+    ])
     if (ticket !== loadTicketRef.current) return
     userIdRef.current = sessionData.session?.user.id
     const loadedSeq: number = row?.latest_seq ?? 0
@@ -167,6 +192,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
       : defaultsForFields(fields)
     setBaseSeq(loadedSeq)
     setLiveSeq(row?.live_seq ?? null)
+    setLiveSlug(loadedLiveSlug)
     setScheduledAt(row?.scheduled_at ?? null)
     setScheduledSeq(row?.scheduled_seq ?? null)
     setInitialData(loadedData)
@@ -181,6 +207,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     setStaleBase(offer.staleBase)
 
     setLoading(false)
+    setReloading(false)
     loadedOnceRef.current = true
     setLoadGeneration((generation) => generation + 1)
     setTimeout(() => {
@@ -322,7 +349,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
     <div className={styles.field}>
       {header}
 
-      <div key={loadGeneration} className={styles.field}>
+      <div key={loadGeneration} className={styles.field} inert={reloading} aria-busy={reloading || undefined}>
         {fields.map((field) => (
           <FieldInput
             key={field.name}
@@ -331,6 +358,7 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
             onChange={(value) => setData((prev) => ({ ...prev, [field.name]: value }))}
             id={`${collection}-${docId}-${field.name}`}
             taxonomies={taxonomies}
+            note={collection === 'posts' && field.name === 'slug' && changesLiveSlug(liveSlug, data.slug) ? SLUG_CHANGE_NOTE : undefined}
           />
         ))}
       </div>
@@ -353,15 +381,15 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
       )}
 
       <div className={styles.row}>
-        <button type="button" className={styles.button} disabled={saving} onClick={() => void save()}>
+        <button type="button" className={styles.button} disabled={saving || reloading} onClick={() => void save()}>
           حفظ
         </button>
         <p role="status" className={styles.message}>
-          {saveMessage}
+          {reloading ? RELOADING_MESSAGE : saveMessage}
         </p>
       </div>
 
-      {accessToken && baseSeq > 0 && (
+      {baseSeq > 0 && (
         <PublishBar
           collection={collection}
           docId={docId}
@@ -373,6 +401,8 @@ export function CollectionForm({ collection, docId }: { collection: Collection; 
           canArchive={collection === 'posts' || collection === 'taxonomies'}
           siteHidden={collection === 'posts' && data.visible === false}
           previewPath={previewPathFor(collection, docId)}
+          hasUnsavedChanges={hasUnsavedChanges}
+          reloading={reloading}
           onChanged={() => void load()}
         />
       )}

@@ -55,6 +55,21 @@ function statusFor(row: DocumentRow | undefined): string {
   return liveStatus(row.latest_data)
 }
 
+/** What the list shows in place of its table until it has documents to show (ADMIN-CMS-18). */
+export type ListState = 'loading' | 'titles' | 'failed' | 'empty' | 'table'
+
+/**
+ * `loading`: the query has not answered; `titles`: it failed for a collection of fixed documents (rooms, site settings,
+ * policies, scenes), whose titles are known without it, so each still opens and nothing claims a status or a save time;
+ * `failed`: it failed for an open collection (posts, taxonomies), where the error stands alone; `empty`: it answered
+ * with no document of an open collection and this user has no local copy of a new one; `table`: the documents.
+ */
+export function listState(input: { fixed: boolean; loaded: boolean; failed: boolean; rows: number; unsaved: number }): ListState {
+  if (input.failed) return input.fixed ? 'titles' : 'failed'
+  if (!input.loaded) return 'loading'
+  return !input.fixed && input.rows === 0 && input.unsaved === 0 ? 'empty' : 'table'
+}
+
 export function CollectionList({ collection }: { collection: Collection }) {
   const router = useRouter()
   const [rows, setRows] = useState<Map<string, DocumentRow> | null>(null)
@@ -77,9 +92,11 @@ export function CollectionList({ collection }: { collection: Collection }) {
       }
       const map = new Map<string, DocumentRow>()
       for (const row of (data as DocumentRow[]) ?? []) map.set(row.doc_id, row)
-      setRows(map)
+      // The rows and the local copies are set together, after both are known: the list reads «لا توجد مقالات بعد.» only
+      // when neither exists (ADMIN-CMS-18).
       if (collection !== 'posts' && collection !== 'taxonomies') {
         setUnsaved([])
+        setRows(map)
         return
       }
       const { data: sessionData } = await supabase.auth.getSession()
@@ -91,6 +108,7 @@ export function CollectionList({ collection }: { collection: Collection }) {
             title: documentTitle(collection, docId, typeof draft.data === 'object' && draft.data !== null ? (draft.data as Record<string, unknown>) : undefined),
           })),
       )
+      setRows(map)
     })()
   }, [collection])
 
@@ -109,6 +127,14 @@ export function CollectionList({ collection }: { collection: Collection }) {
             : rows
               ? Array.from(rows.keys())
               : []
+
+  const state = listState({
+    fixed: collection !== 'posts' && collection !== 'taxonomies',
+    loaded: rows !== null,
+    failed: error !== null,
+    rows: rows?.size ?? 0,
+    unsaved: unsaved.length,
+  })
 
   function createPost() {
     router.push(documentHref('posts', crypto.randomUUID().toLowerCase()))
@@ -165,42 +191,62 @@ export function CollectionList({ collection }: { collection: Collection }) {
         </p>
       )}
 
-      <div className={styles.tableWrap}>
-        {/* Cards on phones, like the email and team tables: one long word in a
-            title otherwise widened the table past its box and cut the dates. */}
-        <table className={`${styles.table} ${styles.responsive}`}>
-          <thead>
-            <tr>
-              <th>العنوان</th>
-              <th>الحالة</th>
-              <th>آخر حفظ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {unsaved.map(({ docId, title }) => (
-              <tr key={`unsaved:${docId}`}>
-                <td data-label="العنوان">
-                  <Link href={documentHref(collection, docId)}>{title}</Link>
-                </td>
-                <td data-label="الحالة">مسودة غير محفوظة على هذا الجهاز</td>
-                <td data-label="آخر حفظ">لم يُحفظ بعد</td>
+      {state === 'loading' && (
+        <p role="status" className={styles.message}>
+          يحمّل...
+        </p>
+      )}
+      {state === 'empty' && (
+        <p role="status" className={styles.message}>
+          {collection === 'posts' ? 'لا توجد مقالات بعد.' : 'لا توجد تصنيفات بعد.'}
+        </p>
+      )}
+      {(state === 'table' || state === 'titles') && (
+        <div className={styles.tableWrap}>
+          {/* Cards on phones, like the email and team tables: one long word in a
+              title otherwise widened the table past its box and cut the dates. */}
+          <table className={`${styles.table} ${styles.responsive}`}>
+            <thead>
+              <tr>
+                <th>العنوان</th>
+                {state === 'table' && (
+                  <>
+                    <th>الحالة</th>
+                    <th>آخر حفظ</th>
+                  </>
+                )}
               </tr>
-            ))}
-            {docIds.map((docId) => {
-              const row = rows?.get(docId)
-              return (
-                <tr key={docId}>
+            </thead>
+            <tbody>
+              {unsaved.map(({ docId, title }) => (
+                <tr key={`unsaved:${docId}`}>
                   <td data-label="العنوان">
-                    <Link href={documentHref(collection, docId)}>{documentTitle(collection, docId, row?.latest_data)}</Link>
+                    <Link href={documentHref(collection, docId)}>{title}</Link>
                   </td>
-                  <td data-label="الحالة">{statusFor(row)}</td>
-                  <td data-label="آخر حفظ">{row ? formatRiyadh(row.latest_at) : 'لم يُحفظ بعد'}</td>
+                  <td data-label="الحالة">مسودة غير محفوظة على هذا الجهاز</td>
+                  <td data-label="آخر حفظ">لم يُحفظ بعد</td>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              ))}
+              {docIds.map((docId) => {
+                const row = rows?.get(docId)
+                return (
+                  <tr key={docId}>
+                    <td data-label="العنوان">
+                      <Link href={documentHref(collection, docId)}>{documentTitle(collection, docId, row?.latest_data)}</Link>
+                    </td>
+                    {state === 'table' && (
+                      <>
+                        <td data-label="الحالة">{statusFor(row)}</td>
+                        <td data-label="آخر حفظ">{row ? formatRiyadh(row.latest_at) : 'لم يُحفظ بعد'}</td>
+                      </>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

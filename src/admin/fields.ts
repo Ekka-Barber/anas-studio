@@ -162,12 +162,56 @@ function defaultForField(field: Field): unknown {
     case 'date':
       return ''
     case 'richtext':
-      return { root: { type: 'root', children: [] } }
+      return emptyRichText()
     case 'group':
       return defaultsForFields(field.fields)
     case 'list':
       return []
   }
+}
+
+function emptyRichText(): RichTextDocument {
+  return { root: { type: 'root', children: [] } }
+}
+
+/**
+ * A rich-text value as the form keeps it (ADMIN-CMS-05). Lexical appends one empty paragraph to an editor that starts
+ * empty, so a body nobody has typed in, or one typed in and cleared, comes back as a root holding that paragraph, which
+ * `equalData` cannot match to the stored empty default: the untouched body would count as changed. That one shape, a
+ * single paragraph with no children and nothing else, is handed back as the default; any other value is returned as it is.
+ */
+export function emptyRichTextAsDefault(value: RichTextDocument): RichTextDocument {
+  const blocks: readonly { type?: unknown; children?: unknown }[] = value.root.children
+  const only = blocks.length === 1 ? blocks[0] : undefined
+  return only?.type === 'paragraph' && Array.isArray(only.children) && only.children.length === 0 ? emptyRichText() : value
+}
+
+/**
+ * Whether a paragraph or a list item holds any text (ADMIN-CMS-13): a string anywhere in it, at any depth, with a
+ * character left after trimming. «حذف» removes an item that holds none at once and asks first about one that does.
+ */
+export function holdsText(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim() !== ''
+  if (Array.isArray(value)) return value.some(holdsText)
+  if (value !== null && typeof value === 'object') return Object.values(value).some(holdsText)
+  return false
+}
+
+/**
+ * Whether «حذف» asks first about a list item: it holds text and is not just what «أضف عنصرًا» made, so a fresh item
+ * whose form presets a choice (a door's tone, a scene's category) still goes at once (R3a audit, N2).
+ */
+export function deleteAsks(item: unknown, fresh: unknown): boolean {
+  return holdsText(item) && !equalData(item, fresh)
+}
+
+/**
+ * Whether the post's «المعرّف» now differs from the one its live version carries (ADMIN-CMS-16): the article's address
+ * is its slug, so the published page moves to the new one at the next build and the old address answers 404. With no
+ * live slug (a post never published, or a live version that could not be read) there is nothing to differ from.
+ */
+export function changesLiveSlug(liveSlug: string | null, slug: unknown): boolean {
+  return liveSlug !== null && slug !== liveSlug
 }
 
 /**
@@ -252,7 +296,8 @@ export function draftStorageAction(offerPending: boolean, data: unknown, saved: 
 /**
  * A validation issue's path in words for the form's error list (FIX-admin-3):
  * the top-level label, the 1-based number of a list item or paragraph, then the
- * inner field's label, like «المشاهد › 17 › التعليق».
+ * inner field's label, like «المشاهد › 17 › التعليق». It stops at a rich-text
+ * field (ADMIN-CMS-12): what lies inside is Lexical's tree of nodes, not words.
  */
 export function fieldPathLabel(fields: readonly Field[], path: readonly PropertyKey[]): string {
   const parts: string[] = []
@@ -264,6 +309,7 @@ export function fieldPathLabel(fields: readonly Field[], path: readonly Property
     }
     const field = scope.find((candidate) => candidate.name === segment)
     parts.push(field?.label ?? String(segment))
+    if (field?.type === 'richtext') break
     scope = field?.type === 'group' || field?.type === 'list' ? field.fields : []
   }
   return parts.join(' › ')

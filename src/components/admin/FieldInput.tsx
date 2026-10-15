@@ -13,7 +13,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 
-import { altSibling, defaultsForFields, withPickedImage, type Field } from '../../admin/fields'
+import { altSibling, defaultsForFields, deleteAsks, holdsText, withPickedImage, type Field } from '../../admin/fields'
 import { isDay } from '../../lib/admin-commerce'
 import { formatRiyalsInput, isoToRiyadhLocal, parseRiyals, riyadhLocalToIsoOrNull } from '../../lib/money-input'
 import { isMediaId, mediaUrl } from '../../lib/media-ref'
@@ -28,6 +28,16 @@ import { RichTextEditor } from './RichTextEditor'
 
 const imageIds = Object.keys(imageManifestRaw as Record<string, unknown>)
 const videoIds = Object.keys((mediaManifestRaw as { videos: Record<string, unknown> }).videos)
+
+/** «حذف» on a paragraph or a list item that holds text asks first (ADMIN-CMS-13); one with no text goes at once. */
+const DELETE_PARAGRAPH_CONFIRM = 'حذف هذه الفقرة وما كُتب فيها؟'
+const DELETE_ITEM_CONFIRM = 'حذف هذا العنصر وما كُتب فيه؟'
+
+/** The item «أضف عنصرًا» adds to a list; «حذف» goes at once on an item still equal to it. */
+const freshItem = (field: Extract<Field, { type: 'list' }>): Record<string, unknown> => ({
+  ...defaultsForFields(field.fields),
+  ...(field.hideable ? { hidden: false } : {}),
+})
 
 interface ManifestFile {
   width: number
@@ -277,6 +287,8 @@ interface FieldInputProps {
   taxonomies?: TaxonomiesByKind
   /** An image field whose parent holds an alt for it: the parent takes the picked id and the library's alt together (`withPickedImage`). */
   onPick?: (mediaId: string, alt: string) => void
+  /** A sentence under a text field's input, announced when it appears and tied to the input (the post's changed «المعرّف»). */
+  note?: string
 }
 
 type MoneyField = Extract<Field, { type: 'money' }>
@@ -368,10 +380,11 @@ function MoneyFieldInput({ field, value, onChange, id }: { field: MoneyField; va
   )
 }
 
-export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: FieldInputProps) {
+export function FieldInput({ field, value, onChange, id, taxonomies, onPick, note }: FieldInputProps) {
   switch (field.type) {
     case 'text':
-    case 'slug':
+    case 'slug': {
+      const describedBy = [field.hint ? `${id}-hint` : null, note ? `${id}-note` : null].filter(Boolean).join(' ')
       return (
         <div className={styles.field}>
           <label className={styles.label} htmlFor={id}>
@@ -384,7 +397,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: F
             className={styles.input}
             type="text"
             dir="auto"
-            aria-describedby={field.hint ? `${id}-hint` : undefined}
+            aria-describedby={describedBy || undefined}
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
           />
@@ -393,8 +406,14 @@ export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: F
               {field.hint}
             </p>
           )}
+          {note && (
+            <p id={`${id}-note`} role="status" className={styles.message}>
+              {note}
+            </p>
+          )}
         </div>
       )
+    }
     case 'textarea':
       return (
         <div className={styles.field}>
@@ -670,7 +689,10 @@ export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: F
                   type="button"
                   className={styles.buttonSecondary}
                   aria-label={`حذف: ${field.label} ${index + 1}`}
-                  onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+                  onClick={() => {
+                    if (holdsText(paragraph) && !window.confirm(DELETE_PARAGRAPH_CONFIRM)) return
+                    onChange(items.filter((_, itemIndex) => itemIndex !== index))
+                  }}
                 >
                   حذف
                 </button>
@@ -756,7 +778,10 @@ export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: F
                   type="button"
                   className={styles.buttonSecondary}
                   aria-label={`حذف: ${field.label} ${index + 1}`}
-                  onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+                  onClick={() => {
+                    if (deleteAsks(item, freshItem(field)) && !window.confirm(DELETE_ITEM_CONFIRM)) return
+                    onChange(items.filter((_, itemIndex) => itemIndex !== index))
+                  }}
                 >
                   حذف
                 </button>
@@ -767,10 +792,7 @@ export function FieldInput({ field, value, onChange, id, taxonomies, onPick }: F
             type="button"
             className={styles.buttonSecondary}
             onClick={() =>
-              onChange([
-                ...items,
-                { ...defaultsForFields(field.fields), ...(field.hideable ? { hidden: false } : {}) },
-              ])
+              onChange([...items, freshItem(field)])
             }
           >
             أضف عنصرًا

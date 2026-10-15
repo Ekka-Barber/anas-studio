@@ -33,6 +33,7 @@ import {
   type LexicalEditor,
 } from 'lexical'
 
+import { emptyRichTextAsDefault } from '../../admin/fields'
 import { linkUrlSchema, type RichTextDocument } from '../../admin/richtext'
 
 import styles from './admin.module.css'
@@ -261,7 +262,8 @@ export function RichTextEditor({
 
   const handleChange = useCallback(
     (editorState: EditorState) => {
-      onChange(editorState.toJSON() as unknown as RichTextDocument)
+      // An editor nobody has typed in holds one empty paragraph: that is the empty body, not a change (ADMIN-CMS-05).
+      onChange(emptyRichTextAsDefault(editorState.toJSON() as unknown as RichTextDocument))
     },
     [onChange],
   )
@@ -280,7 +282,8 @@ export function RichTextEditor({
       <LinkPlugin />
       <HistoryPlugin />
       <AllowlistPlugin />
-      <OnChangePlugin onChange={handleChange} />
+      {/* A click or an arrow key moves the selection and changes no content: the form is not told (ADMIN-CMS-05). */}
+      <OnChangePlugin ignoreSelectionChange onChange={handleChange} />
     </LexicalComposer>
   )
 }

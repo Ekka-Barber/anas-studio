@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SCENES_DOC_ID } from '../../src/admin/collections'
-import { PublishBar } from '../../src/components/admin/PublishBar'
+import { PREVIEW_UNSAVED_NOTE, PublishBar } from '../../src/components/admin/PublishBar'
 import { publishDocument, scheduleDocument, scheduleIsBehind } from '../../src/lib/admin-publish'
 import { SCENE_CATEGORIES } from '../../src/content/scenes'
 
@@ -116,5 +116,51 @@ describe('a schedule behind the latest version (ADMIN-publish-3)', () => {
     expect(html).toContain('مجدول: نسخة 4 في')
     expect(html).not.toContain('role="alert"')
     expect(html).not.toContain('الموعد نفسه')
+  })
+})
+
+// ADMIN-CMS-23: «معاينة» draws the last saved version, so while the form holds edits the bar says to save first.
+describe('the preview link beside unsaved edits', () => {
+  const PREVIEW = '/admin/preview?id=started'
+  const room = (props: { hasUnsavedChanges?: boolean; previewPath?: string | null; reloading?: boolean }) =>
+    renderToStaticMarkup(
+      createElement(PublishBar, {
+        collection: 'rooms',
+        docId: 'started',
+        seq: 4,
+        liveSeq: 4,
+        scheduledAt: null,
+        scheduledSeq: null,
+        canPublish: true,
+        canArchive: false,
+        previewPath: PREVIEW,
+        onChanged: () => {},
+        ...props,
+      }),
+    ).replaceAll('<!-- -->', '')
+
+  it('says to save first, as a status, and keeps the link', () => {
+    const html = room({ hasUnsavedChanges: true })
+    expect(PREVIEW_UNSAVED_NOTE).toBe('احفظ أولًا لترى تعديلاتك في المعاينة.')
+    expect(html).toMatch(/<p role="status" class="[^"]*">احفظ أولًا لترى تعديلاتك في المعاينة\.<\/p>/)
+    expect(html).toContain(`href="${PREVIEW}"`)
+    expect(html.indexOf('معاينة</a>')).toBeLessThan(html.indexOf(PREVIEW_UNSAVED_NOTE))
+  })
+
+  it('says nothing when the form is saved or does not say, and for a document with no preview', () => {
+    expect(room({})).not.toContain(PREVIEW_UNSAVED_NOTE)
+    expect(room({ hasUnsavedChanges: false })).not.toContain(PREVIEW_UNSAVED_NOTE)
+    const noPreview = room({ hasUnsavedChanges: true, previewPath: null })
+    expect(noPreview).not.toContain(PREVIEW_UNSAVED_NOTE)
+    expect(noPreview).not.toContain('معاينة')
+  })
+
+  // R3a audit: while the form reads the document again its `seq` is about to change, so nothing in the bar can be pressed.
+  it('lets nothing be pressed while the form reloads, and everything once it has', () => {
+    const buttons = (html: string) => html.match(/<button[^>]*>/g) ?? []
+    const reloading = buttons(room({ reloading: true }))
+    expect(reloading.length).toBeGreaterThan(1)
+    for (const button of reloading) expect(button).toContain('disabled=""')
+    expect(buttons(room({}))[0]).not.toContain('disabled=""')
   })
 })

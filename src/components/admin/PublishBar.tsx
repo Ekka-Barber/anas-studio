@@ -40,8 +40,18 @@ interface PublishBarProps {
   /** A post whose «ظاهر» is off: publishing it does not put it on the site, and the message says so. */
   siteHidden?: boolean
   previewPath: string | null
+  /** The form holds edits that are not saved: the preview shows the last saved version, and the bar says so. */
+  hasUnsavedChanges?: boolean
+  /**
+   * The form is reading the document again after an action: `seq` is about to change, so nothing is sent until it has
+   * («نشر» right after a restore would otherwise publish the version from before it; R3a audit).
+   */
+  reloading?: boolean
   onChanged: () => void
 }
+
+/** Beside «معاينة» while the form has unsaved edits (ADMIN-CMS-23): the preview draws the saved version, not the open form. */
+export const PREVIEW_UNSAVED_NOTE = 'احفظ أولًا لترى تعديلاتك في المعاينة.'
 
 export function PublishBar({
   collection,
@@ -54,9 +64,12 @@ export function PublishBar({
   canArchive,
   siteHidden = false,
   previewPath,
+  hasUnsavedChanges = false,
+  reloading = false,
   onChanged,
 }: PublishBarProps) {
   const [busy, setBusy] = useState(false)
+  const off = busy || reloading
   const [message, setMessage] = useState<string | null>(null)
   const [scheduleValue, setScheduleValue] = useState('')
   const scheduleId = `${collection}-${docId}-schedule`
@@ -103,7 +116,7 @@ export function PublishBar({
         <button
           type="button"
           className={styles.button}
-          disabled={busy || !canPublish}
+          disabled={off || !canPublish}
           onClick={() => run('نشر', () => publishDocument(collection, docId, seq), { rebuilds: true, hidden: siteHidden, policy })}
         >
           نشر
@@ -113,7 +126,7 @@ export function PublishBar({
           <button
             type="button"
             className={styles.buttonSecondary}
-            disabled={busy}
+            disabled={off}
             onClick={() => {
               if (window.confirm(ARCHIVE_CONFIRM)) void run('أرشفة', () => archiveDocument(collection, docId), { rebuilds: true })
             }}
@@ -125,6 +138,12 @@ export function PublishBar({
           <a className={styles.buttonSecondary} href={previewPath} target="_blank" rel="noopener">
             معاينة
           </a>
+        )}
+        {/* The link stays: the saved version can still be previewed. */}
+        {previewPath && hasUnsavedChanges && (
+          <p role="status" className={styles.message}>
+            {PREVIEW_UNSAVED_NOTE}
+          </p>
         )}
       </div>
       {/* The schedule time, its label and its buttons wrap as one group, so
@@ -143,7 +162,7 @@ export function PublishBar({
         <button
           type="button"
           className={styles.buttonSecondary}
-          disabled={busy || !canPublish || !scheduleValue}
+          disabled={off || !canPublish || !scheduleValue}
           onClick={schedule}
         >
           جدولة
@@ -152,7 +171,7 @@ export function PublishBar({
           <button
             type="button"
             className={styles.buttonSecondary}
-            disabled={busy}
+            disabled={off}
             onClick={() => run('إلغاء الجدولة', () => cancelSchedule(collection, docId))}
           >
             إلغاء الجدولة
@@ -175,7 +194,7 @@ export function PublishBar({
           <button
             type="button"
             className={styles.buttonSecondary}
-            disabled={busy || !canPublish}
+            disabled={off || !canPublish}
             onClick={() => void run('جدولة', () => scheduleDocument(collection, docId, seq, scheduledAt), { policy })}
           >
             جدولة النسخة {seq} في الموعد نفسه
