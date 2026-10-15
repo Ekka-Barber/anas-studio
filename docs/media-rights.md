@@ -37,7 +37,7 @@ time, and the server only verifies what arrived.
 | Original size | at most 15 MiB and 40 million pixels |
 | Derivative size | at most 4 MiB each |
 | Derivative widths | 360, 720, 1200 and 1800 px — only the ones that fit the crop; a smaller crop gets its own width. The library never upscales. |
-| Open uploads per person | at most 10 tickets; a ticket expires after 5 minutes |
+| Open uploads per person | at most 10 tickets; a ticket expires after 30 minutes |
 
 SVG, HTML, plain text and archive files are refused, as is any file whose
 real content does not match what was declared. The server checks the file's

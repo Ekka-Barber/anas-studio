@@ -17,6 +17,11 @@
  * one status line or alert line, and followed by a new reading of the order. The owner's
  * «إعادة إرسال رابط الطلب» (FABLE-AUDIT) goes the same way: `order-link-reissue`, through the
  * dialog when a new address is given.
+ *
+ * The money controls are the configured payment mode's. The owner's mode is read once from the `admin` function's `status`; an
+ * attempt, a review payment, a refund or the paying attempt of the other mode gives its «أعد الفحص», refund, external record and
+ * dispute way to one sentence, and an attempt the job parked for that mode offers «إغلاق بعد المراجعة» (`attempt_dismiss`). When the
+ * mode cannot be read the controls stay.
  */
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -52,10 +57,25 @@ import {
   type OrderDetail,
   type Refusal,
 } from '@/lib/admin-orders'
-import { disputeLines, inFlight as refundInFlight, readReissueReply, REISSUE_CONFIRM, reissueBody, REREAD_FAILED } from '@/lib/admin-money'
+import {
+  CLOSE_PARKED,
+  disputeLines,
+  inFlight as refundInFlight,
+  isOtherMode,
+  isParkedAttempt,
+  OTHER_MODE_SENTENCE,
+  PARKED_CLOSED,
+  paymentModeOf,
+  readReissueReply,
+  REISSUE_CONFIRM,
+  reissueBody,
+  REREAD_FAILED,
+  type PaymentMode,
+} from '@/lib/admin-money'
 import { formatDate, formatMoney, formatNumber, formatRiyadh } from '@/lib/format'
 import { clampQuantity } from '@/lib/orders'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction } from '@/lib/supabase/functions'
 
 import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
@@ -123,6 +143,20 @@ export function OrderView() {
   const focusBack = useFocusBack()
   // The attempt or review payment whose dispute form is open (`attempt:<id>` or `review:<paymentId>`).
   const [openDispute, setOpenDispute] = useState<string | null>(null)
+  // The site's payment mode, read once for the owner (`status`); null until it is read, and when it cannot be.
+  const [mode, setMode] = useState<PaymentMode | null>(null)
+
+  useEffect(() => {
+    if (!owner) return
+    let active = true
+    void (async () => {
+      const read = paymentModeOf(await callFunction<unknown>('admin', { action: 'status' }))
+      if (active) setMode(read)
+    })()
+    return () => {
+      active = false
+    }
+  }, [owner])
 
   useEffect(() => {
     if (!allowed || !valid) return
@@ -419,7 +453,10 @@ export function OrderView() {
     const controls = order.status === 'paid'
     // The owner's money controls: the lines a dispute can name, and the paying attempt a refund is made against (not once the order is refunded).
     const disputable = disputeLines(d)
-    const refundTarget = owner && order.status !== 'refunded' ? (d.attempts.find((attempt) => attempt.status === 'paid') ?? null) : null
+    const paying = owner && order.status !== 'refunded' ? (d.attempts.find((attempt) => attempt.status === 'paid') ?? null) : null
+    // A paying attempt of the other payment mode is not refunded here: the configured key cannot see its payment.
+    const payingOtherMode = paying !== null && isOtherMode(mode, paying.environment)
+    const refundTarget = payingOtherMode ? null : paying
     // The owner's «أعد الفحص» of a refund in flight: a column only while there is one.
     const rechecks = owner && d.refunds.some((refund) => refundInFlight(refund.status))
     const picked = d.fulfillments.filter((entry) => selected.includes(entry.itemId) && !blocked(entry, itemOf(entry.itemId)))
@@ -565,7 +602,24 @@ export function OrderView() {
                   {attempt.fetchedAt !== null && <Fact label="آخر تحقق من المزوّد">{formatRiyadh(attempt.fetchedAt)}</Fact>}
                   {attempt.lastError !== null && <Fact label="آخر خطأ">{ltr(attempt.lastError)}</Fact>}
                 </ul>
-                {owner && (
+                {owner && isOtherMode(mode, attempt.environment) && (
+                  <>
+                    <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
+                    {isParkedAttempt(attempt) && (
+                      <div className={styles.row}>
+                        <button
+                          type="button"
+                          className={styles.button}
+                          disabled={off}
+                          onClick={() => void act(`dismiss-attempt:${attempt.id}`, 'dismissAttempt', () => rpc('attempt_dismiss', { p_attempt: attempt.id }), () => PARKED_CLOSED)}
+                        >
+                          {CLOSE_PARKED}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+                {owner && !isOtherMode(mode, attempt.environment) && (
                   <div className={styles.row}>
                     <button
                       type="button"
@@ -588,7 +642,7 @@ export function OrderView() {
                     )}
                   </div>
                 )}
-                {openDispute === `attempt:${attempt.id}` && (
+                {openDispute === `attempt:${attempt.id}` && !isOtherMode(mode, attempt.environment) && (
                   <DisputeForm mode={{ kind: 'payment', target: { attemptId: attempt.id } }} lines={disputable} money={money} onClose={() => setOpenDispute(null)} />
                 )}
               </div>
@@ -646,7 +700,8 @@ export function OrderView() {
                         </div>
                       </div>
                     )}
-                    {owner && review.closedReason !== 'refunded' && (
+                    {owner && isOtherMode(mode, review.environment) && <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>}
+                    {owner && !isOtherMode(mode, review.environment) && review.closedReason !== 'refunded' && (
                       <RefundView
                         subject={{
                           kind: 'review',
@@ -660,7 +715,7 @@ export function OrderView() {
                         money={money}
                       />
                     )}
-                    {owner && (
+                    {owner && !isOtherMode(mode, review.environment) && (
                       <div className={styles.row}>
                         <button
                           type="button"
@@ -673,7 +728,7 @@ export function OrderView() {
                         </button>
                       </div>
                     )}
-                    {openDispute === `review:${review.paymentId}` && (
+                    {openDispute === `review:${review.paymentId}` && !isOtherMode(mode, review.environment) && (
                       <DisputeForm
                         mode={{ kind: 'payment', target: { reviewPaymentId: review.paymentId } }}
                         lines={disputable}
@@ -1061,7 +1116,7 @@ export function OrderView() {
           </section>
         )}
 
-        {(d.refunds.length > 0 || refundTarget !== null) && (
+        {(d.refunds.length > 0 || refundTarget !== null || payingOtherMode) && (
           <section>
             <h2>الاستردادات</h2>
             {d.refunds.length > 0 && (
@@ -1105,16 +1160,19 @@ export function OrderView() {
                         <td data-label="الخطأ">{refund.error !== null && ltr(refund.error)}</td>
                         {rechecks && (
                           <td data-label="إجراء">
-                            {refundInFlight(refund.status) && (
-                              <button
-                                type="button"
-                                className={styles.buttonSecondary}
-                                disabled={off}
-                                onClick={() => void money.run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
-                              >
-                                أعد الفحص
-                              </button>
-                            )}
+                            {refundInFlight(refund.status) &&
+                              (isOtherMode(mode, refund.environment) ? (
+                                <span className={styles.message}>{OTHER_MODE_SENTENCE}</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={styles.buttonSecondary}
+                                  disabled={off}
+                                  onClick={() => void money.run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
+                                >
+                                  أعد الفحص
+                                </button>
+                              ))}
                           </td>
                         )}
                       </tr>
@@ -1124,6 +1182,7 @@ export function OrderView() {
               </div>
             )}
             {refundTarget !== null && <RefundView subject={{ kind: 'order', detail: d, attemptId: refundTarget.id }} money={money} />}
+            {payingOtherMode && <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>}
           </section>
         )}
       </>

@@ -537,7 +537,7 @@ function with `{"job": "media_sweep"}`. The job removes, through the Storage
 API, every `media-private` object under `quarantine/` older than a day (parts
 of uploads that never completed; a completed or failed upload removes its
 own), then deletes `media_upload_tickets` rows older than a day (tickets
-expire after five minutes). Storage refuses direct deletes from
+expire after 30 minutes). Storage refuses direct deletes from
 `storage.objects`, and one would orphan the stored bytes, so the removal
 never runs in SQL. The run is recorded as `media_sweep`; the owner home
 flags it when the last run is over 26 hours old. Public derivatives that
@@ -949,7 +949,9 @@ refunded total.
   once.
 - **A return request** can be filed for a physical or signed line already shipped
   or delivered, with a reason, at most 5 a day for one order. It never issues a
-  refund.
+  refund. The order page sends a key with the request, kept until the form changes:
+  a press repeated after a reply that was lost is answered with the request already
+  filed and files nothing more.
 
 ### The owner's daily routine for orders
 
@@ -1135,10 +1137,10 @@ live site is labelled «تجريبي». Each section and what to do:
 
 | Section | What it lists | What to do |
 | --- | --- | --- |
-| «محاولات تحتاج فحصًا» | Attempts with a reason: «إنشاء غير مؤكد» (`UNCERTAIN`: the invoice creation's outcome is unknown), «لم يُتحقق منها» (`UNVERIFIED`: 24 hours after the invoice expired the last check still failed), «حالة مختلفة لدى Moyasar» (`PROVIDER_STATUS`: a paid payment that is no longer `paid` or `refunded`, a void for instance) and «استرداد لدى Moyasar غير مسجّل» (`EXTERNAL_REFUND`: Moyasar's refunded total is above the ledger's), or «تغيّر وضع الدفع» (`MODE_CHANGED`: `PAYMENTS_MODE` was changed while the attempt, which has an invoice, was still open, and the job parked it; round M1a) | «أعد الفحص» asks Moyasar now (it resolves an uncertain creation by listing the invoices, or settles from the invoice) and says «الحالة الآن: …»; an answered check clears `UNVERIFIED`. For the last two reasons look at the payment in Moyasar's dashboard, then «تسجيل استرداد خارجي» records the refund or the void. For `MODE_CHANGED` see "Changing the payment mode" in the payments runbook. |
+| «محاولات تحتاج فحصًا» | Attempts with a reason: «إنشاء غير مؤكد» (`UNCERTAIN`: the invoice creation's outcome is unknown), «لم يُتحقق منها» (`UNVERIFIED`: 24 hours after the invoice expired the last check still failed), «حالة مختلفة لدى Moyasar» (`PROVIDER_STATUS`: a paid payment that is no longer `paid` or `refunded`, a void for instance) and «استرداد لدى Moyasar غير مسجّل» (`EXTERNAL_REFUND`: Moyasar's refunded total is above the ledger's), or «تغيّر وضع الدفع» (`MODE_CHANGED`: `PAYMENTS_MODE` was changed while the attempt, which has an invoice, was still open, and the job parked it; round M1a) | «أعد الفحص» asks Moyasar now (it resolves an uncertain creation by listing the invoices, or settles from the invoice) and says «الحالة الآن: …»; an answered check clears `UNVERIFIED`. For the last two reasons look at the payment in Moyasar's dashboard, then «تسجيل استرداد خارجي» records the refund or the void. For `MODE_CHANGED` the card says «دفعة من وضع الدفع الآخر؛ تُدار من لوحة Moyasar.» in place of «أعد الفحص» and offers «إغلاق بعد المراجعة» (`attempt_dismiss`) once you have looked at the invoice in that mode's dashboard; the attempt then leaves this screen and «تحتاج مطابقة». See "Changing the payment mode" in the payments runbook. |
 | «دفعات قيد المراجعة» | Open review payments, with or without an order | See "Review payments". |
 | «دفعات بلا طلب أُغلقت مراجعتها» | Review payments with no order that the owner closed by hand and that are not refunded in full, the newest closed 50 (`closedReviews`) | They are still refundable: «استرداد هذه الدفعة» and «تسجيل استرداد خارجي», as on an open one. A payment refunded in full leaves the list. See "Review payments". |
-| «استردادات قيد المعالجة» | Refunds in flight, with their status and error code | «أعد الفحص» settles one from a fresh fetch. The job does it by itself; one in flight for more than 24 hours has no due time and waits for this button. |
+| «استردادات قيد المعالجة» | Refunds in flight, with their status and error code | «أعد الفحص» settles one from a fresh fetch. The job does it by itself; one in flight for more than 24 hours has no due time and waits for this button. A refund of the other payment mode shows the sentence «دفعة من وضع الدفع الآخر؛ تُدار من لوحة Moyasar.» instead of the button, and the job fails one it parks (`MODE_CHANGED`), so it does not stay here. |
 | «إشعارات الدفع» | Webhook events not processed, or exhausted after ten tries, that still need a person | Look at the payment in Moyasar's dashboard; when it is settled or nothing is owed, «تمت المراجعة» files the event («سُجّلت المراجعة.»). An exhausted event whose payment the ledger has since settled leaves the list by itself. |
 | «النزاعات» | Every reference with its rows | «تسجيل فرق» for a payout or fee difference, «إضافة متابعة» under a reference (see "Disputes and payouts"). |
 
@@ -1611,7 +1613,11 @@ the same few minutes.
   (`whsec_…`) on the endpoint's page; set the function secret to it. Until the two
   agree the endpoint answers 401 to Resend's events (404 if the secret is unset):
   bounces and complaints in the gap may never be recorded as suppressions, and
-  whether Resend redelivers them is unverified. Check: a mail to yourself leaves a
+  whether Resend redelivers them is unverified. The settings screen's «أحداث تسليم البريد
+  (Webhook)» says مضبوط only for a secret the verifier can read, `whsec_` followed by base64
+  that decodes to a key: a value pasted with a stray or missing character shows غير مضبوط. A
+  well-formed but wrong secret still shows مضبوط (no time of a last verified event is kept),
+  so check: a mail to yourself leaves a
   `delivered` row in `select type, received_at from finance.email_delivery_events order by received_at desc limit 5;`.
 - **`TURNSTILE_SECRET_KEY`.** Rotated on the widget in Cloudflare's dashboard;
   set the function secret. Once Cloudflare no longer accepts the old secret every
@@ -1649,7 +1655,11 @@ the same few minutes.
   makes every stored order link and every link already mailed stop matching. If
   it leaks, that is a decision for the owner, not a procedure: nothing re-issues
   links in bulk, and the owner's «إعادة إرسال رابط الطلب» does one order at a time
-  ("A leaked order link"). After a restore reuse the original.
+  ("A leaked order link"). A buyer who asks again through «استعادة رابط الطلب» is
+  repaired the same way, one order at a time: recovery compares the hash the order
+  stored with the one the current pepper makes of its link's token and, when they
+  differ, mails the next version's link, which matches (the links already in
+  mailboxes stay dead). After a restore reuse the original.
 
 ### After a webhook outage, or when a buyer says he paid twice
 

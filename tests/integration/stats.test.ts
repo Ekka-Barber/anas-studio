@@ -894,9 +894,7 @@ describe('dispute_record', () => {
 
     const again = await rec({ p_kind: 'chargeback', p_provider_ref: providerRef, p_attempt: mixed.attemptId, p_amount: 1200, p_decision: 'entitlement_revoked', p_item_ids: uuids([item.a]) })
     expect(again).toEqual({ ok: true, duplicate: true, dispute: first.dispute })
-    // Whatever the repeat says, it is the stored row that answers, and nothing is written.
-    const other = await rec({ p_kind: 'chargeback', p_provider_ref: providerRef, p_attempt: mixed.attemptId, p_amount: 9999, p_direction: 'for_seller', p_reason: 'سبب آخر', p_decision: 'none' })
-    expect(other).toEqual({ ok: true, duplicate: true, dispute: first.dispute })
+    // A repeat that says the same is answered by the stored row and writes nothing (one that says another thing is SEQ_TAKEN: the next test).
     expect(await disputesOf(providerRef)).toHaveLength(1)
     expect(await audits(first.dispute.id)).toHaveLength(1)
     expect((await entitlement(item.a)).revoked_at).toEqual(revokedAt)
@@ -907,10 +905,10 @@ describe('dispute_record', () => {
     expect(stopped).toMatchObject({ ok: true, duplicate: false })
     await h.postgres.query("update finance.fulfillments set state = 'shipped', carrier = 'SMSA', tracking = 'T-1', shipped_at = now() where order_item_id = $1", [item.physical])
     expect(await rec({ p_kind: 'chargeback', p_provider_ref: stop, p_attempt: mixed.attemptId, p_decision: 'fulfillment_stopped', p_item_ids: uuids([item.physical]) })).toEqual({ ok: true, duplicate: true, dispute: stopped.dispute })
-    // A follow-up repeated is the same: its place in the reference is taken.
+    // A follow-up repeated is the same: its place in the reference is taken by a row that says what the call says.
     const followed = await rec({ p_kind: 'chargeback', p_provider_ref: providerRef, p_follows: 1, p_attempt: mixed.attemptId, p_amount: 1200, p_direction: 'for_seller', p_resolution: 'ربحنا' })
     expect(followed).toMatchObject({ ok: true, duplicate: false, dispute: { seq: 2 } })
-    expect(await rec({ p_kind: 'chargeback', p_provider_ref: providerRef, p_follows: 1, p_attempt: mixed.attemptId, p_amount: 1200, p_direction: 'for_seller' })).toEqual({
+    expect(await rec({ p_kind: 'chargeback', p_provider_ref: providerRef, p_follows: 1, p_attempt: mixed.attemptId, p_amount: 1200, p_direction: 'for_seller', p_resolution: 'ربحنا' })).toEqual({
       ok: true,
       duplicate: true,
       dispute: followed.dispute,
@@ -918,13 +916,71 @@ describe('dispute_record', () => {
     expect(await disputesOf(providerRef)).toHaveLength(2)
   })
 
-  it('two calls at once for the same place end the same way: one inserts, the other answers that row, never an error', async () => {
+  // P08-CKPT-09 (RESIDUALS-1 R2b): a call at a taken place that says another thing is a second tab's follow-up, not a repeat.
+  it('a call that says something else at a taken place is not a repeat: SEQ_TAKEN for each fact of the row, nothing written; the same facts, the items in any order, are the same call', async () => {
+    const target = await order()
+    const another = await order()
+    const unmapped = await unmappedReview()
+    const providerRef = ref('SEQ')
+    const call = {
+      p_kind: 'chargeback',
+      p_provider_ref: providerRef,
+      p_attempt: target.p.attemptId,
+      p_amount: 1200,
+      p_direction: 'against_seller',
+      p_occurred_on: '2001-03-05',
+      p_reason: 'السبب',
+      p_resolution: 'الحل',
+      p_decision: 'entitlement_revoked',
+      p_item_ids: uuids([target.a, target.b]),
+    }
+    const first = await rec(call)
+    expect(first).toMatchObject({ ok: true, duplicate: false })
+    const revokedAt = (await entitlement(target.a)).revoked_at as Date
+    expect(revokedAt).not.toBeNull()
+    const snapshotBefore = await snapshot(target.p)
+
+    for (const [label, over] of [
+      ['the amount', { p_amount: 1201 }],
+      ['the direction', { p_direction: 'for_seller' }],
+      ['the day', { p_occurred_on: '2001-03-06' }],
+      ['the reason', { p_reason: 'سبب آخر' }],
+      ['the resolution', { p_resolution: 'حل آخر' }],
+      ['no resolution', { p_resolution: null }],
+      ['the decision', { p_decision: 'none', p_item_ids: uuids([]) }],
+      ['one item fewer', { p_item_ids: uuids([target.a]) }],
+      ['another item', { p_item_ids: uuids([target.b]) }],
+      ['another attempt', { p_attempt: another.p.attemptId }],
+      ['a review payment instead of the attempt', { p_attempt: null, p_review_payment: unmapped }],
+    ] as Array<[string, Record<string, unknown>]>) {
+      expect(await rec({ ...call, ...over }), label).toEqual({ ok: false, code: 'SEQ_TAKEN' })
+    }
+    // Nothing was written: one row, its one audit row, the entitlements as the first call left them.
+    expect(await disputesOf(providerRef)).toHaveLength(1)
+    expect(await audits(first.dispute.id)).toHaveLength(1)
+    expect((await entitlement(target.a)).revoked_at).toEqual(revokedAt)
+    expect(await snapshot(target.p)).toEqual(snapshotBefore)
+
+    // The same facts are a repeat, the items in whatever order they are named.
+    expect(await rec(call)).toEqual({ ok: true, duplicate: true, dispute: first.dispute })
+    expect(await rec({ ...call, p_item_ids: uuids([target.b, target.a]) })).toEqual({ ok: true, duplicate: true, dispute: first.dispute })
+
+    // The second tab: two owners write the next row of the reference; the second says something else and is told so.
+    const next = { ...call, p_follows: 1, p_decision: 'none', p_item_ids: uuids([]), p_direction: 'for_seller', p_resolution: 'ربحنا' }
+    expect(await rec(next)).toMatchObject({ ok: true, duplicate: false, dispute: { seq: 2 } })
+    expect(await rec({ ...next, p_amount: 1300, p_resolution: 'كتبه مالك آخر' })).toEqual({ ok: false, code: 'SEQ_TAKEN' })
+    expect(await rec(next)).toMatchObject({ ok: true, duplicate: true, dispute: { seq: 2 } })
+    expect((await disputesOf(providerRef)).map((row) => row.seq)).toEqual([1, 2])
+  })
+
+  it('two calls at once for the same place end the same way: one inserts, the other answers that row if it says the same and SEQ_TAKEN if it does not, never an error', async () => {
     // Behind the order's lock: both calls are started, both wait, and they race for the place the moment it is freed.
     const target = await order()
     const providerRef = ref('RACE')
     const args = { p_kind: 'chargeback', p_provider_ref: providerRef, p_attempt: target.p.attemptId, p_amount: 700, p_decision: 'entitlement_revoked', p_item_ids: uuids([target.a]) }
     const lock = await h.holdLock('select 1 from finance.orders where id = $1 for update', [target.p.id])
-    const calls = [rec(args, h.pool[0]), rec({ ...args, p_amount: 800 }, h.pool[1])]
+    // A double press: the same call twice.
+    const calls = [rec(args, h.pool[0]), rec(args, h.pool[1])]
     expect(await settledWithin(calls[0]!, 800)).toBe('blocked')
     expect(await settledWithin(calls[1]!, 800)).toBe('blocked')
     await lock.release()
@@ -936,20 +992,42 @@ describe('dispute_record', () => {
     expect(await audits(answers[0].dispute.id)).toHaveLength(1)
     expect((await entitlement(target.a)).revoked_at).not.toBeNull()
 
+    // Two owners, who say different things (700 and 800): one inserts, the other is told another row took the place.
+    const rival = await order()
+    const rivalRef = ref('RIVAL')
+    const rivalArgs = { p_kind: 'chargeback', p_provider_ref: rivalRef, p_attempt: rival.p.attemptId, p_amount: 700, p_decision: 'entitlement_revoked', p_item_ids: uuids([rival.a]) }
+    const rivalLock = await h.holdLock('select 1 from finance.orders where id = $1 for update', [rival.p.id])
+    const rivals = [rec(rivalArgs, h.pool[0]), rec({ ...rivalArgs, p_amount: 800 }, h.pool[1])]
+    expect(await settledWithin(rivals[0]!, 800)).toBe('blocked')
+    expect(await settledWithin(rivals[1]!, 800)).toBe('blocked')
+    await rivalLock.release()
+    const settled = await Promise.all(rivals)
+    expect(settled.filter((answer) => answer.ok === true && answer.duplicate === false)).toHaveLength(1)
+    expect(settled.filter((answer) => answer.ok === false)).toEqual([{ ok: false, code: 'SEQ_TAKEN' }])
+    expect(await disputesOf(rivalRef)).toHaveLength(1)
+    expect(await audits((await disputesOf(rivalRef))[0]!.id as string)).toHaveLength(1)
+
     // A reference with no order has no lock to queue on: the unique key decides, and the loser is answered, not failed.
     for (let round = 0; round < 6; round += 1) {
       const reference = ref('FREE')
-      const pair = await Promise.all([rec({ p_provider_ref: reference, p_amount: 100 }, h.pool[2]), rec({ p_provider_ref: reference, p_amount: 200 }, h.pool[3])])
+      const pair = await Promise.all([rec({ p_provider_ref: reference, p_amount: 100 }, h.pool[2]), rec({ p_provider_ref: reference, p_amount: 100 }, h.pool[3])])
       expect(pair.map((answer) => answer.ok), `round ${round}`).toEqual([true, true])
       expect(pair.filter((answer) => answer.duplicate).length, `round ${round}`).toBe(1)
       expect(pair[0].dispute.id).toBe(pair[1].dispute.id)
       expect(await disputesOf(reference), `round ${round}`).toHaveLength(1)
+
+      const contested = ref('CONTEST')
+      const other = await Promise.all([rec({ p_provider_ref: contested, p_amount: 100 }, h.pool[2]), rec({ p_provider_ref: contested, p_amount: 200 }, h.pool[3])])
+      expect(other.filter((answer) => answer.ok === true && answer.duplicate === false).length, `contested round ${round}`).toBe(1)
+      expect(other.filter((answer) => answer.ok === false), `contested round ${round}`).toEqual([{ ok: false, code: 'SEQ_TAKEN' }])
+      expect(await disputesOf(contested), `contested round ${round}`).toHaveLength(1)
     }
-    // Two follow-ups to the same row, at once: one is seq 2, the other is told so.
+    // Two follow-ups to the same row that differ, at once: one is seq 2, the other is told so.
     const chain = ref('FOLLOW')
     expect(await rec({ p_provider_ref: chain })).toMatchObject({ ok: true })
     const follows = await Promise.all([rec({ p_provider_ref: chain, p_follows: 1, p_amount: 10 }, h.pool[4]), rec({ p_provider_ref: chain, p_follows: 1, p_amount: 20 }, h.pool[5])])
-    expect(follows.filter((answer) => answer.duplicate).length).toBe(1)
+    expect(follows.filter((answer) => answer.ok === true && answer.duplicate === false).length).toBe(1)
+    expect(follows.filter((answer) => answer.ok === false)).toEqual([{ ok: false, code: 'SEQ_TAKEN' }])
     expect((await disputesOf(chain)).map((row) => row.seq)).toEqual([1, 2])
   })
 
@@ -1339,7 +1417,7 @@ describe('grants', () => {
     'finance.orders_delete(uuid[])',
     'finance.buyer_address(text)',
     'finance.dispute_json(finance.disputes)',
-    'finance.dispute_place(text, text, integer, text)',
+    'finance.dispute_place(text, text, integer, text, uuid, text, integer, text, date, text, text, text, uuid[])',
     'finance.refund_succeed(uuid, integer, uuid, text)',
     'finance.buyer_retention_purge()',
   ]

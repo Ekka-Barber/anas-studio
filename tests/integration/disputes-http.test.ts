@@ -149,6 +149,25 @@ describe('dispute-record and stats through the real admin function', () => {
     expect((await h.row('select status from finance.orders where id = $1', [p.id])).status).toBe('paid')
   })
 
+  // P08-CKPT-09 (RESIDUALS-1 R2b): a follow-up typed in a second tab says something else for a place already taken: it is told so
+  // (409 SEQ_TAKEN) instead of being answered as a repeat of what was recorded, and nothing is written. (The Arabic sentence is
+  // `_shared/disputes.ts`'s REFUSALS entry; until it names SEQ_TAKEN the function answers the generic words, which this test does not pin.)
+  it('answers a follow-up that says something else for a place already taken with 409 SEQ_TAKEN, and writes nothing', async () => {
+    const p = await h.paid([{ variantId: await h.digital(3000), quantity: 1 }])
+    const providerRef = ref('TAB')
+    const opened = await adminCall(fresh, record(p, { providerRef }))
+    expect(opened.status, JSON.stringify(opened.body)).toBe(201)
+    // The first tab records the outcome; the second, still holding the first row, types another outcome for the same place.
+    const first = await adminCall(fresh, record(p, { providerRef, follows: 1, direction: 'for_seller', resolution: 'ربحنا النزاع', occurredOn: riyadh(1) }))
+    expect(first.status, JSON.stringify(first.body)).toBe(201)
+    const second = await adminCall(fresh, record(p, { providerRef, follows: 1, direction: 'against_seller', resolution: 'خسرنا النزاع', occurredOn: riyadh(1) }))
+    expect(second).toMatchObject({ status: 409, body: { ok: false, error: { code: 'SEQ_TAKEN', message: expect.stringMatching(/[؀-ۿ]/) } } })
+    expect((await rowsOf(providerRef)).map((entry) => [entry.seq, entry.direction])).toEqual([[1, 'against_seller'], [2, 'for_seller']])
+    // The first tab pressed twice is still a repeat.
+    const repeated = await adminCall(fresh, record(p, { providerRef, follows: 1, direction: 'for_seller', resolution: 'ربحنا النزاع', occurredOn: riyadh(1) }))
+    expect(repeated).toMatchObject({ status: 200, body: { data: { duplicate: true, dispute: { id: first.body.data.dispute.id } } } })
+  })
+
   it('revokes the named entitlement of a digital order, and refuses what does not fit with a stable code', async () => {
     const digital = await h.digital(3000)
     const printed = await h.physical(4000, 50)

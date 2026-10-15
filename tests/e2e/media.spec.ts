@@ -482,6 +482,53 @@ test('round 2: library upload with crop and EXIF removal, reuse in a room, folde
   expect(restoredHtml).not.toContain(`/m/${id}/`)
 })
 
+// EF-ADMIN-05 with ADMIN-CMS-15 (RESIDUALS-1 R2b): the ticket lives 30 minutes; when the completion still answers GONE, the dialog says
+// the upload took longer than allowed (it used to repeat the function's «انتهت صلاحية التذكرة أو استُخدمت من قبل.»). Only the completion
+// is answered here, with the function's own GONE reply; the ticket and the parts go to the real stack.
+test('round 2: a completion answered GONE says the upload took longer than allowed, and the retry stays', async ({ page }) => {
+  const email = await createOwner('أمين الرفع البطيء')
+  await signInByCode(page, email)
+  const answered: string[] = []
+  await page.route('**/functions/v1/admin', async (route) => {
+    const request = route.request()
+    const headers = {
+      'access-control-allow-origin': request.headers().origin ?? '*',
+      'access-control-allow-headers': request.headers()['access-control-request-headers'] ?? '*',
+      'access-control-allow-methods': 'POST, OPTIONS',
+      'content-type': 'application/json',
+    }
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers })
+    const body = request.postDataJSON() as { action?: string }
+    if (body.action !== 'media-complete') return route.continue()
+    answered.push(body.action)
+    return route.fulfill({
+      status: 410,
+      headers,
+      body: JSON.stringify({ ok: false, error: { code: 'GONE', message: 'انتهت صلاحية التذكرة أو استُخدمت من قبل.' }, requestId: 'e2e' }),
+    })
+  })
+
+  await page.goto('/admin/media')
+  await expect(page.getByRole('heading', { name: 'المكتبة' })).toBeVisible()
+  await page.getByRole('button', { name: 'رفع صورة' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.locator('input[type="file"]').setInputFiles({ name: `p05-slow-${run}.jpg`, mimeType: 'image/jpeg', buffer: await jpegBuffer(800, 600) })
+  await expect(dialog.getByRole('group', { name: 'النسبة' })).toBeVisible()
+  await dialog.getByLabel('الوصف البديل').fill('صورة الرفع البطيء')
+  await dialog.getByLabel('الحقوق').fill('تصوير أنس')
+  await dialog.getByRole('button', { name: 'رفع', exact: true }).click()
+
+  const sentence = 'طال الرفع أكثر من المسموح؛ جرّب اتصالًا أسرع أو صورة أصغر.'
+  await expect(dialog.getByRole('alert').filter({ hasText: sentence })).toHaveText(sentence)
+  expect(answered).toEqual(['media-complete'])
+  // Not the function's words, and the way to try again is there; the dialog is still open with the file in it.
+  await expect(dialog.getByText('انتهت صلاحية التذكرة')).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: 'إعادة المحاولة' })).toBeEnabled()
+  await dialog.getByRole('button', { name: 'إلغاء' }).click()
+  await expect(dialog).toBeHidden()
+})
+
 test('round 2: search and المزيد paging past 40 items', async ({ page, request }) => {
   // 41 rows through the API (the round-1 helpers), then the grid in the
   // browser. The API path is exactly what the library screen exercises.

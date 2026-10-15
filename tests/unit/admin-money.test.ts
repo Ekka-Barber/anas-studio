@@ -19,6 +19,7 @@ import {
   buildDispute,
   CANCELLED,
   CHARGEBACK_RECORDED,
+  CLOSE_PARKED,
   confirmedRefunded,
   decisionsFor,
   DISPUTE_DUPLICATE,
@@ -29,6 +30,8 @@ import {
   followStart,
   IN_FLIGHT_SENTENCE,
   inFlight,
+  isOtherMode,
+  isParkedAttempt,
   keptRequest,
   keyFor,
   linesFor,
@@ -37,6 +40,9 @@ import {
   NEEDS_REFUND_REASON,
   NOT_ENROLLED,
   orderRefundFields,
+  OTHER_MODE_SENTENCE,
+  PARKED_CLOSED,
+  paymentModeOf,
   readAmount,
   readCreateReply,
   readDisputeReply,
@@ -1030,5 +1036,60 @@ describe('the strict parsers of the three replies of the admin function', () => 
     for (const bad of [null, [], {}, { duplicate: 'true', dispute: disputeRow }, { duplicate: false }, { duplicate: false, dispute: null }, { dispute: disputeRow }]) {
       expect(() => parseDisputeReply(bad), JSON.stringify(bad)).toThrow()
     }
+  })
+})
+
+// CONTRACT-04, ADMIN-COMMERCE-08 and -17 (RESIDUALS-1 R2b): once the site's payment mode has changed, the money controls of a payment of
+// the mode that was left give way to one sentence; the choice, and what is said, are these.
+describe('the other payment mode', () => {
+  it('says what the brief words, to the letter', () => {
+    expect(OTHER_MODE_SENTENCE).toBe('دفعة من وضع الدفع الآخر؛ تُدار من لوحة Moyasar.')
+    expect(CLOSE_PARKED).toBe('إغلاق بعد المراجعة')
+    expect(PARKED_CLOSED).toBe('سُجّلت المراجعة.')
+    // Product copy: no em dash, and the line ends with a full stop.
+    expect(`${OTHER_MODE_SENTENCE}${CLOSE_PARKED}${PARKED_CLOSED}`).not.toContain('—')
+  })
+
+  it('reads the mode from the status reply, and nothing from a reply that does not name one', () => {
+    const status = (payments: unknown): FunctionResult<unknown> => ({ ok: true, data: { email: { provider: 'resend' }, payments } })
+    expect(paymentModeOf(status({ configured: true, mode: 'test', emulator: true }))).toBe('test')
+    expect(paymentModeOf(status({ configured: true, mode: 'live', emulator: false }))).toBe('live')
+    // The payments are not configured (no mode), a mode that is none, a reply of another shape and a call that failed: unreadable.
+    for (const unreadable of [
+      status({ configured: false, reason: 'NOT_CONFIGURED', emulator: false }),
+      status({ configured: true, mode: 'staging' }),
+      status({ configured: true, mode: 'TEST' }),
+      status(null),
+      status('live'),
+      { ok: true, data: null } as FunctionResult<unknown>,
+      { ok: true, data: 'live' } as FunctionResult<unknown>,
+      { ok: true, data: {} } as FunctionResult<unknown>,
+      { ok: false, error: { code: 'FORBIDDEN', message: 'x' } } as FunctionResult<unknown>,
+      { ok: false, error: { code: 'UNKNOWN', message: 'x' } } as FunctionResult<unknown>,
+    ]) {
+      expect(paymentModeOf(unreadable), JSON.stringify(unreadable)).toBeNull()
+    }
+  })
+
+  it('a payment is of the other mode when its environment is not the site\'s; with no mode read, nothing is, so the controls stay', () => {
+    expect(isOtherMode('live', 'test')).toBe(true)
+    expect(isOtherMode('test', 'live')).toBe(true)
+    expect(isOtherMode('test', 'test')).toBe(false)
+    expect(isOtherMode('live', 'live')).toBe(false)
+    expect(isOtherMode(null, 'test')).toBe(false)
+    expect(isOtherMode(null, 'live')).toBe(false)
+    // A value that is no mode is not the site's either, but it is no reason to hide a control when the mode is unknown.
+    expect(isOtherMode('live', 'staging')).toBe(true)
+  })
+
+  it('an attempt is closable only when the job parked it: marked MODE_CHANGED, with an invoice, and not paid or in review', () => {
+    const parked = { status: 'expired', lastError: 'MODE_CHANGED', providerInvoiceId: A }
+    expect(isParkedAttempt(parked)).toBe(true)
+    expect(isParkedAttempt({ ...parked, status: 'pending' })).toBe(true)
+    expect(isParkedAttempt({ ...parked, status: 'paid' })).toBe(false)
+    expect(isParkedAttempt({ ...parked, status: 'review' })).toBe(false)
+    expect(isParkedAttempt({ ...parked, providerInvoiceId: null })).toBe(false)
+    expect(isParkedAttempt({ ...parked, lastError: 'UNVERIFIED' })).toBe(false)
+    expect(isParkedAttempt({ ...parked, lastError: null })).toBe(false)
   })
 })

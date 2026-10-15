@@ -425,7 +425,7 @@ const REFUND_FUNCTIONS: Array<[string, Record<string, unknown>]> = [
     'refund_record_external',
     { p_actor: randomUUID(), p_attempt: randomUUID(), p_review_payment: null, p_provider_refunded: 100, p_provider_status: 'refunded', p_reason: 'x' },
   ],
-  ['refund_ref', { p_actor: randomUUID(), p_refund: randomUUID() }],
+  ['refund_ref', { p_actor: randomUUID(), p_refund: randomUUID(), p_mode: 'test' }],
 ]
 const REFUND_HELPERS = ['refund_lock_rows', 'refund_lock', 'refund_allocation_ok', 'refund_succeed', 'refund_fail', 'refund_dashboard']
 
@@ -468,17 +468,17 @@ describe('grants', () => {
     for (const actor of [operationsUser.userId, editorUser.userId, revokedOwner.userId, randomUUID(), null]) {
       await expect(request(p, { p_actor: actor }), `request as ${actor}`).rejects.toMatchObject({ code: '42501' })
       await expect(external(p, 500, 'refunded', { p_actor: actor }), `external as ${actor}`).rejects.toMatchObject({ code: '42501' })
-      await expect(call('refund_ref', { p_actor: actor, p_refund: flying }), `ref as ${actor}`).rejects.toMatchObject({ code: '42501' })
+      await expect(call('refund_ref', { p_actor: actor, p_refund: flying, p_mode: 'test' }), `ref as ${actor}`).rejects.toMatchObject({ code: '42501' })
     }
     // Nothing was written by the refused calls.
     expect(await refundsOf(p.attemptId)).toHaveLength(1)
-    expect(await call('refund_ref', { p_actor: ownerUser.userId, p_refund: flying })).toEqual({
+    expect(await call('refund_ref', { p_actor: ownerUser.userId, p_refund: flying, p_mode: 'test' })).toEqual({
       ok: true,
       refundId: flying,
       status: 'submitting',
       providerPaymentId: p.paymentId,
     })
-    expect(await call('refund_ref', { p_actor: ownerUser.userId, p_refund: randomUUID() })).toEqual({ ok: false, code: 'NOT_FOUND' })
+    expect(await call('refund_ref', { p_actor: ownerUser.userId, p_refund: randomUUID(), p_mode: 'test' })).toEqual({ ok: false, code: 'NOT_FOUND' })
   })
 
   it('a malformed call raises instead of answering: no target or two, a bad amount, reason, key or hash, a negative total', async () => {
@@ -1922,7 +1922,7 @@ describe('refunds of a review payment leave the order alone', () => {
   it('a review payment\'s failed refund frees its balance, and its refund ref answers the review payment id', async () => {
     const r = await review({ mapped: false, amount: 3000 })
     const first = await requestReview(r, { p_amount: 3000 })
-    expect(await call('refund_ref', { p_actor: ownerUser.userId, p_refund: first.refundId })).toEqual({
+    expect(await call('refund_ref', { p_actor: ownerUser.userId, p_refund: first.refundId, p_mode: 'test' })).toEqual({
       ok: true,
       refundId: first.refundId,
       status: 'submitting',
@@ -1930,5 +1930,61 @@ describe('refunds of a review payment leave the order alone', () => {
     })
     await result(first.refundId, 'failed', null, 'REFUND_REFUSED')
     expect(await requestReview(r, { p_amount: 3000 })).toMatchObject({ ok: true, state: 'new' })
+  })
+})
+
+// CONTRACT-04 (RESIDUALS-1 R2b): the recheck of a refund is asked with the configured mode, as the recheck of an attempt is.
+describe('refund_ref and the other payment mode', () => {
+  const ref = (refundId: string, mode: string | null): Promise<any> => call('refund_ref', { p_actor: ownerUser.userId, p_refund: refundId, p_mode: mode })
+  const inMode = async (sql: string, id: string, environment: string): Promise<void> => void (await postgres.query(sql, [id, environment]))
+
+  it('answers NOT_FOUND for a refund whose paying attempt is of another environment, and the refund itself for its own', async () => {
+    const p = await plain()
+    const flying = await flight(p)
+    expect(await ref(flying, 'test')).toEqual({ ok: true, refundId: flying, status: 'submitting', providerPaymentId: p.paymentId })
+    expect(await ref(flying, 'live')).toEqual({ ok: false, code: 'NOT_FOUND' })
+    // The site goes live: the attempt (and its refund) belong to the mode that was left.
+    await inMode('update finance.payment_attempts set environment = $2 where id = $1', p.attemptId, 'live')
+    try {
+      expect(await ref(flying, 'test')).toEqual({ ok: false, code: 'NOT_FOUND' })
+      expect(await ref(flying, 'live')).toMatchObject({ ok: true, refundId: flying, providerPaymentId: p.paymentId })
+      // No mode, or a mode that is none, is no refund of the configured mode.
+      expect(await ref(flying, null)).toEqual({ ok: false, code: 'NOT_FOUND' })
+      expect(await ref(flying, 'staging')).toEqual({ ok: false, code: 'NOT_FOUND' })
+    } finally {
+      await inMode('update finance.payment_attempts set environment = $2 where id = $1', p.attemptId, 'test')
+    }
+    expect(await ref(flying, 'test')).toMatchObject({ ok: true, refundId: flying })
+  })
+
+  it('answers NOT_FOUND for a refund of a review payment of another environment, mapped to an order or not', async () => {
+    for (const mapped of [false, true]) {
+      const r = await review({ mapped, amount: 3000 })
+      const first = await requestReview(r, { p_amount: 3000 })
+      expect(await ref(first.refundId, 'test'), `mapped ${mapped}`).toMatchObject({ ok: true, providerPaymentId: r.paymentId })
+      await inMode('update finance.payment_reviews set environment = $2 where provider_payment_id = $1', r.paymentId, 'live')
+      try {
+        expect(await ref(first.refundId, 'test'), `mapped ${mapped}, the site is live`).toEqual({ ok: false, code: 'NOT_FOUND' })
+        expect(await ref(first.refundId, 'live'), `mapped ${mapped}, the review payment's own mode`).toMatchObject({ ok: true, providerPaymentId: r.paymentId })
+      } finally {
+        await inMode('update finance.payment_reviews set environment = $2 where provider_payment_id = $1', r.paymentId, 'test')
+      }
+    }
+  })
+
+  it('the refund rows the screens read say which mode their payment is of (the attempt\'s, or the review payment\'s)', async () => {
+    const p = await plain()
+    const flying = await flight(p)
+    const r = await review({ mapped: false, amount: 2000 })
+    const reviewed = await requestReview(r, { p_amount: 2000 })
+    const environmentOf = async (refundId: string): Promise<unknown> => (await row('select finance.refund_json(r) ->> \'environment\' as e from finance.refunds r where r.id = $1', [refundId])).e
+    expect(await environmentOf(flying)).toBe('test')
+    expect(await environmentOf(reviewed.refundId)).toBe('test')
+    await inMode('update finance.payment_attempts set environment = $2 where id = $1', p.attemptId, 'live')
+    try {
+      expect(await environmentOf(flying)).toBe('live')
+    } finally {
+      await inMode('update finance.payment_attempts set environment = $2 where id = $1', p.attemptId, 'test')
+    }
   })
 })

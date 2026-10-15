@@ -509,6 +509,42 @@ export function readReissueReply(result: FunctionResult<unknown>): Reported | nu
 }
 
 // ---------------------------------------------------------------------------
+// The other payment mode (CONTRACT-04, ADMIN-COMMERCE-08 and -17)
+// ---------------------------------------------------------------------------
+
+/**
+ * Said in place of the money controls («أعد الفحص», «إعادة المبلغ», «استرداد هذه الدفعة», «تسجيل استرداد خارجي», «تسجيل اعتراض») on an
+ * attempt, a review payment, a refund or an order of the other payment mode: the configured key cannot see that payment, so each of
+ * those answers that it does not exist. Moyasar's dashboard of that mode is where it is handled.
+ */
+export const OTHER_MODE_SENTENCE = 'دفعة من وضع الدفع الآخر؛ تُدار من لوحة Moyasar.'
+/** The owner's close of an attempt the job parked for the other mode (`attempt_dismiss`), once he has looked at it in that mode's dashboard. */
+export const CLOSE_PARKED = 'إغلاق بعد المراجعة'
+/** The sentence after it: the same as the webhook event's, which is filed the same way. */
+export const PARKED_CLOSED = 'سُجّلت المراجعة.'
+
+export type PaymentMode = 'test' | 'live'
+
+/** The payment mode the `admin` function's `status` names (`payments.mode`), or null when it cannot be read: the call failed or the payments are not configured. */
+export function paymentModeOf(result: FunctionResult<unknown>): PaymentMode | null {
+  if (!result.ok || typeof result.data !== 'object' || result.data === null) return null
+  const payments = (result.data as { payments?: unknown }).payments
+  if (typeof payments !== 'object' || payments === null) return null
+  const mode = (payments as { mode?: unknown }).mode
+  return mode === 'test' || mode === 'live' ? mode : null
+}
+
+/**
+ * Whether a payment's environment is the other mode than the site's. When the mode could not be read nothing is the other mode, so the
+ * controls stay as they were: the screen never hides a control on a guess.
+ */
+export const isOtherMode = (mode: PaymentMode | null, environment: string): boolean => mode !== null && environment !== mode
+
+/** An attempt the job parked for the other mode and left for the owner to close: marked MODE_CHANGED, with an invoice, not paid or in review. */
+export const isParkedAttempt = (attempt: { status: string; lastError: string | null; providerInvoiceId: string | null }): boolean =>
+  attempt.lastError === 'MODE_CHANGED' && attempt.providerInvoiceId !== null && attempt.status !== 'paid' && attempt.status !== 'review'
+
+// ---------------------------------------------------------------------------
 // The dispute form
 // ---------------------------------------------------------------------------
 

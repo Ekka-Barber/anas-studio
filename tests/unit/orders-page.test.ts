@@ -13,6 +13,7 @@ import {
   FULFILLMENT_LABELS,
   isFiled,
   isSent,
+  keptRequestKey,
   lineName,
   normalizeReason,
   notifyStatus,
@@ -461,6 +462,44 @@ describe('the return request', () => {
     expect(normalizeReason('  وصل  تالفًا\n\nوالغلاف\tممزق  ')).toBe('وصل تالفًا والغلاف ممزق')
     expect(normalizeReason('a\u0000b\u0085c')).toBe('a b c')
     expect(normalizeReason(' \n\t ')).toBe('')
+  })
+})
+
+// EF-ACCESS-10: a press repeated after a lost reply must carry the key of the first (one request); a changed form, and the form after a
+// filed request, carry a new one. The form keeps what this returns between presses and drops it once a request is filed.
+describe('keptRequestKey', () => {
+  const signature = (items: Array<{ itemId: string; quantity: number }>, reason: string): string => JSON.stringify([items, reason])
+  const sequence = (...keys: string[]): (() => string) => {
+    let turn = 0
+    return () => keys[turn++]!
+  }
+
+  it('mints a key for a form that holds none, and keeps it for the same quantities and reason', () => {
+    const mint = sequence('key-1', 'key-2')
+    const first = keptRequestKey(null, signature([{ itemId: ITEM_ID, quantity: 1 }], 'وصل تالفًا'), mint)
+    expect(first.key).toBe('key-1')
+    // The press repeated after a lost reply: the same call, the same key, nothing minted.
+    const again = keptRequestKey(first, signature([{ itemId: ITEM_ID, quantity: 1 }], 'وصل تالفًا'), mint)
+    expect(again).toBe(first)
+    expect(keptRequestKey(again, signature([{ itemId: ITEM_ID, quantity: 1 }], 'وصل تالفًا'), mint).key).toBe('key-1')
+  })
+
+  it('mints another for a changed quantity, a changed line or a changed reason, and keeps the new one', () => {
+    const mint = sequence('key-1', 'key-2', 'key-3', 'key-4', 'key-5')
+    const base = keptRequestKey(null, signature([{ itemId: ITEM_ID, quantity: 1 }], 'سبب'), mint)
+    const quantity = keptRequestKey(base, signature([{ itemId: ITEM_ID, quantity: 2 }], 'سبب'), mint)
+    const line = keptRequestKey(quantity, signature([{ itemId: OTHER_ID, quantity: 2 }], 'سبب'), mint)
+    const reason = keptRequestKey(line, signature([{ itemId: OTHER_ID, quantity: 2 }], 'سبب آخر'), mint)
+    expect([base.key, quantity.key, line.key, reason.key]).toEqual(['key-1', 'key-2', 'key-3', 'key-4'])
+    // Back to what it was: it is not the request the first key was minted for (the form held another since), so it takes a key of its own.
+    expect(keptRequestKey(reason, signature([{ itemId: ITEM_ID, quantity: 1 }], 'سبب'), mint).key).toBe('key-5')
+  })
+
+  it('a form that dropped its key (a request was filed) mints a new one even for the same content', () => {
+    const mint = sequence('key-1', 'key-2')
+    const same = signature([{ itemId: ITEM_ID, quantity: 1 }], 'سبب')
+    const filed = keptRequestKey(null, same, mint)
+    expect(keptRequestKey(null, same, mint).key).not.toBe(filed.key)
   })
 })
 

@@ -241,7 +241,7 @@ is a devDependency for tests and scripts only):
   different origin from the site.
 
 The upload runs through the `admin` Edge Function
-(`supabase/functions/_shared/admin.ts`): `media-ticket` creates a 5-minute
+(`supabase/functions/_shared/admin.ts`): `media-ticket` creates a 30-minute
 ticket and one signed upload URL per part, the browser uploads each part
 straight to Storage (`uploadToSignedUrl`), and `media-complete` checks and
 promotes them; the ticket id becomes the media id. A Storage failure other

@@ -85,7 +85,7 @@ const SERVER_ONLY = [
   'public.download_redeem(text, text, text)',
   'public.paid_asset_set(uuid, uuid, text, text, text, bigint)',
   'public.paid_files_sweep_candidates(integer)',
-  'public.return_request_create(text, text, jsonb, text, text, text)',
+  'public.return_request_create(text, text, jsonb, text, text, text, uuid)',
 ]
 
 describe('grants', () => {
@@ -425,6 +425,99 @@ describe('recovery', () => {
     expect(await apply(await recoveryItems(PEPPER, shown))).toBe(0)
     expect(await access(lapsed)).toEqual(NOT_FOUND)
     expect(await linkMails(lapsed.id)).toHaveLength(0)
+  })
+
+  // EF-ACCESS-04 (RESIDUALS-1 R2b): TOKEN_HASH_PEPPER was replaced, so the hash an order stored was made with the old one and
+  // the link its buyer holds is dead. Recovery used to renew the dead hash and mail a link the new pepper derives, which matched
+  // nothing, for ever. Now it proves the stored hash against the pepper it holds, and replaces what it cannot prove.
+  describe('after the pepper was replaced', () => {
+    const REPLACED = `${PEPPER}-replaced`
+    const hashOf = async (pepper: string, key: string, version: number): Promise<string> => orderAccessTokenHash(pepper, await orderAccessToken(pepper, key, version))
+    const listFor = (email: string): Promise<RecoverableOrder[]> => h.call('order_recover_list', { p_mode: 'test', p_ip_hash: h.ipHash(), p_email: email }) as Promise<RecoverableOrder[]>
+    const applyItems = (items: unknown[], client?: Parameters<typeof h.call>[2]): Promise<number> => h.call('order_recover_apply', { p_ip_hash: h.ipHash(), p_items: items }, client) as Promise<number>
+    const recoverWith = async (pepper: string, email: string): Promise<{ items: Awaited<ReturnType<typeof recoveryItems>>; queued: number }> => {
+      const items = await recoveryItems(pepper, await listFor(email))
+      return { items, queued: await applyItems(items) }
+    }
+
+    it('replaces a link the pepper does not issue: the next version, its hash made by the pepper it holds, the new link opens the order, one mail', async () => {
+      const p = await oneBook()
+      expect((await access(p)).ok).toBe(true)
+      // What the function holds is the new pepper: the link in the buyer's hand, hashed with it, is not what the order stored.
+      expect(await access({ number: p.number, hash: await orderAccessTokenHash(REPLACED, p.token) })).toEqual(NOT_FOUND)
+
+      const { items, queued } = await recoverWith(REPLACED, p.email)
+      expect(items).toEqual([{ orderId: p.id, version: 0, currentHash: await hashOf(REPLACED, p.key, 0), nextHash: await hashOf(REPLACED, p.key, 1) }])
+      expect(queued).toBe(1)
+      const order = await orderOf(p.id)
+      expect(order.access_token_version).toBe(1)
+      expect(order.access_token_hash).toBe(await hashOf(REPLACED, p.key, 1))
+      expect(await secondsAhead(p.id)).toBeGreaterThan(week - 120)
+      // The new link opens the order; the old one never did and does not now.
+      expect((await access({ number: p.number, hash: order.access_token_hash as string })).ok).toBe(true)
+      expect(await access(p)).toEqual(NOT_FOUND)
+      // The mail derives its link at send from the order's facts and the pepper it holds: it is the stored one.
+      const data = (await h.call('order_email_data', { p_order: p.id })) as { idempotencyKey: string; tokenVersion: number }
+      expect(await hashOf(REPLACED, data.idempotencyKey, data.tokenVersion)).toBe(order.access_token_hash)
+      expect((await linkMails(p.id)).map((mail) => mail.dedupe_key)).toEqual([`order_link:${p.id}:1:${await today()}`])
+
+      // Asked again at once, the link is the pepper's own: kept at version 1, renewed, and the day's mail is not repeated.
+      const again = await recoverWith(REPLACED, p.email)
+      expect(again.items[0]).toMatchObject({ version: 1, currentHash: order.access_token_hash })
+      expect(again.queued).toBe(0)
+      expect((await orderOf(p.id)).access_token_version).toBe(1)
+      expect(await linkMails(p.id)).toHaveLength(1)
+    })
+
+    it('keeps a link the pepper does issue, and a link that expired is given the next version as before, whatever the pepper', async () => {
+      const kept = await oneBook()
+      await setExpiry(kept.id, "now() + interval '1 hour'")
+      expect((await recoverWith(PEPPER, kept.email)).queued).toBe(1)
+      expect(await orderOf(kept.id)).toMatchObject({ access_token_version: 0, access_token_hash: kept.hash })
+      expect(await secondsAhead(kept.id)).toBeGreaterThan(week - 120)
+
+      const lapsed = await oneBook()
+      await setExpiry(lapsed.id, "now() - interval '1 minute'")
+      expect((await recoverWith(REPLACED, lapsed.email)).queued).toBe(1)
+      expect(await orderOf(lapsed.id)).toMatchObject({ access_token_version: 1, access_token_hash: await hashOf(REPLACED, lapsed.key, 1) })
+    })
+
+    it('replaces nothing it cannot prove stale: no proof renews nothing, a next hash alone does not replace, and a link that expired meanwhile stays dead', async () => {
+      const bare = await oneBook()
+      await setExpiry(bare.id, "now() + interval '1 hour'")
+      const before = await orderOf(bare.id)
+      const hash = '0'.repeat(63) + '1'
+      expect(await applyItems([{ orderId: bare.id, version: 0 }])).toBe(0)
+      expect(await applyItems([{ orderId: bare.id, version: 0, nextHash: hash }])).toBe(0)
+      expect(await applyItems([{ orderId: bare.id, version: 0, currentHash: bare.hash, nextHash: null }])).toBe(1)
+      // A wrong version is not the link that was listed.
+      expect(await applyItems([{ orderId: bare.id, version: 4, currentHash: '1'.repeat(64), nextHash: hash }])).toBe(0)
+      expect(await orderOf(bare.id)).toMatchObject({ access_token_version: 0, access_token_hash: before.access_token_hash })
+      expect(await linkMails(bare.id)).toHaveLength(1)
+
+      // Listed alive, expired when applied: not brought back, replaced or mailed, stale hash or not.
+      const stale = await oneBook()
+      await setExpiry(stale.id, "now() + interval '1 hour'")
+      const items = await recoveryItems(REPLACED, await listFor(stale.email))
+      await setExpiry(stale.id, "now() - interval '1 second'")
+      expect(await applyItems(items)).toBe(0)
+      expect(await orderOf(stale.id)).toMatchObject({ access_token_version: 0, access_token_hash: stale.hash })
+      expect(await linkMails(stale.id)).toHaveLength(0)
+    })
+
+    it('agrees on one new token when two requests apply at once for a stale link: the version guard', async () => {
+      const p = await oneBook()
+      const items = await recoveryItems(REPLACED, await listFor(p.email))
+      const lock = await h.holdLock('select 1 from finance.orders where id = $1 for update', [p.id])
+      const first = applyItems(items, h.pool[1])
+      const second = applyItems(items, h.pool[2])
+      await sleep(400)
+      await lock.release()
+      const queued = await Promise.all([first, second])
+      expect(queued.reduce((sum, n) => sum + n, 0)).toBe(1)
+      expect(await orderOf(p.id)).toMatchObject({ access_token_version: 1, access_token_hash: items[0]!.nextHash })
+      expect(await linkMails(p.id)).toHaveLength(1)
+    })
   })
 
   it('queues at most one mail per order per UTC day, and a new day sends a new one', async () => {
@@ -799,6 +892,99 @@ describe('return_request_create', () => {
       await lock.release()
     }
     expect((await waiting!).ok).toBe(true)
+  })
+
+  // EF-ACCESS-10 (RESIDUALS-1 R2b): the page keeps one key until the form changes. A press whose reply was lost, repeated with
+  // the same key, is answered with the request already filed and writes nothing.
+  describe('with a request key', () => {
+    it('answers a repeat with the request it filed and writes nothing: even when the first took every unit, and when it was the fifth of the day', async () => {
+      const { p, itemId, variantId } = await shipped(4, 30)
+      const key = randomUUID()
+      const items = [{ itemId, quantity: 4 }]
+      const first = await request(p, items, { p_request_key: key })
+      expect(first, JSON.stringify(first)).toEqual({ ok: true, returnId: expect.any(String) })
+      // Without the key the same press is refused (nothing is left to return): the symptom of the lost reply.
+      expect(await request(p, items)).toEqual({ ok: false, code: 'INVALID_ITEMS' })
+      expect(await returnable(p, variantId)).toBe(0)
+      // With it, the same answer as the first.
+      const again = await request(p, items, { p_request_key: key })
+      expect(again).toEqual(first)
+      expect(await returnsOf(p.id)).toHaveLength(1)
+      // The key names the press, not its payload (R2b audit): the page mints a new key when the form changes, so the same
+      // key with other items or another reason comes only from a hand-made call; it is answered the request filed, nothing new.
+      expect(await request(p, [{ itemId, quantity: 1 }], { p_request_key: key, p_reason: 'سبب آخر' })).toEqual(first)
+      expect(await returnsOf(p.id)).toHaveLength(1)
+      expect((await returnsOf(p.id))[0]).toMatchObject({ id: first.returnId, request_key: key, reason: 'المنتج وصلني تالفًا' })
+      // However the order stands now: a repeat names the request that exists.
+      await setStatus(p.id, 'refunded')
+      expect(await request(p, items, { p_request_key: key })).toEqual(first)
+      await setStatus(p.id, 'paid')
+
+      // The fifth request of the day: its repeat is not told the day's cap is reached.
+      const more = await shipped(8, 30)
+      const ids: string[] = []
+      const keys: string[] = []
+      for (let i = 0; i < 5; i += 1) {
+        keys.push(randomUUID())
+        ids.push((await request(more.p, [{ itemId: more.itemId, quantity: 1 }], { p_request_key: keys[i] })).returnId)
+      }
+      expect(await request(more.p, [{ itemId: more.itemId, quantity: 1 }])).toEqual({ ok: false, code: 'TOO_MANY_REQUESTS' })
+      expect(await request(more.p, [{ itemId: more.itemId, quantity: 1 }], { p_request_key: keys[4] })).toEqual({ ok: true, returnId: ids[4] })
+      expect(await returnsOf(more.p.id)).toHaveLength(5)
+    })
+
+    it('another key is another request, no key is as before, and a key of one order is no repeat in another', async () => {
+      const { p, itemId } = await shipped(8, 30)
+      const items = [{ itemId, quantity: 1 }]
+      const key = randomUUID()
+      const one = await request(p, items, { p_request_key: key })
+      const two = await request(p, items, { p_request_key: randomUUID() })
+      const three = await request(p, items)
+      const four = await request(p, items, { p_request_key: null })
+      expect(new Set([one, two, three, four].map((reply) => reply.returnId)).size).toBe(4)
+      expect(await returnsOf(p.id)).toHaveLength(4)
+      // The same key on another order files that order's own request: the key reveals nothing of the first order's.
+      const other = await shipped(2, 30)
+      const foreign = await request(other.p, [{ itemId: other.itemId, quantity: 1 }], { p_request_key: key })
+      expect(foreign.ok).toBe(true)
+      expect(foreign.returnId).not.toBe(one.returnId)
+      expect(await returnsOf(other.p.id)).toHaveLength(1)
+      // A repeat answers only to the order's own token: a wrong token is the one answer for everything.
+      expect(await request({ number: p.number, hash: other.p.hash }, items, { p_request_key: key })).toEqual(NOT_FOUND)
+    })
+
+    it('two presses at once with one key file one request: the second waits for the order and is answered with the first\'s', async () => {
+      const { p, itemId } = await shipped(2, 30)
+      const key = randomUUID()
+      const items = [{ itemId, quantity: 2 }]
+      const lock = await h.holdLock('select 1 from finance.orders where id = $1 for update', [p.id])
+      const call = (client: (typeof h.pool)[number]): Promise<any> =>
+        h.call('return_request_create', { p_order_number: p.number, p_access_token_hash: p.hash, p_items: items, p_reason: 'ضغطتان', p_ip_hash: h.ipHash(), p_mode: 'test', p_request_key: key }, client)
+      const a = call(h.pool[1]!)
+      const b = call(h.pool[2]!)
+      await sleep(400)
+      await lock.release()
+      const [first, second] = await Promise.all([a, b])
+      expect(first.ok && second.ok).toBe(true)
+      expect(first.returnId).toBe(second.returnId)
+      expect(await returnsOf(p.id)).toHaveLength(1)
+    })
+
+    it('the database refuses a second request with a key of the order even when written by hand, and takes any number without one', async () => {
+      const { p, itemId } = await shipped(2, 30)
+      const key = randomUUID()
+      await request(p, [{ itemId, quantity: 1 }], { p_request_key: key })
+      await expect(
+        h.postgres.query("insert into finance.return_requests (order_id, items, reason, request_key) values ($1, '[]'::jsonb, 'يدوي', $2)", [p.id, key]),
+      ).rejects.toMatchObject({ code: '23505' })
+      await h.postgres.query("insert into finance.return_requests (order_id, items, reason) values ($1, '[]'::jsonb, 'بلا مفتاح'), ($1, '[]'::jsonb, 'بلا مفتاح')", [p.id])
+    })
+
+    it('a key that is not a uuid is refused by the database as a malformed call', async () => {
+      const { p, itemId } = await shipped(2, 30)
+      await expect(request(p, [{ itemId, quantity: 1 }], { p_request_key: 'not-a-uuid' })).rejects.toMatchObject({ code: '22P02' })
+      expect(await returnsOf(p.id)).toHaveLength(0)
+    })
   })
 
   it('lets three requests for the last units race: one is taken, the others are told the quantity is no longer there', async () => {

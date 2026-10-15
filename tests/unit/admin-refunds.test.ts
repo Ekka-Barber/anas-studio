@@ -723,10 +723,25 @@ describe('refund-recheck', () => {
     const done = await answer(await send(recheck()))
     expect(done).toEqual({ status: 200, body: { ok: true, data: { refundId: REFUND, status: 'succeeded', amount: 5000 } } })
     expect(names()).toEqual(['refund_ref', 'refund_settle'])
-    expect(called('refund_ref')[0]!.args).toEqual({ p_actor: USER, p_refund: REFUND })
+    // The configured mode, as the recheck of an attempt is asked (CONTRACT-04): a refund of the other mode is not found.
+    expect(called('refund_ref')[0]!.args).toEqual({ p_actor: USER, p_refund: REFUND, p_mode: 'test' })
     expect(called('refund_settle')[0]!.args).toEqual({ p_refund: REFUND, p_provider_refunded: 5000 })
     expect(client.fetchPayment).toHaveBeenCalledExactlyOnceWith(PAYMENT)
     expect(client.refundPayment).not.toHaveBeenCalled()
+  })
+
+  it('asks with the mode the payment settings name, and a refund of the other mode is 404 with the provider not asked', async () => {
+    const live = payments()
+    await send(recheck(), { payments: { ...live, config: { ...live.config, mode: 'live' } } })
+    expect(called('refund_ref')[0]!.args).toEqual({ p_actor: USER, p_refund: REFUND, p_mode: 'live' })
+    // What the SQL answers for a refund whose payment is of the other mode.
+    calls.length = 0
+    client.fetchPayment.mockClear()
+    reply('refund_ref', { ok: false, code: 'NOT_FOUND' })
+    const other = await answer(await send(recheck()))
+    expect(other).toMatchObject({ status: 404, body: { ok: false, error: { code: 'NOT_FOUND', message: 'لم نجد عملية الاسترداد هذه.' } } })
+    expect(names()).toEqual(['refund_ref'])
+    expect(client.fetchPayment).not.toHaveBeenCalled()
   })
 
   it('an unknown refund is 404 and the provider is not asked', async () => {

@@ -15,6 +15,8 @@
  *   a 5xx, a 429 or an unreadable reply is `uncertain` (it may have happened:
  *   the reconciliation job settles it from a fresh fetch). A 4xx is never
  *   `uncertain` and a timeout is never `failed`.
+ * - `refund-recheck` asks `refund_ref` with the configured mode: a refund of the other payment mode is NOT_FOUND, since
+ *   the configured key cannot see its payment (CONTRACT-04); the job's claim fails such a refund when it parks it.
  * - A replay (the same idempotency key and the same request) answers the stored
  *   refund and never reaches the provider's refund route again.
  * - `refund-create` carries `expectedRefunded`, the confirmed refunded total the owner's
@@ -296,7 +298,8 @@ export async function refundRecheck(deps: RefundDeps, actor: string, body: unkno
   const payments = deps.payments ?? defaultPaymentDeps(deps.rpc)
   if (!payments) return fail(503, 'PAYMENTS_NOT_CONFIGURED', 'لم تُضبط إعدادات الدفع بعد.')
   try {
-    const ref = (await payments.rpc('refund_ref', { p_actor: actor, p_refund: parsed.data.refundId })) as
+    // The configured mode, as `payment_attempt_ref` is asked: a refund of the other mode is NOT_FOUND here (CONTRACT-04).
+    const ref = (await payments.rpc('refund_ref', { p_actor: actor, p_refund: parsed.data.refundId, p_mode: payments.config.mode })) as
       | { ok: false; code: string }
       | { ok: true; providerPaymentId: string | null }
     if (!ref.ok) return fail(404, 'NOT_FOUND', 'لم نجد عملية الاسترداد هذه.')

@@ -165,6 +165,53 @@ describe('verifyObjectHead', () => {
     expect(result).toEqual({ ok: true })
   })
 
+  // EF-ADMIN-06: an AVIF still image may carry the major brand mif1 (or an AVIF sequence msf1) and say `avif` (or `avis`) among
+  // its compatible brands; image-size reports the raw major brand as the type. Real AVIF bytes, their ftyp brands rewritten.
+  describe('the ftyp brands of an AVIF', () => {
+    const word = (text: string): Uint8Array => new TextEncoder().encode(text)
+    /** Real AVIF bytes (major `avif`, compatible `mif1`, `avif`, `miaf`) with the major brand and the compatible `avif` replaced. */
+    async function avifWith(major: string, compatibleAvif: string): Promise<Uint8Array> {
+      const buffer = await sharp({ create: { width: 320, height: 200, channels: 3, background: { r: 90, g: 70, b: 50 } } })
+        .avif()
+        .toBuffer()
+      const bytes = new Uint8Array(buffer)
+      const size = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0)
+      bytes.set(word(major), 8)
+      for (let offset = 16; offset + 4 <= size; offset += 4) {
+        if (new TextDecoder().decode(bytes.subarray(offset, offset + 4)) === 'avif') bytes.set(word(compatibleAvif), offset)
+      }
+      return bytes
+    }
+    const expectedAvif = { mime: 'image/avif', width: 320, height: 200 }
+
+    it('sharp writes avif as its major brand, which was always accepted', async () => {
+      expect(await verifyObjectHead(await avifWith('avif', 'avif'), expectedAvif)).toEqual({ ok: true })
+    })
+
+    it.each([
+      ['mif1', 'avif'],
+      ['mif1', 'avis'],
+      ['msf1', 'avif'],
+      ['msf1', 'avis'],
+    ])('a %s file that lists %s among its compatible brands is image/avif', async (major, compatible) => {
+      expect(await verifyObjectHead(await avifWith(major, compatible), expectedAvif)).toEqual({ ok: true })
+    })
+
+    it.each(['mif1', 'msf1'])('a %s file that lists neither avif nor avis is the HEIF family\'s and stays UNKNOWN_TYPE', async (major) => {
+      const result = await verifyObjectHead(await avifWith(major, 'heic'), expectedAvif)
+      expect(result).toMatchObject({ ok: false, code: 'UNKNOWN_TYPE' })
+    })
+
+    it('anything else is as before: another major brand is refused, and the declared type must still match', async () => {
+      // An AVIF sequence by its major brand, and a HEIC file that lists avif: image-size does not call either an AVIF still image.
+      expect(await verifyObjectHead(await avifWith('avis', 'avif'), expectedAvif)).toMatchObject({ ok: false, code: 'UNKNOWN_TYPE' })
+      expect(await verifyObjectHead(await avifWith('heic', 'avif'), expectedAvif)).toMatchObject({ ok: false, code: 'UNKNOWN_TYPE' })
+      // A mif1 AVIF declared as a JPEG is a type mismatch, and its dimensions are still compared.
+      expect(await verifyObjectHead(await avifWith('mif1', 'avif'), { ...expectedAvif, mime: 'image/jpeg' })).toMatchObject({ ok: false, code: 'TYPE_MISMATCH' })
+      expect(await verifyObjectHead(await avifWith('mif1', 'avif'), { ...expectedAvif, width: 321 })).toMatchObject({ ok: false, code: 'DIMENSION_MISMATCH' })
+    })
+  })
+
   it('accepts an orientation-6 JPEG declared with swapped (oriented) dimensions', async () => {
     const buffer = await sharp({ create: { width: 120, height: 50, channels: 3, background: { r: 10, g: 20, b: 30 } } })
       .withMetadata({ orientation: 6 })

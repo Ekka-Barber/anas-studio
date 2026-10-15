@@ -5,7 +5,7 @@
  *
  * Actions (`body.action`):
  * - `media-ticket` (owner/editor): validates the upload declaration, creates
- *   the ticket (`media_create_ticket`, 5-minute expiry, at most 10 open per
+ *   the ticket (`media_create_ticket`, 30-minute expiry, at most 10 open per
  *   actor) and answers one signed upload URL per declared part, all under
  *   `quarantine/<ticket>/` in the private bucket.
  * - `media-complete` (owner/editor): the P05 checks, unchanged: the claim is
@@ -21,7 +21,9 @@
  *   from `owner_commerce_stats`, read on every call and null while payments are not
  *   configured; the analytics part is cached per isolate (5 minutes, 30 seconds for a
  *   failed answer).
- * - `status` (owner): configuration booleans, never a secret's value.
+ * - `status` (owner): configuration booleans, never a secret's value. `webhook` is true only for a Resend secret the
+ *   verifier can use (`whsec_` and base64 that decodes to a key); `payments.mode` is the one payment mode the screens
+ *   compare a payment's environment with.
  * - `payment-recheck` (owner, no TOTP; P08): the owner's «أعد الفحص» on one
  *   payment attempt. An uncertain creation is adopted or abandoned, any other
  *   attempt with an invoice is settled from what the provider holds, a closed
@@ -82,7 +84,7 @@ import { commerceCheckoutSetSchema, commercePoliciesApproveSchema, commerceSetti
 import { toAsciiAddress } from './contact.ts'
 import { callerRpc, type Rpc, serviceClient, serviceRpc } from './db.ts'
 import { disputeRecord } from './disputes.ts'
-import { emailProvider } from './email.ts'
+import { emailProvider, svixKey } from './email.ts'
 import { LOCAL_HOSTS, optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, logCause, NO_STORE } from './http.ts'
 import {
@@ -728,6 +730,7 @@ export function settingsStatus(): SettingsStatus {
     provider = 'none'
   }
   const turnstileSecret = optionalEnv('TURNSTILE_SECRET_KEY')
+  const webhookSecret = optionalEnv('RESEND_WEBHOOK_SECRET')
   let siteHost = ''
   const siteUrl = optionalEnv('SITE_URL')
   if (siteUrl) {
@@ -743,7 +746,9 @@ export function settingsStatus(): SettingsStatus {
       configured: turnstileSecret !== undefined,
       testSecret: turnstileSecret !== undefined && TEST_SECRETS.has(turnstileSecret),
     },
-    webhook: optionalEnv('RESEND_WEBHOOK_SECRET') !== undefined,
+    // Configured means usable (EF-ADMIN-09): `whsec_` and base64 that decodes to a key, as the verifier reads it. A secret pasted
+    // with a character missing may still decode: only the first delivery can tell.
+    webhook: webhookSecret !== undefined && webhookSecret.startsWith('whsec_') && svixKey(webhookSecret) !== null,
     jobs: optionalEnv('JOBS_SECRET') !== undefined,
     siteHost,
     // The same gate as `fetchAnalytics`: it also needs a SITE_URL host.

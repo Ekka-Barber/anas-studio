@@ -330,6 +330,8 @@ describe('dispute-record: what reaches the SQL, and what comes back', () => {
     ['TARGET_MISMATCH', 409],
     ['INVALID_ITEMS', 422],
     ['REFERENCE_IN_USE', 409],
+    // P08-CKPT-09: another row, saying something else, holds the place (RESIDUALS-1 R2b).
+    ['SEQ_TAKEN', 409],
     ['SOMETHING_NEW', 409],
   ])('the SQL refusal %s is %i with its own code and a short Arabic message', async (code, status) => {
     reply('dispute_record', { ok: false, code })
@@ -337,6 +339,12 @@ describe('dispute-record: what reaches the SQL, and what comes back', () => {
     expect(refused.status).toBe(status)
     expect(refused.body).toMatchObject({ ok: false, error: { code, message: expect.stringMatching(/[؀-ۿ]/) } })
     expect(refused.body.error.message.length).toBeLessThan(80)
+  })
+
+  it('SEQ_TAKEN tells the owner to reopen the reference and read its last line', async () => {
+    reply('dispute_record', { ok: false, code: 'SEQ_TAKEN' })
+    const refused = await answer(await send(record()))
+    expect(refused.body.error.message).toBe('سُجّل سطر آخر لهذا المرجع للتو؛ أعد فتح المرجع وراجع آخر سطر.')
   })
 
   it('a malformed call the SQL refuses is 422; any other database failure is a detail-free 500', async () => {

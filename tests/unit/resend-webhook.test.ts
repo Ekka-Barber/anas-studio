@@ -15,7 +15,7 @@ import { createHmac, randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { Rpc } from '../../supabase/functions/_shared/db.ts'
-import { verifySvixSignature } from '../../supabase/functions/_shared/email.ts'
+import { svixKey, verifySvixSignature } from '../../supabase/functions/_shared/email.ts'
 import { handleResendWebhook } from '../../supabase/functions/_shared/resend-webhook.ts'
 
 // The database is a recorder (a unit test must never reach a real one;
@@ -106,6 +106,23 @@ function bounceBody(bounce?: { type?: string; subType?: string }): string {
     data: { email_id: 'msg-bounce', to: ['staff@example.com'], ...(bounce === undefined ? {} : { bounce }) },
   })
 }
+
+// EF-ADMIN-09: the one reading of a webhook secret, shared by the verifier and the settings status.
+describe('svixKey', () => {
+  it('is the bytes of the base64 after whsec_, and of a secret without the prefix', () => {
+    expect(svixKey(SECRET)).toEqual(new Uint8Array(Buffer.from(SECRET_RAW)))
+    expect(svixKey(Buffer.from(SECRET_RAW).toString('base64'))).toEqual(new Uint8Array(Buffer.from(SECRET_RAW)))
+  })
+
+  it('is null for text that is not base64, for a key of no byte, and for a length base64 cannot have', () => {
+    for (const bad of ['whsec_', 'whsec_%%%', 'whsec_c2Vj$mV0', 'whsec_ ', 'whsec_c', '']) expect(svixKey(bad), bad).toBeNull()
+  })
+
+  it('a secret it refuses signs nothing: the verifier answers false for it', async () => {
+    const params = headers('evt_key', Date.now(), ['good'])
+    for (const bad of ['whsec_', 'whsec_%%%']) expect(await verifySvixSignature({ ...params, secret: bad })).toBe(false)
+  })
+})
 
 describe('verifySvixSignature', () => {
   it('accepts a valid signature', async () => {

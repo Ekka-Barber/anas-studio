@@ -35,6 +35,9 @@ const CANVAS_ERROR = 'تعذّر تجهيز أداة الرسم في هذا ال
 const WEBP_ERROR =
   'هذا المتصفح لا يستطيع إنشاء صور WebP. استخدم نسخة حديثة من Chrome أو Edge أو Firefox.'
 const DERIVATIVE_SIZE_ERROR = 'حجم أحد المقاسات بعد التحويل أكبر من 4 ميغابايت؛ جرّب اقتصاصًا أصغر أو صورة أبسط.'
+// The completion answers GONE when the ticket ran out before the last byte arrived (30 minutes after it was made, EF-ADMIN-05):
+// on a slow uplink the upload was too long, and a retry with the same file on the same line fails the same way.
+const SLOW_UPLOAD_ERROR = 'طال الرفع أكثر من المسموح؛ جرّب اتصالًا أسرع أو صورة أصغر.'
 // The server swaps width and height for a rotated JPEG only; an AVIF, WebP or
 // PNG with a rotation stored in the file reads back unrotated, and a retry with
 // the same file fails the same way.
@@ -268,7 +271,8 @@ export function MediaUpload({
     }
     const finished = await callFunction<{ id: string }>('admin', { action: 'media-complete', ticketId: ticket.data.ticketId })
     if (!finished.ok) {
-      return { message: finished.error.code === 'DIMENSION_MISMATCH' ? DIMENSION_ERROR : finished.error.message }
+      const { code, message } = finished.error
+      return { message: code === 'DIMENSION_MISMATCH' ? DIMENSION_ERROR : code === 'GONE' ? SLOW_UPLOAD_ERROR : message }
     }
     return { id: finished.data.id }
   }

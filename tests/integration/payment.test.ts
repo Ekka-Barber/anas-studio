@@ -2624,23 +2624,29 @@ describe('payment_reconcile_claim', () => {
       const ahead = (await row("select extract(epoch from (next_check_at - now())) as s from finance.refunds where id = $1", [id])).s
       expect(Number(ahead)).toBeGreaterThan(100)
     }
-    // The other mode's refund was parked by the first claim: still in flight (a person settles it), no due time.
+    // The other mode's refund was parked by the first claim, and it leaves flight (CONTRACT-04, RESIDUALS-1 R2b): failed MODE_CHANGED
+    // with no due time, one audit row. Only Moyasar's dashboard of that mode can settle it, and the owners are told.
     const parked = await row(
       'select r.status, r.next_check_at, r.error from finance.refunds r where r.attempt_id = $1',
       [otherMode],
     )
-    expect(parked).toMatchObject({ status: 'submitting', next_check_at: null, error: 'MODE_CHANGED' })
+    expect(parked).toMatchObject({ status: 'failed', next_check_at: null, error: 'MODE_CHANGED' })
+    const failedAudits = (): Promise<number> => count("select count(*)::int as n from public.audit_events where action = 'refund.failed' and entity_id = $1", [otherModeRefund])
+    expect(await failedAudits()).toBe(1)
     expect((await claim('live')).refunds).toEqual([])
-    // The owners are told once, and the owner's reconciliation screen lists it among the refunds in flight.
+    // Once: a claim again finds nothing of it to alert, fail or lease, so it stays the one alert and the one audit row.
+    expect(await claim()).toEqual({ attempts: [], events: [], refunds: [] })
     expect(await alerts('refund_mode_changed', otherModeRefund)).toBe(await owners())
+    expect(await failedAudits()).toBe(1)
     expect((await row('select payload from finance.email_outbox where dedupe_key like $1 limit 1', [`refund_mode_changed:${otherModeRefund}:%`])).payload).toEqual({
       alert: 'refund_mode_changed',
       refundId: otherModeRefund,
       orderId: base.id,
     })
+    // It is out of the owner's list of refunds in flight and out of the count of refunds in doubt: nothing is left to re-check.
     const reconciliation = await ownerClient.rpc('reconciliation_list')
     expect(reconciliation.error).toBeNull()
-    expect(((reconciliation.data as Row).refunds as Row[]).find((entry) => entry.id === otherModeRefund)).toMatchObject({ status: 'submitting', error: 'MODE_CHANGED' })
+    expect(((reconciliation.data as Row).refunds as Row[]).find((entry) => entry.id === otherModeRefund)).toBeUndefined()
   })
 })
 

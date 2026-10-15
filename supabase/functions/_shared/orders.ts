@@ -20,8 +20,12 @@ import { isTurnstileUnavailable, type TurnstileResult, verifyTurnstile } from '.
  *   `{sent: true}` whatever the address has: it always calls `order_recover_list` and then
  *   `order_recover_apply` (with an empty list on a miss), the SQL throttles in silence, and nothing in
  *   the reply or the work depends on whether an order was found. A link that still works keeps its
- *   token; only an expired one gets the next version's (`recoveryItems`).
+ *   token; an expired one, and one whose stored hash the current pepper did not make (the pepper was
+ *   replaced), gets the next version's (`recoveryItems`).
  * - `return-request` files the buyer's return request for shipped goods (`return_request_create`).
+ *   Its optional `requestKey` (a uuid the order page keeps until the form changes) makes a repeat
+ *   after a lost reply answer the request already filed: the same 201 `{returnId}`, and nothing new
+ *   is written.
  *
  * Order of checks, like `checkout`: method → site and pepper → origin → content type → size → JSON →
  * schema → the payment mode every SQL function is bound to (`buyerMode`: no action here calls the
@@ -70,6 +74,8 @@ const returnSchema = z.strictObject({
   ...orderRef,
   items: z.array(z.strictObject({ itemId: z.string().regex(UUID), quantity: z.number().int().min(1).max(20) })).min(1).max(50),
   reason: reasonField,
+  // EF-ACCESS-10: the page's key for this form; optional, so a page older than the key still files its request.
+  requestKey: z.string().regex(UUID).optional(),
 })
 
 const bodySchema = z.discriminatedUnion('action', [getSchema, recoverSchema, returnSchema])
@@ -84,23 +90,30 @@ const REFUSALS: Record<string, { status: number; message: string }> = {
 
 /** One order of what `order_recover_list` answers, and one entry of what `order_recover_apply` takes. */
 export type RecoverableOrder = { orderId: string; idempotencyKey: string; tokenVersion: number; expired: boolean }
-export type RecoverItem = { orderId: string; version: number; tokenHash?: string }
+export type RecoverItem = { orderId: string; version: number; tokenHash?: string; currentHash?: string; nextHash?: string }
 
 /**
- * Recovery never kills a working link: an order whose stored token has not expired derives nothing new
- * (`{orderId, version}` and no hash); an expired one gets the next version's token, of which only the
- * hash goes to the database.
+ * Recovery never kills a working link. An order whose stored token has not expired carries the hash the current pepper
+ * makes of its version's token (`currentHash`) and of the next version's (`nextHash`): the SQL renews the expiry only
+ * when the stored hash is `currentHash`, and otherwise (the pepper was replaced, so the stored hash is no token this
+ * pepper issues, EF-ACCESS-04) replaces the link with the next version's. An expired one gets the next version's token,
+ * of which only the hash goes to the database. Only hashes leave this function, never a token.
  */
 export function recoveryItems(pepper: string, orders: RecoverableOrder[]): Promise<RecoverItem[]> {
+  const hashOf = async (order: RecoverableOrder, version: number): Promise<string> =>
+    orderAccessTokenHash(pepper, await orderAccessToken(pepper, order.idempotencyKey, version))
   return Promise.all(
     orders.map(async (order): Promise<RecoverItem> => {
-      if (!order.expired) return { orderId: order.orderId, version: order.tokenVersion }
-      const version = order.tokenVersion + 1
-      return {
-        orderId: order.orderId,
-        version,
-        tokenHash: await orderAccessTokenHash(pepper, await orderAccessToken(pepper, order.idempotencyKey, version)),
+      if (!order.expired) {
+        return {
+          orderId: order.orderId,
+          version: order.tokenVersion,
+          currentHash: await hashOf(order, order.tokenVersion),
+          nextHash: await hashOf(order, order.tokenVersion + 1),
+        }
       }
+      const version = order.tokenVersion + 1
+      return { orderId: order.orderId, version, tokenHash: await hashOf(order, version) }
     }),
   )
 }
@@ -235,6 +248,7 @@ export async function handleOrders(request: Request, deps: OrdersDeps = {}): Pro
     p_reason: input.reason,
     p_ip_hash: ipHash,
     p_mode: mode,
+    p_request_key: input.requestKey ?? null,
   })
   if (result instanceof Response) return result
   const created = result as SqlReply

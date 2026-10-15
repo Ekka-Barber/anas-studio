@@ -90,6 +90,7 @@ function api(db: Client) {
     recon: () => call('reconciliation_list', {}),
     close: (payment: string, reason: string) => call('review_close', { p_payment: payment, p_reason: reason }),
     dismiss: (event: string) => call('event_dismiss', { p_event: event }),
+    dismissAttempt: (attempt: string | null) => call('attempt_dismiss', { p_attempt: attempt }),
   }
 }
 type StaffApi = ReturnType<typeof api>
@@ -287,6 +288,7 @@ const NINE = [
   'public.reconciliation_list()',
   'public.review_close(text, text)',
   'public.event_dismiss(text)',
+  'public.attempt_dismiss(uuid)',
 ]
 const HELPERS = [
   'finance.require_staff(boolean)',
@@ -376,6 +378,7 @@ describe('who may call', () => {
     ['review_close', { p_payment: reviewPayment, p_reason: REVIEW_REASON }],
     ['event_dismiss', { p_event: 'no-such-event' }],
     ['fulfillment_correct', { p_order: shipOrder.id, p_item_ids: [shipOrder.items[0]!.id], p_carrier: 'SMSA', p_tracking: 'T1' }],
+    ['attempt_dismiss', { p_attempt: randomUUID() }],
   ]
 
   it('refuses anon, an editor, a revoked owner and an inactive operations member on every one of the nine, and changes nothing', async () => {
@@ -397,8 +400,8 @@ describe('who may call', () => {
 
   it('lets an operations member work the orders but refuses what is the owner\'s: resolving, the reconciliation, closing a review, restocking', async () => {
     const client = await signIn(operations.email)
-    const [, , fulfil, decide, receive, resolve, , recon, close] = calls() as Array<[string, Record<string, unknown>]>
-    for (const [fn, args] of [resolve!, recon!, close!, receive!] as Array<[string, Record<string, unknown>]>) {
+    const [, , fulfil, decide, receive, resolve, , recon, close, , , dismissAttempt] = calls() as Array<[string, Record<string, unknown>]>
+    for (const [fn, args] of [resolve!, recon!, close!, receive!, dismissAttempt!] as Array<[string, Record<string, unknown>]>) {
       expect((await client.rpc(fn, args)).error?.code, `operations: ${fn}`).toBe('42501')
     }
     expect((await orderOf(stuckOrder.id)).status).toBe('paid_needs_resolution')
@@ -675,8 +678,8 @@ describe('order_detail', () => {
     sameKeys(detail.entitlements[0], ['filename', 'grantedAt', 'hasFile', 'id', 'itemId', 'revokeReason', 'revokedAt'])
     expect(detail.entitlements[0]).toMatchObject({ itemId: bookItem.id, hasFile: true, filename: 'كتاب أنس.pdf', revokedAt: null })
     expect(detail.refunds).toHaveLength(1)
-    sameKeys(detail.refunds[0], ['allocation', 'amount', 'attemptId', 'createdAt', 'error', 'id', 'nextCheckAt', 'orderId', 'providerRefundedAfter', 'providerRefundedBefore', 'reason', 'returnId', 'reviewPaymentId', 'source', 'status', 'succeededAt'])
-    expect(detail.refunds[0]).toMatchObject({ id: asked.refundId, status: 'succeeded', amount: 1000, source: 'admin', attemptId: p.attemptId, providerRefundedBefore: 0, providerRefundedAfter: 1000 })
+    sameKeys(detail.refunds[0], ['allocation', 'amount', 'attemptId', 'createdAt', 'environment', 'error', 'id', 'nextCheckAt', 'orderId', 'providerRefundedAfter', 'providerRefundedBefore', 'reason', 'returnId', 'reviewPaymentId', 'source', 'status', 'succeededAt'])
+    expect(detail.refunds[0]).toMatchObject({ id: asked.refundId, status: 'succeeded', amount: 1000, source: 'admin', environment: 'test', attemptId: p.attemptId, providerRefundedBefore: 0, providerRefundedAfter: 1000 })
     expect(detail.refunds[0].allocation).toEqual({ items: [{ itemId: physItem.id, amount: 1000 }] })
     expect(detail.returns).toHaveLength(1)
     sameKeys(detail.returns[0], ['createdAt', 'id', 'items', 'reason', 'refundId', 'restocked', 'staffNote', 'state', 'updatedAt'])
@@ -1806,8 +1809,8 @@ describe('reconciliation_list', () => {
     // In-flight refunds, until the provider's answer ends them.
     const asked = await askRefund(p, [{ item: p.items[0]!, amount: 1000 }])
     const inFlight = ((await list()).refunds as Row[]).find((entry) => entry.id === asked.refundId)!
-    sameKeys(inFlight, ['allocation', 'amount', 'attemptId', 'createdAt', 'error', 'id', 'nextCheckAt', 'orderId', 'orderNumber', 'providerRefundedAfter', 'providerRefundedBefore', 'reason', 'returnId', 'reviewPaymentId', 'source', 'status', 'succeededAt'])
-    expect(inFlight).toMatchObject({ status: 'submitting', amount: 1000, orderNumber: p.number, orderId: p.id, attemptId: p.attemptId, providerRefundedBefore: 0 })
+    sameKeys(inFlight, ['allocation', 'amount', 'attemptId', 'createdAt', 'environment', 'error', 'id', 'nextCheckAt', 'orderId', 'orderNumber', 'providerRefundedAfter', 'providerRefundedBefore', 'reason', 'returnId', 'reviewPaymentId', 'source', 'status', 'succeededAt'])
+    expect(inFlight).toMatchObject({ status: 'submitting', amount: 1000, orderNumber: p.number, orderId: p.id, attemptId: p.attemptId, environment: 'test', providerRefundedBefore: 0 })
     await h.call('refund_result', { p_refund: asked.refundId, p_outcome: 'uncertain', p_provider_refunded: null, p_error: 'TIMEOUT' })
     expect((((await list()).refunds as Row[]).find((entry) => entry.id === asked.refundId) as Row).status).toBe('uncertain')
     await h.call('refund_settle', { p_refund: asked.refundId, p_provider_refunded: asked.before + asked.amount })
@@ -1954,6 +1957,102 @@ describe('reconciliation_list', () => {
     expect(await reasonsFor(started.attemptId)).toBeUndefined()
     expect(await unverified()).toBe(before - 1)
     expect(await erasable()).toBe(true)
+  })
+})
+
+// --- attempt_dismiss -----------------------------------------------------------------------------------------------------
+
+// CONTRACT-04 with ADMIN-COMMERCE-08 (RESIDUALS-1 R2b): the owner files an attempt the job parked for the other payment mode,
+// as `event_dismiss` files an exhausted webhook event.
+describe('attempt_dismiss', () => {
+  const dismiss = (attempt: string | null): Promise<any> => ownerApi.dismissAttempt(attempt)
+  const attemptListed = async (attemptId: string): Promise<Row | undefined> => ((await ownerApi.recon()).attempts as Row[]).find((entry) => entry.id === attemptId)
+  const unverified = async (): Promise<number> => (await ownerApi.alerts()).unverifiedAttempts as number
+  /** An attempt with an invoice that the claim parked for the other mode, as 20261007100000_fable_audit_payments.sql leaves it, its invoice now past paying. */
+  async function parked(): Promise<{ attemptId: string; orderId: string }> {
+    const placed = await h.place([{ variantId: await h.physical(4000, 30), quantity: 1 }])
+    const started = await h.startPayment(placed)
+    await h.postgres.query(
+      "update finance.payment_attempts set status = 'expired', next_check_at = null, last_error = 'MODE_CHANGED', invoice_expires_at = now() - interval '11 minutes' where id = $1",
+      [started.attemptId],
+    )
+    await h.postgres.query("update finance.orders set status = 'expired' where id = $1", [placed.id])
+    return { attemptId: started.attemptId, orderId: placed.id }
+  }
+  const erasable = async (orderId: string): Promise<boolean> => (await h.row('select finance.order_erasable(o) as ok from finance.orders o where o.id = $1', [orderId])).ok as boolean
+
+  it('closes a parked attempt: it leaves the reconciliation list and the count, its order may be erased, one audit row', async () => {
+    const { attemptId, orderId } = await parked()
+    const before = await unverified()
+    expect((await attemptListed(attemptId))?.reasons).toEqual(['MODE_CHANGED'])
+    expect(await erasable(orderId)).toBe(false)
+
+    expect(await dismiss(attemptId)).toEqual({ ok: true, attemptId })
+    expect(await attemptListed(attemptId)).toBeUndefined()
+    expect(await unverified()).toBe(before - 1)
+    expect(await erasable(orderId)).toBe(true)
+    // The attempt is as the job left it but for the mark: still expired, no due time.
+    expect(await h.row('select status, last_error, next_check_at from finance.payment_attempts where id = $1', [attemptId])).toEqual({ status: 'expired', last_error: null, next_check_at: null })
+    const audits = await auditsOf('payment.attempt_dismissed', attemptId)
+    expect(audits).toHaveLength(1)
+    expect(audits[0]).toMatchObject({ actor: owner.userId, entity: 'payment_attempt', summary: { orderId } })
+
+    // A second press finds nothing parked, says so, and writes no second audit row.
+    expect(await dismiss(attemptId)).toEqual({ ok: false, code: 'NOT_PARKED' })
+    expect(await auditsOf('payment.attempt_dismissed', attemptId)).toHaveLength(1)
+  })
+
+  it('refuses what is not a parked attempt with a code that says why, and writes nothing: no such attempt, a live one, a paid one, one in review, one the job could not verify', async () => {
+    const live = await h.place([{ variantId: await h.physical(4000, 30), quantity: 1 }])
+    const pending = await h.startPayment(live)
+    const paid = await h.paid([{ variantId: await h.physical(4000, 30), quantity: 1 }])
+    const reviewed = await h.place([{ variantId: await h.physical(4000, 30), quantity: 1 }])
+    const inReview = await h.startPayment(reviewed)
+    await h.postgres.query("update finance.payment_attempts set status = 'review', last_error = 'MODE_CHANGED' where id = $1", [inReview.attemptId])
+    const unverifiedAttempt = await h.startPayment(await h.place([{ variantId: await h.physical(4000, 30), quantity: 1 }]))
+    await h.postgres.query("update finance.payment_attempts set status = 'expired', next_check_at = null, last_error = 'UNVERIFIED' where id = $1", [unverifiedAttempt.attemptId])
+    // A paid attempt that was marked by mistake is not an attempt to close either: money settled it.
+    await h.postgres.query("update finance.payment_attempts set last_error = 'MODE_CHANGED' where id = $1", [paid.attemptId])
+    const snapshot = async (id: string): Promise<Row> => h.row('select status, last_error, next_check_at, updated_at from finance.payment_attempts where id = $1', [id])
+    const before = [await snapshot(pending.attemptId), await snapshot(paid.attemptId), await snapshot(inReview.attemptId), await snapshot(unverifiedAttempt.attemptId)]
+
+    expect(await dismiss(randomUUID())).toEqual({ ok: false, code: 'NOT_FOUND' })
+    for (const id of [pending.attemptId, paid.attemptId, inReview.attemptId, unverifiedAttempt.attemptId]) {
+      expect(await dismiss(id), id).toEqual({ ok: false, code: 'NOT_PARKED' })
+      expect(await auditsOf('payment.attempt_dismissed', id), id).toHaveLength(0)
+    }
+    expect([await snapshot(pending.attemptId), await snapshot(paid.attemptId), await snapshot(inReview.attemptId), await snapshot(unverifiedAttempt.attemptId)]).toEqual(before)
+    // A call with no attempt is malformed.
+    expect(await sqlstate(dismiss(null))).toBe('22023')
+    // Put back what the test marked, so the count of the other tests is not moved.
+    await h.postgres.query("update finance.payment_attempts set last_error = null where id = any($1::uuid[])", [[paid.attemptId, inReview.attemptId, unverifiedAttempt.attemptId]])
+  })
+
+  // R2b audit, finding 4: a buyer can still pay an open invoice, and the mark is what keeps that payment (closed
+  // `mode_mismatch`) in view and its order from erasure, so it stays until the job's 10-minute grace has passed.
+  it('keeps the mark while the invoice can still be paid: not yet expired, or within the 10-minute grace', async () => {
+    const { attemptId, orderId } = await parked()
+    for (const offset of ['5 minutes', '-9 minutes']) {
+      await h.postgres.query('update finance.payment_attempts set invoice_expires_at = now() + $2::interval where id = $1', [attemptId, offset])
+      expect(await dismiss(attemptId), offset).toEqual({ ok: false, code: 'INVOICE_OPEN' })
+      expect((await attemptListed(attemptId))?.reasons, offset).toEqual(['MODE_CHANGED'])
+      expect(await erasable(orderId), offset).toBe(false)
+      expect(await auditsOf('payment.attempt_dismissed', attemptId), offset).toHaveLength(0)
+    }
+    await h.postgres.query("update finance.payment_attempts set invoice_expires_at = now() - interval '11 minutes' where id = $1", [attemptId])
+    expect(await dismiss(attemptId)).toEqual({ ok: true, attemptId })
+  })
+
+  it('is the owner\'s alone: operations, an editor, a revoked owner and anon are refused, and the attempt keeps its mark', async () => {
+    const { attemptId } = await parked()
+    expect(await sqlstate(opsApi.dismissAttempt(attemptId))).toBe('42501')
+    for (const client of [anonClient(), await signIn(editor.email), await signIn(revokedOwner.email)]) {
+      expect((await client.rpc('attempt_dismiss', { p_attempt: attemptId })).error?.code).toBe('42501')
+    }
+    expect((await attemptListed(attemptId))?.reasons).toEqual(['MODE_CHANGED'])
+    expect(await auditsOf('payment.attempt_dismissed', attemptId)).toHaveLength(0)
+    // Nobody leaves the list but by the owner's word: clean up through the owner.
+    expect(await dismiss(attemptId)).toEqual({ ok: true, attemptId })
   })
 })
 

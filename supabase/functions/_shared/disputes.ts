@@ -85,6 +85,8 @@ const REFUSALS: Record<string, [status: number, message: string]> = {
   TARGET_MISMATCH: [409, 'السجل اللاحق يخص الدفعة نفسها التي سُجّل عليها أول المرجع.'],
   INVALID_ITEMS: [422, 'البنود المختارة لا تناسب هذا القرار.'],
   REFERENCE_IN_USE: [409, 'هذا المرجع مسجّل في بيئة أخرى.'],
+  // P08-CKPT-09: another row, saying something else, took this place first.
+  SEQ_TAKEN: [409, 'سُجّل سطر آخر لهذا المرجع للتو؛ أعد فتح المرجع وراجع آخر سطر.'],
 }
 
 /** A database failure: a revoked owner is 403, a malformed call 422, anything else a detail-free 500. */

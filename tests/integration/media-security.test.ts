@@ -186,6 +186,56 @@ describe('media_ticket', () => {
   })
 })
 
+// EF-ADMIN-05 with ADMIN-CMS-15 (RESIDUALS-1 R2b): a large photo over a slow uplink needs more than five minutes between the
+// ticket and the completion. The ticket lives 30 minutes; the signed URLs still bound the upload and an actor still holds at most 10.
+describe('the upload window', () => {
+  /** The ticket as if it had been created `minutes` ago: both of its times moved back, the way the clock would have. */
+  const ageBy = (ticket: string, minutes: number): Promise<unknown> =>
+    postgres.query(
+      "update public.media_upload_tickets set created_at = created_at - make_interval(mins => $2), expires_at = expires_at - make_interval(mins => $2) where id = $1",
+      [ticket, minutes],
+    )
+
+  it('a ticket expires 30 minutes after its creation, as its reply says', async () => {
+    const { userId } = await createStaff('editor')
+    const made = await app.query<{ t: { id: string; expiresAt: string } }>('select public.media_create_ticket($1, $2) as t', [userId, declared()])
+    const { id, expiresAt } = made.rows[0]!.t
+    const row = (
+      await postgres.query<{ minutes: string; expires_at: Date }>(
+        'select extract(epoch from (expires_at - created_at)) / 60 as minutes, expires_at from public.media_upload_tickets where id = $1',
+        [id],
+      )
+    ).rows[0]!
+    expect(Number(row.minutes)).toBe(30)
+    // The reply says the stored time; both clocks are the database's, never the host's (a container clock may run ahead).
+    expect(Date.parse(expiresAt)).toBe(row.expires_at.getTime())
+  })
+
+  it('a 29-minute-old ticket is still claimed and completed; a 31-minute-old one is gone (55000) at the read, the claim and the completion', async () => {
+    const { userId } = await createStaff('editor')
+    const young = await createTicket(userId)
+    await ageBy(young, 29)
+    expect(await app.query('select public.media_ticket($1, $2)', [userId, young])).toMatchObject({ rowCount: 1 })
+    await completeTicket(userId, young)
+    expect((await postgres.query('select 1 from public.media where id = $1', [young])).rowCount).toBe(1)
+
+    const old = await createTicket(userId)
+    await ageBy(old, 31)
+    expect(await sqlstate(() => app.query('select public.media_ticket($1, $2)', [userId, old]))).toBe('55000')
+    expect(await sqlstate(() => claimTicket(userId, old))).toBe('55000')
+    expect(await sqlstate(() => completeTicket(userId, old))).toBe('55000')
+    expect((await postgres.query('select 1 from public.media where id = $1', [old])).rowCount).toBe(0)
+  })
+
+  it('an expired ticket does not count toward the 10 open ones, and the 11th open one is still refused', async () => {
+    const { userId } = await createStaff('editor')
+    const first = await createTicket(userId)
+    await ageBy(first, 31)
+    for (let i = 0; i < 10; i += 1) await createTicket(userId)
+    expect(await sqlstate(() => createTicket(userId))).toBe('54000')
+  })
+})
+
 describe('media_complete', () => {
   it('refuses an unclaimed ticket (55000)', async () => {
     const { userId } = await createStaff('editor')

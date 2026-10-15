@@ -361,7 +361,10 @@ describe('recover', () => {
     expect(names()).toEqual(['order_recover_list', 'order_recover_apply'])
     const ip = await clientKeyHash(request(recoverBody()), PEPPER)
     expect(calls('order_recover_list')[0]).toEqual({ p_ip_hash: ip, p_email: 'buyer@example.com', p_mode: 'test' })
-    expect(calls('order_recover_apply')[0]).toEqual({ p_ip_hash: ip, p_items: [{ orderId: ORDER, version: 0 }] })
+    expect(calls('order_recover_apply')[0]).toEqual({
+      p_ip_hash: ip,
+      p_items: [{ orderId: ORDER, version: 0, currentHash: hashOf(tokenOf(live.idempotencyKey, 0)), nextHash: hashOf(tokenOf(live.idempotencyKey, 1)) }],
+    })
   })
 
   it('punycodes an international domain like checkout does, so it hashes to the address the order stored', async () => {
@@ -389,18 +392,19 @@ describe('recover', () => {
     expect(outcomes[2]!.applyArgs).toEqual([])
   })
 
-  it('derives a new token only for an expired link, and sends the database its hash, never the token', async () => {
+  it("sends the database hashes, never a token: the next version's for an expired link, and for a live one the hash of its own token and of the next", async () => {
     scripted('order_recover_list', [live, expired])
     await post(request(recoverBody()))
     const items = calls('order_recover_apply')[0]!.p_items as Array<Record<string, unknown>>
     const newToken = tokenOf(expired.idempotencyKey, 3)
     expect(items).toEqual([
-      { orderId: ORDER, version: 0 },
+      { orderId: ORDER, version: 0, currentHash: hashOf(tokenOf(live.idempotencyKey, 0)), nextHash: hashOf(tokenOf(live.idempotencyKey, 1)) },
       { orderId: expired.orderId, version: 3, tokenHash: hashOf(newToken) },
     ])
+    // A live link is never given a replacement outright: the database decides, from the stored hash (EF-ACCESS-04).
     expect('tokenHash' in items[0]!).toBe(false)
     const all = JSON.stringify(recorded)
-    for (const secret of [newToken, tokenOf(expired.idempotencyKey, 2), tokenOf(live.idempotencyKey), expired.idempotencyKey, live.idempotencyKey, 'XXXX.DUMMY.TOKEN.XXXX']) {
+    for (const secret of [newToken, tokenOf(expired.idempotencyKey, 2), tokenOf(live.idempotencyKey), tokenOf(live.idempotencyKey, 1), expired.idempotencyKey, live.idempotencyKey, 'XXXX.DUMMY.TOKEN.XXXX']) {
       expect(all).not.toContain(secret)
     }
   })
@@ -427,16 +431,28 @@ describe('recover', () => {
 })
 
 describe('recoveryItems', () => {
-  it('keeps a live link as it is and gives only an expired one the next version\'s token hash', async () => {
+  it("gives a live link the hashes the database proves it with (its own token's and the next version's) and an expired one the next version's token hash", async () => {
     const a = { orderId: randomUUID(), idempotencyKey: randomUUID(), tokenVersion: 0, expired: false }
     const b = { orderId: randomUUID(), idempotencyKey: randomUUID(), tokenVersion: 0, expired: true }
     const c = { orderId: randomUUID(), idempotencyKey: randomUUID(), tokenVersion: 4, expired: true }
-    expect(await recoveryItems(PEPPER, [a, b, c])).toEqual([
-      { orderId: a.orderId, version: 0 },
+    const d = { orderId: randomUUID(), idempotencyKey: randomUUID(), tokenVersion: 3, expired: false }
+    expect(await recoveryItems(PEPPER, [a, b, c, d])).toEqual([
+      { orderId: a.orderId, version: 0, currentHash: hashOf(tokenOf(a.idempotencyKey, 0)), nextHash: hashOf(tokenOf(a.idempotencyKey, 1)) },
       { orderId: b.orderId, version: 1, tokenHash: hashOf(tokenOf(b.idempotencyKey, 1)) },
       { orderId: c.orderId, version: 5, tokenHash: hashOf(tokenOf(c.idempotencyKey, 5)) },
+      { orderId: d.orderId, version: 3, currentHash: hashOf(tokenOf(d.idempotencyKey, 3)), nextHash: hashOf(tokenOf(d.idempotencyKey, 4)) },
     ])
     expect(await recoveryItems(PEPPER, [])).toEqual([])
+  })
+
+  it('makes the hashes with the pepper it is given: another pepper, other hashes (what tells a stored hash of the old pepper)', async () => {
+    const a = { orderId: randomUUID(), idempotencyKey: randomUUID(), tokenVersion: 1, expired: false }
+    const [first] = await recoveryItems(PEPPER, [a])
+    const [second] = await recoveryItems(`${PEPPER}-replaced`, [a])
+    expect(first!.currentHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(second!.currentHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(second!.currentHash).not.toBe(first!.currentHash)
+    expect(second!.nextHash).not.toBe(first!.nextHash)
   })
 })
 
@@ -454,8 +470,28 @@ describe('return-request', () => {
       p_reason: 'المنتج وصلني تالفًا',
       p_ip_hash: await clientKeyHash(request(returnBody()), PEPPER),
       p_mode: 'test',
+      p_request_key: null,
     })
     expect(JSON.stringify(recorded)).not.toContain(TOKEN)
+  })
+
+  // EF-ACCESS-10: the page keeps one key until the form changes; a repeat after a lost reply answers the request already filed.
+  it("passes the page's request key on, so the database can answer a repeat with the request it filed; the key is a uuid and optional", async () => {
+    const returnId = randomUUID()
+    const requestKey = randomUUID()
+    scripted('return_request_create', { ok: true, returnId })
+    const first = await post(request(returnBody({ requestKey })))
+    const again = await post(request(returnBody({ requestKey })))
+    // A repeat is answered like the first: the same 201 and the same id (the database finds the key; nothing else differs).
+    expect([first.status, again.status]).toEqual([201, 201])
+    expect(await replyOf(again)).toEqual({ ok: true, data: { returnId } })
+    expect(calls('return_request_create').map((args) => args.p_request_key)).toEqual([requestKey, requestKey])
+    for (const bad of ['not-a-uuid', '', 5, null]) {
+      const refused = await post(request(returnBody({ requestKey: bad })))
+      expect(refused.status, String(bad)).toBe(422)
+      expect((await replyOf(refused)).error?.code).toBe('INVALID')
+    }
+    expect(calls('return_request_create')).toHaveLength(2)
   })
 
   it.each([

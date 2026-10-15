@@ -624,7 +624,8 @@ function alertText(alert: AlertEmailData): RenderedEmail {
     case 'refund_mode_changed':
       return {
         subject: 'تنبيه: استرداد من وضع آخر يحتاج متابعة',
-        text: `تغيّر وضع الدفع (تجريبي/حقيقي) بينما كان استرداد الطلب ${order} قيد التنفيذ؛ راجعه في لوحة بوابة الدفع وفي شاشة المطابقة.`,
+        // The same claim fails the refund (MODE_CHANGED, RESIDUALS-1 R2b), so no screen here lists it: the dashboard of that mode says what became of it.
+        text: `تغيّر وضع الدفع (تجريبي/حقيقي) بينما كان استرداد الطلب ${order} قيد التنفيذ؛ سُجّل هنا فاشلًا لأن الوضع الحالي لا يستطيع التحقق منه. راجع نتيجته في لوحة بوابة الدفع لذلك الوضع.`,
       }
     case 'payment_create_refused':
       return {
@@ -693,6 +694,20 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
+ * The key a Svix-signed webhook secret stands for: the base64 after an optional `whsec_`, decoded. Null when it is not
+ * base64 or decodes to no byte at all. The one reading the verifier and the settings status share (EF-ADMIN-09), so a
+ * secret the status calls configured is one the verifier can use.
+ */
+export function svixKey(secret: string): Uint8Array<ArrayBuffer> | null {
+  try {
+    const key = base64ToBytes(secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret)
+    return key.length > 0 ? key : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Verifies a Svix-signed Resend webhook against the raw body text. Accepts
  * only a well-formed `v1` signature list with a timestamp inside the 5-minute
  * tolerance; every comparison is constant-time.
@@ -710,13 +725,8 @@ export async function verifySvixSignature(params: {
   const now = params.now ?? new Date()
   if (Math.abs(now.getTime() - when * 1000) > SVIX_TOLERANCE_MS) return false
 
-  const keyText = params.secret.startsWith('whsec_') ? params.secret.slice('whsec_'.length) : params.secret
-  let keyBytes: Uint8Array<ArrayBuffer>
-  try {
-    keyBytes = base64ToBytes(keyText)
-  } catch {
-    return false
-  }
+  const keyBytes = svixKey(params.secret)
+  if (keyBytes === null) return false
 
   const content = new TextEncoder().encode(`${params.svixId}.${params.timestamp}.${params.rawBody}`)
   let cryptoKey: CryptoKey

@@ -429,6 +429,34 @@ describe('recovery over HTTP', () => {
     expect((await linkMails(p.id)).map((mail) => mail.dedupe_key)).toHaveLength(1)
   })
 
+  // EF-ACCESS-04 (RESIDUALS-1 R2b): the pepper was replaced, so the hash the order stored is the old pepper's and the link its
+  // buyer holds is dead. The real function proves the stored hash against its own pepper and issues the next version.
+  it("repairs a link a replaced pepper killed: the stored hash is the old pepper's, recovery issues the next version, and the new link opens the order", async () => {
+    const p = await paid([{ variantId: await h.digital(2500), quantity: 1 }])
+    const OLD = `${PEPPER}-before-the-replacement`
+    const oldToken = await orderAccessToken(OLD, p.key, 0)
+    await h.postgres.query('update finance.orders set access_token_hash = $2 where id = $1', [p.id, await orderAccessTokenHash(OLD, oldToken)])
+    // The link the buyer holds is dead at the real function, and so is the one derived from the order's key with the function's pepper.
+    expect((await getOrder({ number: p.number, token: oldToken })).status).toBe(404)
+    expect((await getOrder(p)).status).toBe(404)
+
+    const reply = await recover(p.email)
+    expect(reply.body).toEqual({ ok: true, data: { sent: true } })
+    expect((await h.row('select access_token_version from finance.orders where id = $1', [p.id])).access_token_version).toBe(1)
+    const fresh = await orderAccessToken(PEPPER, p.key, 1)
+    const opened = await getOrder({ number: p.number, token: fresh })
+    expect(opened.status, JSON.stringify(opened.body)).toBe(200)
+    expect(await orderAccessTokenHash(PEPPER, fresh)).toBe((await h.row('select access_token_hash from finance.orders where id = $1', [p.id])).access_token_hash)
+    expect((await getOrder({ number: p.number, token: oldToken })).status).toBe(404)
+    expect((await linkMails(p.id)).map((mail) => mail.dedupe_key)).toHaveLength(1)
+
+    // Asked again: the link is the function's own now, so it is kept and renewed, and no second mail goes the same day.
+    await recover(p.email)
+    expect((await h.row('select access_token_version from finance.orders where id = $1', [p.id])).access_token_version).toBe(1)
+    expect(await linkMails(p.id)).toHaveLength(1)
+    expect((await getOrder({ number: p.number, token: fresh })).status).toBe(200)
+  })
+
   it('refuses a malformed address with a field error and a Turnstile token that is missing, before the database', async () => {
     const bad = await callFunction('orders', { action: 'recover', email: 'not-an-address', turnstileToken: TURNSTILE_TOKEN })
     expect(bad.status).toBe(422)
@@ -560,6 +588,29 @@ describe('the return request over HTTP', () => {
     // The wrong token is the one answer for everything.
     const wrong = await callFunction('orders', { action: 'return-request', orderNumber: p.number, accessToken: 'A'.repeat(43), items: [{ itemId: printedItem, quantity: 1 }], reason: 'x' })
     expect(wrong.status).toBe(404)
+  })
+
+  // EF-ACCESS-10 (RESIDUALS-1 R2b): the page keeps one key until the form changes; a press repeated after a lost reply files nothing new.
+  it('takes a repeat of a request key as the request it filed: the same 201 and id, one row, even when the first asked for every unit', async () => {
+    const printed = await h.physical(4000, 10)
+    const p = await paid([{ variantId: printed, quantity: 2 }])
+    const printedItem = p.items.find((item) => item.variantId === printed)!.id
+    await h.postgres.query("update finance.fulfillments set state = 'shipped', carrier = 'SMSA', tracking = 'TRK-2', shipped_at = now() where order_item_id = $1", [printedItem])
+    const send = (over: Record<string, unknown> = {}): Promise<Reply> =>
+      callFunction('orders', { action: 'return-request', orderNumber: p.number, accessToken: p.token, items: [{ itemId: printedItem, quantity: 2 }], reason: 'المنتج تالف', ...over })
+    const requestKey = randomUUID()
+
+    const first = await send({ requestKey })
+    expect(first.status, JSON.stringify(first.body)).toBe(201)
+    // Without the key the same press is refused: every unit is taken. With it, the answer is the first's.
+    expect((await send()).status).toBe(422)
+    const again = await send({ requestKey })
+    expect(again.status, JSON.stringify(again.body)).toBe(201)
+    expect(again.body).toEqual(first.body)
+    expect(await h.count('select count(*)::int as n from finance.return_requests where order_id = $1', [p.id])).toBe(1)
+    expect(await h.row('select request_key from finance.return_requests where id = $1', [first.body.data.returnId])).toEqual({ request_key: requestKey })
+    // The key is a uuid: anything else is refused before the database.
+    expect((await send({ requestKey: 'not-a-uuid' })).status).toBe(422)
   })
 })
 

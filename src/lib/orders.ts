@@ -434,6 +434,21 @@ export function returnRequestItems(items: readonly OrderLine[], texts: Readonly<
   })
 }
 
+/** A return form's request key and what it was minted for (`keptRequestKey`). */
+export interface KeptKey {
+  signature: string
+  key: string
+}
+
+/**
+ * The key a return request carries (EF-ACCESS-10): the one the form already holds while what it sends is the same, so that a press
+ * repeated after a lost reply is answered with the request already filed; a new one when the quantities or the reason differ, and when
+ * the form holds none (it starts over once a request is filed). `mint` makes a new uuid.
+ */
+export function keptRequestKey(kept: KeptKey | null, signature: string, mint: () => string): KeptKey {
+  return kept !== null && kept.signature === signature ? kept : { signature, key: mint() }
+}
+
 /** The reason as the function reads it: control characters and runs of white space become one space, and the ends are trimmed. */
 export function normalizeReason(text: string): string {
   return text.replace(/\p{Cc}/gu, ' ').replace(/\s+/g, ' ').trim()

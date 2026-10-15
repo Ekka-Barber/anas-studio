@@ -230,13 +230,22 @@ const refused = (status: number, code: string, message: string): Step => ({ stat
 const STEP_UP = refused(403, 'STEP_UP_REQUIRED', 'أدخل رمز تطبيق المصادقة للمتابعة.')
 const made = (refundId: string, status: string, amount: number): Step => ok({ refundId, status, amount })
 
-/** Answers each call of the `admin` function with the next step (the last repeats) and gives back the bodies it was sent, in order. */
-async function mockAdmin(page: Page, steps: Step[]): Promise<Array<Record<string, unknown>>> {
+/**
+ * Answers each call of the `admin` function with the next step (the last repeats) and gives back the bodies it was sent, in order.
+ * The screens read the site's payment mode once from `status` (CONTRACT-04, ADMIN-COMMERCE-17): that call is answered here with `mode`
+ * (null: the payments are not configured, so no mode can be read) and is neither a step nor one of the bodies.
+ */
+async function mockAdmin(page: Page, steps: Step[], mode: 'test' | 'live' | null = 'test'): Promise<Array<Record<string, unknown>>> {
   const bodies: Array<Record<string, unknown>> = []
   await page.route(ADMIN, async (route) => {
     const request = route.request()
     if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors(request) })
-    bodies.push(request.postDataJSON() as Record<string, unknown>)
+    const sent = request.postDataJSON() as Record<string, unknown>
+    if (sent.action === 'status') {
+      const payments = mode === null ? { configured: false, reason: 'NOT_CONFIGURED', emulator: false } : { configured: true, mode, emulator: true }
+      return route.fulfill({ status: 200, headers: cors(request), body: JSON.stringify({ ok: true, data: { payments } }) })
+    }
+    bodies.push(sent)
     const step = steps[Math.min(bodies.length - 1, steps.length - 1)]!
     if (step === 'abort') return route.abort('failed')
     if (step.delayMs !== undefined) await new Promise((resolve) => setTimeout(resolve, step.delayMs))
@@ -363,6 +372,7 @@ const refundJson = (over: Record<string, unknown> = {}) => ({
   orderId: randomUUID(),
   attemptId: randomUUID(),
   reviewPaymentId: null,
+  environment: 'test',
   returnId: null,
   status: 'uncertain',
   amount: 4000,
@@ -1198,6 +1208,194 @@ for (const width of [360, 1440]) {
         await button(eventsSection, 'تمت المراجعة').click()
         await expect(statusLine(page)).toHaveText('سُجّلت المراجعة.')
         expect(rpc.bodies('event_dismiss')).toEqual([{ p_event: 'evt-exhausted-1' }, { p_event: 'evt-exhausted-1' }])
+        expect(problems).toEqual([])
+      })
+
+      // CONTRACT-04, ADMIN-COMMERCE-08 and ADMIN-COMMERCE-17 (RESIDUALS-1 R2b): once the site's payment mode has changed, a payment of the
+      // mode that was left cannot be checked, refunded or disputed with the configured key; each control answered that the payment does
+      // not exist. The screens read the mode once (`status`) and say so in one sentence instead; an attempt the job parked can be closed.
+      const OTHER_MODE = 'دفعة من وضع الدفع الآخر؛ تُدار من لوحة Moyasar.'
+      const CLOSE_AFTER_REVIEW = 'إغلاق بعد المراجعة'
+      /** The reconciliation lists of a site that has just gone live: sandbox rows (`live`: the mode that was left) among the live ones. */
+      function modeRows() {
+        return {
+          parked: attemptJson({ environment: 'live', status: 'expired', lastError: 'MODE_CHANGED', reasons: ['MODE_CHANGED'], providerPaymentId: null, orderNumber: 'PQRS2345' }),
+          ours: attemptJson({ status: 'uncertain', reasons: ['UNCERTAIN'], providerPaymentId: null, orderNumber: 'TUVW2345' }),
+          voided: attemptJson({ environment: 'live', providerStatus: 'voided', reasons: ['PROVIDER_STATUS'], orderNumber: 'XYZA2345' }),
+          otherReview: reviewJson({ environment: 'live', reason: 'UNMAPPED_INVOICE' }),
+          ownReview: reviewJson({ reason: 'UNMAPPED_INVOICE' }),
+          otherClosed: reviewJson({ environment: 'live', reason: 'UNMAPPED_INVOICE', refunded: 2500, closedAt: ISO, closedReason: 'عكسها البنك' }),
+          otherRefund: refundJson({ environment: 'live', orderNumber: 'BCDE2345' }),
+          ownRefund: refundJson({ orderNumber: 'FGHJ2345' }),
+        }
+      }
+      /** Serves those rows as `reconciliation_list`; `closed()` says whether the parked attempt has been closed since (it then leaves the list). */
+      async function serveModeRows(page: Page, rows: ReturnType<typeof modeRows>, closed: () => boolean = () => false): Promise<void> {
+        await page.route('**/rest/v1/rpc/reconciliation_list', (route) => {
+          if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors(route.request()) })
+          const body = {
+            ...emptyReconciliation,
+            attempts: closed() ? [rows.ours, rows.voided] : [rows.parked, rows.ours, rows.voided],
+            reviews: [rows.otherReview, rows.ownReview],
+            closedReviews: [rows.otherClosed],
+            refunds: [rows.otherRefund, rows.ownRefund],
+          }
+          return route.fulfill({ status: 200, headers: cors(route.request()), body: JSON.stringify(body) })
+        })
+        // A dispute reference of each mode: the other mode's has no follow-up (R2b audit, finding 3).
+        const difference = (providerRef: string, environment: string) =>
+          ({ kind: 'payout_difference', providerRef, rows: [disputeJson({ kind: 'payout_difference', providerRef, environment, amount: 1500, reason: 'فرق في التحويل' })] })
+        await answer(page, 'disputes_list', { references: [difference('PAYOUT-LIVE-1', 'live'), difference('PAYOUT-TEST-1', 'test')] })
+      }
+
+      test('the reconciliation screen after the switch of mode: a row of the other mode keeps no money control, a parked attempt offers its close, and the rows of the mode stay as they were', async ({ page }) => {
+        const problems = watchProblems(page)
+        const rpc = watchRpc(page)
+        const rows = modeRows()
+        let closed = false
+        await serveModeRows(page, rows, () => closed)
+        // The close: refused three times in the function's words (no such attempt; an invoice a buyer can still pay; not one the job
+        // parked), then done.
+        const replies: unknown[] = [
+          { ok: false, code: 'NOT_FOUND' },
+          { ok: false, code: 'INVOICE_OPEN' },
+          { ok: false, code: 'NOT_PARKED' },
+          { ok: true, attemptId: rows.parked.id },
+        ]
+        await page.route('**/rest/v1/rpc/attempt_dismiss', (route) => {
+          if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors(route.request()) })
+          const reply = replies.shift() as { ok: boolean }
+          if (reply.ok) closed = true
+          return route.fulfill({ status: 200, headers: cors(route.request()), body: JSON.stringify(reply) })
+        })
+        const bodies = await mockAdmin(page, [])
+        await page.goto('/admin/orders/reconciliation')
+        await expect(page.getByRole('heading', { level: 1, name: 'المطابقة', exact: true })).toBeVisible()
+
+        // The attempts: the parked one says whose it is and offers only its close; the voided one of that mode offers nothing (no external
+        // record); the one of this mode keeps «أعد الفحص».
+        const parkedCard = card(page, rows.parked.providerInvoiceId)
+        await expect(parkedCard).toContainText(OTHER_MODE)
+        await expect(parkedCard).toContainText('الأسباب: تغيّر وضع الدفع')
+        await expect(parkedCard.getByRole('button')).toHaveText([CLOSE_AFTER_REVIEW])
+        const voidedCard = card(page, rows.voided.providerInvoiceId)
+        await expect(voidedCard).toContainText(OTHER_MODE)
+        await expect(voidedCard.getByRole('button')).toHaveCount(0)
+        const oursCard = card(page, rows.ours.providerInvoiceId)
+        await expect(oursCard).not.toContainText(OTHER_MODE)
+        await expect(oursCard.getByRole('button')).toHaveText(['أعد الفحص'])
+        // The review payments: the sentence for the other mode's, whose «إغلاق المراجعة» stays (it asks nothing of Moyasar); the mode's own keep all four.
+        const otherReviewCard = card(page, rows.otherReview.paymentId)
+        await expect(otherReviewCard).toContainText(OTHER_MODE)
+        await expect(button(otherReviewCard, 'إغلاق المراجعة')).toBeVisible()
+        const ownReviewCard = card(page, rows.ownReview.paymentId)
+        await expect(ownReviewCard).not.toContainText(OTHER_MODE)
+        for (const name of ['إغلاق المراجعة', 'استرداد هذه الدفعة', 'تسجيل اعتراض', 'تسجيل استرداد خارجي']) await expect(ownReviewCard.getByRole('button', { name, exact: true })).toHaveCount(1)
+        for (const name of ['استرداد هذه الدفعة', 'تسجيل اعتراض', 'تسجيل استرداد خارجي']) await expect(otherReviewCard.getByRole('button', { name, exact: true })).toHaveCount(0)
+        // A payment of the other mode with no order, closed by hand: no refund either.
+        const closedCard = card(page, rows.otherClosed.paymentId)
+        await expect(closedCard).toContainText(OTHER_MODE)
+        await expect(closedCard.getByRole('button')).toHaveCount(0)
+        // The refunds in flight: no recheck for the other mode's.
+        const otherRefundCard = card(page, 'BCDE2345')
+        await expect(otherRefundCard).toContainText(OTHER_MODE)
+        await expect(otherRefundCard.getByRole('button')).toHaveCount(0)
+        await expect(card(page, 'FGHJ2345').getByRole('button')).toHaveText(['أعد الفحص'])
+        // The dispute references: the other mode's says so and offers no follow-up; the mode's own keeps it.
+        await expect(card(page, 'PAYOUT-LIVE-1')).toContainText(OTHER_MODE)
+        await expect(card(page, 'PAYOUT-LIVE-1').getByRole('button')).toHaveCount(0)
+        await expect(card(page, 'PAYOUT-TEST-1').getByRole('button')).toHaveText(['إضافة متابعة'])
+        await expect(main(page).getByText(OTHER_MODE)).toHaveCount(6)
+        await expectNoOverflow(page, 'reconciliation, other mode', width)
+        await expectTargets(page, 'reconciliation, other mode')
+        await shoot(page, 'other-mode-reconciliation', width)
+
+        // The close: two refusals in words, then done; the lists are read again and the attempt leaves the screen.
+        const reads = rpc.count('reconciliation_list')
+        await button(parkedCard, CLOSE_AFTER_REVIEW).click()
+        await expect(alertLine(page)).toHaveText('لم نجد محاولة الدفع هذه.')
+        await button(parkedCard, CLOSE_AFTER_REVIEW).click()
+        await expect(alertLine(page)).toHaveText('ما زالت فاتورة هذه الدفعة قابلة للدفع؛ أغلقها بعد انتهاء صلاحيتها بعشر دقائق.')
+        await button(parkedCard, CLOSE_AFTER_REVIEW).click()
+        await expect(alertLine(page)).toHaveText('تعذّر الحفظ. حاول مرة أخرى.')
+        await expect(parkedCard).toBeVisible()
+        await button(parkedCard, CLOSE_AFTER_REVIEW).click()
+        await expect(statusLine(page)).toHaveText('سُجّلت المراجعة.')
+        await expect(statusLine(page)).toBeFocused()
+        await expect(card(page, rows.parked.providerInvoiceId)).toHaveCount(0)
+        expect(rpc.bodies('attempt_dismiss')).toEqual([{ p_attempt: rows.parked.id }, { p_attempt: rows.parked.id }, { p_attempt: rows.parked.id }, { p_attempt: rows.parked.id }])
+        await expect.poll(() => rpc.count('reconciliation_list')).toBe(reads + 4)
+        // The function was asked for the mode once, and for nothing else.
+        expect(bodies).toEqual([])
+        expect(problems).toEqual([])
+      })
+
+      test('the reconciliation screen when the payment mode cannot be read: every control stays, on a row of the other mode too', async ({ page }) => {
+        const problems = watchProblems(page)
+        const rows = modeRows()
+        await serveModeRows(page, rows)
+        await mockAdmin(page, [], null)
+        await page.goto('/admin/orders/reconciliation')
+        await expect(card(page, rows.parked.providerInvoiceId)).toBeVisible()
+        await expect(main(page).getByText(OTHER_MODE)).toHaveCount(0)
+        await expect(main(page).getByRole('button', { name: CLOSE_AFTER_REVIEW })).toHaveCount(0)
+        await expect(section(page, 'محاولات تحتاج فحصًا').getByRole('button', { name: 'أعد الفحص', exact: true })).toHaveCount(3)
+        await expect(section(page, 'استردادات قيد المعالجة').getByRole('button', { name: 'أعد الفحص', exact: true })).toHaveCount(2)
+        // Three review payments can be refunded (two open, one closed by hand), two can be disputed (the open ones).
+        for (const [name, count] of [['استرداد هذه الدفعة', 3], ['تسجيل اعتراض', 2]] as const) await expect(main(page).getByRole('button', { name, exact: true })).toHaveCount(count)
+        expect(problems).toEqual([])
+      })
+
+      test('the order view after the switch of mode: the payments, review payments and refunds of the other mode keep no money control, and a parked attempt is closed by the real function', async ({ page }) => {
+        const problems = watchProblems(page)
+        const rpc = watchRpc(page)
+        // The site is live now: the seeded orders are the sandbox's. (`status` is answered by the mock; the orders and the close are the stack's.)
+        await mockAdmin(page, [], 'live')
+        await page.goto(viewOf(s.inflight.order))
+        await expect(section(page, 'الدفع')).toContainText(OTHER_MODE)
+        // The paying attempt's card says it once; the refunds' section says it for the refund form that is not drawn and for the refund still in flight.
+        await expect(section(page, 'الدفع').getByText(OTHER_MODE)).toHaveCount(1)
+        await expect(section(page, 'الاستردادات').getByText(OTHER_MODE)).toHaveCount(2)
+        for (const name of MONEY_BUTTONS) await expect(main(page).getByRole('button', { name, exact: true })).toHaveCount(0)
+        await expectNoOverflow(page, 'order view, other mode', width)
+        await expectTargets(page, 'order view, other mode')
+        await shoot(page, 'other-mode-order', width)
+
+        // A review payment of the order: the sentence instead of its refund and its dispute; closing it is still the owner's.
+        await page.goto(viewOf(s.reviewed.order))
+        const review = card(page, s.reviewed.paymentId)
+        await expect(review).toContainText(OTHER_MODE)
+        await expect(button(review, 'إغلاق المراجعة')).toBeVisible()
+        for (const name of MONEY_BUTTONS) await expect(main(page).getByRole('button', { name, exact: true })).toHaveCount(0)
+
+        // An attempt the job parked for the other mode, closed through the real `attempt_dismiss`: the mark goes, and so does the button.
+        const parkedOrder = await h.place([{ variantId: (await variant(h.physical(4000, 10))).id, quantity: 1 }])
+        const started = await h.startPayment(parkedOrder)
+        // Its invoice is past paying (10 minutes after it expired): before that the close is refused INVOICE_OPEN (R2b audit, finding 4).
+        await h.postgres.query(
+          "update finance.payment_attempts set status = 'expired', next_check_at = null, last_error = 'MODE_CHANGED', invoice_expires_at = now() - interval '11 minutes' where id = $1",
+          [started.attemptId],
+        )
+        await page.goto(viewOf(parkedOrder))
+        const attemptCard = card(page, started.invoiceId)
+        await expect(attemptCard).toContainText(OTHER_MODE)
+        await expect(attemptCard).toContainText('آخر خطأ: MODE_CHANGED')
+        await expect(attemptCard.getByRole('button')).toHaveText([CLOSE_AFTER_REVIEW])
+        await attemptCard.getByRole('button', { name: CLOSE_AFTER_REVIEW }).click()
+        await expect(statusLine(page)).toHaveText('سُجّلت المراجعة.')
+        expect(rpc.bodies('attempt_dismiss')).toEqual([{ p_attempt: started.attemptId }])
+        await expect(card(page, started.invoiceId).getByRole('button')).toHaveCount(0)
+        await expect(card(page, started.invoiceId)).not.toContainText('MODE_CHANGED')
+        expect(await h.row('select status, last_error from finance.payment_attempts where id = $1', [started.attemptId])).toEqual({ status: 'expired', last_error: null })
+        expect(await h.count("select count(*)::int as n from public.audit_events where action = 'payment.attempt_dismissed' and entity_id = $1", [started.attemptId])).toBe(1)
+
+        // The mode cannot be read: the order is drawn as before the change, every control back.
+        await page.unroute(ADMIN)
+        await mockAdmin(page, [], null)
+        await page.goto(viewOf(s.inflight.order))
+        await expect(button(section(page, 'الاستردادات'), 'أعد الفحص')).toBeVisible()
+        await expect(button(section(page, 'الدفع'), 'أعد الفحص')).toBeVisible()
+        await expect(main(page).getByText(OTHER_MODE)).toHaveCount(0)
         expect(problems).toEqual([])
       })
 

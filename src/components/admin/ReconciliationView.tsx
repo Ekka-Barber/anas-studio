@@ -9,11 +9,32 @@
  * is told there is no access and nothing is asked). Every action is a call, and after it both lists are read
  * again: the screen shows what they say, never what the call was hoped to do. The SQL lists the newest 100 of
  * each (50 of the closed reviews) without saying so; the screen says it.
+ *
+ * The money controls are the configured payment mode's. The mode is read once from the `admin` function's `status`; a row of the other
+ * mode (an attempt, a review payment, a refund) gives its «أعد الفحص», refund, external record and dispute way to one sentence, and an
+ * attempt the job parked for that mode offers «إغلاق بعد المراجعة» (`attempt_dismiss`). When the mode cannot be read the controls stay.
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { BAD_REPLY, CAPPED, DISMISS_SENTENCE, disputeLines, EMPTY_LIST, inFlight as refundInFlight, LIST_CAP, REREAD_FAILED, type DisputeLine } from '@/lib/admin-money'
+import {
+  BAD_REPLY,
+  CAPPED,
+  CLOSE_PARKED,
+  DISMISS_SENTENCE,
+  disputeLines,
+  EMPTY_LIST,
+  inFlight as refundInFlight,
+  isOtherMode,
+  isParkedAttempt,
+  LIST_CAP,
+  OTHER_MODE_SENTENCE,
+  PARKED_CLOSED,
+  paymentModeOf,
+  REREAD_FAILED,
+  type DisputeLine,
+  type PaymentMode,
+} from '@/lib/admin-money'
 import {
   ATTEMPT_STATUS_LABELS,
   closeReason,
@@ -38,6 +59,7 @@ import {
 } from '@/lib/admin-orders'
 import { formatDate, formatMoney, formatNumber, formatRiyadh } from '@/lib/format'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
+import { callFunction } from '@/lib/supabase/functions'
 
 import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
@@ -138,6 +160,8 @@ export function ReconciliationView() {
   const [external, setExternal] = useState<string | null>(null)
   const [form, setForm] = useState<OpenForm | null>(null)
   const [formLines, setFormLines] = useState<{ order: string; lines: DisputeLine[] | null } | null>(null)
+  // The site's payment mode, read once (`status`); null until it is read, and when it cannot be.
+  const [mode, setMode] = useState<PaymentMode | null>(null)
 
   useEffect(() => {
     if (!owner) return
@@ -150,6 +174,18 @@ export function ReconciliationView() {
       active = false
     }
   }, [owner, round])
+
+  useEffect(() => {
+    if (!owner) return
+    let active = true
+    void (async () => {
+      const read = paymentModeOf(await callFunction<unknown>('admin', { action: 'status' }))
+      if (active) setMode(read)
+    })()
+    return () => {
+      active = false
+    }
+  }, [owner])
 
   // After an action the focus goes to the line that reports it.
   useEffect(() => {
@@ -312,23 +348,43 @@ export function ReconciliationView() {
                       ))}
                     </Fact>
                   </ul>
-                  <div className={styles.row}>
-                    <button
-                      type="button"
-                      className={styles.buttonSecondary}
-                      disabled={off}
-                      onClick={() => void run(`recheck:${attempt.id}`, () => recheckAttempt(attempt.id))}
-                    >
-                      أعد الفحص
-                    </button>
-                  </div>
-                  {(attempt.reasons.includes('EXTERNAL_REFUND') || attempt.reasons.includes('PROVIDER_STATUS')) && (
-                    <ExternalRefund
-                      target={{ attemptId: attempt.id }}
-                      money={money}
-                      open={external === attempt.id}
-                      onOpenChange={(open) => setExternal(open ? attempt.id : null)}
-                    />
+                  {isOtherMode(mode, attempt.environment) ? (
+                    <>
+                      <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
+                      {isParkedAttempt(attempt) && (
+                        <div className={styles.row}>
+                          <button
+                            type="button"
+                            className={styles.button}
+                            disabled={off}
+                            onClick={() => act(`dismiss-attempt:${attempt.id}`, 'dismissAttempt', () => rpc('attempt_dismiss', { p_attempt: attempt.id }), PARKED_CLOSED)}
+                          >
+                            {CLOSE_PARKED}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.row}>
+                        <button
+                          type="button"
+                          className={styles.buttonSecondary}
+                          disabled={off}
+                          onClick={() => void run(`recheck:${attempt.id}`, () => recheckAttempt(attempt.id))}
+                        >
+                          أعد الفحص
+                        </button>
+                      </div>
+                      {(attempt.reasons.includes('EXTERNAL_REFUND') || attempt.reasons.includes('PROVIDER_STATUS')) && (
+                        <ExternalRefund
+                          target={{ attemptId: attempt.id }}
+                          money={money}
+                          open={external === attempt.id}
+                          onOpenChange={(open) => setExternal(open ? attempt.id : null)}
+                        />
+                      )}
+                    </>
                   )}
                 </div>
               ))}
@@ -372,13 +428,19 @@ export function ReconciliationView() {
                         <p className={styles.message}>بعد الإغلاق تبقى هذه الدفعة في «دفعات بلا طلب أُغلقت مراجعتها» أدناه، ويمكن إعادتها من هناك.</p>
                       )}
                     </div>
-                    <RefundView subject={reviewSubject(review)} money={money} />
-                    <div className={styles.row}>
-                      <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
-                        تسجيل اعتراض
-                      </button>
-                    </div>
-                    {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={() => setForm(null)} />}
+                    {isOtherMode(mode, review.environment) ? (
+                      <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
+                    ) : (
+                      <>
+                        <RefundView subject={reviewSubject(review)} money={money} />
+                        <div className={styles.row}>
+                          <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
+                            تسجيل اعتراض
+                          </button>
+                        </div>
+                        {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={() => setForm(null)} />}
+                      </>
+                    )}
                   </div>
                 )
               })}
@@ -392,7 +454,11 @@ export function ReconciliationView() {
               {data.rec.closedReviews.map((review) => (
                 <div key={review.paymentId} className={styles.listItem}>
                   <ReviewFacts review={review} />
-                  <RefundView subject={reviewSubject(review)} money={money} />
+                  {isOtherMode(mode, review.environment) ? (
+                    <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
+                  ) : (
+                    <RefundView subject={reviewSubject(review)} money={money} />
+                  )}
                 </div>
               ))}
             </div>
@@ -415,16 +481,20 @@ export function ReconciliationView() {
                     <Fact label="وقت الطلب">{formatRiyadh(refund.createdAt)}</Fact>
                     {refund.error !== null && <Fact label="الخطأ">{ltrLong(refund.error)}</Fact>}
                   </ul>
-                  <div className={styles.row}>
-                    <button
-                      type="button"
-                      className={styles.buttonSecondary}
-                      disabled={off}
-                      onClick={() => void run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
-                    >
-                      أعد الفحص
-                    </button>
-                  </div>
+                  {isOtherMode(mode, refund.environment) ? (
+                    <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
+                  ) : (
+                    <div className={styles.row}>
+                      <button
+                        type="button"
+                        className={styles.buttonSecondary}
+                        disabled={off}
+                        onClick={() => void run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
+                      >
+                        أعد الفحص
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -527,12 +597,19 @@ export function ReconciliationView() {
                         <Fact label="الحل">{row.resolution === null ? NONE : <bdi>{row.resolution}</bdi>}</Fact>
                       </ul>
                     ))}
-                    <div className={styles.row}>
-                      <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
-                        إضافة متابعة
-                      </button>
-                    </div>
-                    {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={() => setForm(null)} />}
+                    {/* A reference of the other mode: its follow-up would be refused (NOT_FOUND, or NO_PREDECESSOR for a difference). */}
+                    {isOtherMode(mode, latest.environment) ? (
+                      <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
+                    ) : (
+                      <>
+                        <div className={styles.row}>
+                          <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
+                            إضافة متابعة
+                          </button>
+                        </div>
+                        {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={() => setForm(null)} />}
+                      </>
+                    )}
                   </div>
                 )
               })}

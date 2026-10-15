@@ -42,6 +42,7 @@ import {
   FULFILLMENT_LABELS,
   isFiled,
   isSent,
+  keptRequestKey,
   lineName,
   LOADING,
   NETWORK,
@@ -59,6 +60,7 @@ import {
   statusKind,
   takeOrderFragment,
   type Failure,
+  type KeptKey,
   type OrderAccess,
   type OrderLine,
   type OrderView,
@@ -187,6 +189,8 @@ function ReturnForm({
   const [busy, setBusy] = useState(false)
   const firstRef = useRef<HTMLInputElement>(null)
   const reasonRef = useRef<HTMLTextAreaElement>(null)
+  // EF-ACCESS-10: the request key, kept while what is sent stays the same (a press repeated after a lost reply is one request).
+  const sent = useRef<KeptKey | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -210,6 +214,7 @@ function ReturnForm({
     setProblem('')
     setBusy(true)
     onStart()
+    sent.current = keptRequestKey(sent.current, JSON.stringify([chosen, why]), () => crypto.randomUUID())
     try {
       const reply = await postFunction('orders', {
         action: 'return-request',
@@ -217,8 +222,11 @@ function ReturnForm({
         accessToken: access.accessToken,
         items: chosen,
         reason: why,
+        requestKey: sent.current.key,
       })
       if (isFiled(reply)) {
+        // The next request is another: it starts with a key of its own.
+        sent.current = null
         setTexts({})
         setReason('')
         onFiled()

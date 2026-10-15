@@ -722,6 +722,29 @@ describe('a refund the provider answers badly', () => {
     expect(unreadable.status).toBe(503)
     expect((await refundOf(secondId)).status).toBe('uncertain')
   })
+
+  // CONTRACT-04 (RESIDUALS-1 R2b): the site's payment mode changed after a refund of the old mode was left in flight. The configured key
+  // cannot see that payment, so the recheck used to fetch it, hear 404 or an outage, and answer «provider unreachable» for ever.
+  it('a refund whose payment is of the other mode is 404 NOT_FOUND at the real function: the provider is not asked and the refund is not touched', async () => {
+    const p = await paid('physical')
+    const client = await freshOwner()
+    await fault('drop_after_commit')
+    const cut = await adminCall(client, refundBody(p, 2000, itemOf(p, 2000)))
+    const refundId = cut.body.data.refundId as string
+    expect(cut.body.data.status).toBe('uncertain')
+    await postgres.query("update finance.payment_attempts set environment = 'live' where id = $1", [p.attemptId])
+    try {
+      const callsBefore = emulator.state().calls.length
+      const other = await adminCall(await lazyOwner(), { action: 'refund-recheck', refundId })
+      expect(other).toMatchObject({ status: 404, body: { ok: false, error: { code: 'NOT_FOUND' } } })
+      expect(emulator.state().calls.length).toBe(callsBefore)
+      expect((await refundOf(refundId)).status).toBe('uncertain')
+    } finally {
+      await postgres.query("update finance.payment_attempts set environment = 'test' where id = $1", [p.attemptId])
+    }
+    // Back in its own mode the same refund is rechecked as before.
+    expect((await adminCall(await lazyOwner(), { action: 'refund-recheck', refundId })).body.data).toEqual({ refundId, status: 'succeeded', amount: 2000 })
+  })
 })
 
 // --- a refund made behind our back --------------------------------------------------------------------------------

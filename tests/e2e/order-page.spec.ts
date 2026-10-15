@@ -23,6 +23,8 @@ const DOWNLOAD_TOKEN = 'Zy9_-'.repeat(9).slice(0, 43)
 const NOTIFY_TOKEN = `0f3c8a1e-5b2d-4c6a-9e47-1a2b3c4d5e6f.${'Mn8_-'.repeat(9).slice(0, 43)}`
 const ACCESS_KEY = 'anasaq:order-access'
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'
 const C = '33333333-3333-4333-8333-333333333333'
@@ -629,6 +631,7 @@ for (const width of [360, 1440]) {
             { itemId: B, quantity: 1 },
           ],
           reason: 'وصل تالفًا والغلاف ممزق',
+          requestKey: expect.stringMatching(UUID_PATTERN),
         },
       ])
       await expect.poll(() => bodies(calls, 'orders').filter((body) => body.action === 'get').length).toBe(2)
@@ -682,6 +685,56 @@ for (const width of [360, 1440]) {
       // The order was read once (the load); a refusal does not read it again.
       expect(bodies(calls, 'orders').filter((body) => body.action === 'get')).toHaveLength(1)
       await expectNoOverflow(page, 'return refusals')
+    })
+
+    // EF-ACCESS-10 (RESIDUALS-1 R2b): the form keeps one request key while what it sends stays the same, so a press repeated after a
+    // lost reply is answered with the request already filed; a changed form, and the next request after a filed one, carry a new key.
+    test('order page: a press repeated after a lost reply carries the same request key, a changed form another, and the next request after a filed one a third', async ({ page }) => {
+      let filings = 0
+      const calls = await mock(page, {
+        orders: (body) => {
+          if (body.action !== 'return-request') return ok(view({ items: RETURNABLE() }))
+          filings += 1
+          // The first two replies are lost on the way (the requests may have been stored), the next two are the stored request's answer.
+          return filings <= 2 ? 'abort' : ok({ returnId: '44444444-4444-4444-8444-444444444444' }, 201)
+        },
+      })
+      await page.goto(`/orders#${NUMBER}.${TOKEN}`)
+      await expect(status(page)).toHaveText('مدفوع.')
+      const first = page.getByRole('spinbutton', { name: /^الكمية: كتاب الاختبار/ })
+      const reason = page.getByLabel('سبب الإرجاع')
+      const submit = page.getByRole('button', { name: 'إرسال طلب الإرجاع' })
+      const keys = (): unknown[] => bodies(calls, 'orders').filter((body) => body.action === 'return-request').map((body) => body.requestKey)
+
+      await first.fill('1')
+      await reason.fill('وصل تالفًا')
+      await submit.click()
+      await expect.poll(() => keys().length).toBe(1)
+      await expect(formAlert(page)).toHaveText(NETWORK)
+      // The same press again, nothing changed: the same key.
+      await submit.click()
+      await expect.poll(() => keys().length).toBe(2)
+      await expect(formAlert(page)).toHaveText(NETWORK)
+      expect(keys()[0]).toMatch(UUID_PATTERN)
+      expect(keys()[1]).toBe(keys()[0])
+
+      // A changed reason is another request: another key; this one is answered, so the form starts over.
+      await reason.fill('وصل تالفًا والغلاف ممزق')
+      await submit.click()
+      await expect(page.locator('main').getByRole('status').nth(1)).toHaveText('وصلنا طلب الإرجاع.')
+      expect(keys()).toHaveLength(3)
+      expect(keys()[2]).toMatch(UUID_PATTERN)
+      expect(keys()[2]).not.toBe(keys()[0])
+      await expect(first).toHaveValue('0')
+
+      // The same content again, once a request has been filed, is the next request: a key of its own.
+      await first.fill('1')
+      await reason.fill('وصل تالفًا والغلاف ممزق')
+      await submit.click()
+      await expect.poll(() => keys().length).toBe(4)
+      expect(keys()[3]).toMatch(UUID_PATTERN)
+      expect(keys()[3]).not.toBe(keys()[2])
+      expect(keys()[3]).not.toBe(keys()[0])
     })
 
     test('order page: a return request that finds the order gone forgets the link and offers the recovery form', async ({ page }) => {
@@ -1060,7 +1113,7 @@ for (const width of [360, 1440]) {
       await page.keyboard.press('Enter')
       await expect(page.locator('main').getByRole('status').nth(1)).toHaveText('وصلنا طلب الإرجاع.')
       expect(bodies(calls, 'orders').filter((body) => body.action === 'return-request')).toEqual([
-        { action: 'return-request', orderNumber: NUMBER, accessToken: TOKEN, items: [{ itemId: A, quantity: 1 }], reason: 'وصل تالفًا' },
+        { action: 'return-request', orderNumber: NUMBER, accessToken: TOKEN, items: [{ itemId: A, quantity: 1 }], reason: 'وصل تالفًا', requestKey: expect.stringMatching(UUID_PATTERN) },
       ])
     })
 

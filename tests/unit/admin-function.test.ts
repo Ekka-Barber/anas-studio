@@ -187,6 +187,28 @@ describe('admin function: who may do what', () => {
     expect(JSON.parse(text).data).toMatchObject({ turnstile: { configured: true, testSecret: true }, webhook: true, siteHost: 'localhost' })
   })
 
+  // EF-ADMIN-09: configured means usable. The verifier strips `whsec_` and base64-decodes the rest (`svixKey`); a secret
+  // that is not that makes every signed delivery answer 401, so the status does not call it configured.
+  it('the Resend webhook is configured only when its secret is whsec_ followed by base64 that decodes to a key', async () => {
+    const webhook = async (): Promise<boolean> => {
+      const response = await handleAdmin(post({ action: 'status' }), { rpc, staff: staffAs('owner'), store: memoryStore() })
+      return ((await response.json()) as { data: { webhook: boolean } }).data.webhook
+    }
+    const cases: Array<[string, string, boolean]> = [
+      ['no secret', '', false],
+      ['a prefix and nothing after it', 'whsec_', false],
+      ['a secret pasted without the prefix', 'c2VjcmV0', false],
+      ['a stray character in the base64', 'whsec_c2Vj$mV0', false],
+      ['a length base64 cannot have', 'whsec_c2VjcmV0c', false],
+      ['a valid secret', 'whsec_c2VjcmV0', true],
+      ['a valid secret of 32 bytes', `whsec_${Buffer.alloc(32, 7).toString('base64')}`, true],
+    ]
+    for (const [label, value, expected] of cases) {
+      vi.stubEnv('RESEND_WEBHOOK_SECRET', value)
+      expect(await webhook(), label).toBe(expected)
+    }
+  })
+
   it('analytics is configured only when fetchAnalytics would run: it needs a SITE_URL host too', async () => {
     vi.stubEnv('ANALYTICS_TOKEN', 'token')
     vi.stubEnv('CLOUDFLARE_ZONE_ID', 'zone-123')

@@ -384,6 +384,7 @@ function detail(owner: boolean): Record<string, unknown> {
         orderId: A,
         attemptId: D,
         reviewPaymentId: null,
+        environment: 'test',
         returnId: null,
         status: 'succeeded',
         amount: 1000,
@@ -719,8 +720,17 @@ describe('the sentence of a refusal', () => {
     expect(text('dismiss', 'NOT_EXHAUSTED')).toBe('لا يحتاج هذا الإشعار إلى مراجعة.')
   })
 
+  // CONTRACT-04 (RESIDUALS-1 R2b): the owner's close of an attempt the job parked for the other payment mode.
+  it("says the one refusal of an attempt's closing that has a sentence, and the generic one for a code that says only why", () => {
+    expect(text('dismissAttempt', 'NOT_FOUND')).toBe('لم نجد محاولة الدفع هذه.')
+    // NOT_PARKED (not an attempt the job parked, or closed already) has no sentence of its own: it is «could not save».
+    expect(text('dismissAttempt', 'NOT_PARKED')).toBe(SAVE_FAILED)
+    // The event dismissal's words are not the attempt's.
+    expect(text('dismissAttempt', 'NOT_EXHAUSTED')).toBe(SAVE_FAILED)
+  })
+
   it('says «could not save» for a code it does not know, and never an exception', () => {
-    for (const action of ['fulfil', 'ship', 'correct', 'decide', 'receive', 'resolve', 'close', 'dismiss'] as const) {
+    for (const action of ['fulfil', 'ship', 'correct', 'decide', 'receive', 'resolve', 'close', 'dismiss', 'dismissAttempt'] as const) {
       expect(text(action, 'SOMETHING_NEW'), action).toBe(SAVE_FAILED)
       expect(text(action, 'constructor'), action).toBe(SAVE_FAILED)
     }
@@ -857,6 +867,7 @@ const refundRow = {
   orderId: A,
   attemptId: D,
   reviewPaymentId: null,
+  environment: 'test',
   returnId: null,
   status: 'uncertain',
   amount: 1000,

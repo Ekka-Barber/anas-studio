@@ -383,6 +383,8 @@ function refundOf(value: unknown) {
     orderId: nid(o.orderId),
     attemptId: nid(o.attemptId),
     reviewPaymentId: nstr(o.reviewPaymentId),
+    // The mode of the payment the refund belongs to (its attempt's or its review payment's): a refund of the other mode is told apart by it.
+    environment: str(o.environment),
     returnId: nid(o.returnId),
     status: str(o.status),
     amount: int(o.amount),
@@ -638,7 +640,7 @@ export function parseActionReply(value: unknown): Done | Refusal {
  * `fulfil` is the dedication and «تم التسليم» (`fulfillment_update`); `ship` is «تم الشحن» (the same function with
  * `shipped`) and `correct` is «تصحيح بيانات الشحن» (`fulfillment_correct`), FABLE-AUDIT F3-4.
  */
-export type OrderAction = 'fulfil' | 'ship' | 'correct' | 'decide' | 'receive' | 'resolve' | 'close' | 'dismiss'
+export type OrderAction = 'fulfil' | 'ship' | 'correct' | 'decide' | 'receive' | 'resolve' | 'close' | 'dismiss' | 'dismissAttempt'
 
 /** A line of the shipping table as the screen drew it. */
 type ShippingLine = Pick<OrderDetail['fulfillments'][number], 'itemId' | 'state'>
@@ -703,6 +705,9 @@ const REFUSALS: Record<OrderAction, Readonly<Record<string, string>>> = {
   },
   close: { NOT_FOUND: 'لم نجد هذه الدفعة.', ALREADY_CLOSED: 'أُغلقت هذه المراجعة من قبل.' },
   dismiss: { NOT_FOUND: 'لم نجد هذا الإشعار.', NOT_EXHAUSTED: 'لا يحتاج هذا الإشعار إلى مراجعة.' },
+  // `attempt_dismiss` (a parked attempt of the other mode): NOT_PARKED, an attempt that is not one the job parked, has no sentence of its own;
+  // INVOICE_OPEN, a parked attempt whose invoice a buyer can still pay (until 10 minutes after it expired), says when it can be closed.
+  dismissAttempt: { NOT_FOUND: 'لم نجد محاولة الدفع هذه.', INVOICE_OPEN: 'ما زالت فاتورة هذه الدفعة قابلة للدفع؛ أغلقها بعد انتهاء صلاحيتها بعشر دقائق.' },
 }
 
 /** A typed line as the functions read it: control characters become spaces, the ends are trimmed. */

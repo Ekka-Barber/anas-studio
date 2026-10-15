@@ -160,11 +160,29 @@ const UNKNOWN_TYPE: HeadVerification = {
 }
 
 /**
+ * Whether the `ftyp` box that opens `head` lists the brand `avif` or `avis` among its compatible brands (EF-ADMIN-06).
+ * Only the brands inside both the box and the head are read: a box larger than the head is read up to the head's end,
+ * and one whose size field is under 16 (0, or the 64-bit form's 1) lists none.
+ */
+function listsAvifBrand(head: Uint8Array): boolean {
+  const end = Math.min(new DataView(head.buffer, head.byteOffset, head.byteLength).getUint32(0), head.length)
+  for (let offset = 16; offset + 4 <= end; offset += 4) {
+    const brand = String.fromCharCode(head[offset]!, head[offset + 1]!, head[offset + 2]!, head[offset + 3]!)
+    if (brand === 'avif' || brand === 'avis') return true
+  }
+  return false
+}
+
+/**
  * Checks a bounded head read against the declaration. `image-size` finds the
  * type from the magic bytes (SVG, HTML, text and archives are refused) and
  * reads the dimensions from the header. A JPEG with EXIF orientation 5–8 has
  * its dimensions swapped before comparing, because the browser declares the
- * oriented dimensions. Header inspection only: not a full decode and not a
+ * oriented dimensions. An AVIF still image may be written with the major brand
+ * `mif1` or `msf1` and `avif` or `avis` among its compatible brands: it is
+ * `image/avif` (`image-size` reports the raw major brand as the type); a `mif1`
+ * or `msf1` file that lists neither is the HEIF family's and stays refused.
+ * Header inspection only: not a full decode and not a
  * guarantee of metadata sterilization. (`file-type` was dropped: its only
  * entry imports `strtok3` for file reading, which the Worker bundle cannot
  * resolve and never needs.)
@@ -176,7 +194,8 @@ export async function verifyObjectHead(head: Uint8Array, expected: ExpectedHead)
   } catch {
     return UNKNOWN_TYPE
   }
-  const mime = measured.type ? DETECTED_MIME[measured.type] : undefined
+  let mime = measured.type ? DETECTED_MIME[measured.type] : undefined
+  if (!mime && (measured.type === 'mif1' || measured.type === 'msf1') && listsAvifBrand(head)) mime = 'image/avif'
   if (!mime) return UNKNOWN_TYPE
   if (mime !== expected.mime) {
     return { ok: false, code: 'TYPE_MISMATCH', message: 'نوع الملف الفعلي لا يطابق المُعلَن.' }
