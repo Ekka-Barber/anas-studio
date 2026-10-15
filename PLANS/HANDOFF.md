@@ -41,7 +41,7 @@ Work on a short-lived `agent/<package>` branch cut from `main`. Fast-forward eac
 
 ## Next
 
-The ordered list is "Next work" in `PLANS/EXECUTION-STATUS.md`. In short (FABLE-AUDIT closed and P08 accepted on 2026-10-15; I56 fixed on 2026-10-15): RESIDUALS-1, in rounds (R1, R2a and R2b committed on `agent/residuals-1`; then R3a, R3b, R4 and a round with a browser, `artifacts/acceptance/RESIDUALS-1/SCOPE.md`); SITE-STATE-1 (with the name-band change if Anas wants only «أنس القرني»); P09, starting with its contract; P10; P11 when the owner authorizes hosting; P12 in P11's waiting window. Owner and Anas inputs come in whenever they arrive (the open decisions in `PLANS/DECISIONS.md`; I43, I45, C05, D40, E03, the X link, the maintenance words, the zone's "Always Use HTTPS").
+The ordered list is "Next work" in `PLANS/EXECUTION-STATUS.md`. In short (FABLE-AUDIT closed and P08 accepted on 2026-10-15; I56 fixed on 2026-10-15): RESIDUALS-1, in rounds (R1, R2a, R2b and R3a committed on `agent/residuals-1`; then R3b, R4 and a round with a browser, `artifacts/acceptance/RESIDUALS-1/SCOPE.md`); SITE-STATE-1 (with the name-band change if Anas wants only «أنس القرني»); P09, starting with its contract; P10; P11 when the owner authorizes hosting; P12 in P11's waiting window. Owner and Anas inputs come in whenever they arrive (the open decisions in `PLANS/DECISIONS.md`; I43, I45, C05, D40, E03, the X link, the maintenance words, the zone's "Always Use HTTPS").
 
 ## Rules to keep
 
