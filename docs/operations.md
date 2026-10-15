@@ -1954,12 +1954,25 @@ The scratch stack holds the whole restored database behind the Supabase CLI's
 public default credentials, so the script limits what can reach it and what it
 leaves behind:
 
-- **Where it listens.** The stack's Docker network
-  (`supabase_network_anasaq-restore-check`) is created first, bound to
-  127.0.0.1, and handed to `supabase start` with `--network-id`. The restore is
-  refused unless `docker port` on the database container shows at least one
-  binding and every binding is on 127.0.0.1 (an empty answer is refused too: it
-  would pass for nothing).
+- **Where it listens.** The Supabase CLI publishes every port with no host
+  address, so on every address of the machine. The stack's Docker network
+  (`supabase_network_anasaq-restore-check`) is still created first with
+  127.0.0.1 as its default binding and handed to `supabase start` with
+  `--network-id`, which keeps the stack on 127.0.0.1 on a Linux engine; Docker
+  Desktop does not apply that default. So `supabase start`, and only it, talks
+  to Docker through a relay (`scripts/lib/docker-loopback-relay.mjs`) on a named
+  pipe on Windows or a socket in a private folder elsewhere, never a TCP port.
+  The relay writes 127.0.0.1 into every published port of each container the CLI
+  creates; a create that asks for another address, for every port
+  (`PublishAllPorts`) or for another network is refused, so the start fails
+  closed. It forwards to the Docker endpoint plain `docker` uses (`DOCKER_HOST`,
+  or else the current context), relays a local pipe or socket only, and is
+  closed as soon as the start returns (and again on the way out). Every other
+  call goes to Docker directly. The restore is then refused unless `docker port`
+  shows at least one binding on the database container and on Kong (an empty
+  answer is refused too: it would pass for nothing), and every binding of every
+  container found by the CLI's project label or by name is on 127.0.0.1; a
+  `docker ps` or `docker port` that fails is refused as well.
 - **Which versions.** A backup of the linked project is rehearsed on the service
   versions `supabase link` recorded in `supabase/.temp` (Postgres, PostgREST,
   GoTrue, Storage). The run prints them, or says it found none, in which case the
@@ -1979,9 +1992,9 @@ leaves behind:
   anasaq-restore-check`; with a Docker that does not answer it says it could not
   check, and names the two `docker ... --filter
   label=com.supabase.cli.project=anasaq-restore-check` commands to check by hand.
-  Each cleanup step (the decrypted dumps, the stop, the network, the leftover
-  check, the workdir) runs on its own: one that throws is reported and also makes
-  the run exit non-zero, and the others still run. The stop's and the network
+  Each cleanup step (the decrypted dumps, the relay, the stop, the network, the
+  leftover check, the workdir) runs on its own: one that throws is reported and
+  also makes the run exit non-zero, and the others still run. The stop's and the network
   removal's own exit codes are not checked; the leftover check after them is what
   fails the run if a container or volume of the stack remains.
 - **A network left from an earlier run** stops the rehearsal before anything
@@ -1991,18 +2004,25 @@ leaves behind:
 
 `tests/unit/restore-check.test.ts` proves the rehearsal's decisions against
 stand-ins for Docker and the Supabase CLI placed on the PATH; those cases run on
-POSIX machines only and are skipped on Windows, where Anas works. Its `--extract`,
-argument and path-guard cases, and all of `tests/unit/backup-cli.test.ts`, run on
-every platform, their link cases where the machine can make a link (a junction on
-Windows). The tests prove what the scripts decide, not what Docker does: only a real `pnpm restore-check` on Anas's machine
-proves the Docker side — the loopback binding (an IPv6 `[::]` line would make the
-script refuse), `--network-id`, the project label on every container and volume,
-and the stop by project id leaving the development stack alone. That run was
+POSIX machines only and are skipped on Windows, where Anas works. Among them is a
+`supabase start` that sends a real container create through the relay to a fake
+Docker, which must receive 127.0.0.1. `tests/unit/docker-loopback-relay.test.ts`
+runs the relay itself against a fake Docker on every platform, Windows included,
+over a real named pipe there. The `--extract`, argument and path-guard cases of
+`tests/unit/restore-check.test.ts`, and all of `tests/unit/backup-cli.test.ts`,
+run on every platform, their link cases where the machine can make a link (a
+junction on Windows). The tests prove what the scripts decide, not what Docker does: only a real `pnpm restore-check` on Anas's machine
+proves the Docker side — the loopback binding (the CLI reaching Docker through
+the relay's `DOCKER_HOST`, and Docker Desktop keeping the 127.0.0.1 it writes;
+an IPv6 `[::]` line would make the script refuse), `--network-id`, the project
+label on every container and volume, and the stop by project id leaving the
+development stack alone. That run was
 made on the owner's machine on 2026-10-14 (Docker Desktop 4.91.0): `--network-id`
 was accepted and the stops left the development stack alone, but the loopback
 binding does not hold there, since Docker Desktop does not apply the network's
 option, so the rehearsal refused before restoring anything and the label was not
-checked (`PLANS/ISSUES.md`, I53 (3) and I56).
+checked. The relay is the fix; the rehearsal is to be run again
+(`PLANS/ISSUES.md`, I53 (3) and I56).
 
 ### A real restore into a new hosted project
 

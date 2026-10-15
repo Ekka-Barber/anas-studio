@@ -21,10 +21,16 @@
  * schedule must then be in `cron.job`.
  *
  * The scratch stack holds the whole restored database behind the CLI's public
- * default credentials, so its Docker network is created first, bound to the
- * loopback address (the CLI would publish every port on all interfaces), the CLI
- * is told to use that network (`--network-id`), and `docker port` must print at
- * least one binding, every one of them on 127.0.0.1, before anything is restored.
+ * default credentials, and the CLI publishes every port with no host address,
+ * so on every address of the machine. Its Docker network is created first with
+ * the loopback address as its default binding and handed to the CLI
+ * (`--network-id`), which keeps the stack on 127.0.0.1 on a Linux engine; Docker
+ * Desktop does not apply that default. So `supabase start`, and only it, talks
+ * to Docker through a relay (lib/docker-loopback-relay.mjs) that writes
+ * 127.0.0.1 into every published port of each container the CLI creates, and
+ * refuses a create that asks for anything wider. Before anything is restored,
+ * `docker port` must show at least one binding on the database and on Kong, and
+ * every binding of every container of the stack must be on 127.0.0.1.
  * A backup of the linked project is rehearsed on that project's service versions,
  * copied from supabase/.temp (written by `supabase link`), not on the CLI's
  * defaults. The scratch stack is stopped with `--no-backup` and the temp dirs
@@ -45,11 +51,14 @@ import { createClient } from '@supabase/supabase-js'
 
 import { readBackup } from './lib/backup-format.mjs'
 import { cronScheduleStatements, missingCronJobs } from './lib/cron-jobs.mjs'
+import { startLoopbackRelay } from './lib/docker-loopback-relay.mjs'
 import { promptHidden } from './lib/passphrase.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const PROJECT_ID = 'anasaq-restore-check'
 const CONTAINER = `supabase_db_${PROJECT_ID}`
+// The API gateway: its port reaches the same rows as the database's, with the CLI's default secret key.
+const KONG = `supabase_kong_${PROJECT_ID}`
 // How the CLI names the Docker network of a project (supabase_network_<project_id>) and labels everything it
 // creates for it (apps/cli-go/internal/utils/config.go and docker.go, v2.106.0); `supabase stop` removes by the label.
 const NETWORK = `supabase_network_${PROJECT_ID}`
@@ -225,8 +234,10 @@ function copyLinkedVersions(scratch) {
 
 /** Creates the scratch project's Docker network before the CLI can: the CLI reuses an existing network of that name, and
  * the one it would create publishes every port on all host addresses. The bridge driver's default host binding is set to
- * the loopback address (Docker docs, "Port publishing and mapping"). The label is the CLI's own, so `supabase stop` prunes
- * this network too. Docker older than 28.0.0 still lets hosts on the same L2 segment reach ports published to localhost.
+ * the loopback address (Docker docs, "Port publishing and mapping"), which keeps the stack on 127.0.0.1 on a Linux
+ * engine. Docker Desktop does not apply that default, so the relay around `supabase start` writes 127.0.0.1 into each
+ * binding, and assertLoopbackOnly checks the result. The label is the CLI's own, so `supabase stop` prunes this network
+ * too. Docker older than 28.0.0 still lets hosts on the same L2 segment reach ports published to localhost.
  * When the network cannot be created the run ends here with the remedy on one screen, not a stack trace: the usual cause
  * is a network of that name left behind, which the pre-clean's `supabase stop` could not remove. */
 function createLoopbackNetwork() {
@@ -243,24 +254,45 @@ function createLoopbackNetwork() {
 }
 
 /** Refuses to restore into a stack that publishes any port beyond the loopback address: from there the whole restored
- * database would be reachable by other devices with the CLI's default credentials. `docker port` prints one
- * `5432/tcp -> 127.0.0.1:55322` line per binding, and at least one must be there: an empty answer would pass the test for
- * the others vacuously. The network's default binding covers every container of the stack, so the database container,
- * the one that matters most, stands for them all. */
+ * database would be reachable by other devices with the CLI's default credentials, directly or through Kong. The relay
+ * sets each binding as the CLI creates the container, so no container stands for the others: `docker port` prints one
+ * `5432/tcp -> 127.0.0.1:55322` line per binding; the database and Kong, by name, must each show at least one (an empty
+ * answer would pass the test for the others vacuously); and every container found by the CLI's project label or by name
+ * must have every binding on 127.0.0.1. A `docker ps` or `docker port` that fails refuses too. This reads through plain
+ * docker, never the relay. */
 function assertLoopbackOnly() {
-  const result = docker(['port', CONTAINER], { encoding: 'utf8', timeout: 60000 })
-  mustSucceed(result, `docker port ${CONTAINER}`)
-  const bindings = result.stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line !== '')
-  if (bindings.length === 0) {
-    throw new Error(`Refusing to restore: \`docker port ${CONTAINER}\` shows no published port, so nothing proves the scratch database is bound to the loopback address only, and it would hold the whole restored database behind the CLI's default credentials.`)
+  const exposed = "and the scratch stack would hold the whole restored database behind the CLI's default credentials."
+  const listed = [`label=${PROJECT_LABEL}`, `name=${PROJECT_ID}`].map((filter) => dockerNames(['ps', '-a', '--filter', filter, '--format', '{{.Names}}']))
+  if (listed.includes(null)) {
+    throw new Error(`Refusing to restore: \`docker ps\` did not answer, so nothing proves every container of the scratch stack is bound to the loopback address only, ${exposed}`)
   }
-  const open = bindings.filter((line) => !/->\s*127\.0\.0\.1:\d+$/.test(line))
-  if (open.length > 0) {
-    throw new Error(`Refusing to restore: the scratch database is published beyond the loopback address (${open.join('; ')}), and it would hold the whole restored database behind the CLI's default credentials.`)
+  for (const name of new Set([CONTAINER, KONG, ...listed.flat()])) {
+    const what = name === CONTAINER ? 'the scratch database' : 'the scratch stack'
+    const result = docker(['port', name], { encoding: 'utf8', timeout: 60000 })
+    if (result.status !== 0) {
+      if (result.stderr) console.error(result.stderr.trim())
+      throw new Error(`Refusing to restore: \`docker port ${name}\` failed (${result.error?.code ?? `exit ${result.status}`}), so nothing proves ${what} is bound to the loopback address only, ${exposed}`)
+    }
+    const bindings = result.stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line !== '')
+    if (bindings.length === 0 && (name === CONTAINER || name === KONG)) {
+      throw new Error(`Refusing to restore: \`docker port ${name}\` shows no published port, so nothing proves ${what} is bound to the loopback address only, ${exposed}`)
+    }
+    const open = bindings.filter((line) => !/->\s*127\.0\.0\.1:\d+$/.test(line))
+    if (open.length > 0) {
+      throw new Error(`Refusing to restore: ${what} is published beyond the loopback address (${name}: ${open.join('; ')}), ${exposed}`)
+    }
   }
+}
+
+/** The Docker endpoint plain `docker` uses: DOCKER_HOST when it is set (it overrides any context, for docker and the
+ * Supabase CLI alike), otherwise the current context's. */
+function dockerEndpoint() {
+  if (process.env.DOCKER_HOST) return process.env.DOCKER_HOST
+  const result = docker(['context', 'inspect', '--format', '{{.Endpoints.docker.Host}}'], { encoding: 'utf8', timeout: 60000 })
+  return mustSucceed(result, 'docker context inspect').stdout.trim()
 }
 
 /** The names `docker ps` or `docker volume ls` print, or null when docker could not answer. */
@@ -560,6 +592,9 @@ async function main() {
   // Set when a cleanup step threw: the run must then not end with exit code 0
   // either.
   let cleanupFailed = false
+  // The Docker API relay `supabase start` runs through, from just before the
+  // start until it returns.
+  let relay = null
   /** Runs one cleanup step on its own: a throw from it (rmSync of a directory Windows still holds open fails with
    * EBUSY) is reported and remembered, and the steps after it still run. */
   const step = (what, run) => {
@@ -578,6 +613,8 @@ async function main() {
     step(`removing the decrypted dumps in ${extractDir}; delete that directory by hand, it holds the restored database in plaintext`, () =>
       rmSync(extractDir, { recursive: true, force: true }),
     )
+    // Already closed when the start returned, unless Ctrl+C or a throw came first: its socket's folder must not stay.
+    step('closing the loopback relay', () => relay?.close())
     let stop = 'supabase stop did not run'
     if (existsSync(scratch) || stackTouched) {
       // Without its workdir (something removed it while the stack ran) the stack is stopped by its project id, as the
@@ -617,8 +654,18 @@ async function main() {
     console.log('Starting the throwaway stack (this can take a few minutes)...')
     stackTouched = true
     createLoopbackNetwork()
+    const endpoint = dockerEndpoint()
+    relay = await startLoopbackRelay({ upstream: endpoint, network: NETWORK })
+    console.log(`supabase start talks to Docker through the loopback relay, which forwards to ${endpoint}.`)
     // --network-id makes the CLI join the network created above by name instead of relying on its naming convention.
-    mustSucceed(supabase(['start', '--workdir', scratch, '--network-id', NETWORK], { stdio: 'inherit', timeout: 600000 }), 'supabase start')
+    // Only the start goes through the relay: every other docker and supabase call keeps the caller's environment.
+    let started
+    try {
+      started = supabase(['start', '--workdir', scratch, '--network-id', NETWORK], { stdio: 'inherit', timeout: 600000, env: { ...process.env, DOCKER_HOST: relay.dockerHost } })
+    } finally {
+      relay.close()
+    }
+    mustSucceed(started, 'supabase start')
     assertLoopbackOnly()
 
     const statusResult = supabase(['status', '-o', 'json', '--workdir', scratch], { encoding: 'utf8', timeout: 120000 })

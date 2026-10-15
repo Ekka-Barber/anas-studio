@@ -1,0 +1,16 @@
+
+> anas-studio@0.0.0 test C:\Users\alazi\Downloads\Tech\Code\My_projects\not shipped yet\ANASAQ.ME
+> vitest run
+
+
+ RUN  v5.0.1 C:/Users/alazi/Downloads/Tech/Code/My_projects/not shipped yet/ANASAQ.ME
+
+
+ Test Files  71 passed (71)
+      Tests  2584 passed | 39 skipped (2623)
+   Start at  06:33:34
+   Duration  12.49s (tests 57%, import 30%, transform 12%, worker 1%)
+
+    Isolate  71 workers spawned · ~371ms startup each (spawn + environment, per file)
+             at least ~2.02s faster with isolate: false — reuses workers across files instead of one per file
+

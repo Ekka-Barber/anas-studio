@@ -4,10 +4,12 @@
 // never a stack trace.
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import { once } from 'node:events'
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Worker } from 'node:worker_threads'
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -233,12 +235,15 @@ describe('restore-check --extract failures', () => {
 const CAN_STUB = process.platform !== 'win32' && !/\s/.test(process.execPath)
 const PROJECT_ID = 'anasaq-restore-check'
 const CONTAINER = `supabase_db_${PROJECT_ID}`
+const KONG = `supabase_kong_${PROJECT_ID}`
 const NETWORK = `supabase_network_${PROJECT_ID}`
 const LABEL = `com.supabase.cli.project=${PROJECT_ID}`
 
 interface Call {
   name: string
   args: string[]
+  /** The DOCKER_HOST the command was run with (absent: none). */
+  dockerHost?: string
   /** For `supabase start`: the files in the scratch workdir's supabase/.temp at that moment (null: no such folder). */
   temp?: Record<string, string> | null
 }
@@ -250,6 +255,9 @@ interface Rule {
   stderr?: string
   /** After answering, remove the command's --workdir, as a temp-folder cleaner might while the stack runs. */
   removeWorkdir?: boolean
+  /** First send this body as a container create through the command's DOCKER_HOST, as `supabase start` does, and fail
+   * as the CLI would when it is refused. */
+  create?: unknown
 }
 
 const STUB = `#!${process.execPath}
@@ -259,7 +267,7 @@ const name = path.basename(process.argv[1])
 const args = process.argv.slice(2)
 const state = process.env.STUB_STATE
 const workdir = args.includes('--workdir') ? args[args.indexOf('--workdir') + 1] : undefined
-const entry = { name, args }
+const entry = { name, args, dockerHost: process.env.DOCKER_HOST }
 if (name === 'supabase' && args[0] === 'start' && workdir) {
   const temp = path.join(workdir, 'supabase', '.temp')
   entry.temp = fs.existsSync(temp) ? Object.fromEntries(fs.readdirSync(temp).map((file) => [file, fs.readFileSync(path.join(temp, file), 'utf8')])) : null
@@ -272,10 +280,36 @@ if (name === 'supabase' && args[0] === 'init' && workdir) {
 const line = [name, ...args].join(' ')
 const plan = JSON.parse(fs.readFileSync(path.join(state, 'plan.json'), 'utf8'))
 const rule = plan.find((candidate) => line.startsWith(candidate.match)) ?? {}
-if (rule.stdout) process.stdout.write(rule.stdout)
-if (rule.stderr) process.stderr.write(rule.stderr)
-if (rule.removeWorkdir && workdir) fs.rmSync(workdir, { recursive: true, force: true })
-process.exit(rule.status ?? 0)
+const finish = () => {
+  if (rule.stdout) process.stdout.write(rule.stdout)
+  if (rule.stderr) process.stderr.write(rule.stderr)
+  if (rule.removeWorkdir && workdir) fs.rmSync(workdir, { recursive: true, force: true })
+  process.exit(rule.status ?? 0)
+}
+if (!rule.create) finish()
+const body = JSON.stringify(rule.create)
+const request = require('node:http').request(
+  {
+    socketPath: process.env.DOCKER_HOST.slice('unix://'.length),
+    method: 'POST',
+    path: '/v1.47/containers/create?name=' + ${JSON.stringify(CONTAINER)},
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
+  },
+  (response) => {
+    let text = ''
+    response.on('data', (chunk) => (text += chunk))
+    response.on('end', () => {
+      if (response.statusCode === 201) finish()
+      process.stderr.write('Error response from daemon: ' + JSON.parse(text).message + '\\n')
+      process.exit(1)
+    })
+  },
+)
+request.on('error', (error) => {
+  process.stderr.write('stub: ' + error.message + '\\n')
+  process.exit(1)
+})
+request.end(body)
 `
 
 describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker and the Supabase CLI', { timeout: 120_000 }, () => {
@@ -331,8 +365,16 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
   })
 
   /** Runs a copy of the script in a throwaway repository whose supabase/.temp holds `tempFiles` and whose one migration is
-   * `options.migration`; PATH is the stand-ins only. `options.nodeArgs` go to node before the script. */
-  function rehearse(backup: string, plan: Rule[], tempFiles: Record<string, string> = {}, passphrase = GOOD, options: { migration?: string; nodeArgs?: string[] } = {}) {
+   * `options.migration`; PATH is the stand-ins only. `options.nodeArgs` go to node before the script. DOCKER_HOST is
+   * `options.dockerHost`, by default a socket in the run's folder that nothing listens on (the relay connects to it only
+   * when a request comes, and the default stand-in start sends none), and unset when it is null. */
+  function rehearse(
+    backup: string,
+    plan: Rule[],
+    tempFiles: Record<string, string> = {},
+    passphrase = GOOD,
+    options: { migration?: string; nodeArgs?: string[]; dockerHost?: string | null } = {},
+  ) {
     const run = mkdtempSync(join(root, 'run-'))
     const repo = join(run, 'repo')
     mkdirSync(join(repo, 'scripts'), { recursive: true })
@@ -350,11 +392,22 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
     writeFileSync(join(state, 'plan.json'), JSON.stringify(plan))
     const temp = join(run, 'tmp')
     mkdirSync(temp)
+    const dockerHost = options.dockerHost === undefined ? `unix://${join(run, 'upstream.sock')}` : options.dockerHost
     const result = spawnSync(process.execPath, [...(options.nodeArgs ?? []), join(repo, 'scripts', 'restore-check.mjs'), backup], {
       cwd: repo,
       encoding: 'utf8',
       // Nothing of the caller's environment but what the run needs; PATH holds the stand-ins and nothing else.
-      env: { NODE_ENV: 'test', PATH: bin, TMPDIR: temp, TEMP: temp, TMP: temp, HOME: run, STUB_STATE: state, ANASAQ_BACKUP_PASSPHRASE: passphrase },
+      env: {
+        NODE_ENV: 'test',
+        PATH: bin,
+        TMPDIR: temp,
+        TEMP: temp,
+        TMP: temp,
+        HOME: run,
+        STUB_STATE: state,
+        ANASAQ_BACKUP_PASSPHRASE: passphrase,
+        ...(dockerHost === null ? {} : { DOCKER_HOST: dockerHost }),
+      },
     })
     const log = join(state, 'calls.jsonl')
     const calls: Call[] = existsSync(log)
@@ -376,14 +429,20 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
   }
 
   const START_FAILS: Rule = { match: 'supabase start', status: 1, stderr: 'stub: the stack did not start\n' }
+  // The two containers that must each show a binding, both on the loopback address.
+  const LOOPBACK: Rule[] = [
+    { match: `docker port ${CONTAINER}`, stdout: '5432/tcp -> 127.0.0.1:55322\n' },
+    { match: `docker port ${KONG}`, stdout: '8000/tcp -> 127.0.0.1:55321\n' },
+  ]
 
   /** Where the cleanup calls of a run stand in its commands (-1: not made): the stop, the network removal, and the two
-   * leftover checks, which find the containers and the volumes by the CLI's label for the project. */
+   * leftover checks, which find the containers and the volumes by the CLI's label for the project. The guard lists the
+   * containers with the same command before the restore, so the leftover check is its last occurrence. */
   function cleanupCalls(commands: string[]) {
     return {
       stop: commands.findIndex((command) => command.startsWith('supabase stop --no-backup --workdir ')),
       removeNetwork: commands.indexOf(`docker network rm ${NETWORK}`),
-      containers: commands.indexOf(`docker ps -a --filter label=${LABEL} --format {{.Names}}`),
+      containers: commands.lastIndexOf(`docker ps -a --filter label=${LABEL} --format {{.Names}}`),
       volumes: commands.indexOf(`docker volume ls --filter label=${LABEL} --format {{.Name}}`),
     }
   }
@@ -424,20 +483,18 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
     })
 
     it('goes on with the restore when every binding is on the loopback address', () => {
-      const { result, commands } = rehearse(local, [
-        { match: `docker port ${CONTAINER}`, stdout: '5432/tcp -> 127.0.0.1:55322\n' },
-        { match: 'supabase status', status: 1, stderr: 'stub: no status\n' },
-      ])
+      const { result, commands } = rehearse(local, [...LOOPBACK, { match: 'supabase status', status: 1, stderr: 'stub: no status\n' }])
       expect(result.stderr).not.toContain('Refusing to restore')
       expect(commands.some((command) => command.startsWith('supabase status -o json --workdir '))).toBe(true)
       expect(result.stderr).toContain('supabase status failed (exit 1)')
     })
 
     it('refuses to restore when docker shows no published port at all: an empty answer proves nothing about where they are bound', () => {
-      const { result, commands, tempLeft } = rehearse(local, [{ match: `docker port ${CONTAINER}`, stdout: '' }])
+      // Kong shows its binding, so the refusal is the database's own (round S's S-A3 rule), not Kong's.
+      const { result, commands, tempLeft } = rehearse(local, [{ match: `docker port ${CONTAINER}`, stdout: '' }, LOOPBACK[1]!])
       expect(result.status).toBe(1)
       expect(result.stderr).toContain('Refusing to restore')
-      expect(result.stderr).toContain('shows no published port')
+      expect(result.stderr).toContain(`\`docker port ${CONTAINER}\` shows no published port`)
       expect(commands.filter((command) => /^docker (cp|exec) /.test(command) || command.startsWith('supabase status'))).toEqual([])
       expect(tempLeft).toEqual([])
     })
@@ -467,6 +524,155 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
       expect(result.status).toBe(1)
       expect(result.stderr).toMatch(/wrong passphrase or damaged file/)
       expect(commands.filter((command) => command.startsWith('docker '))).toEqual([])
+    })
+  })
+
+  const nothingRestored = (commands: string[]) => commands.filter((command) => /^docker (cp|exec) /.test(command) || command.startsWith('supabase status'))
+
+  describe('the guard over every container of the stack', () => {
+    const REST = `supabase_rest_${PROJECT_ID}`
+    const STUDIO = `supabase_studio_${PROJECT_ID}`
+    it.each([
+      [
+        'a labelled container other than the database on 0.0.0.0',
+        [{ match: 'docker ps -a --filter label=', stdout: `${CONTAINER}\n${KONG}\n${REST}\n` }, { match: `docker port ${REST}`, stdout: '3000/tcp -> 0.0.0.0:55320\n' }, ...LOOPBACK],
+        `the scratch stack is published beyond the loopback address (${REST}: 3000/tcp -> 0.0.0.0:55320)`,
+      ],
+      ['Kong with no binding', [LOOPBACK[0]!], `\`docker port ${KONG}\` shows no published port`],
+      ['Kong on 0.0.0.0', [{ match: `docker port ${KONG}`, stdout: '8000/tcp -> 0.0.0.0:55321\n' }, ...LOOPBACK], `(${KONG}: 8000/tcp -> 0.0.0.0:55321)`],
+      [
+        'a container found by name only, not by label, on 0.0.0.0',
+        [{ match: 'docker ps -a --filter name=', stdout: `${STUDIO}\n` }, { match: `docker port ${STUDIO}`, stdout: '3000/tcp -> 0.0.0.0:55323\n' }, ...LOOPBACK],
+        `(${STUDIO}: 3000/tcp -> 0.0.0.0:55323)`,
+      ],
+      ['a `docker ps` that fails', [{ match: 'docker ps -a --filter name=', status: 1, stderr: 'Cannot connect to the Docker daemon\n' }, ...LOOPBACK], '`docker ps` did not answer'],
+      [
+        'a `docker port` that fails',
+        [{ match: 'docker ps -a --filter label=', stdout: `${CONTAINER}\n${KONG}\n${REST}\n` }, { match: `docker port ${REST}`, status: 1, stderr: 'Error: No such container\n' }, ...LOOPBACK],
+        `\`docker port ${REST}\` failed (exit 1)`,
+      ],
+    ] as [string, Rule[], string][])('refuses to restore for %s, before any copy, psql or status read', (_name, rules, reason) => {
+      const { result, commands, tempLeft } = rehearse(local, rules)
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('Refusing to restore')
+      expect(result.stderr).toContain(reason)
+      expect(result.stderr).toContain("behind the CLI's default credentials.")
+      expect(nothingRestored(commands)).toEqual([])
+      expect(tempLeft).toEqual([])
+    })
+  })
+
+  // A fake Docker for a stand-in start that really creates a container: it runs in a worker, since the test's main thread
+  // is blocked in spawnSync for the whole rehearsal, and logs each request before it answers, so the log is complete once
+  // the run is over.
+  const FAKE_DOCKER = `const { appendFileSync } = require('node:fs')
+const { createServer } = require('node:http')
+const { parentPort, workerData } = require('node:worker_threads')
+createServer((incoming, response) => {
+  let body = ''
+  incoming.on('data', (chunk) => (body += chunk))
+  incoming.on('end', () => {
+    appendFileSync(workerData.log, JSON.stringify({ url: incoming.url, body: JSON.parse(body) }) + '\\n')
+    response.writeHead(201, { 'Content-Type': 'application/json' })
+    response.end('{"Id":"stub-container","Warnings":[]}')
+  })
+}).listen(workerData.path, () => parentPort.postMessage('listening'))`
+
+  async function fakeDocker() {
+    const path = join(root, `docker-${randomBytes(3).toString('hex')}.sock`)
+    const log = `${path}.jsonl`
+    const worker = new Worker(FAKE_DOCKER, { eval: true, workerData: { path, log } })
+    await once(worker, 'message')
+    return {
+      dockerHost: `unix://${path}`,
+      received: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map((line) => JSON.parse(line) as { url: string; body: { HostConfig: { PortBindings: unknown } } }) : []),
+      stop: () => worker.terminate(),
+    }
+  }
+
+  /** A create as the CLI sends it for the database: 5432/tcp published with `HostIp` on the scratch network. */
+  const createOf = (HostIp: string) => ({
+    Image: 'public.ecr.aws/supabase/postgres:17.6.1.032',
+    ExposedPorts: { '5432/tcp': {} },
+    HostConfig: { NetworkMode: NETWORK, PortBindings: { '5432/tcp': [{ HostIp, HostPort: '55322' }] } },
+  })
+  const RELAY = /^unix:\/\/\/.+\/anasaq-relay-[^/]+\/d\.sock$/
+
+  describe('the relay around `supabase start`', () => {
+    it('carries the start\'s create to Docker with 127.0.0.1 written in, and only the start goes through it', async () => {
+      const docker = await fakeDocker()
+      try {
+        const { result, calls, commands, tempLeft } = rehearse(local, [{ match: 'supabase start', create: createOf('') }, ...LOOPBACK, { match: 'supabase status', status: 1, stderr: 'stub: no status\n' }], {}, GOOD, {
+          dockerHost: docker.dockerHost,
+        })
+        expect(docker.received()).toEqual([
+          { url: `/v1.47/containers/create?name=${CONTAINER}`, body: { ...createOf(''), HostConfig: { NetworkMode: NETWORK, PortBindings: { '5432/tcp': [{ HostIp: '127.0.0.1', HostPort: '55322' }] } } } },
+        ])
+        expect(result.stdout).toContain(`forwards to ${docker.dockerHost}.`)
+        // The run went on past the start and the guard.
+        expect(result.stderr).not.toContain('Refusing to restore')
+        expect(result.stderr).toContain('supabase status failed (exit 1)')
+        // The start ran with the relay's DOCKER_HOST; every other call, before and after it, with the caller's.
+        const start = calls.find((call) => call.name === 'supabase' && call.args[0] === 'start')
+        expect(start?.dockerHost).toMatch(RELAY)
+        const others = calls.filter((call) => call !== start)
+        expect(others.map((call) => call.dockerHost)).toEqual(others.map(() => docker.dockerHost))
+        expect(commands.indexOf(`docker port ${CONTAINER}`)).toBeGreaterThan(calls.indexOf(start!))
+        expect(commands.some((command) => command.startsWith('supabase status'))).toBe(true)
+        // DOCKER_HOST was set, so no context was asked for.
+        expect(commands.some((command) => command.startsWith('docker context'))).toBe(false)
+        // The relay's folder went with the run.
+        expect(tempLeft).toEqual([])
+      } finally {
+        await docker.stop()
+      }
+    })
+
+    it('refuses a create on 0.0.0.0, so the start fails as the CLI would, Docker receives nothing and nothing is restored', async () => {
+      const docker = await fakeDocker()
+      try {
+        const { result, commands, tempLeft } = rehearse(local, [{ match: 'supabase start', create: createOf('0.0.0.0') }, ...LOOPBACK], {}, GOOD, { dockerHost: docker.dockerHost })
+        expect(result.status).toBe(1)
+        expect(result.stderr).toContain("Error response from daemon: restore-check's loopback relay refused this container create: it publishes 5432/tcp on \"0.0.0.0\"")
+        expect(result.stderr).toContain('supabase start failed (exit 1)')
+        expect(docker.received()).toEqual([])
+        expect(commands.some((command) => command.startsWith('docker port '))).toBe(false)
+        expect(nothingRestored(commands)).toEqual([])
+        expect(tempLeft).toEqual([])
+      } finally {
+        await docker.stop()
+      }
+    })
+
+    it('takes the endpoint from `docker context inspect` when DOCKER_HOST is not set', () => {
+      const context = 'unix:///nonexistent/anasaq-test/docker.sock'
+      const { result, calls, commands } = rehearse(
+        local,
+        [{ match: 'docker context inspect', stdout: `${context}\n` }, ...LOOPBACK, { match: 'supabase status', status: 1, stderr: 'stub: no status\n' }],
+        {},
+        GOOD,
+        { dockerHost: null },
+      )
+      const inspect = commands.indexOf('docker context inspect --format {{.Endpoints.docker.Host}}')
+      const start = commands.findIndex((command) => command.startsWith('supabase start '))
+      expect(inspect).toBeGreaterThan(-1)
+      expect(start).toBeGreaterThan(inspect)
+      expect(result.stdout).toContain(`forwards to ${context}.`)
+      expect(calls[start]?.dockerHost).toMatch(RELAY)
+      expect(result.stderr).toContain('supabase status failed (exit 1)')
+    })
+
+    it('refuses a tcp:// endpoint before `supabase start`, naming it, and still cleans up', () => {
+      const { result, commands, tempLeft } = rehearse(local, [{ match: 'docker context inspect', stdout: 'tcp://192.0.2.10:2376\n' }], {}, GOOD, { dockerHost: null })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain('"tcp://192.0.2.10:2376": the rehearsal can relay only a local Docker endpoint')
+      expect(commands.some((command) => command.startsWith('supabase start'))).toBe(false)
+      const { stop, removeNetwork, containers, volumes } = cleanupCalls(commands)
+      expect(stop).toBeGreaterThan(-1)
+      expect(removeNetwork).toBeGreaterThan(stop)
+      expect(containers).toBeGreaterThan(removeNetwork)
+      expect(volumes).toBeGreaterThan(containers)
+      expect(tempLeft).toEqual([])
     })
   })
 
@@ -508,7 +714,7 @@ describe.skipIf(!CAN_STUB)('restore-check rehearsal, with a stand-in for Docker 
   // the backup `full`. With nothing left to fail in the run itself, what the exit code is made of is the aftermath.
   const MIGRATION = "select cron.schedule('job-a', '* * * * *', $$select 1$$);\n"
   const VERIFIES: Rule[] = [
-    { match: `docker port ${CONTAINER}`, stdout: '5432/tcp -> 127.0.0.1:55322\n' },
+    ...LOOPBACK,
     { match: 'supabase status', stdout: JSON.stringify({ API_URL: 'http://127.0.0.1:55321', SECRET_KEY: 'stub-not-a-secret' }) },
     { match: `docker exec ${CONTAINER} psql -U postgres --dbname postgres -At -F | -c select 'storage.objects'`, stdout: 'storage.objects|0\n' },
     { match: `docker exec ${CONTAINER} psql -U postgres --dbname postgres -At -c select jobname from cron.job`, stdout: 'job-a\n' },
