@@ -221,6 +221,7 @@ export function parseOrdersAlerts(value: unknown) {
     unverifiedAttempts: int(o.unverifiedAttempts),
     exhaustedEvents: int(o.exhaustedEvents),
     externalRefunds: int(o.externalRefunds),
+    providerStatus: int(o.providerStatus),
     lowStock: list(o.lowStock, (entry) => {
       const low = obj(entry)
       return { variantId: id(low.variantId), sku: str(low.sku), title: str(low.title), stock: int(low.stock), threshold: int(low.threshold) }
@@ -233,12 +234,20 @@ export type OrdersAlerts = ReturnType<typeof parseOrdersAlerts>
 export const RECONCILIATION_PATH = '/admin/orders/reconciliation'
 
 /**
- * The counts of the list's line and the home: «تحتاج مطابقة» is the owner's alone, the sum of what
- * the reconciliation screen lists, and it links there (`href`): the refunds in doubt (with those the
- * job parked for the other payment mode, MODE_CHANGED), the attempts not verified (with those parked
- * for the other mode, MODE_CHANGED), the webhook events given up on and the refunds made outside.
- * «دفعات قيد المراجعة» counts the open review payments, a payment refunded before it settled
- * (REFUNDED_BEFORE_SETTLE) among them.
+ * The counts of the list's line and the home. «تحتاج مطابقة» is the owner's alone and links to the reconciliation
+ * screen (`href`). It is the sum of what a person has to act on there, five counts that never share a row:
+ * - `uncertainRefunds`: the refunds in doubt (uncertain; still submitting with no check scheduled, the job having stopped
+ *   after 24 hours; or parked for the other payment mode, MODE_CHANGED);
+ * - `unverifiedAttempts`: the attempts not verified (UNVERIFIED), and those parked for the other mode (MODE_CHANGED);
+ * - `providerStatus`: the paid attempts the provider no longer calls paid or refunded (a void), the ledger's refunds being
+ *   below the captured amount (the PROVIDER_STATUS reason); one that also holds a refund made outside is counted below;
+ * - `exhaustedEvents`: the webhook events the job gave up on and that still need a person;
+ * - `externalRefunds`: the refunds made outside that the ledger does not hold.
+ * It leaves to the screen the transient rows, the ones the job is still working on and that settle by themselves or turn
+ * into one of the above: an attempt whose creation is uncertain, a refund submitting with a check scheduled and a webhook
+ * event not yet processed. For those the number and the screen's rows differ until they settle.
+ * «دفعات قيد المراجعة» counts the open review payments, a payment refunded before it settled (REFUNDED_BEFORE_SETTLE)
+ * among them; a review closed by hand is in no count.
  */
 export function alertCounts(alerts: OrdersAlerts, owner: boolean): Array<{ label: string; value: number; href?: string }> {
   return [
@@ -249,7 +258,7 @@ export function alertCounts(alerts: OrdersAlerts, owner: boolean): Array<{ label
       ? [
           {
             label: 'تحتاج مطابقة',
-            value: alerts.uncertainRefunds + alerts.unverifiedAttempts + alerts.exhaustedEvents + alerts.externalRefunds,
+            value: alerts.uncertainRefunds + alerts.unverifiedAttempts + alerts.providerStatus + alerts.exhaustedEvents + alerts.externalRefunds,
             href: RECONCILIATION_PATH,
           },
         ]

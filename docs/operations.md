@@ -237,7 +237,7 @@ budget" below). Sign-in codes never enter the outbox (Supabase Auth SMTP, I28).
 ```
 pending ──claim──▶ sending ──accepted──▶ sent ──webhook──▶ delivered
    ▲                  │                                 delayed / bounced /
-   │  retry (backoff) ├─▶ retry → pending …             complained / failed
+   │  retry (backoff) ├─▶ retry → pending (uncertain if possibly_sent) … complained / failed
    │                  ├─▶ permanent → exhausted
    └─ replay (owner)  └─▶ uncertain
 suppressed (a suppressed recipient is never claimed; set by bounce,
@@ -264,7 +264,20 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   the row's `idempotency_key` is sent as Resend's `Idempotency-Key`, which
   Resend keeps for 24 hours (resend.com/docs/dashboard/emails/
   idempotency-keys), so a retry within that window cannot send twice. After
-  23 hours (one hour of margin) the row waits for a person.
+  23 hours (one hour of margin) the row waits for a person. A row that had an
+  attempt of unknown outcome (a timeout, an unreadable reply, an expired lease:
+  `possibly_sent`, round R2a) is never `pending` again: it stays `uncertain`
+  when a later attempt fails and will be retried, when a quota or
+  configuration refusal gives the attempt back (`QUOTA`, `PROVIDER_CONFIG`) and
+  when it is replayed inside the window (a refusal, or the attempts cap,
+  exhausts it as any row), so this rule covers it every time; it
+  does not go back to `pending` and wait behind the tier caps to be sent days
+  later with an expired key. A row that was already `uncertain` when the round
+  was applied is marked too. A replay inside the window keeps the key, the
+  first attempt and the mark, and queues the row `uncertain` (due at once), so
+  it stays on the mail screen's list, with its buttons, until the next run
+  claims it; one past it rotates the key, clears the mark and queues the row
+  `pending`.
 - **Replay** (`outbox_replay`, owner or operations): queues an `exhausted`
   or `uncertain` row again. A suppressed recipient is refused, and so is a
   contact notice whose recipient is no longer an active owner or operations
@@ -273,8 +286,9 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   there is nothing to replay or fix, and it stays in the outbox and the audit
   trail until the contacts purge removes it). An `uncertain` or `exhausted` row whose
   first attempt was more than 23 hours ago may already have been delivered,
-  so replaying it requires `accept_duplicate_risk` and rotates the
-  idempotency key (the dedupe key — the business identity — never changes).
+  so replaying it requires `accept_duplicate_risk` (a null is no consent) and
+  rotates the idempotency key (the dedupe key — the business identity — never
+  changes).
   The action is written to `audit_events` as `email.replay`.
 - **Close** (`outbox_close`, owner or operations; round M2, the screen's
   «إغلاق»): turns an `uncertain` or `exhausted` row into `closed` with the
@@ -291,7 +305,9 @@ suppressed (a suppressed recipient is never claimed; set by bounce,
   `RECIPIENT_INACTIVE`, `NOT_PENDING`, `NOT_CONFIRMED` or `NO_FILE` (nothing is
   left to replay or fix for those) and a row a person closed — with
   `replay_needs_confirmation` set for uncertain or exhausted rows past the
-  23-hour window.
+  23-hour window. The list is cut at 200 rows: the replayable ones
+  (`exhausted`, `uncertain`) come first, the newest first, so while fewer than
+  200 rows are replayable the cut drops only rows nobody can act on.
 
 ### Quota
 
@@ -350,10 +366,12 @@ A 429 from Resend for its daily or monthly quota (`daily_quota_exceeded`,
 `monthly_quota_exceeded`) is a `QUOTA` retry: it does not use an attempt, it
 stops the run, and the row waits until the next 00:00 UTC (a monthly quota is
 probed once a day), so a quota outage does not use up the retry budget. If an
-earlier attempt may have reached Resend and that wait would outlast the
-23-hour idempotency window, the row becomes `uncertain` instead, so a person
-confirms the duplicate risk before a replay. Any other 429 is an ordinary
-`retry` with backoff.
+earlier attempt may have reached Resend, the row becomes `uncertain` instead of
+`pending`: whatever the wait when that attempt was of unknown outcome
+(`possibly_sent`), and when the wait would outlast the 23-hour idempotency
+window for any other earlier attempt. The claim's 23-hour guard then applies,
+so a person confirms the duplicate risk before a replay past the window. Any
+other 429 is an ordinary `retry` with backoff.
 
 ### Suppression
 
@@ -494,7 +512,13 @@ stock, the preorder capacity, the low-stock threshold and the digital asset are
 not public. Before, every variant save (a stock correction, an
 unchanged save, even a lost version conflict) started a Pages build, which
 counts against the 500 builds a month of the Free plan (docs/costs.md).
-Inserts and deletes of variants still rebuild.
+Inserts and deletes of variants still rebuild. Since round R2a a product is
+treated the same way: the row trigger compares the slug, title, summary, body,
+cover image, status and sort order, and asks only when one changed and the
+product is or was published (so the save of a draft, an unchanged save and a
+lost version conflict ask for nothing), a variant of a product that is not
+published asks for nothing when it changes, and inserts and deletes of products
+still rebuild.
 A library image's alt text or caption also asks for a build (round M2) when a
 published document or a published product uses the image, because the static
 pages print them; an edit of an image nobody shows, or of its name, folder or
@@ -933,9 +957,14 @@ refunded total.
    delivered as they stand. «للشحن» counts the paid orders that still have a line
    being prepared (a fully refunded line does not count). «دفعات قيد المراجعة» counts open review
    payments, with or without an order. For the owner, «تحتاج مطابقة» adds the
-   refunds that are uncertain, the attempts that could not be verified, the
-   webhook events the job gave up on and the refunds made at Moyasar that the
-   ledger does not hold, and opens the reconciliation screen. «مخزون منخفض»
+   refunds that are uncertain (or still submitting with no check scheduled), the
+   attempts that could not be verified, the paid payments Moyasar no longer
+   calls paid or refunded (a void), the webhook events the job gave up on and
+   the refunds made at Moyasar that the ledger does not hold, and opens the
+   reconciliation screen. It leaves to the screen the rows the job is still
+   working on (an attempt whose creation is uncertain, a refund with a check
+   scheduled, a webhook event not yet processed), so the screen can list a row
+   that the number does not count yet. «مخزون منخفض»
    lists up to ten variants at or under their alert threshold, fewest first,
    with the SKU and the threshold. Every number is a live query: a failed one
    says «تعذّر التحميل», never 0. The owners also get an email for each alert
@@ -1266,8 +1295,12 @@ address per UTC day across variants, five per address in 30 days, 30 in all per
 day; `notify-confirm-backlog` runs hourly and queues, longest waiting first, what
 a cap held back, so a visitor told «sent» gets the mail the next day at the latest
 unless the address's own caps hold it. `notifications-purge` deletes a pending
-sign-up 7 days after its last request and an unsubscribed one 30 days after it
-unsubscribed, with their unsent mail; a confirmed one is never purged.
+sign-up 7 days after its last request or after the confirmation mail queued for
+it, whichever is later (the link lives 7 days from that mail), and an
+unsubscribed one 30 days after it unsubscribed, with their unsent mail; a
+confirmed one is never purged. An address in the suppression list (a bounce, a
+complaint) is sent neither the confirmation nor the notice that the item is back:
+the sign-up is stored, and nothing is queued or counted against the day's 30.
 
 ### Preorders
 
@@ -1286,7 +1319,10 @@ less the units of committed preorder reservations less other orders' unpaid
 holds. A preorder whose delivery day has passed is not for sale (the form refuses
 a past date for the same reason), so change the date or switch it off. A digital
 preorder's file is uploaded later, and the waiting orders get it (see "The paid
-file"). A refund of a preorder item frees its capacity again.
+file"). A refund of a preorder item frees its capacity again only for a line
+that has not shipped; for a line that has shipped or been delivered the
+capacity stays spent (the copy has left), and a copy that comes back is counted
+by raising the capacity by hand.
 
 **Net confirmed preorders out of real stock.** When the copies arrive and the
 preorder is switched off, the stock the owner types must be the real stock minus

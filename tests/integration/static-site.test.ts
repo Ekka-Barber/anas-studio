@@ -3,6 +3,8 @@
 // straight from the catalog as the local `postgres` superuser. Anything that
 // would call out (pg_net) runs inside a transaction that is rolled back, so
 // no request is ever queued and the shared database is left as it was.
+import { randomUUID } from 'node:crypto'
+
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -299,6 +301,81 @@ describe('site rebuilds (D32)', () => {
       )
       expect(audit.rows[0]!.n).toBe(1)
       expect(await scalar<number>('public.publish_due()')).toBe(0)
+    })
+  })
+})
+
+// RESIDUALS-1 R2a, DB-COMMERCE-08: the catalog asks for a Pages build (500 a month on the free plan) only for a change the
+// public pages show. A rolled-back transaction, so the shared database keeps its build state; `now()` is fixed inside it, and
+// a request shows as `requested_at` moving from the parked time (ten minutes back) to the transaction's `now()`.
+describe('catalog rebuilds (DB-COMMERCE-08)', () => {
+  async function asking(body: (asked: (sql: string, params?: unknown[]) => Promise<boolean>) => Promise<void>): Promise<void> {
+    await rolledBack(async () => {
+      const requestedAt = async (): Promise<number | null> => (await scalar<Date | null>('(select requested_at from finance.site_builds where id = 1)'))?.getTime() ?? null
+      const asked = async (sql: string, params: unknown[] = []): Promise<boolean> => {
+        await postgres.query("update finance.site_builds set requested_at = now() - interval '10 minutes' where id = 1")
+        const parked = await requestedAt()
+        await postgres.query(sql, params)
+        return (await requestedAt()) !== parked
+      }
+      await body(asked)
+    })
+  }
+  const SEVEN = 'slug = slug, title = title, summary = summary, body = body, cover_image = cover_image, status = status, sort_order = sort_order'
+  const product = async (status: string): Promise<string> => {
+    const slug = `build-trigger-${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`
+    return (await postgres.query<{ id: string }>("insert into public.products (slug, title, summary, status) values ($1, 'عنوان', '', $2) returning id", [slug, status])).rows[0]!.id
+  }
+  const variant = async (productId: string): Promise<string> =>
+    (
+      await postgres.query<{ id: string }>(
+        "insert into public.product_variants (product_id, sku, title, fulfillment, price_halalas, enabled) values ($1, $2, 'خيار', 'digital', 1000, true) returning id",
+        [productId, `SKU-BUILD-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`],
+      )
+    ).rows[0]!.id
+
+  it('a product save asks for a build only when a public column changed on a product that is or was published: a draft\'s save, an unchanged save and a stale save ask for none', async () => {
+    await asking(async (asked) => {
+      const draft = await product('draft')
+      const published = await product('published')
+      // The admin form sends all seven public columns with every save, changed or not.
+      expect(await asked(`update public.products set ${SEVEN} where id = $1`, [draft])).toBe(false)
+      expect(await asked(`update public.products set ${SEVEN} where id = $1`, [published])).toBe(false)
+      // A lost version conflict matches no row, and the statement still lists the columns.
+      expect(await asked(`update public.products set ${SEVEN} where id = $1`, [randomUUID()])).toBe(false)
+      // A draft changing is not a change of the public pages; a published product's title is.
+      expect(await asked("update public.products set title = 'عنوان جديد' where id = $1", [draft])).toBe(false)
+      expect(await asked("update public.products set title = 'عنوان آخر' where id = $1", [published])).toBe(true)
+      expect(await asked("update public.products set summary = 'ملخص' where id = $1", [published])).toBe(true)
+      // What the pages do not show.
+      expect(await asked('update public.products set version = version + 1 where id = $1', [published])).toBe(false)
+      // Entering and leaving the public shelf are changes; an archived product staying archived is not.
+      expect(await asked("update public.products set status = 'published' where id = $1", [draft])).toBe(true)
+      expect(await asked("update public.products set status = 'archived' where id = $1", [draft])).toBe(true)
+      expect(await asked("update public.products set title = 'بعد الأرشفة' where id = $1", [draft])).toBe(false)
+      // A new product and a removed one still ask (the statement trigger).
+      expect(await asked('delete from public.products where id = $1', [draft])).toBe(true)
+      expect(await asked("insert into public.products (slug, title, summary, status) values ($1, 'جديد', '', 'draft')", [`build-trigger-new-${Date.now()}-${process.pid}`])).toBe(true)
+    })
+  })
+
+  it('a variant of a product that is not published asks for no build when it changes; a published product\'s variant does, and so does moving a variant on or off the public shelf', async () => {
+    await asking(async (asked) => {
+      const draft = await product('draft')
+      const archived = await product('archived')
+      const published = await product('published')
+      const [ofDraft, ofArchived, ofPublished] = [await variant(draft), await variant(archived), await variant(published)]
+      expect(await asked('update public.product_variants set price_halalas = 1500 where id = $1', [ofDraft])).toBe(false)
+      expect(await asked("update public.product_variants set enabled = false, title = 'عنوان' where id = $1", [ofArchived])).toBe(false)
+      expect(await asked('update public.product_variants set price_halalas = 1500 where id = $1', [ofPublished])).toBe(true)
+      // The product of a variant changing hands counts when either side is published.
+      expect(await asked('update public.product_variants set product_id = $2 where id = $1', [ofDraft, archived])).toBe(false)
+      expect(await asked('update public.product_variants set product_id = $2 where id = $1', [ofDraft, published])).toBe(true)
+      expect(await asked('update public.product_variants set product_id = $2 where id = $1', [ofDraft, draft])).toBe(true)
+      // Inserting and deleting a variant still ask (the statement trigger).
+      expect(await asked('delete from public.product_variants where id = $1', [ofArchived])).toBe(true)
+      // A published product's variant that saves nothing new asks for nothing, as before.
+      expect(await asked('update public.product_variants set price_halalas = price_halalas, sku = sku where id = $1', [ofPublished])).toBe(false)
     })
   })
 })

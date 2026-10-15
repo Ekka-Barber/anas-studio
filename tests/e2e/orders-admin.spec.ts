@@ -1186,7 +1186,8 @@ for (const width of [360, 1440]) {
         const orders = section(page, 'الطلبات')
         await expect(orders).toBeVisible()
         // The three counts, the owner's fourth, in this order.
-        const reconcile = alerts.uncertainRefunds! + alerts.unverifiedAttempts! + alerts.exhaustedEvents! + alerts.externalRefunds!
+        // R2a (CONTRACT-13): the voided paid attempts are part of the owner's count too.
+        const reconcile = alerts.uncertainRefunds! + alerts.unverifiedAttempts! + alerts.providerStatus! + alerts.exhaustedEvents! + alerts.externalRefunds!
         await expect(orders.locator('ul').first().locator('li')).toHaveText([
           `تحتاج حلًا: ${formatNumber(alerts.needsResolution!)}`,
           `للشحن: ${formatNumber(alerts.toShip!)}`,

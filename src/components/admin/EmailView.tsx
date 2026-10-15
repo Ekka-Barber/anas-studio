@@ -141,7 +141,8 @@ export function EmailView() {
       return
     }
     await load()
-    // The row and its focused button are gone: focus and announce the result here.
+    // The row and its focused button are gone (a row that may have been sent, replayed inside its 23 hours, stays
+    // listed as uncertain until the next run claims it: RESIDUALS-1 R2a): focus and announce the result here.
     setNotice(REPLAYED_MESSAGE)
     headingRef.current?.focus()
   }

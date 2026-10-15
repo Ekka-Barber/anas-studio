@@ -363,8 +363,10 @@ The reply is counts only (`attempts`, `events`, `refunds`, `settled`, `cancelled
 - After a change to `supabase/config.toml` (the Auth hook lives there), restart
   with `supabase stop` then `supabase start`, never `--no-backup`.
 - Test runs add staff, orders and mail every time. Past about 1,000 staff rows the
-  team screen (PostgREST's `max_rows`) hides a new invite and `auth.spec.ts`
-  fails. Before an acceptance battery, check that every local row is test data,
+  team screen (PostgREST's `max_rows`) keeps 1,000 rows, the active first and the
+  newest first within each (RESIDUALS-1 R2a), so while fewer than 1,000 members
+  are active only inactive ones are cut; a polluted database still slows every
+  suite. Before an acceptance battery, check that every local row is test data,
   then `pnpm db:reset`, both imports (`pnpm db:import` and `pnpm db:demo-catalog`,
   with `DATABASE_URL` as above) and a restart of the edge runtime. Never against
   the hosted project.

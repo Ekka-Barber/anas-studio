@@ -931,6 +931,33 @@ describe('checkout_create success', () => {
     })
     expect(conflict.result).toMatchObject({ ok: false, code: 'IDEMPOTENCY_CONFLICT' })
   })
+
+  // RESIDUALS-1 R2a, DB-COMMERCE-09: a code typed on the Arabic layout carries Arabic-Indic digits (or Persian ones).
+  it('a coupon code typed with Arabic-Indic or Persian digits, in any case, with spaces around it, applies in the quote and in the create', async () => {
+    const variant = await makeVariant(await makeProduct(), { fulfillment: 'digital', price: 10_000 })
+    const lines = [{ variantId: variant, quantity: 1 }]
+    const target = await makeCoupon({ kind: 'percent', percentBp: 1000 })
+    // The letters stay, each digit becomes the same digit of the other script (U+0660 and U+06F0 are those scripts' zero).
+    const typedWith = (code: string, zero: number): string => code.replace(/[0-9]/g, (digit) => String.fromCodePoint(zero + Number(digit)))
+    const arabicIndic = typedWith(target.code, 0x660)
+    const persian = typedWith(target.code, 0x6f0)
+    const mixed = typedWith(target.code.slice(0, 8), 0x660) + typedWith(target.code.slice(8), 0x6f0)
+    for (const typed of [arabicIndic, persian, mixed]) expect(typed).toMatch(/[٠-٩۰-۹]/)
+    for (const typed of [arabicIndic, persian, mixed, ` ${arabicIndic.toLowerCase()} `, `  ${target.code.toLowerCase()} `]) {
+      const priced = (await quote(pool[0]!, lines, null, typed)) as any
+      expect(priced.ok, typed).toBe(true)
+      expect(priced.coupon, typed).toMatchObject({ id: target.id, code: target.code, discount: 1_000 })
+    }
+    // The create folds the same way: the order keeps the stored code and the coupon's held redemption.
+    const answer = await createOrder(pool[0]!, { lines, couponCode: ` ${persian} ` })
+    expect(answer.code).toBeUndefined()
+    const stored = (await postgres.query<any>('select coupon_code, coupon_id, discount_halalas from finance.orders where id = $1', [answer.result.order.id])).rows[0]!
+    expect(stored).toMatchObject({ coupon_code: target.code, coupon_id: target.id, discount_halalas: 1_000 })
+    expect((await postgres.query('select 1 from finance.coupon_redemptions where order_id = $1 and coupon_id = $2', [answer.result.order.id, target.id])).rowCount).toBe(1)
+    // A code that is no coupon is still COUPON_INVALID, whatever its digits.
+    const wrong = (await quote(pool[0]!, lines, null, typedWith('NOSUCH12', 0x660))) as any
+    expect(wrong.errors).toContainEqual(expect.objectContaining({ code: 'COUPON_INVALID' }))
+  })
 })
 
 // --- hold limits ---------------------------------------------------------------
@@ -1212,6 +1239,35 @@ describe('concurrency (separate connections)', () => {
     await holder.query('select 1 from public.coupons where id = $1 for update', [coupon.id])
     const creates = variants.map((variantId, i) =>
       createOrder(pool[i]!, { lines: [{ variantId, quantity: 1 }], couponCode: coupon.code, email: uniqueEmail('coupon-race') }),
+    )
+    try {
+      for (const create of creates) expect(await settledWithin(create)).toBe('blocked')
+    } finally {
+      await holder.query('commit')
+      await holder.end()
+    }
+    const answers = await Promise.all(creates)
+    expect(answers.filter((answer) => answer.result?.ok === true)).toHaveLength(1)
+    expect(answers.filter((answer) => answer.result?.ok !== true).map((answer) => answer.result?.code ?? answer.code)).toEqual(['COUPON_EXHAUSTED'])
+    expect(Number((await postgres.query('select count(*) as n from finance.coupon_redemptions where coupon_id = $1', [coupon.id])).rows[0]!.n)).toBe(1)
+  })
+
+  // RESIDUALS-1 R2a, DB-COMMERCE-09: the coupon's row lock is taken by the folded code too, or the limit of one use could be beaten.
+  it('a create whose coupon code is typed with Arabic-Indic digits queues on the coupon\'s row lock like the Latin one, so a limit of one use still holds', async () => {
+    const product = await makeProduct()
+    const variants = [
+      await makeVariant(product, { fulfillment: 'digital', price: 10_000 }),
+      await makeVariant(product, { fulfillment: 'digital', price: 10_000 }),
+    ]
+    const coupon = await makeCoupon({ kind: 'percent', percentBp: 1000, usageLimit: 1 })
+    const typed = [coupon.code.replace(/[0-9]/g, (digit) => String.fromCodePoint(0x660 + Number(digit))), coupon.code]
+    expect(typed[0]).not.toBe(coupon.code)
+    const holder = new Client({ connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+    await holder.connect()
+    await holder.query('begin')
+    await holder.query('select 1 from public.coupons where id = $1 for update', [coupon.id])
+    const creates = variants.map((variantId, i) =>
+      createOrder(pool[i]!, { lines: [{ variantId, quantity: 1 }], couponCode: typed[i], email: uniqueEmail('coupon-digits-race') }),
     )
     try {
       for (const create of creates) expect(await settledWithin(create)).toBe('blocked')

@@ -704,11 +704,14 @@ describe('grants and access', () => {
       await postgres.query("update finance.payment_attempts set next_check_at = now() - interval '1 minute' where order_id = $1", [placed.id])
       expect(await kick()).toBe(true)
       const queued = await row(
-        "select url, convert_from(body, 'utf8') as body, headers ->> 'Authorization' as auth from net.http_request_queue where url like '%/outbox'",
+        "select url, convert_from(body, 'utf8') as body, headers ->> 'Authorization' as auth, timeout_milliseconds from net.http_request_queue where url like '%/outbox'",
       )
       expect(queued.url).toBe('http://127.0.0.1:9/functions/v1/outbox')
       expect(JSON.parse(queued.body)).toEqual({ job: 'payments_reconcile' })
       expect(queued.auth).toBe('Bearer kick-secret')
+      // CONTRACT-10 = EF-MONEY-10: the call outlives one run (60 s of rows plus the slowest single row, an uncertain attempt's
+      // adoption of up to 5 pages at 10 s each), not the old 15 s.
+      expect(queued.timeout_milliseconds).toBe(120_000)
       // A due event, and a due in-flight refund, wake it too.
       await postgres.query('update finance.payment_attempts set next_check_at = null where order_id = $1', [placed.id])
       expect(await kick()).toBe(false)
@@ -772,6 +775,32 @@ describe('payment_attempt_begin', () => {
     await postgres.query('update finance.orders set subtotal_halalas = 50, total_halalas = 50 where id = $1', [tiny.id])
     expect(await begin(tiny)).toEqual({ ok: false, code: 'TOTAL_BELOW_MINIMUM', order: expect.objectContaining({ orderNumber: tiny.number }) })
     expect(await count('select count(*)::int as n from finance.payment_attempts where order_id = $1', [tiny.id])).toBe(0)
+  })
+
+  // RESIDUALS-1 R2a, P08-CKPT-04: an invoice the order already has and that can still be paid is answered in the hold's last minute.
+  it('a pending attempt with 30 seconds of hold left answers pending with its URL; HOLD_EXPIRED stays for a new attempt, for an invoice that has ended and for a creating one', async () => {
+    const placed = await plain()
+    const started = await start(placed)
+    await postgres.query("update finance.orders set hold_expires_at = now() + interval '30 seconds' where id = $1", [placed.id])
+    await postgres.query("update finance.payment_attempts set invoice_expires_at = now() + interval '30 seconds' where id = $1", [started.attemptId])
+    expect(await begin(placed)).toMatchObject({
+      ok: true,
+      state: 'pending',
+      attemptId: started.attemptId,
+      invoiceUrl: `http://127.0.0.1:54390/invoices/${started.invoiceId}`,
+      order: expect.objectContaining({ orderNumber: placed.number }),
+    })
+    expect(await count('select count(*)::int as n from finance.payment_attempts where order_id = $1', [placed.id])).toBe(1)
+    // The invoice has ended (the job has not closed the attempt yet): nothing to pay, so the hold's last minute is HOLD_EXPIRED as before.
+    await postgres.query("update finance.payment_attempts set invoice_expires_at = now() - interval '1 second' where id = $1", [started.attemptId])
+    expect(await begin(placed)).toEqual({ ok: false, code: 'HOLD_EXPIRED', order: expect.objectContaining({ orderNumber: placed.number }) })
+
+    // A new attempt is not made in the last minute, and neither is a creating one answered (it is not an invoice to pay).
+    const creating = await plain()
+    expect(await begin(creating)).toMatchObject({ ok: true, state: 'new' })
+    await postgres.query("update finance.orders set hold_expires_at = now() + interval '30 seconds' where id = $1", [creating.id])
+    expect(await begin(creating)).toEqual({ ok: false, code: 'HOLD_EXPIRED', order: expect.objectContaining({ orderNumber: creating.number }) })
+    expect(await count('select count(*)::int as n from finance.payment_attempts where order_id = $1', [creating.id])).toBe(1)
   })
 
   it('TOO_MANY_ATTEMPTS at 5 attempts; an active fifth keeps answering instead', async () => {
@@ -1826,6 +1855,61 @@ describe('a payment after the hold ended', () => {
     expect(await row('select state, preorder from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ state: 'held', preorder: true })
     expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id])).toBe(0)
     expect(await alerts('needs_resolution', placed.id)).toBe(await owners())
+  })
+
+  // RESIDUALS-1 R2a, DB-COMMERCE-04: the stock check and the decrement go by the line's reservation, not by the variant's columns at payment.
+  it('a digital line whose variant the owner made physical, with a stock, before the payment is paid: no stock checked or taken, a file and no shipment', async () => {
+    for (const stock of [0, 5]) {
+      const variant = await digital(3500)
+      const placed = await place([{ variantId: variant, quantity: 1 }])
+      const started = await start(placed)
+      expect(await count('select count(*)::int as n from finance.inventory_reservations where order_id = $1', [placed.id]), `stock ${stock}`).toBe(0)
+      await postgres.query("update public.product_variants set fulfillment = 'physical', stock = $2 where id = $1", [variant, stock])
+      expect(await apply(started), `stock ${stock}`).toEqual({ outcome: 'paid', orderNumber: placed.number })
+      expect((await orderOf(placed.id)).status, `stock ${stock}`).toBe('paid')
+      expect(await stockOf(variant), `stock ${stock}`).toBe(stock)
+      expect(await count('select count(*)::int as n from finance.entitlements where order_id = $1', [placed.id]), `stock ${stock}`).toBe(1)
+      expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id]), `stock ${stock}`).toBe(0)
+    }
+  })
+
+  // RESIDUALS-1 R2a fix round, F5: a line the order recorded as digital takes no stock, though it has a reservation (a preorder) and
+  // its variant is a stocked, physical, non-preorder one by the time the payment comes in.
+  it('a digital preorder line whose variant the owner made physical, no longer a preorder, with a stock, is paid: no stock checked or taken, a file and no shipment', async () => {
+    for (const stock of [0, 5]) {
+      const variant = await digital(3500)
+      await postgres.query(
+        "update public.product_variants set preorder = true, preorder_capacity = 3, preorder_ships_on = '2099-03-01', preorder_note = 'تُسلَّم بعد الطباعة' where id = $1",
+        [variant],
+      )
+      const placed = await place([{ variantId: variant, quantity: 1 }])
+      const started = await start(placed)
+      expect(await row('select preorder from finance.inventory_reservations where order_id = $1', [placed.id]), `stock ${stock}`).toEqual({ preorder: true })
+      expect(await row('select fulfillment, preorder from finance.order_items where order_id = $1', [placed.id]), `stock ${stock}`).toEqual({ fulfillment: 'digital', preorder: true })
+      await postgres.query(
+        "update public.product_variants set fulfillment = 'physical', preorder = false, preorder_capacity = null, preorder_ships_on = null, preorder_note = null, stock = $2 where id = $1",
+        [variant, stock],
+      )
+      expect(await apply(started), `stock ${stock}`).toEqual({ outcome: 'paid', orderNumber: placed.number })
+      expect((await orderOf(placed.id)).status, `stock ${stock}`).toBe('paid')
+      expect(await stockOf(variant), `stock ${stock}`).toBe(stock)
+      expect(await row('select state, preorder from finance.inventory_reservations where order_id = $1', [placed.id]), `stock ${stock}`).toEqual({ state: 'committed', preorder: false })
+      expect(await count('select count(*)::int as n from finance.entitlements where order_id = $1', [placed.id]), `stock ${stock}`).toBe(1)
+      expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id]), `stock ${stock}`).toBe(0)
+    }
+  })
+
+  it('a physical line whose variant was made digital (no stock) before the payment is paid by its reservation: nothing to check or take, and the copy still to ship', async () => {
+    const variant = await physical(3500, 5)
+    const placed = await place([{ variantId: variant, quantity: 1 }])
+    const started = await start(placed)
+    await postgres.query("update public.product_variants set fulfillment = 'digital', stock = null where id = $1", [variant])
+    expect(await apply(started)).toEqual({ outcome: 'paid', orderNumber: placed.number })
+    expect(await stockOf(variant)).toBeNull()
+    expect(await row('select state, preorder from finance.inventory_reservations where order_id = $1', [placed.id])).toEqual({ state: 'committed', preorder: false })
+    // The line was bought as a copy to ship: its snapshot decides what is made for it.
+    expect(await count('select count(*)::int as n from finance.fulfillments where order_id = $1', [placed.id])).toBe(1)
+    expect(await count('select count(*)::int as n from finance.entitlements where order_id = $1', [placed.id])).toBe(0)
   })
 
   it('finance.order_try_commit skips a line that is fully refunded: nothing is committed, granted or shipped for it', async () => {

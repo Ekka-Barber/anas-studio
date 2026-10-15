@@ -362,6 +362,180 @@ describe('outbox_result', () => {
   })
 })
 
+// RESIDUALS-1 R2a, EF-ADMIN-13: a row that had an attempt of unknown outcome is never `pending` again, so the claim's
+// 23-hour guard applies to it (its idempotency key lives 24 hours at the provider).
+describe('outbox_result: a retry after an uncertain attempt', () => {
+  const flagOf = async (id: string): Promise<boolean> =>
+    (await postgres.query<{ possibly_sent: boolean }>('select possibly_sent from finance.email_outbox where id = $1', [id])).rows[0]!.possibly_sent
+
+  it('keeps the row uncertain with the retry\'s backoff, so it is not claimed past 23 hours of its first attempt, and it is on the attention list; clean retries stay pending', async () => {
+    await parkOthers()
+    const row = await insertRow({ label: 'retry-after-uncertain' })
+    expect(await flagOf(row.id)).toBe(false)
+    const first = await claim(1)
+    expect(first.map((r) => r.id)).toEqual([row.id])
+    expect(await result(row.id, first[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    expect(await flagOf(row.id)).toBe(true)
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+    const second = await claim(1)
+    expect(second.map((r) => r.id)).toEqual([row.id])
+    expect(await result(row.id, second[0]!.lease_id, 'retry', null, 'HTTP_503')).toBe(true)
+    const state = await rowState(row.id)
+    expect(state).toMatchObject({ status: 'uncertain', attempts: 2, last_error: 'HTTP_503' })
+    expect(state.next_at.getTime()).toBeGreaterThan(Date.now() + 60_000) // the retry's own backoff (2^attempts minutes)
+    expect(await flagOf(row.id)).toBe(true)
+
+    // Inside the window it is claimed as before; past it, the claim leaves it for a person, who sees it with the duplicate-risk flag.
+    await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '30 hours', next_at = now() where id = $1", [row.id])
+    expect((await claim(1)).find((r) => r.id === row.id)).toBeUndefined()
+    expect((await rowState(row.id)).status).toBe('uncertain')
+    const owner = await createStaff('owner')
+    const listed = await (await signIn(owner.email)).rpc('outbox_attention')
+    expect(listed.error).toBeNull()
+    expect((listed.data as Array<{ id: number; status: string; replay_needs_confirmation: boolean }>).find((r) => r.id === Number(row.id))).toMatchObject({
+      status: 'uncertain',
+      replay_needs_confirmation: true,
+    })
+
+    // Clean attempts only (a 5xx, a refusal): the row is pending after the retry, as before.
+    const clean = await insertRow({ label: 'retry-clean' })
+    const attempt = await claim(1)
+    expect(await result(clean.id, attempt[0]!.lease_id, 'retry', null, 'HTTP_503')).toBe(true)
+    expect(await rowState(clean.id)).toMatchObject({ status: 'pending', last_error: 'HTTP_503' })
+    expect(await flagOf(clean.id)).toBe(false)
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [clean.id])
+    const again = await claim(1)
+    expect(await result(clean.id, again[0]!.lease_id, 'retry', null, 'HTTP_503')).toBe(true)
+    expect((await rowState(clean.id)).status).toBe('pending')
+    await postgres.query('delete from finance.email_outbox where id = any($1)', [[clean.id]])
+  })
+
+  it('an expired lease and an uncertain outcome at the attempts cap are uncertain attempts too', async () => {
+    await parkOthers()
+    // The lease runs out mid-send: the claim flips the row, and the next attempt's retry leaves it uncertain.
+    const leased = await insertRow({ label: 'retry-after-lease' })
+    expect((await claim(1)).map((r) => r.id)).toEqual([leased.id])
+    await postgres.query("update finance.email_outbox set lease_until = now() - interval '1 second' where id = $1", [leased.id])
+    await claim(1)
+    expect(await rowState(leased.id)).toMatchObject({ status: 'uncertain' })
+    expect(await flagOf(leased.id)).toBe(true)
+    await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [leased.id])
+    const retried = await claim(1)
+    expect(retried.map((r) => r.id)).toEqual([leased.id])
+    expect(await result(leased.id, retried[0]!.lease_id, 'retry', null, 'HTTP_503')).toBe(true)
+    expect((await rowState(leased.id)).status).toBe('uncertain')
+
+    // Exhausted by an uncertain outcome: marked, so a replay inside the window keeps the mark with the key.
+    const capped = await insertRow({ label: 'flag-capped' })
+    const claimed = await claim(1)
+    await postgres.query('update finance.email_outbox set attempts = max_attempts where id = $1', [capped.id])
+    expect(await result(capped.id, claimed[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    expect(await rowState(capped.id)).toMatchObject({ status: 'exhausted' })
+    expect(await flagOf(capped.id)).toBe(true)
+  })
+
+  it('a replay inside the 23 hours keeps the key and the mark and queues the row uncertain, so the retry after it is uncertain too; a replay past them rotates the key, clears the mark and queues it pending', async () => {
+    await parkOthers()
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    const created: string[] = []
+    try {
+      const within = await insertRow({ label: 'flag-within', status: 'exhausted' })
+      created.push(within.id)
+      await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '1 hour', attempts = max_attempts, possibly_sent = true where id = $1", [within.id])
+      expect((await client.rpc('outbox_replay', { p_id: Number(within.id), p_accept_duplicate_risk: false })).error).toBeNull()
+      // The mark outlives the replay, so the row is queued uncertain (this pinned `pending` before the fix round F1): a pending
+      // row would be claimed whenever it is due, past the 23 hours too.
+      expect(await rowState(within.id)).toMatchObject({ status: 'uncertain', attempts: 0, idempotency_key: within.idempotency_key })
+      expect(await flagOf(within.id)).toBe(true)
+      const claimed = await claim(1)
+      expect(claimed.map((r) => r.id)).toEqual([within.id])
+      expect(claimed[0]!.idempotency_key).toBe(within.idempotency_key)
+      expect(await result(within.id, claimed[0]!.lease_id, 'retry', null, 'HTTP_503')).toBe(true)
+      expect((await rowState(within.id)).status).toBe('uncertain')
+
+      const old = await insertRow({ label: 'flag-old', status: 'exhausted' })
+      created.push(old.id)
+      await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '24 hours', possibly_sent = true where id = $1", [old.id])
+      expect((await client.rpc('outbox_replay', { p_id: Number(old.id), p_accept_duplicate_risk: true })).error).toBeNull()
+      expect(await rowState(old.id)).toMatchObject({ status: 'pending' })
+      expect((await rowState(old.id)).idempotency_key).not.toBe(old.idempotency_key)
+      expect(await flagOf(old.id)).toBe(false)
+      const fresh = await claim(1)
+      expect(fresh.map((r) => r.id)).toEqual([old.id])
+      expect(await result(old.id, fresh[0]!.lease_id, 'retry', null, 'HTTP_503')).toBe(true)
+      expect((await rowState(old.id)).status).toBe('pending')
+    } finally {
+      await postgres.query('delete from finance.email_outbox where id = any($1)', [created])
+    }
+  })
+
+  // RESIDUALS-1 R2a fix round, F1: the give-backs (QUOTA, PROVIDER_CONFIG) and the in-window replay follow the same rule as a
+  // plain retry: a row that may have been sent is never `pending` again.
+  const firstAttemptOf = async (id: string): Promise<Date | null> =>
+    (await postgres.query<{ first_attempt_at: Date | null }>('select first_attempt_at from finance.email_outbox where id = $1', [id])).rows[0]!.first_attempt_at
+
+  it.each(['QUOTA', 'PROVIDER_CONFIG'])(
+    'a %s give-back of a row that had an uncertain attempt leaves it uncertain: it is claimed again inside 23 hours of its first attempt and never past them',
+    async (error) => {
+      await parkOthers()
+      const row = await insertRow({ label: `give-back-${error.toLowerCase().replace('_', '-')}` })
+      try {
+        const first = await claim(1)
+        expect(first.map((r) => r.id)).toEqual([row.id])
+        expect(await result(row.id, first[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+        await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
+        const second = await claim(1)
+        expect(second.map((r) => r.id)).toEqual([row.id])
+        const firstAttempt = await firstAttemptOf(row.id)
+        expect(firstAttempt).not.toBeNull()
+        expect(await result(row.id, second[0]!.lease_id, 'retry', null, error)).toBe(true)
+        // The attempt is given back and the wait is the give-back's own, but the row is uncertain, with its first attempt and its mark.
+        expect(await rowState(row.id)).toMatchObject({ status: 'uncertain', attempts: 1, last_error: error })
+        expect(await firstAttemptOf(row.id)).toEqual(firstAttempt)
+        expect(await flagOf(row.id)).toBe(true)
+
+        // Past 23 hours of its first attempt the claim leaves it for a person, however long ago it fell due ...
+        await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '24 hours', next_at = now() where id = $1", [row.id])
+        expect((await claim(10)).find((r) => r.id === row.id)).toBeUndefined()
+        expect((await rowState(row.id)).status).toBe('uncertain')
+        // ... and inside them it is claimed, with the same key.
+        await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '1 hour', next_at = now() where id = $1", [row.id])
+        const third = (await claim(10)).find((r) => r.id === row.id)
+        expect(third?.idempotency_key).toBe(row.idempotency_key)
+        await result(row.id, third!.lease_id, 'accepted', 'test-provider-id')
+      } finally {
+        await postgres.query('delete from finance.email_outbox where id = $1', [row.id])
+      }
+    },
+  )
+
+  it('a QUOTA give-back after an in-window replay of a row that had an uncertain attempt keeps its first attempt, and the row stays uncertain', async () => {
+    await parkOthers()
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    const row = await insertRow({ label: 'replay-then-quota', status: 'exhausted' })
+    try {
+      await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '1 hour', attempts = max_attempts, possibly_sent = true where id = $1", [row.id])
+      const firstAttempt = await firstAttemptOf(row.id)
+      expect(firstAttempt).not.toBeNull()
+      expect((await client.rpc('outbox_replay', { p_id: Number(row.id), p_accept_duplicate_risk: false })).error).toBeNull()
+      expect(await rowState(row.id)).toMatchObject({ status: 'uncertain', attempts: 0, idempotency_key: row.idempotency_key })
+      // Due at once, inside the window: claimed with the same key, as its first attempt since the replay (attempts = 1).
+      const claimed = await claim(1)
+      expect(claimed.map((r) => r.id)).toEqual([row.id])
+      expect(claimed[0]).toMatchObject({ attempts: 1, idempotency_key: row.idempotency_key })
+      // The give-back of that attempt must not clear the first attempt: an earlier attempt of this key may have been sent.
+      expect(await result(row.id, claimed[0]!.lease_id, 'retry', null, 'QUOTA')).toBe(true)
+      expect(await rowState(row.id)).toMatchObject({ status: 'uncertain', attempts: 0, last_error: 'QUOTA' })
+      expect(await firstAttemptOf(row.id)).toEqual(firstAttempt)
+      expect(await flagOf(row.id)).toBe(true)
+    } finally {
+      await postgres.query('delete from finance.email_outbox where id = $1', [row.id])
+    }
+  })
+})
+
 describe('outbox_result: quota and early delivery events', () => {
   it('a QUOTA retry gives the attempt back and waits for the next UTC midnight; it never exhausts the row (S04.2)', async () => {
     await parkOthers()
@@ -431,15 +605,18 @@ describe('outbox_result: quota and early delivery events', () => {
   })
 
   // The fixture is anchored to the next UTC midnight (the QUOTA wait), not to now(),
-  // so the outcome does not depend on the time of day the suite runs.
+  // so the outcome does not depend on the time of day the suite runs. An earlier attempt of unknown outcome keeps the row
+  // uncertain whatever the wait (the second case pinned `pending` before the fix round F1); attempts refused cleanly keep the old rule.
   it.each([
-    ['becomes uncertain when the wait outlasts the idempotency window', '23 hours 30 minutes', 'uncertain'],
-    ['stays pending when the wait ends inside the idempotency window', '22 hours 30 minutes', 'pending'],
-  ])('a QUOTA retry of a row whose earlier attempt may have been sent %s', async (_name, age, status) => {
+    ['whose earlier attempt may have been sent becomes uncertain when the wait outlasts the idempotency window', 'uncertain', '23 hours 30 minutes', 'uncertain'],
+    ['whose earlier attempt may have been sent stays uncertain when the wait ends inside the idempotency window too', 'uncertain', '22 hours 30 minutes', 'uncertain'],
+    ['whose earlier attempt was refused cleanly becomes uncertain when the wait outlasts the idempotency window', 'retry', '23 hours 30 minutes', 'uncertain'],
+    ['whose earlier attempt was refused cleanly stays pending when the wait ends inside the idempotency window', 'retry', '22 hours 30 minutes', 'pending'],
+  ])('a QUOTA retry of a row %s', async (_name, earlier, age, status) => {
     await parkOthers()
-    const row = await insertRow({ label: `quota-${status}` })
+    const row = await insertRow({ label: `quota-${earlier}-${age.slice(0, 2)}h` })
     const first = await claim(1)
-    expect(await result(row.id, first[0]!.lease_id, 'uncertain', null, 'NETWORK')).toBe(true)
+    expect(await result(row.id, first[0]!.lease_id, earlier, null, earlier === 'uncertain' ? 'NETWORK' : 'HTTP_503')).toBe(true)
     await postgres.query('update finance.email_outbox set next_at = now() where id = $1', [row.id])
     const second = await claim(1)
     expect(second.map((r) => r.id)).toEqual([row.id])
@@ -449,6 +626,7 @@ describe('outbox_result: quota and early delivery events', () => {
     )
     expect(await result(row.id, second[0]!.lease_id, 'retry', null, 'QUOTA')).toBe(true)
     expect(await rowState(row.id)).toMatchObject({ status, attempts: 1 })
+    await postgres.query('delete from finance.email_outbox where id = $1', [row.id])
   })
 
   it('a delivery or bounce event that beat the reply is applied when the send is accepted, by the webhook precedence (S04.4)', async () => {
@@ -613,6 +791,61 @@ describe('operations views through real JWTs', () => {
     const freshRow = rows.find((r) => r.id === Number(fresh.id))
     expect(oldRow?.replay_needs_confirmation).toBe(true)
     expect(freshRow?.replay_needs_confirmation).toBe(false)
+  })
+
+  // RESIDUALS-1 R2a, DB-CORE-04: the 200-row cap trims what nobody can act on, not an older exhausted or uncertain mail.
+  it('outbox_attention lists the replayable rows (exhausted, uncertain) first, then the newest, so the cap of 200 never drops a replayable row for an ended one', async () => {
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    // 205 ended rows (suppressed) newer than every replayable row, and one exhausted and one uncertain row newer than all the
+    // others but older than those 205: by creation time alone the replayable pair would be past the 200th row.
+    const stamp = uniqueKey('cap')
+    await postgres.query(
+      `insert into finance.email_outbox (dedupe_key, kind, priority, recipient, payload, status, created_at)
+       select $1 || '-' || g, 'receipt', 1, $1 || '-' || g || '@example.com', '{"contactId": null}'::jsonb, 'suppressed', now() + interval '3 hours'
+         from generate_series(1, 205) g`,
+      [stamp],
+    )
+    const exhausted = await insertRow({ label: 'cap-exhausted', status: 'exhausted' })
+    const uncertain = await insertRow({ label: 'cap-uncertain', status: 'uncertain' })
+    await postgres.query("update finance.email_outbox set created_at = now() + interval '2 hours' where id = any($1)", [[exhausted.id, uncertain.id]])
+    try {
+      const { data, error } = await client.rpc('outbox_attention')
+      expect(error).toBeNull()
+      const rows = data as Array<{ id: number; status: string; created_at: string }>
+      expect(rows).toHaveLength(200)
+      expect(rows.map((r) => r.id)).toEqual(expect.arrayContaining([Number(exhausted.id), Number(uncertain.id)]))
+      // The replayable come first, the newest first within each group.
+      const replayable = rows.map((r) => ['exhausted', 'uncertain'].includes(r.status))
+      expect(replayable).toEqual([...replayable].sort((a, b) => Number(b) - Number(a)))
+      for (const group of [true, false]) {
+        const times = rows.filter((r, i) => replayable[i] === group).map((r) => Date.parse(r.created_at))
+        expect(times).toEqual([...times].sort((a, b) => b - a))
+      }
+      expect(rows.slice(0, 2).map((r) => r.id).sort()).toEqual([Number(exhausted.id), Number(uncertain.id)].sort())
+    } finally {
+      await postgres.query('delete from finance.email_outbox where dedupe_key like $1 or id = any($2)', [`${stamp}-%`, [exhausted.id, uncertain.id]])
+    }
+  })
+
+  // RESIDUALS-1 R2a, DB-CORE-07: a null is no consent.
+  it('a null duplicate-risk argument is refused past the 23-hour window as false is: nothing changes and no acceptance is recorded', async () => {
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    const row = await insertRow({ label: 'replay-null', status: 'uncertain' })
+    await postgres.query("update finance.email_outbox set first_attempt_at = now() - interval '24 hours' where id = $1", [row.id])
+    for (const consent of [false, null]) {
+      const refused = await client.rpc('outbox_replay', { p_id: Number(row.id), p_accept_duplicate_risk: consent })
+      expect(refused.error?.code, String(consent)).toBe('55000')
+    }
+    expect(await rowState(row.id)).toMatchObject({ status: 'uncertain', idempotency_key: row.idempotency_key })
+    const audits = async (): Promise<number> =>
+      (await postgres.query<{ n: number }>("select count(*)::int as n from public.audit_events where action = 'email.replay' and entity = 'email_outbox' and entity_id = $1", [row.id])).rows[0]!.n
+    expect(await audits()).toBe(0)
+    // Consent, said out loud, still replays it with a new key and records the acceptance.
+    expect((await client.rpc('outbox_replay', { p_id: Number(row.id), p_accept_duplicate_risk: true })).error).toBeNull()
+    expect((await rowState(row.id)).idempotency_key).not.toBe(row.idempotency_key)
+    expect(await audits()).toBe(1)
   })
 
   it('editors get neither outbox_attention nor outbox_replay', async () => {

@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { Client } from 'pg'
 import { describe, expect, it } from 'vitest'
 
-import { anonClient, createStaff, serviceClient, signIn } from './support'
+import { anonClient, createStaff, serviceClient, signIn, staffDb } from './support'
 
 describe('anon', () => {
   it('cannot read staff, audit_events, or call staff_directory/current_staff_role/health', async () => {
@@ -71,6 +71,31 @@ describe('owner', () => {
   })
 })
 
+// RESIDUALS-1 R2a, TEST-E2E-03: PostgREST cuts a reply at max_rows (1000) without a word and the team screen asks for no range,
+// so the order of the directory decides who a cut drops.
+describe('staff_directory order', () => {
+  it('lists the active members first and the newest first within each group, so what a cut drops is the oldest inactive members, never the member just invited', async () => {
+    const owner = await createStaff('owner')
+    const older = await createStaff('editor')
+    const inactive = await createStaff('operations', { active: false })
+    const newest = await createStaff('editor')
+    // A direct session as the owner: the Data API would cut the reply at max_rows, which is what this order is for.
+    const db = await staffDb(owner.userId)
+    try {
+      const { rows } = await db.query<{ user_id: string; active: boolean; created_at: Date }>('select user_id, active, created_at from public.staff_directory()')
+      const expected = [...rows].sort((a, b) => Number(b.active) - Number(a.active) || b.created_at.getTime() - a.created_at.getTime())
+      expect(rows.map((row) => row.user_id)).toEqual(expected.map((row) => row.user_id))
+      const ids = rows.map((row) => row.user_id)
+      // The inactive member was created after `older` and before `newest`; the active ones still come first, the newest of them on top.
+      expect(ids.indexOf(newest.userId)).toBeGreaterThanOrEqual(0)
+      expect(ids.indexOf(newest.userId)).toBeLessThan(ids.indexOf(older.userId))
+      expect(ids.indexOf(older.userId)).toBeLessThan(ids.indexOf(inactive.userId))
+      expect(rows.findIndex((row) => !row.active)).toBeGreaterThan(ids.indexOf(older.userId))
+    } finally {
+      await db.end()
+    }
+  })
+})
 describe('current_staff_role', () => {
   it('goes null on the next query once the service client deactivates the member', async () => {
     const { userId, email } = await createStaff('editor')

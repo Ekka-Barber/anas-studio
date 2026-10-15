@@ -16,7 +16,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { anonClient, createStaff, pgRpc, serviceRoleDb, signIn, uniqueEmail, type Role } from './support'
+import { anonClient, createStaff, pgRpc, serviceRoleDb, settledWithin, signIn, uniqueEmail, type Role } from './support'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })
 
@@ -1254,6 +1254,49 @@ describe('refund_settle: every branch of the fetched total', () => {
     expect(await alerts('refund_total_decreased', other.id)).toBe(await owners())
   })
 
+  // RESIDUALS-1 R2a, CONTRACT-03 = DB-POST-06: the stale-read branch has the not-landed branch's clock (fix round F3: it ends
+  // NOT_APPLIED, not PROVIDER_TOTAL_DECREASED, because a stale read is an out-of-order read and not a decrease).
+  it('a stale total backs off like one that has not landed, and a refund 15 minutes old whose total is still below what was recorded fails NOT_APPLIED with no alert', async () => {
+    const { p, id } = await inFlight(300, 500)
+    expect(await settle(id, 450)).toMatchObject({ status: 'submitting' })
+    expect(await refundOf(id)).toMatchObject({ provider_refunded_before: 450, provider_refunded_origin: 300 })
+    // Younger than 15 minutes: the count goes up by one each time and the wait doubles (2, 4, 8 minutes from a count of 1).
+    const waits: number[] = []
+    for (let round = 1; round <= 3; round += 1) {
+      const counted = (await refundOf(id)).check_count as number
+      expect(await settle(id, 300), `round ${round}`).toMatchObject({ status: 'submitting' })
+      expect(await refundOf(id), `round ${round}`).toMatchObject({ status: 'submitting', provider_refunded_before: 450, check_count: counted + 1, error: null })
+      waits.push(Math.round((await secondsAhead(id)) / 60))
+    }
+    expect(waits).toEqual([2, 4, 8])
+    // The next doubling (16 minutes) stops at the 15th minute of the refund's life.
+    expect(await settle(id, 449)).toMatchObject({ status: 'submitting' })
+    expect(await row("select next_check_at <= created_at + interval '15 minutes' as capped, next_check_at > now() as ahead from finance.refunds where id = $1", [id])).toEqual({ capped: true, ahead: true })
+    expect(await alerts('refund_total_decreased', id)).toBe(0)
+    // Both sides of the 15th minute: the total never rose above `before`, so the refund ends as one that has not landed ends.
+    await age(id, '14 minutes 59 seconds')
+    expect(await settle(id, 300)).toMatchObject({ status: 'submitting' })
+    expect(await alerts('refund_total_decreased', id)).toBe(0)
+    await age(id, '15 minutes')
+    expect(await settle(id, 300)).toEqual({ ok: true, refundId: id, status: 'failed', amount: 500 })
+    expect(await refundOf(id)).toMatchObject({ status: 'failed', error: 'NOT_APPLIED', next_check_at: null })
+    expect(await alerts('refund_total_decreased', id)).toBe(0)
+    expect((await audits('refund.failed', id))[0]!.summary).toEqual({ amount: 500, error: 'NOT_APPLIED' })
+    // No longer in flight: the payment is not blocked, and the ledger is ahead of the provider's total, which the owner sees.
+    expect(await request(p, { p_provider_refunded: 300 })).toEqual({ ok: false, code: 'PROVIDER_BEHIND' })
+  })
+
+  it('a total below the refund\'s own starting total is still a decrease at any age: PROVIDER_TOTAL_DECREASED, every owner told once, not NOT_APPLIED', async () => {
+    const { id } = await inFlight(300, 500)
+    expect(await settle(id, 450)).toMatchObject({ status: 'submitting' })
+    expect(await refundOf(id)).toMatchObject({ provider_refunded_before: 450, provider_refunded_origin: 300 })
+    await age(id, '16 minutes')
+    expect(await settle(id, 299)).toEqual({ ok: true, refundId: id, status: 'failed', amount: 500 })
+    expect(await refundOf(id)).toMatchObject({ status: 'failed', error: 'PROVIDER_TOTAL_DECREASED', next_check_at: null })
+    expect(await alerts('refund_total_decreased', id)).toBe(await owners())
+    expect((await audits('refund.failed', id))[0]!.summary).toEqual({ amount: 500, error: 'PROVIDER_TOTAL_DECREASED' })
+  })
+
   it('every branch ends within 15 minutes of the refund\'s life: one settle on a refund that old is never left in flight', async () => {
     // before = 3 000, amount = 2 000: the provider's total could be anything from 0 to the payment.
     for (const total of [0, 1, 2999, 3000, 3001, 4999, 5000, 5001, 6000, 6900]) {
@@ -1291,6 +1334,38 @@ describe('refund_settle: every branch of the fetched total', () => {
       expect(all.filter((r) => r.source === 'provider_dashboard')).toHaveLength(1)
       expect(await mailsOf(id)).toHaveLength(1)
       expect(await confirmed(p.attemptId)).toBe(2300)
+    }
+  })
+
+  // RESIDUALS-1 R2a, P08-CKPT-07: the owner's reply and the job's fetch meet for one refund (a slow provider, the one-minute lease).
+  // A third connection holds the order's row, the first lock both functions take (`finance.refund_lock`), while both calls start
+  // and then lets go, so the two are in flight together by construction, not by timing; the start order alternates by round.
+  it('refund_result and refund_settle racing for one refund: one succeeds, the other is NOT_IN_FLIGHT, and the success effects run once (three rounds)', async () => {
+    for (let round = 0; round < 3; round += 1) {
+      const p = await plain() // 3 500
+      const id = await flight(p, { p_amount: 3500, p_allocation: alloc(p.items[0]!, 3500) })
+      const starts = [() => result(id, 'succeeded', 3500, null, pool[1]), () => settle(id, 3500, pool[2])]
+      if (round % 2 === 1) starts.reverse()
+      const holder = new Client({ connectionString: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' })
+      await holder.connect()
+      await holder.query('begin')
+      await holder.query('select 1 from finance.orders where id = $1 for update', [p.id])
+      const calls = starts.map((start) => start())
+      try {
+        // Both wait for the order's lock; neither has decided anything yet.
+        expect(await Promise.all(calls.map((call) => settledWithin(call))), `round ${round}`).toEqual(['blocked', 'blocked'])
+      } finally {
+        await holder.query('commit')
+        await holder.end()
+      }
+      const replies = await Promise.all(calls)
+      expect(replies.filter((reply) => reply.ok === true), `round ${round}`).toEqual([{ ok: true, refundId: id, status: 'succeeded', amount: 3500 }])
+      expect(replies.filter((reply) => reply.ok === false), `round ${round}`).toEqual([{ ok: false, code: 'NOT_IN_FLIGHT', refundId: id, status: 'succeeded', amount: 3500 }])
+      expect(await refundOf(id), `round ${round}`).toMatchObject({ status: 'succeeded', provider_refunded_after: 3500 })
+      expect(await mailsOf(id), `round ${round}`).toHaveLength(1)
+      expect(await audits('refund.succeeded', id), `round ${round}`).toHaveLength(1)
+      expect(await confirmed(p.attemptId), `round ${round}`).toBe(3500)
+      expect(await refundsOf(p.attemptId), `round ${round}`).toHaveLength(1)
     }
   })
 
@@ -1694,6 +1769,40 @@ describe('the success effects of a refund of a paying attempt', () => {
     expect(await external(p, p.total)).toMatchObject({ ok: true })
     expect(await row('select state from finance.inventory_reservations where order_id = $1 and variant_id = $2', [p.id, pre])).toEqual({ state: 'released' })
     expect(await count('select finance.preorder_committed($1) as n', [pre])).toBe(0)
+  })
+
+  // RESIDUALS-1 R2a, DB-POST-09: a copy that has left is not capacity to sell again.
+  it('a full refund keeps the preorder reservation of a line that has shipped or been delivered, and releases the one that has not shipped', async () => {
+    const reservationState = async (orderId: string, variantId: string): Promise<string> =>
+      (await row('select state from finance.inventory_reservations where order_id = $1 and variant_id = $2', [orderId, variantId])).state as string
+    const [sent, delivered, waiting] = [await preorder(8000, 3), await preorder(8000, 3), await preorder(8000, 3)]
+    const p = await paid([{ variantId: sent, quantity: 1 }, { variantId: delivered, quantity: 1 }, { variantId: waiting, quantity: 1 }])
+    const [sentItem, deliveredItem] = p.items as [Item, Item, Item]
+    await postgres.query("update finance.fulfillments set state = 'shipped', carrier = 'SMSA', tracking = 'T1', shipped_at = now() where order_item_id = $1", [sentItem.id])
+    await postgres.query(
+      "update finance.fulfillments set state = 'delivered', carrier = 'SMSA', tracking = 'T2', shipped_at = now(), delivered_at = now() where order_item_id = $1",
+      [deliveredItem.id],
+    )
+    // The whole payment refunded (goodwill: the buyer keeps what was sent). Every item is refunded in full.
+    expect(await external(p, p.total)).toMatchObject({ ok: true })
+    expect(await orderOf(p.id)).toMatchObject({ status: 'refunded' })
+    expect([await reservationState(p.id, sent), await reservationState(p.id, delivered), await reservationState(p.id, waiting)]).toEqual(['committed', 'committed', 'released'])
+    expect([await count('select finance.preorder_committed($1) as n', [sent]), await count('select finance.preorder_committed($1) as n', [delivered])]).toEqual([1, 1])
+    expect(await count('select finance.preorder_committed($1) as n', [waiting])).toBe(0)
+
+    // By item the rule is the same: the shipped line's reservation stays when that line alone is refunded in full, the other's goes.
+    const [kept, freed] = [await preorder(8000, 3), await preorder(8000, 3)]
+    const q = await paid([{ variantId: kept, quantity: 1 }, { variantId: freed, quantity: 1 }])
+    await postgres.query("update finance.fulfillments set state = 'shipped', carrier = 'SMSA', tracking = 'T3', shipped_at = now() where order_item_id = $1", [q.items[0]!.id])
+    const first = await flight(q, { p_amount: 8000, p_allocation: alloc(q.items[0]!, 8000) })
+    await result(first, 'succeeded', 8000)
+    expect(await reservationState(q.id, kept)).toBe('committed')
+    expect(await reservationState(q.id, freed)).toBe('committed')
+    const second = await flight(q, { p_amount: 8000, p_allocation: alloc(q.items[1]!, 8000), p_provider_refunded: 8000 })
+    await result(second, 'succeeded', 16_000)
+    expect(await reservationState(q.id, kept)).toBe('committed')
+    expect(await reservationState(q.id, freed)).toBe('released')
+    expect(await count('select finance.preorder_committed($1) as n', [kept])).toBe(1)
   })
 
   it('a linked return becomes refunded with the refund that succeeded; a failed refund leaves it received and unlinked', async () => {

@@ -255,6 +255,7 @@ const alerts = {
   unverifiedAttempts: 5,
   exhaustedEvents: 6,
   externalRefunds: 7,
+  providerStatus: 8,
   lowStock: [{ variantId: A, sku: 'SKU-1', title: 'كتاب', stock: 1, threshold: 5 }],
 }
 
@@ -527,10 +528,23 @@ describe('parseOrdersAlerts and alertCounts', () => {
       { label: 'تحتاج حلًا', value: 1 },
       { label: 'للشحن', value: 3 },
       { label: 'دفعات قيد المراجعة', value: 2 },
-      // uncertainRefunds 4 + unverifiedAttempts 5 + exhaustedEvents 6 + externalRefunds 7; it links to the reconciliation screen
-      { label: 'تحتاج مطابقة', value: 22, href: '/admin/orders/reconciliation' },
+      // uncertainRefunds 4 + unverifiedAttempts 5 + exhaustedEvents 6 + externalRefunds 7 + providerStatus 8; it links to the reconciliation screen
+      { label: 'تحتاج مطابقة', value: 30, href: '/admin/orders/reconciliation' },
     ])
     expect(RECONCILIATION_PATH).toBe('/admin/orders/reconciliation')
+  })
+
+  it('adds each of the five counts to the sum, and reads providerStatus (an older reply without it is refused)', () => {
+    const sum = (over: Partial<typeof alerts>): number => alertCounts(parseOrdersAlerts({ ...alerts, ...over }), true).find((entry) => entry.label === 'تحتاج مطابقة')!.value
+    const zero = { uncertainRefunds: 0, unverifiedAttempts: 0, exhaustedEvents: 0, externalRefunds: 0, providerStatus: 0 }
+    expect(sum(zero)).toBe(0)
+    for (const key of Object.keys(zero) as Array<keyof typeof zero>) expect(sum({ ...zero, [key]: 3 }), key).toBe(3)
+    // The other counts of the line are not in it.
+    expect(sum({ ...zero, needsResolution: 9, review: 9, toShip: 9 })).toBe(0)
+    expect(parseOrdersAlerts(alerts).providerStatus).toBe(8)
+    const { providerStatus: _missing, ...older } = alerts
+    expect(() => parseOrdersAlerts(older)).toThrow()
+    expect(() => parseOrdersAlerts({ ...alerts, providerStatus: -1 })).toThrow()
   })
 })
 

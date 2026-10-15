@@ -1507,7 +1507,7 @@ describe('order_resolve', () => {
 // --- orders_alerts ---------------------------------------------------------------------------------------------------
 
 describe('orders_alerts', () => {
-  const NUMBERS = ['needsResolution', 'review', 'toShip', 'uncertainRefunds', 'unverifiedAttempts', 'exhaustedEvents', 'externalRefunds']
+  const NUMBERS = ['needsResolution', 'review', 'toShip', 'uncertainRefunds', 'unverifiedAttempts', 'exhaustedEvents', 'externalRefunds', 'providerStatus']
   const numbers = async (): Promise<Record<string, number>> => {
     const alerts = await ownerApi.alerts()
     return Object.fromEntries(NUMBERS.map((name) => [name, alerts[name] as number]))
@@ -1658,6 +1658,43 @@ describe('orders_alerts', () => {
     expect((await h.row('select outcome from finance.payment_events where event_id = $1', [settledEvent])).outcome).toBe('exhausted')
     expect(delta(base, await numbers())).toEqual(zero())
     expect(((await ownerApi.recon()).events as Row[]).map((entry) => entry.eventId)).not.toContain(settledEvent)
+  })
+
+  // RESIDUALS-1 R2a, CONTRACT-13 with DB-POST-08: the PROVIDER_STATUS reason of the reconciliation screen is in the owner's count.
+  it('counts a paid attempt the provider no longer calls paid or refunded until the void is recorded; an attempt with two reasons is counted once; a void after a full refund needs nobody', async () => {
+    const base = await numbers()
+    const variant = await h.digital(4000)
+    const reasonsOf = async (attemptId: string): Promise<string[] | undefined> =>
+      ((await ownerApi.recon()).attempts as Row[]).find((entry) => entry.id === attemptId)?.reasons as string[] | undefined
+
+    // A void: the buyer has the money back, the order stays paid with its lines to ship, and the count used to show 0.
+    const voided = await h.paid([{ variantId: variant, quantity: 1 }])
+    expect(delta(base, await numbers())).toEqual(zero())
+    expect(await fetched(voided, { status: 'voided' })).toMatchObject({ outcome: 'not_paid' })
+    expect(await reasonsOf(voided.attemptId)).toEqual(['PROVIDER_STATUS'])
+    expect(delta(base, await numbers())).toEqual(zero({ providerStatus: 1 }))
+    // Operations read the same number (the sum, «تحتاج مطابقة», is the owner's alone).
+    expect((await opsApi.alerts()).providerStatus).toBe((await ownerApi.alerts()).providerStatus)
+    const recorded = await h.call('refund_record_external', { p_actor: owner.userId, p_attempt: voided.attemptId, p_review_payment: null, p_provider_refunded: 0, p_provider_status: 'voided', p_reason: 'إلغاء من لوحة البوابة' })
+    expect(recorded).toMatchObject({ ok: true, amount: voided.total })
+    expect(await reasonsOf(voided.attemptId)).toBeUndefined()
+    expect(delta(base, await numbers())).toEqual(zero())
+
+    // Two reasons are one row on the screen and one in the count (externalRefunds has it); settling it clears both.
+    const both = await h.paid([{ variantId: variant, quantity: 1 }])
+    await fetched(both, { status: 'captured', refunded: 700 })
+    expect(await reasonsOf(both.attemptId)).toEqual(['PROVIDER_STATUS', 'EXTERNAL_REFUND'])
+    expect(delta(base, await numbers())).toEqual(zero({ externalRefunds: 1 }))
+    await fetched(both, { status: 'paid', refunded: 700 })
+    expect(await h.call('refund_record_external', { p_actor: owner.userId, p_attempt: both.attemptId, p_review_payment: null, p_provider_refunded: 700, p_provider_status: 'paid', p_reason: 'استرداد من لوحة البوابة' })).toMatchObject({ ok: true })
+    expect(delta(base, await numbers())).toEqual(zero())
+
+    // Refunded in full by the ledger, the provider's word about the payment needs nobody (how a void ends).
+    const refunded = await h.paid([{ variantId: variant, quantity: 1 }])
+    await h.refundFully(refunded, owner.userId)
+    await fetched(refunded, { status: 'voided', refunded: refunded.total })
+    expect(await reasonsOf(refunded.attemptId)).toBeUndefined()
+    expect(delta(base, await numbers())).toEqual(zero())
   })
 
   it('lists the enabled, published, stocked variants at or under their threshold, the fewest first, and no other', async () => {

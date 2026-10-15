@@ -448,6 +448,68 @@ describe('notify_subscribe', () => {
     expect((await availabilityMail(variantId)).map((mail) => mail.dedupe_key)).toEqual([`availability:${variantId}:1:${waiting}`])
   })
 
+  // RESIDUALS-1 R2a, DB-OPS-04: the purge locks an orphan availability row and deletes it in its next statement.
+  it('a sign-up that waited for the row the purge then deleted makes the row again: the subscriber is stored with his row, and the sweep can tell him', async () => {
+    const variantId = await soldOut()
+    await h.postgres.query('insert into finance.variant_availability (variant_id) values ($1)', [variantId])
+    const email = uniqueEmail('under-purge')
+    const purge = await superuser()
+    try {
+      // The purge's first statement: it locks the orphan row (no subscription refers to it yet).
+      await purge.query('begin')
+      const locked = await purge.query(
+        'select a.variant_id from finance.variant_availability a where a.variant_id = $1 and not exists (select 1 from public.notifications n where n.variant_id = a.variant_id) for update skip locked',
+        [variantId],
+      )
+      expect(locked.rowCount).toBe(1)
+      // The sign-up's insert meets the live row (a row lock does not stop it) and stores nothing; its own lock waits for the purge.
+      const signUp = subscribe(variantId, { email }, h.pool[1])
+      expect(await settledWithin(signUp)).toBe('blocked')
+      // The purge's second statement deletes the row, and commits.
+      await purge.query(
+        'delete from finance.variant_availability a where a.variant_id = $1 and not exists (select 1 from public.notifications n where n.variant_id = a.variant_id)',
+        [variantId],
+      )
+      await purge.query('commit')
+      expect(await signUp).toEqual(OK)
+    } finally {
+      await purge.query('rollback').catch(() => undefined)
+      await purge.end()
+    }
+    const note = await noteOf(email, variantId)
+    expect(note).toMatchObject({ status: 'pending' })
+    expect(await mailOf(note.id)).toHaveLength(1)
+    expect(await availabilityOf(variantId)).toMatchObject({ sellable: false, revision: 0 })
+    // With his row there, the sweep reads him: confirmed, and the variant restocked, he is told.
+    expect(await h.call('notify_confirm', { p_id: note.id, p_token_version: note.token_version })).toMatchObject({ ok: true })
+    await restock(variantId)
+    await sweep()
+    expect((await availabilityMail(variantId)).map((mail) => mail.dedupe_key)).toEqual([`availability:${variantId}:1:${note.id}`])
+  })
+
+  // RESIDUALS-1 R2a, DB-OPS-07
+  it('a suppressed address is stored but gets no confirmation and spends no allowance, neither its own nor the day\'s', async () => {
+    const variantId = await soldOut()
+    const email = uniqueEmail('suppressed-sign-up')
+    await h.postgres.query("insert into finance.email_suppressions (recipient_hash, reason) values (finance.recipient_hash($1), 'bounced')", [email])
+    try {
+      expect(await subscribe(variantId, { email })).toEqual(OK)
+      const note = await noteOf(email, variantId)
+      expect(note).toMatchObject({ status: 'pending', confirm_sent_at: null })
+      expect(await mailOf(note.id)).toHaveLength(0)
+      expect(await h.count("select count(*)::int as n from finance.rate_limits where bucket = 'notify-confirm:all'")).toBe(0)
+      expect(await h.count("select count(*)::int as n from finance.rate_limits where bucket = 'notify-confirm:email' and key_hash = $1", [sha256(email)])).toBe(0)
+      // The hourly backlog finds nothing it may queue for him either.
+      await h.postgres.query("update public.notifications set confirm_sent_at = now() where status = 'pending' and confirm_sent_at is null and id <> $1", [note.id])
+      await h.postgres.query('select finance.notify_confirm_backlog()')
+      expect(await mailOf(note.id)).toHaveLength(0)
+      expect(await h.count("select count(*)::int as n from finance.rate_limits where bucket = 'notify-confirm:all'")).toBe(0)
+      expect(await h.count("select count(*)::int as n from finance.rate_limits where bucket = 'notify-confirm:email' and key_hash = $1", [sha256(email)])).toBe(0)
+    } finally {
+      await h.postgres.query('delete from finance.email_suppressions where recipient_hash = finance.recipient_hash($1)', [email])
+    }
+  })
+
   it('makes one row and one mail of two sign-ups at once for one address and variant', async () => {
     const variantId = await soldOut()
     await h.postgres.query('insert into finance.variant_availability (variant_id) values ($1)', [variantId])
@@ -829,6 +891,29 @@ describe('finance.availability_sweep', () => {
     for (const note of notes) expect((await noteById(note.id)).notified_revision).toBe(1)
   })
 
+  // RESIDUALS-1 R2a, DB-OPS-07: a bounce or a complaint ends the notices to that address.
+  it('does not tell a suppressed address (a bounce, a complaint) nor mark him told, queues the others\' notices, and tells him at the next run once the suppression is lifted', async () => {
+    const variantId = await soldOut()
+    const [bounced, complained, fine] = [await insertNote(variantId, 'confirmed'), await insertNote(variantId, 'confirmed'), await insertNote(variantId, 'confirmed')]
+    await h.postgres.query("insert into finance.email_suppressions (recipient_hash, reason) values (finance.recipient_hash($1), 'bounced'), (finance.recipient_hash($2), 'complained')", [bounced.email, complained.email])
+    try {
+      await restock(variantId)
+      await sweep()
+      expect((await availabilityMail(variantId)).map((mail) => mail.dedupe_key)).toEqual([`availability:${variantId}:1:${fine.id}`])
+      expect((await noteById(bounced.id)).notified_revision).toBe(0)
+      expect((await noteById(complained.id)).notified_revision).toBe(0)
+      expect((await noteById(fine.id)).notified_revision).toBe(1)
+      expect(await availabilityOf(variantId)).toMatchObject({ sellable: true, revision: 1 })
+      // Lifting the suppression is what tells him: the next run reads him again.
+      await h.postgres.query('delete from finance.email_suppressions where recipient_hash = finance.recipient_hash($1)', [bounced.email])
+      await sweep()
+      expect((await availabilityMail(variantId)).map((mail) => mail.dedupe_key).sort()).toEqual([`availability:${variantId}:1:${bounced.id}`, `availability:${variantId}:1:${fine.id}`].sort())
+      expect((await noteById(bounced.id)).notified_revision).toBe(1)
+    } finally {
+      await h.postgres.query('delete from finance.email_suppressions where recipient_hash in (finance.recipient_hash($1), finance.recipient_hash($2))', [bounced.email, complained.email])
+    }
+  })
+
   it('does not touch a variant that has no confirmed subscriber', async () => {
     const variantId = await soldOut()
     await insertNote(variantId, 'pending')
@@ -1034,6 +1119,110 @@ describe('finance.notify_confirm_backlog and the caps of a confirmation mail', (
     expect(await mailOf(sixth.id)).toHaveLength(1)
   })
 
+  // RESIDUALS-1 R2a, DB-OPS-06: the backlog never waits for a notification row; it holds the day's shared allowance row while it goes on.
+  it('skips a row another connection holds and waits for nobody: the row is left for its sign-up or the next hour, which queues it', async () => {
+    const [first, second] = [await soldOut(), await soldOut()]
+    const rows = [await insertNote(first, 'pending', uniqueEmail('backlog-first')), await insertNote(second, 'pending', uniqueEmail('backlog-second'))]
+    const ids = rows.map((row) => row.id as string)
+    // Two pending rows that no mail was queued for, the older one first, and nothing else in the backlog.
+    await h.postgres.query('update public.notifications set confirm_sent_at = null, updated_at = now() - interval \'2 hours\' where id = $1', [ids[0]])
+    await h.postgres.query('update public.notifications set confirm_sent_at = null, updated_at = now() - interval \'1 hour\' where id = $1', [ids[1]])
+    await h.postgres.query("update public.notifications set confirm_sent_at = now() where status = 'pending' and confirm_sent_at is null and id <> all($1::uuid[])", [ids])
+    // A sign-up for the second row holds it (and would then wait for the allowance row the backlog takes after the first mail).
+    const held = await h.holdLock('select 1 from public.notifications where id = $1 for update', [ids[1]])
+    let answered: unknown
+    try {
+      answered = await settledWithin(backlog())
+    } finally {
+      await held.release()
+    }
+    expect(answered).not.toBe('blocked')
+    expect(await mailOf(ids[0]!)).toHaveLength(1)
+    expect(await mailOf(ids[1]!)).toHaveLength(0)
+    expect((await noteById(ids[1]!)).confirm_sent_at).toBeNull()
+    // The next hour finds it free and queues it.
+    await backlog()
+    expect(await mailOf(ids[1]!)).toHaveLength(1)
+  })
+
+  // RESIDUALS-1 R2a fix round, F6 (DB-OPS-06): a sign-up queues its mail under an advisory lock of the address, taken before any
+  // allowance row, and the backlog leaves an address whose lock is held, so the two never hold the address's allowance row and
+  // the shared one in opposite orders (the cycle PostgreSQL aborted with 40P01). The key is the one `notify_confirm_queue` takes.
+  const addressLock = "select pg_advisory_xact_lock(hashtextextended('notify-confirm:' || $1::text, 0))"
+
+  it('skips a row whose address another transaction holds the advisory lock of, waits for nobody, and queues it on the next run once the lock is free', async () => {
+    const [first, second] = [await soldOut(), await soldOut()]
+    const emails = [uniqueEmail('backlog-held'), uniqueEmail('backlog-free')]
+    const rows = [await insertNote(first, 'pending', emails[0]), await insertNote(second, 'pending', emails[1])]
+    const ids = rows.map((row) => row.id as string)
+    // Two pending rows that no mail was queued for, the older one first, and nothing else in the backlog.
+    await h.postgres.query('update public.notifications set confirm_sent_at = null, updated_at = now() - interval \'2 hours\' where id = $1', [ids[0]])
+    await h.postgres.query('update public.notifications set confirm_sent_at = null, updated_at = now() - interval \'1 hour\' where id = $1', [ids[1]])
+    await h.postgres.query("update public.notifications set confirm_sent_at = now() where status = 'pending' and confirm_sent_at is null and id <> all($1::uuid[])", [ids])
+    // A sign-up of the first row's address is queueing its mail: its transaction is open and holds the address's lock.
+    const held = await h.holdLock(addressLock, [emails[0]])
+    const runner = await superuser()
+    try {
+      // The backlog must not wait for it: a wait would run into the statement timeout (57014) and fail the test.
+      await runner.query("set statement_timeout = '3s'")
+      await runner.query('select finance.notify_confirm_backlog()')
+    } finally {
+      await runner.end()
+      await held.release()
+    }
+    expect(await mailOf(ids[0]!)).toHaveLength(0)
+    expect((await noteById(ids[0]!)).confirm_sent_at).toBeNull()
+    // The other address went through in the same run.
+    expect(await mailOf(ids[1]!)).toHaveLength(1)
+    // The lock is free: the next run queues the held-back row.
+    await backlog()
+    expect(await mailOf(ids[0]!)).toHaveLength(1)
+    expect((await noteById(ids[0]!)).confirm_sent_at).toBeInstanceOf(Date)
+  })
+
+  it('a sign-up of an address whose advisory lock is held waits for it before it queues its mail, then queues it', async () => {
+    const variantId = await soldOut()
+    const email = uniqueEmail('signup-held')
+    // Today's allowance rows exist, so the probe below has rows it could find locked.
+    await h.postgres.query(
+      `insert into finance.rate_limits (bucket, key_hash, window_start, hits)
+       values ('notify-confirm:all', repeat('0', 64), to_timestamp(floor(extract(epoch from now()) / 86400) * 86400), 0),
+              ('notify-confirm:email', $1, to_timestamp(floor(extract(epoch from now()) / 86400) * 86400), 0)
+       on conflict do nothing`,
+      [sha256(email)],
+    )
+    const held = await h.holdLock(addressLock, [email])
+    const signup = subscribe(variantId, { email })
+    let answered: unknown
+    let free: number | null = null
+    try {
+      answered = await settledWithin(signup)
+      // R2a's fix check: while it waits on the address lock, the sign-up holds no allowance row. The lock comes before
+      // both rate-limit takes, which is what keeps the backlog (which holds the shared row) from a deadlock with it.
+      const probe = new Client({ connectionString: DB_URL })
+      await probe.connect()
+      try {
+        await probe.query('begin')
+        free = (
+          await probe.query(
+            `select 1 from finance.rate_limits
+              where (bucket, key_hash) in (('notify-confirm:all', repeat('0', 64)), ('notify-confirm:email', $1)) for update nowait`,
+            [sha256(email)],
+          )
+        ).rowCount
+        await probe.query('rollback')
+      } finally {
+        await probe.end()
+      }
+    } finally {
+      await held.release()
+    }
+    expect(answered).toBe('blocked')
+    expect(free).toBeGreaterThanOrEqual(2)
+    expect(await signup).toEqual(OK)
+    expect(await mailOf((await noteOf(email, variantId)).id as string)).toHaveLength(1)
+  })
+
   it('is scheduled hourly', async () => {
     const job = await h.row("select schedule, command from cron.job where jobname = 'notify-confirm-backlog'")
     expect(job).toEqual({ schedule: '17 * * * *', command: 'select finance.notify_confirm_backlog()' })
@@ -1120,12 +1309,13 @@ describe('finance.notify_confirm_queue: the bounce brake', () => {
 // --- the purges ------------------------------------------------------------------------------------------------------
 
 describe('finance.notifications_purge', () => {
-  /** A row of the given status, last touched `days` days ago. */
+  /** A row of the given status, last touched `days` days ago (its confirmation mail, queued with it, as long ago). */
   async function aged(variantId: string, status: 'pending' | 'confirmed' | 'unsubscribed', days: number, email?: string): Promise<string> {
     const note = await insertNote(variantId, status, email)
     await h.postgres.query(
       `update public.notifications
           set created_at = now() - make_interval(days => $2), updated_at = now() - make_interval(days => $2),
+              confirm_sent_at = case when confirm_sent_at is not null then now() - make_interval(days => $2) end,
               unsubscribed_at = case when status = 'unsubscribed' then now() - make_interval(days => $2) end
         where id = $1`,
       [note.id, days],
@@ -1183,10 +1373,39 @@ describe('finance.notifications_purge', () => {
     await h.postgres.query("update public.notifications set created_at = now() - interval '20 days' where id = $1", [note.id])
     await purge()
     expect(await exists(note.id)).toBe(true)
-    // A row nobody asked for in 8 days goes.
-    await h.postgres.query("update public.notifications set updated_at = now() - interval '8 days' where id = $1", [note.id])
+    // A row nobody asked for in 8 days, and whose mail is as old, goes.
+    await h.postgres.query("update public.notifications set updated_at = now() - interval '8 days', confirm_sent_at = now() - interval '8 days' where id = $1", [note.id])
     await purge()
     expect(await exists(note.id)).toBe(false)
+  })
+
+  // RESIDUALS-1 R2a, DB-OPS-03 = EF-ACCESS-05: the row lives as long as the link its mail carries.
+  it('counts a pending row from the later of its last request and the confirmation mail it queued: a mail queued late lives 7 days from that mail, with the mail', async () => {
+    const variantId = await soldOut()
+    const lateId = await aged(variantId, 'pending', 8) // last asked 8 days ago, held back by a cap, mailed by the backlog since
+    const mail = await queueMail(lateId, 'notify_confirm', 'pending')
+    const mailOfLate = async (): Promise<number> => (await h.rows('select 1 from finance.email_outbox where id = $1', [mail.id])).length
+    const mailedAgo = (interval: string): Promise<unknown> => h.postgres.query('update public.notifications set confirm_sent_at = now() - $2::interval where id = $1', [lateId, interval])
+    await mailedAgo('1 day')
+    await purge()
+    expect(await exists(lateId)).toBe(true)
+    expect(await mailOfLate()).toBe(1)
+    // Two hours before the link would die: still there. 7 days after the mail: gone, and its unsent mail with it.
+    await mailedAgo('6 days 23 hours')
+    await purge()
+    expect(await exists(lateId)).toBe(true)
+    await mailedAgo('7 days 1 minute')
+    await purge()
+    expect(await exists(lateId)).toBe(false)
+    expect(await mailOfLate()).toBe(0)
+    // A row no mail was ever queued for goes 7 days after its last request, as before.
+    const never = await aged(variantId, 'pending', 8)
+    await h.postgres.query('update public.notifications set confirm_sent_at = null where id = $1', [never])
+    const recent = await aged(variantId, 'pending', 6)
+    await h.postgres.query('update public.notifications set confirm_sent_at = null where id = $1', [recent])
+    await purge()
+    expect(await exists(never)).toBe(false)
+    expect(await exists(recent)).toBe(true)
   })
 
   it('removes the availability row of a variant that no subscription refers to any more, and keeps the others', async () => {
