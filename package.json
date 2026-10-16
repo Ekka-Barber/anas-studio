@@ -31,6 +31,9 @@
     "restore-check": "node scripts/restore-check.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "6.3.1",
+    "@dnd-kit/sortable": "10.0.0",
+    "@dnd-kit/utilities": "3.2.2",
     "@lexical/link": "0.51.0",
     "@lexical/list": "0.51.0",
     "@lexical/react": "0.51.0",

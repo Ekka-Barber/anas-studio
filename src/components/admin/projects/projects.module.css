@@ -1,0 +1,857 @@
+/*
+ * The projects board («لوحة المشاريع», P12 round R2): the board's own parts, drawn as the approved comp draws them
+ * (artifacts/acceptance/P12/comp/index.html) in the admin's own system (DESIGN.md section 10). What already exists in
+ * admin.module.css is reused by the components (.page, .button, .buttonSecondary, .input, .label, .field, .badge,
+ * .toolbarButton, .dialog, .tile, .grid, .metaList, .message, .error); only the board's parts are here. Logical
+ * properties only; nothing is positioned or spaced by a physical left or right (a box-shadow's offset has no logical
+ * form: the lifted card's solid ink shadow is the comp's). Sizes are the design's tokens, never pixels, for text.
+ */
+
+/* ---- Above the board: who is on the project ------------------------------ */
+
+.back {
+  margin-block-end: 8px;
+}
+
+.people {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-block: 0 16px;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-small);
+}
+
+.person {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 36px;
+  padding-inline: 4px 10px;
+  border: 1px solid color-mix(in srgb, var(--aub-muted) 40%, transparent);
+  background: var(--sand-50);
+}
+
+.person small {
+  color: var(--aub-muted);
+  font-size: var(--size-label);
+}
+
+/* A name longer than the chip keeps one line; the whole name is in the people's dialog (round R3) and on the cards. */
+.personName {
+  display: inline-block;
+  max-inline-size: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+/* A person's initial, square like every mark here; the name stands beside it or in its label. */
+.who {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 26px;
+  min-block-size: 26px;
+  background: var(--aub);
+  color: var(--sand-50);
+  font-size: var(--size-label);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.whoSecond {
+  background: var(--sand-300);
+  color: var(--aub);
+}
+
+/* More people than the row shows: the count, never a list that pushes the page (a project holds up to 31). */
+.peopleMore {
+  display: inline-flex;
+  align-items: center;
+  color: var(--aub-muted);
+}
+
+.peopleMorePhone {
+  display: none;
+}
+
+/* ---- The tools row ---------------------------------------------------------- */
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin-block: 0 18px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent);
+  background: var(--sand-50);
+}
+
+.search {
+  display: flex;
+  flex: 1 1 18rem;
+  align-items: center;
+  gap: 10px;
+}
+
+.search input {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tools .push {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-inline-start: auto;
+}
+
+.tools button {
+  white-space: nowrap;
+}
+
+/* The filters: one field each, «الكل» by default. */
+.filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 14px;
+  margin-block: 0 18px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent);
+  background: var(--sand-50);
+}
+
+.filters select {
+  inline-size: 100%;
+}
+
+/* What the screen says after an action, and «تراجع». */
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-block: 0 12px;
+}
+
+.status:empty {
+  margin: 0;
+}
+
+.status:focus-visible {
+  outline-offset: 2px;
+}
+
+/* ---- The board: columns from the start (right) edge, scrolling inside their own box ---------------------------- */
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The board's root: its selectors outrank the admin page's own `.page p` and `.page h2`. */
+.boardRoot {
+  min-inline-size: 0;
+}
+
+.switcher {
+  display: none;
+}
+
+.board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(17rem, 1fr);
+  gap: 14px;
+  align-items: start;
+  overflow-x: auto;
+  padding-block-end: 6px;
+}
+
+/* A positioned box: the column's visually hidden count stays in the board's own scroll box, never in the page's. */
+.column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 30rem;
+  border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent);
+  background: var(--sand-50);
+}
+
+.colHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block: 12px;
+  padding-inline: 14px 6px;
+  border-block-end: 2px solid var(--aub);
+}
+
+.boardRoot .colHead h2 {
+  flex: 1;
+  margin: 0;
+  font-size: var(--size-line);
+  overflow-wrap: anywhere;
+}
+
+.count {
+  min-inline-size: 30px;
+  padding-inline: 8px;
+  border: 1px solid var(--aub-muted);
+  text-align: center;
+  font-size: var(--size-label);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.colMenu {
+  min-inline-size: var(--tap);
+  min-block-size: var(--tap);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--size-admin-legend);
+  line-height: 1.6;
+  cursor: pointer;
+}
+
+/* The done column is the one place the board speaks the house's language: a night head closed by the palm weave.
+   Its head sets data-tone="night": the tone paints it and hands the focus ring its saffron. */
+.done .colHead {
+  border-block-end: 0;
+}
+
+.done .count {
+  border-color: var(--sand-muted);
+}
+
+.weave {
+  block-size: 14px;
+  background: url('/brand/weave.svg') 100% 0 / 14px 14px repeat-x;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-block-size: 5rem;
+  margin: 0;
+  padding: 12px;
+  list-style: none;
+}
+
+.emptyColumn {
+  margin: 0;
+  padding-block: 0 12px;
+  padding-inline: 12px;
+  color: var(--aub-muted);
+  font-size: var(--size-small);
+}
+
+.addCard {
+  margin: 0 12px 12px;
+  min-block-size: var(--tap);
+  border: 1px dashed var(--aub-muted);
+  border-radius: 0;
+  background: transparent;
+  color: var(--aub);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.composer {
+  display: grid;
+  gap: 8px;
+  margin: 0 12px 12px;
+  padding: 10px;
+  border: 1px dashed var(--aub-muted);
+}
+
+.composerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ---- A card: the lighter paper, so it never reads as the column's own box -------------------------------------- */
+
+.slip {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--aub-muted) 40%, transparent);
+  background: var(--paper-page);
+}
+
+/* The face is what is pressed, held and lifted; «نقل إلى…» is its sibling, so no control sits inside another. */
+.face {
+  display: grid;
+  gap: 8px;
+  min-block-size: var(--tap);
+  cursor: pointer;
+  user-select: none;
+}
+
+.boardRoot .face :is(p, ul) {
+  margin: 0;
+}
+
+.boardRoot .face .cardTitle {
+  margin: 0;
+  font-size: var(--size-body);
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.boardRoot .face .cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: var(--size-label);
+}
+
+/* «عاجل» is the board's one accent: coral-deep, in words (7.0:1). «عادي» shows nothing; «منخفض» stays quiet. */
+.urgent {
+  padding-inline: 8px;
+  background: var(--coral-deep);
+  color: var(--paper-page);
+  font-weight: 700;
+}
+
+.low {
+  padding-inline: 8px;
+  border: 1px solid var(--aub-muted);
+  color: var(--aub-muted);
+  font-weight: 500;
+}
+
+.due {
+  font-weight: 700;
+}
+
+.late {
+  color: var(--coral-deep);
+}
+
+.soon {
+  color: var(--aub);
+}
+
+.later {
+  color: var(--aub-muted);
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--aub-muted);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+
+/* Labels take the palette's own tones (D50), each pair measured. */
+.tag {
+  padding-inline: 8px;
+  line-height: 1.75;
+}
+
+.saffron {
+  background: var(--saffron);
+  color: var(--saffron-ink);
+}
+
+.coral {
+  background: var(--coral);
+  color: var(--aub-900);
+}
+
+.sand {
+  background: var(--sand-300);
+  color: var(--aub);
+}
+
+.aub {
+  background: var(--aub);
+  color: var(--sand-50);
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--aub-muted);
+  font-size: var(--size-label);
+}
+
+.whos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.linked {
+  color: var(--aub-muted);
+  font-size: var(--size-label);
+}
+
+.boardRoot .done .face .cardTitle {
+  color: var(--aub-muted);
+}
+
+/* «نقل إلى…», the move that needs no drag, on every card at every width: a quiet underlined button where a drag is at hand
+   (the comp drew none there), a bordered one on a phone (below), as the comp drew it. The target stays 44px tall. */
+.moveTo {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-block-size: var(--tap);
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--aub-muted);
+  font: inherit;
+  font-size: var(--size-small);
+  font-weight: 700;
+  line-height: 1.6;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .moveTo:hover {
+    color: var(--aub);
+  }
+}
+
+/* A card being moved: the lifted one carries B's one depth, the solid ink shadow, and the place it will land is a dashed slot. */
+.lifted {
+  z-index: 2;
+  border: 2px solid var(--aub);
+  box-shadow: -6px 6px 0 var(--aub);
+}
+
+.slip[data-dragging] {
+  border: 2px dashed var(--aub-muted);
+  background: transparent;
+}
+
+.slip[data-dragging] > * {
+  visibility: hidden;
+}
+
+/* «تُفلت البطاقة هنا», the comp's words in the dashed place (the screen reader hears the announcements instead). */
+.slip {
+  position: relative;
+}
+
+.slip[data-dragging] > .slotText {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  visibility: visible;
+  color: var(--aub-muted);
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+
+/* ---- The card's dialog ---------------------------------------------------------------------------------------- */
+
+dialog.cardDialog {
+  max-inline-size: min(46rem, calc(100vw - 2rem));
+  inline-size: 100%;
+}
+
+dialog.menuDialog {
+  max-inline-size: min(30rem, calc(100vw - 2rem));
+  inline-size: 100%;
+}
+
+.cardForm {
+  display: grid;
+  gap: 20px;
+}
+
+.bare {
+  display: grid;
+  gap: 20px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.bare fieldset {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.bare legend {
+  margin-block-end: 8px;
+  padding: 0;
+  font-size: var(--size-label);
+  font-weight: 700;
+}
+
+.sideBySide {
+  display: grid;
+  gap: 20px;
+}
+
+dialog.cardDialog:has(.newer) {
+  max-inline-size: min(70rem, calc(100vw - 2rem));
+}
+
+@media (min-width: 900px) {
+  .sideBySide:has(.newer) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  }
+
+  .newer {
+    order: 2;
+  }
+}
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 20px;
+}
+
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.segmented {
+  display: flex;
+}
+
+.segmented label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  padding-inline: 14px;
+  border: 1px solid var(--aub-muted);
+  background: var(--paper-page);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.segmented label + label {
+  margin-inline-start: -1px;
+}
+
+.segmented input {
+  position: absolute;
+  opacity: 0;
+}
+
+.segmented label:has(input:checked) {
+  border-color: var(--aub);
+  background: var(--aub);
+  color: var(--sand-50);
+}
+
+.segmented label.urgentChoice:has(input:checked) {
+  border-color: var(--coral-deep);
+  background: var(--coral-deep);
+  color: var(--paper-page);
+}
+
+.segmented label:has(input:focus-visible) {
+  outline: 3px solid var(--aub);
+  outline-offset: 3px;
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: var(--tap);
+}
+
+.check input {
+  inline-size: 20px;
+  block-size: 20px;
+  margin: 0;
+}
+
+/* A project of many people (locally every owner is one) scrolls inside its own box, never pushes the dialog. */
+.peopleChecks {
+  max-block-size: 13rem;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent);
+  background: var(--paper-page);
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 12px 8px;
+  border-block-end: 1px solid color-mix(in srgb, var(--aub-muted) 18%, transparent);
+}
+
+.checkRow input[type='text'] {
+  flex: 1;
+  min-inline-size: 0;
+  border-width: 1px;
+}
+
+.itemDone input[type='text'] {
+  color: var(--aub-muted);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.tick {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--tap);
+  block-size: var(--tap);
+  cursor: pointer;
+}
+
+.tick input {
+  inline-size: 20px;
+  block-size: 20px;
+  margin: 0;
+}
+
+.checkAdd {
+  padding-block: 6px;
+  padding-inline: 12px;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-block-start: 6px;
+  border-block-start: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent);
+}
+
+.dialogActions .end {
+  margin-inline-start: auto;
+}
+
+/* The newer version of a card, beside what was typed (a stale save). */
+.newer {
+  align-self: start;
+  padding: 16px;
+  border: 2px solid var(--aub);
+  background: var(--paper-page);
+}
+
+.newer p {
+  margin-block: 0 8px;
+}
+
+.newer .metaList {
+  margin: 0;
+}
+
+.fieldError {
+  margin: 0;
+}
+
+/* «نقل إلى…»: the columns, then the positions of the one chosen. */
+.menuColumns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.menuPositions {
+  display: grid;
+  gap: 6px;
+  max-block-size: 40dvh;
+  margin: 0;
+  /* Room for the focus ring: the box scrolls, so it would cut the ring off its full-width buttons. */
+  padding: 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.menuPositions button {
+  inline-size: 100%;
+  justify-content: start;
+}
+
+/* The place the card is in now. */
+.menuPositions button[aria-current='true'] {
+  border-color: var(--aub);
+  background: var(--paper-page);
+}
+
+/* ---- The projects: doors, as the content home draws its collections ------------------------------------------- */
+
+.door {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: end;
+  gap: 6px;
+  min-block-size: 10rem;
+  font-family: var(--font-body);
+  font-size: var(--size-label);
+}
+
+.door strong {
+  font-family: var(--font-display);
+  font-size: var(--size-admin-door);
+  font-weight: 500;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.door span {
+  color: var(--aub-muted);
+}
+
+.door .lateCount {
+  color: var(--coral-deep);
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  .door:hover span {
+    color: var(--sand-muted);
+  }
+
+  .door:hover .lateCount {
+    color: var(--sand-50);
+  }
+}
+
+.homeActions {
+  margin-block: 6px 22px;
+}
+
+/* ---- «مهامي» ---------------------------------------------------------------------------------------------------- */
+
+.mine li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.mine a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--tap);
+  font-weight: 700;
+}
+
+.mineLate h2 {
+  color: var(--coral-deep);
+}
+
+/* ---- A phone: one column at a time, a switcher with the counts, and «نقل إلى…» on every card ------------------- */
+
+@media (max-width: 767px) {
+  .search {
+    flex-basis: 100%;
+  }
+
+  .tools .push {
+    margin-inline-start: 0;
+  }
+
+  .person:not(:first-child) {
+    display: none;
+  }
+
+  .peopleMore {
+    display: none;
+  }
+
+  .peopleMorePhone {
+    display: inline-flex;
+  }
+
+  .switcher {
+    display: flex;
+    gap: 6px;
+    margin-block: 0 12px;
+    /* Room for the focus ring, which the scrolling box would cut. */
+    padding: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .moveTo {
+    padding-inline: 14px;
+    border: 1px solid var(--aub-muted);
+    color: var(--aub);
+    text-decoration: none;
+  }
+
+  .switcher button {
+    flex: none;
+  }
+
+  .board {
+    display: block;
+  }
+
+  .column:not(.current) {
+    display: none;
+  }
+
+  .column {
+    min-block-size: 0;
+  }
+
+  .cards {
+    min-block-size: 0;
+  }
+}
+
+/* The page's own motion is none; what a drag draws (the lifted card's travel, the others making room) stops with this. */
+@media (prefers-reduced-motion: reduce) {
+  .slip,
+  .face,
+  .lifted {
+    transition: none !important;
+    animation: none !important;
+  }
+}

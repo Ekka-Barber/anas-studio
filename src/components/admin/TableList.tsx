@@ -16,13 +16,13 @@ import { formatMoney, formatRiyadh } from '@/lib/format'
 import { formatRiyalsInput } from '@/lib/money-input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
-import { useStaffRole } from './AdminShell'
+import { STORE_ROLES, useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 
-export type StaffRole = 'owner' | 'editor' | 'operations'
+export type StaffRole = 'owner' | 'editor' | 'operations' | 'board'
 
 /** The Arabic name of each staff role, shared by the home and team screens. */
-export const ROLE_LABEL: Record<StaffRole, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل' }
+export const ROLE_LABEL: Record<StaffRole, string> = { owner: 'مالك', editor: 'محرر', operations: 'تشغيل', board: 'لوحة المشاريع فقط' }
 
 const LIST_LIMIT = 500
 
@@ -60,7 +60,7 @@ export function TableList({ table }: { table: TableKey }) {
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    if (role === 'editor') return
+    if (!STORE_ROLES.includes(role)) return
     let active = true
     void (async () => {
       let query = getSupabaseBrowserClient().from(config.table).select(listSelect(config))
@@ -78,8 +78,8 @@ export function TableList({ table }: { table: TableKey }) {
     }
   }, [config, role])
 
-  // Editors see nothing of the store; operations cannot read coupons (RLS).
-  if (role === 'editor' || (config.read === 'owner' && role !== 'owner')) {
+  // Only the roles of `STORE_ROLES` see the store (an allow-list: the editor and the board-only role see nothing of it); operations cannot read coupons (RLS).
+  if (!STORE_ROLES.includes(role) || (config.read === 'owner' && role !== 'owner')) {
     return <p className={styles.error}>لا تملك صلاحية الوصول</p>
   }
 

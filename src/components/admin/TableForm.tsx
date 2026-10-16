@@ -25,7 +25,7 @@ import { formatRiyalsInput } from '@/lib/money-input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
 import { defaultsForFields, FieldInput } from './FieldInput'
-import { useStaffRole } from './AdminShell'
+import { STORE_ROLES, useStaffRole } from './AdminShell'
 import { cellText } from './TableList'
 import { VariantCommerce } from './VariantCommerce'
 import styles from './admin.module.css'
@@ -174,7 +174,7 @@ export function TableForm({ table }: { table: TableKey }) {
   // A product's page lists its variants below the form; a coupon's form
   // offers the products as checkboxes.
   useEffect(() => {
-    if (role === 'editor') return
+    if (!STORE_ROLES.includes(role)) return
     let active = true
     void (async () => {
       const supabase = getSupabaseBrowserClient()
@@ -268,8 +268,8 @@ export function TableForm({ table }: { table: TableKey }) {
     }
   }
 
-  // Mirrors TableList: editors see nothing of the store, operations cannot read coupons (RLS).
-  if (role === 'editor' || (config.read === 'owner' && role !== 'owner')) {
+  // Mirrors TableList: only the roles of `STORE_ROLES` see the store, operations cannot read coupons (RLS).
+  if (!STORE_ROLES.includes(role) || (config.read === 'owner' && role !== 'owner')) {
     return <p className={styles.error}>{NO_ACCESS_MESSAGE}</p>
   }
   if (notFound) return <p className={styles.error}>السجل غير موجود.</p>

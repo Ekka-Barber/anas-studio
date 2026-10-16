@@ -30,33 +30,43 @@ export function useStaffRole(): StaffRole {
 
 /** The screens whose tables do not fit the reading measure (the email
  * problems, the team, each store table's list, the orders and an order's
- * view): the shell is one layout for every page, so the width is read from the
- * path, not passed by the page. */
+ * view, a project's board): the shell is one layout for every page, so the
+ * width is read from the path, not passed by the page. */
 export function isWidePath(pathname: string): boolean {
-  return /^\/admin\/(?:email|team|orders(?:\/view)?|store\/[^/]+)\/?$/.test(pathname)
+  return /^\/admin\/(?:email|team|orders(?:\/view)?|projects\/view|store\/[^/]+)\/?$/.test(pathname)
 }
 
 /** One entry of the admin's nav: where it leads and which roles see it. */
-interface NavEntry {
+export interface NavEntry {
   href: string
   label: string
   roles: readonly StaffRole[]
 }
 
 const EVERYONE: readonly StaffRole[] = ['owner', 'editor', 'operations']
+/** Every staff role, the board-only one too (P12): the projects board and «الأمان». */
+const ALL_ROLES: readonly StaffRole[] = [...EVERYONE, 'board']
 const OWNER_EDITOR: readonly StaffRole[] = ['owner', 'editor']
 const OWNER_OPERATIONS: readonly StaffRole[] = ['owner', 'operations']
 const OWNER: readonly StaffRole[] = ['owner']
 
 /**
+ * The roles that use the store screens (the store home, each table's list and form): an allow-list, so a role added later
+ * (the board-only one, P12) reaches none of them until it is named here. The functions and RLS are the wall; this shapes the screen.
+ */
+export const STORE_ROLES: readonly StaffRole[] = OWNER_OPERATIONS
+
+/**
  * The nav, in its order, in four groups the rail draws apart: the day's work,
  * the words and pictures, the store and its orders, and the house. The order
  * is the one every role has always had («الطلبات» right after «المتجر»); a
- * role sees only its entries, and a group with none is not drawn.
+ * role sees only its entries, and a group with none is not drawn. «المشاريع»
+ * stands after «الرئيسية» for every role; the board-only role sees it and «الأمان» alone.
  */
 const NAV: readonly (readonly NavEntry[])[] = [
   [
     { href: '/admin', label: 'الرئيسية', roles: EVERYONE },
+    { href: '/admin/projects', label: 'المشاريع', roles: ALL_ROLES },
     { href: '/admin/email', label: 'البريد', roles: OWNER_OPERATIONS },
   ],
   [
@@ -70,10 +80,28 @@ const NAV: readonly (readonly NavEntry[])[] = [
   [
     { href: '/admin/stats', label: 'الإحصاءات', roles: OWNER },
     { href: '/admin/settings', label: 'الإعدادات', roles: OWNER },
-    { href: '/admin/security', label: 'الأمان', roles: EVERYONE },
+    { href: '/admin/security', label: 'الأمان', roles: ALL_ROLES },
     { href: '/admin/team', label: 'الفريق', roles: OWNER },
   ],
 ]
+
+/** The nav a role sees, in its groups (a group with no entry for the role is left out). */
+export function navGroups(role: StaffRole): NavEntry[][] {
+  return NAV.map((group) => group.filter((entry) => entry.roles.includes(role))).filter((group) => group.length > 0)
+}
+
+/** «مهامي»: where the board-only role lands after signing in, and where the shell sends it from any other admin screen. */
+export const BOARD_HOME = '/admin/projects/mine'
+
+/** The admin paths the board-only role may open: the projects board and «الأمان». */
+export function boardMayVisit(pathname: string): boolean {
+  return /^\/admin\/(?:projects|security)(?:\/|$)/.test(pathname)
+}
+
+/** Where the shell sends `role` from `pathname`: «مهامي» for the board-only role on any other path, else nowhere. */
+export function gateRedirect(role: StaffRole, pathname: string): string | null {
+  return role === 'board' && !boardMayVisit(pathname) ? BOARD_HOME : null
+}
 
 /** The nav entry a path belongs to: the home only by itself, every other entry with the screens under it. */
 export function currentEntry(pathname: string): string | null {
@@ -215,6 +243,13 @@ export function AdminShell({ children }: { children: ReactNode }) {
   const navRef = useRef<HTMLElement>(null)
   const ready = gate.status === 'ready'
   const navRole = gate.status === 'ready' ? gate.role : null
+  // The board-only role sees nothing of the admin but the board and «الأمان»: anywhere else it is sent to «مهامي», and the
+  // screen it was not meant to see is not drawn while it goes.
+  const redirectTo = gate.status === 'ready' ? gateRedirect(gate.role, pathname) : null
+
+  useEffect(() => {
+    if (redirectTo !== null) router.replace(redirectTo)
+  }, [redirectTo, router])
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient()
@@ -367,8 +402,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     )
   }
 
-  const role = gate.role
-  const groups = NAV.map((group) => group.filter((entry) => entry.roles.includes(role))).filter((group) => group.length > 0)
+  const groups = navGroups(gate.role)
   return (
     <div className={styles.shell}>
       <a href="#main" className="skip-link">
@@ -406,7 +440,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main id="main" className={wide ? `${styles.page} ${styles.pageWide}` : styles.page}>
-        <RoleContext.Provider value={gate.role}>{children}</RoleContext.Provider>
+        <RoleContext.Provider value={gate.role}>{redirectTo === null ? children : null}</RoleContext.Provider>
       </main>
     </div>
   )

@@ -8,6 +8,7 @@ import { otpDigits } from '@/lib/digits'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { useTurnstile } from '@/lib/turnstile'
 
+import { BOARD_HOME } from './AdminShell'
 import styles from './admin.module.css'
 import { stepUpError } from './StepUp'
 
@@ -34,6 +35,11 @@ export function sendOutcome(error: { status?: number; code?: string } | null): {
   // A failure on Auth's side (the mail could not be sent) says nothing about the address either, and no code is on its way.
   if (error?.status && error.status >= 500) return { message: SEND_FAILED_MESSAGE, step: 'email' }
   return { message: SENT_MESSAGE, step: 'code' }
+}
+
+/** Where a signed-in staff member lands: the board-only role on «مهامي» (the only screens it has), everyone else on the home. */
+export function landingFor(role: unknown): string {
+  return role === 'board' ? BOARD_HOME : '/admin'
 }
 
 /**
@@ -88,7 +94,9 @@ export function SignIn() {
       setError(stepUpError(verifyError.status, BAD_CODE_MESSAGE))
       return
     }
-    router.push('/admin')
+    // The role decides the landing page; a role that cannot be read lands on the home, where the shell routes it anyway.
+    const { data: role } = await supabase.rpc('current_staff_role')
+    router.push(landingFor(role))
   }
 
   async function signInWithGoogle() {

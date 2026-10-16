@@ -14,7 +14,7 @@ import { useEffect, useState } from 'react'
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 
-import { useStaffRole } from '@/components/admin/AdminShell'
+import { STORE_ROLES, useStaffRole } from '@/components/admin/AdminShell'
 import styles from '@/components/admin/admin.module.css'
 
 export function StoreHome() {
@@ -22,7 +22,7 @@ export function StoreHome() {
   const [demo, setDemo] = useState(false)
 
   useEffect(() => {
-    if (role === 'editor') return
+    if (!STORE_ROLES.includes(role)) return
     let active = true
     void (async () => {
       // Only products carry the demo flag (D37); any one means demo data.
@@ -34,7 +34,7 @@ export function StoreHome() {
     }
   }, [role])
 
-  if (role === 'editor') return <p className={styles.error}>لا تملك صلاحية الوصول</p>
+  if (!STORE_ROLES.includes(role)) return <p className={styles.error}>لا تملك صلاحية الوصول</p>
 
   return (
     <div className={styles.field}>

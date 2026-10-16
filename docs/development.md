@@ -143,6 +143,7 @@ local stack (`supabase status`). `tests/e2e/auth.spec.ts` exercises sign-in,
 TOTP enrolment and an invite through the browser; it expects `next dev` and
 the local stack running, and creates its own owner with the local service key.
 `tests/integration/{board,board-wall}.test.ts` (P12 R1) prove the projects board's data (every `public.board_*` function as every kind of caller, the versions, the races, the activity, the limits and the links) and the wall a board-only token meets (the four staff policies, the admin's functions, `Accept-Profile: board`).
+The board's screens (P12 R2) are `src/components/admin/projects/` (`ProjectsHome`, `ProjectView`, `Board`, `BoardCard`, `CardDialog`, `MoveMenu`, `MyCards` and `projects.module.css`), the pure parts in `src/lib/projects.ts` (parsers, refusals, search, filters, positions, days, plural forms, the CSV, a card's changes) and the routes under `src/app/(admin)/admin/(shell)/projects/`; `tests/unit/projects.test.ts` proves the pure parts and `tests/e2e/projects.spec.ts` the screens at 360 and 1440 (it needs `next dev` and the local stack: moves by mouse, keyboard and «نقل إلى…», each role, the board-only gate).
 
 ## Content (P04)
 

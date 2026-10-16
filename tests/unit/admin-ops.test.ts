@@ -10,6 +10,8 @@
 // checks; F3-18 the reading of `outbox_close`.
 // RESIDUALS-1 R3a: the owner home's failed schedules (ADMIN-CMS-06), the email screen's cap (ADMIN-CMS-10) and the
 // documents list's states (ADMIN-CMS-18).
+// P12 R2: the rail's «المشاريع» for every role, the board-only role's gate (its rail, its landing and the path it is sent
+// back from), the store screens' allow-list and a project's board in `isWidePath`.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { customersConfig } from '../../src/admin/tables/customers'
@@ -28,21 +30,27 @@ import {
   type FailureDocument,
 } from '../../src/components/admin/AdminHome'
 import {
+  BOARD_HOME,
+  boardMayVisit,
   chooseCopy,
   clearDrafts,
   currentEntry,
   draftKey,
+  gateRedirect,
   isWidePath,
   localCopies,
+  navGroups,
   storedCopies,
+  STORE_ROLES,
   tabId,
   type StoredCopy,
 } from '../../src/components/admin/AdminShell'
 import { listState } from '../../src/components/admin/CollectionList'
 import { ATTENTION_CAP, attentionCapped, CAPPED_NOTE, CLOSE_CONFIRM, CLOSED_MESSAGE, closeResult } from '../../src/components/admin/EmailView'
-import { sendOutcome } from '../../src/components/admin/SignIn'
+import { landingFor, sendOutcome } from '../../src/components/admin/SignIn'
 import { stepUpError } from '../../src/components/admin/StepUp'
 import { doneText, OWN_ROLE_CONFIRM, RETRY_REVOKE, unfinishedRevoke, withoutEdit } from '../../src/components/admin/TeamView'
+import type { StaffRole } from '../../src/components/admin/TableList'
 import { otpDigits } from '../../src/lib/digits'
 
 // AdminHome, AdminShell, CollectionList, StepUp and TeamView import through the `@/` alias, which the unit config does not
@@ -78,11 +86,11 @@ describe('one-time codes', () => {
 })
 
 describe('the admin shell', () => {
-  it('is wide for the email, team and store list screens only', () => {
-    for (const path of ['/admin/email', '/admin/team', '/admin/team/', '/admin/store/products', '/admin/store/shipping-rates/']) {
+  it('is wide for the email, team, store list and a project\'s board screens only', () => {
+    for (const path of ['/admin/email', '/admin/team', '/admin/team/', '/admin/store/products', '/admin/store/shipping-rates/', '/admin/projects/view', '/admin/projects/view/']) {
       expect(isWidePath(path), path).toBe(true)
     }
-    for (const path of ['/admin', '/admin/store', '/admin/store/', '/admin/store/products/edit', '/admin/content/rooms', '/admin/security']) {
+    for (const path of ['/admin', '/admin/store', '/admin/store/', '/admin/store/products/edit', '/admin/content/rooms', '/admin/security', '/admin/projects', '/admin/projects/mine', '/admin/projects/archived', '/admin/projectsx/view']) {
       expect(isWidePath(path), path).toBe(false)
     }
   })
@@ -97,6 +105,10 @@ describe('the admin shell', () => {
     expect(currentEntry('/admin/content/rooms/edit')).toBe('/admin/content')
     expect(currentEntry('/admin/store/products')).toBe('/admin/store')
     expect(currentEntry('/admin/security')).toBe('/admin/security')
+    expect(currentEntry('/admin/projects')).toBe('/admin/projects')
+    expect(currentEntry('/admin/projects/view')).toBe('/admin/projects')
+    expect(currentEntry('/admin/projects/mine/')).toBe('/admin/projects')
+    expect(currentEntry('/admin/projectsx')).toBeNull()
     // A path that only starts like an entry is not under it, and the sign-in and the preview have none.
     expect(currentEntry('/admin/ordersx')).toBeNull()
     expect(currentEntry('/admin/sign-in')).toBeNull()
@@ -113,6 +125,54 @@ describe('the admin shell', () => {
     vi.stubGlobal('window', { localStorage: store })
     clearDrafts()
     expect(Object.keys(store)).toEqual(['sb-auth-token'])
+  })
+})
+
+describe('the projects entry and the board-only role (P12 R2)', () => {
+  const hrefs = (role: StaffRole) => navGroups(role).flatMap((group) => group.map((entry) => entry.href))
+
+  it('puts «المشاريع» after «الرئيسية» for every role, in the first group', () => {
+    expect(hrefs('owner')).toEqual(['/admin', '/admin/projects', '/admin/email', '/admin/content', '/admin/media', '/admin/store', '/admin/orders', '/admin/stats', '/admin/settings', '/admin/security', '/admin/team'])
+    expect(hrefs('editor')).toEqual(['/admin', '/admin/projects', '/admin/content', '/admin/media', '/admin/security'])
+    expect(hrefs('operations')).toEqual(['/admin', '/admin/projects', '/admin/email', '/admin/store', '/admin/orders', '/admin/security'])
+    expect(navGroups('owner')[0]!.map((entry) => entry.label)).toEqual(['الرئيسية', 'المشاريع', 'البريد'])
+  })
+
+  it('shows the board-only role «المشاريع» and «الأمان» and nothing else', () => {
+    expect(hrefs('board')).toEqual(['/admin/projects', '/admin/security'])
+    expect(navGroups('board').map((group) => group.map((entry) => entry.label))).toEqual([['المشاريع'], ['الأمان']])
+  })
+
+  it('lets the board-only role open the routes of the board and «الأمان», with or without the closing slash', () => {
+    for (const path of ['/admin/projects', '/admin/projects/', '/admin/projects/mine', '/admin/projects/view', '/admin/projects/archived', '/admin/security', '/admin/security/']) {
+      expect(boardMayVisit(path), path).toBe(true)
+      expect(gateRedirect('board', path), path).toBeNull()
+    }
+  })
+
+  it('sends the board-only role to «مهامي» from every other admin path, the store and the orders among them', () => {
+    expect(BOARD_HOME).toBe('/admin/projects/mine')
+    for (const path of ['/admin', '/admin/', '/admin/store', '/admin/store/products', '/admin/store/products/edit', '/admin/orders', '/admin/orders/view', '/admin/email', '/admin/media', '/admin/stats', '/admin/settings', '/admin/team', '/admin/content', '/admin/content/rooms/edit', '/admin/projectsx', '/admin/security-x', '/admin/projects-old']) {
+      expect(boardMayVisit(path), path).toBe(false)
+      expect(gateRedirect('board', path), path).toBe(BOARD_HOME)
+    }
+  })
+
+  it('sends no other role anywhere', () => {
+    for (const role of ['owner', 'editor', 'operations'] as const) {
+      for (const path of ['/admin', '/admin/store', '/admin/projects/mine', '/admin/team']) expect(gateRedirect(role, path), `${role} ${path}`).toBeNull()
+    }
+  })
+
+  it('lands the board-only role on «مهامي» after sign-in and everyone else on the home', () => {
+    expect(landingFor('board')).toBe('/admin/projects/mine')
+    for (const role of ['owner', 'editor', 'operations', null, undefined, 'unknown']) expect(landingFor(role), String(role)).toBe('/admin')
+  })
+
+  it('names the roles of the store screens by allow-list: the owner and operations, so neither the editor nor the board-only role', () => {
+    expect([...STORE_ROLES]).toEqual(['owner', 'operations'])
+    expect(STORE_ROLES.includes('board')).toBe(false)
+    expect(STORE_ROLES.includes('editor')).toBe(false)
   })
 })
 
