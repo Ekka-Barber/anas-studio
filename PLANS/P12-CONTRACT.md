@@ -5,7 +5,9 @@ was audited by a fresh Opus 5.5 auditor the same day (`artifacts/acceptance/P12/
 blocking finding, 13 major, 11 minor, 8 nits); this version settles every finding (the rulings are at the end), and the
 owner answered its one open question («Owner only»: the activity log stays the owner's, as D50 said). The design is the
 preview the owner approved in the Build Ledger on 2026-10-16 (`artifacts/acceptance/P12/comp/`). Every worker and
-auditor of P12 reads this file first; where it and `PLANS/WORK-PACKAGES.md` (P12) differ, this file wins.
+auditor of P12 reads this file first; where it and `PLANS/WORK-PACKAGES.md` (P12) differ, this file wins. Amended the
+same day after R1's audit (`artifacts/acceptance/P12/RECORD-R1.md`): the activity keeps a person row's role and a column
+row's column, the caps of people count the people the screens show, and section 7 gains two sentences.
 
 Rules that hold for every round:
 
@@ -92,14 +94,14 @@ again on focus and after every write).
 | Table | Columns | Rules |
 |---|---|---|
 | `projects` | `id uuid pk`, `name text`, `created_by uuid`, `created_at`, `updated_at`, `archived_at timestamptz null`, `version int` | name 1 to 80; at most 50 projects that are not archived |
-| `members` | `project_id`, `user_id`, `role text`, `added_by`, `added_at` | pk (project, user); role in (`member`, `viewer`); the user is a staff member who is not an owner; at most 30 per project |
+| `members` | `project_id`, `user_id`, `role text`, `added_by`, `added_at` | pk (project, user); role in (`member`, `viewer`); the user is a staff member who is not an owner; at most 30 per project, counted over the active members who are not owners (the people the owner sees): an inactive person's row never blocks, and a reactivated one may return past 30 |
 | `columns` | `id`, `project_id`, `name`, `position int`, `hidden bool`, `is_done bool`, `version int` | name 1 to 40; at most one done column per project (partial unique index); at most 12 per project; `unique (project_id, position) deferrable initially deferred` |
 | `labels` | `id`, `project_id`, `name`, `tone text`, `version int` | name 1 to 24, unique per project (case folded); tone in (`saffron`, `coral`, `sand`, `aub`); at most 16 per project |
 | `cards` | `id`, `project_id`, `column_id`, `position int null`, `title`, `notes text`, `priority text`, `due_on date null`, `done_at timestamptz null`, `link_collection text null`, `link_doc_id text null`, `created_by`, `created_at`, `updated_at`, `archived_at null`, `version int` | title 1 to 200; notes 0 to 5,000; priority in (`urgent`, `normal`, `low`), default `normal`; an open card has a position and an archived one has none; `unique (column_id, position) deferrable initially deferred` (archived cards' nulls never clash); link both null or both set, collection in (`posts`, `rooms`); at most 1,000 open cards per project |
 | `card_labels` | `card_id`, `label_id` | the label is the card's project's |
-| `card_people` | `card_id`, `user_id` | the person is an owner or a `member` of the card's project; at most 10 per card |
+| `card_people` | `card_id`, `user_id` | the person is an owner or a `member` of the card's project; at most 10 per card, counted over the people it shows (those who can be assigned now): a reactivated person returns even past it, and the next save of the card's people must come back within it |
 | `checklist` | `id`, `card_id`, `text`, `done bool`, `position int` | text 1 to 200; at most 50 items per card |
-| `activity` | `id bigint identity`, `project_id`, `card_id null`, `subject uuid null`, `actor uuid`, `at timestamptz`, `action text`, `fields text[]`, `from_column uuid null`, `to_column uuid null` | columns referenced `on delete set null`; `action` in (`project_created`, `project_renamed`, `project_archived`, `project_restored`, `person_added`, `person_role_changed`, `person_removed`, `column_created`, `column_changed`, `column_moved`, `column_deleted`, `label_created`, `label_changed`, `label_deleted`, `card_created`, `card_edited`, `card_moved`, `card_archived`, `card_restored`); `subject` is the person of a `person_*` row; `fields` holds names only (`title`, `notes`, `priority`, `due_on`, `labels`, `people`, `checklist`, `link`, `name`, `hidden`, `done`, `tone`) |
+| `activity` | `id bigint identity`, `project_id`, `card_id null`, `subject uuid null`, `role text null`, `actor uuid`, `at timestamptz`, `action text`, `fields text[]`, `from_column uuid null`, `to_column uuid null` | columns referenced `on delete set null`; a `column_created`, `column_changed` or `column_moved` row names its column in `to_column`; `role` (`member`, `viewer`) is the role a `person_added` or `person_role_changed` row gave (the log is history); `action` in (`project_created`, `project_renamed`, `project_archived`, `project_restored`, `person_added`, `person_role_changed`, `person_removed`, `column_created`, `column_changed`, `column_moved`, `column_deleted`, `label_created`, `label_changed`, `label_deleted`, `card_created`, `card_edited`, `card_moved`, `card_archived`, `card_restored`); `subject` is the person of a `person_*` row; `fields` holds names only (`title`, `notes`, `priority`, `due_on`, `labels`, `people`, `checklist`, `link`, `name`, `hidden`, `done`, `tone`) |
 
 - **Positions** are dense from 1 per column (cards) and per project (columns). A move clamps the asked position to 1 to
   n + 1 and renumbers the rows it passes. A card created goes last in its column; a restored card goes last in its
@@ -122,9 +124,9 @@ display name; never an email). Every read leaves out archived cards and inactive
 | `board_project(p_project uuid)` | access | `{project: {id, name, version, archived}, role, columns: [{id, name, position, hidden, isDone, version}], labels: [{id, name, tone, version}], people: [{id, name, role}], cards: [{id, columnId, position, title, notes, priority, dueOn, doneAt, labels: [id], people: [id], checklist: [{id, text, done}], link: {collection, docId, title} \| null, version}]}`; `role` is the caller's |
 | `board_link_targets()` | any staff | `[{collection, docId, title}]`: owners and editors get every post and room (latest title); everyone else gets the rooms and the published, visible posts (published title) |
 | `board_archived(p_project uuid)` | access | `[{id, title, columnId, archivedAt}]` |
-| `board_mine()` | any staff | `[{id, title, priority, dueOn, project: {id, name}, column: {id, name}}]`: the caller's assigned open cards in projects they can see, outside done columns |
+| `board_mine()` | any staff | `[{id, title, priority, dueOn, project: {id, name}, column: {id, name}}]`: the caller's assigned open cards in projects they can see that are not archived, outside done columns |
 | `board_overview(p_project uuid)` | access | `{columns: [{id, name, cards}], overdue, thisWeek, doneThisWeek, hasDone}`: overdue is due before today; thisWeek is due today to today + 6; both outside the done column; doneThisWeek is `done_at` in the last seven days; hidden columns count like the others |
-| `board_activity(p_project uuid, p_card uuid null, p_before bigint null)` | owner | `[{id, at, actor: {id, name}, action, fields, card: {id, title} \| null, subject: {id, name} \| null, from: name \| null, to: name \| null}]`: 50 rows, newest first; a deleted column is named null |
+| `board_activity(p_project uuid, p_card uuid null, p_before bigint null)` | owner | `[{id, at, actor: {id, name}, action, fields, card: {id, title} \| null, subject: {id, name} \| null, role: 'member' \| 'viewer' \| null, from: name \| null, to: name \| null}]`: 50 rows, newest first; a deleted column is named null; a column row's column is `to` |
 | `board_due()` | any staff | `[{id, title, dueOn, project: {id, name}}]`: owners: every project's cards; others: their assigned ones; overdue and this week, outside done columns and archived projects, at most 20, earliest first |
 | `board_staff(p_project uuid)` | owner | `[{id, name, role}]`: the active staff who are not owners and not on the project |
 | `board_export(p_project uuid)` | owner | every card, archived ones included, with its notes, labels' names, people's names and checklist, for the CSV |
@@ -142,7 +144,7 @@ Writes (owner, or `member` where marked; a `viewer` gets `FORBIDDEN`): `board_ca
 p_version)` (member) and `board_card_restore(p_card)` (member) → the card; `board_project_create(p_name)`,
 `board_project_rename(p_project, p_version, p_name)`, `board_project_archive(p_project, p_version)`,
 `board_project_restore(p_project)`, `board_project_delete(p_project, p_version)`; `board_person_set(p_project, p_user,
-p_role)` (refuses an owner, an inactive member, and the 30th) and `board_person_remove(p_project, p_user)`;
+p_role)` (refuses an owner, an inactive member, and the 31st) and `board_person_remove(p_project, p_user)`;
 `board_column_create(p_project, p_name)`, `board_column_update(p_column, p_version, p_changes jsonb)` (`name`, `hidden`,
 `isDone`), `board_column_move(p_column, p_version, p_position)`, `board_column_delete(p_column, p_version)`;
 `board_label_create(p_project, p_name, p_tone)`, `board_label_update(p_label, p_version, p_changes jsonb)` (`name`,
@@ -233,8 +235,9 @@ hidden posts from them; the functions, not the screens, are the wall (R1 calls e
   المشروع.»، «… أرشف المشروع.»، «… استرجع المشروع.»، «… أضاف <person> بدور <role>.»، «… جعل <person> <role>.»، «… أزال
   <person>.»، «… أضاف العمود «<column>».»، «… عدّل العمود «<column>» (<fields>).»، «… نقل العمود «<column>».»، «… حذف
   عمودًا.»، «… أضاف الوسم.»، «… عدّل وسمًا.»، «… حذف وسمًا.»، «… أنشأ «<card>».»، «… عدّل <fields> في «<card>».»، «… نقل
-  «<card>» من «<from>» إلى «<to>».»، «… أرشف «<card>».»، «… استرجع «<card>».»؛ a deleted column is «عمود محذوف»; the field
-  names in <fields> are section 7's field words, joined with «و».
+  «<card>» من «<from>» إلى «<to>».»، «… غيّر موضع «<card>» في «<to>».» (a move within its column)، «… أرشف «<card>».»، «…
+  استرجع «<card>».»؛ a deleted column is «عمود محذوف»; the field names in <fields> are section 7's field words, joined
+  with «و».
 - Counts use `Intl.PluralRules('ar')` with every form: «لا بطاقات»، «بطاقة واحدة»، «بطاقتان»، «3 بطاقات»، «11 بطاقة»،
   «100 بطاقة»؛ the same for «متأخرة» (people: «لا أحد»، «شخص واحد»، «شخصان»، «3 أشخاص»، «11 شخصًا»).
 - Empty: «لا مشاريع بعد. أنشئ أول مشروع.» (owner), «لم تُضَف إلى أي مشروع بعد.» (others); «لا بطاقات في هذا العمود.»؛
@@ -242,7 +245,8 @@ hidden posts from them; the functions, not the screens, are the wall (R1 calls e
   بطاقات مؤرشفة.».
 - Answers: «أُرشفت البطاقة.» with «تراجع»؛ «تغيّرت هذه البطاقة منذ فتحتها؛ هذه نسختها الأحدث.»؛ «تعذّر نقل البطاقة؛
   أعدناها إلى مكانها.»؛ «تعذّر التحميل.»؛ «تعذّر الحفظ؛ أعد المحاولة.»؛ «لم يعد هذا المشروع متاحًا لك.» (`NOT_FOUND`)؛
-  «ليس لدورك أن يفعل هذا.» (`FORBIDDEN`)؛ «لا يُحذف عمود فيه بطاقات؛ انقلها أولًا.» (`NOT_EMPTY`)؛ for `LIMIT`: «بلغ
+  «ليس لدورك أن يفعل هذا.» (`FORBIDDEN`)؛ «لا يُحذف عمود فيه بطاقات؛ انقلها أولًا.» (`NOT_EMPTY`; for the project's only
+  column, which can hold archived cards alone: «هذا آخر عمود في المشروع، وفيه بطاقات مؤرشفة؛ أضف عمودًا قبل حذفه.»)؛ for `LIMIT`: «بلغ
   المشروع أقصى عدد من الأعمدة (12).»، «… من الوسوم (16).»، «… من الأشخاص (30).»، «… من البطاقات المفتوحة (1000).»،
   «للبطاقة 10 أشخاص على الأكثر.»، «للبطاقة 50 بندًا على الأكثر.»، «بلغت المشاريع المفتوحة أقصى عددها (50).»؛ for
   `INVALID`, under its field: «اكتب اسمًا.»، «اكتب عنوانًا.»، «النص أطول من المسموح.»، «تاريخ غير صالح.»، «لا يُقبل نص
