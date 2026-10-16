@@ -1,8 +1,21 @@
 /**
  * Media rules shared by the browser upload flow (through
- * `src/lib/media-ref.ts`) and the `admin` Edge Function's server-side checks
- * (P05, D15, D32). Pure functions only: no imports, no runtime APIs.
+ * `src/lib/media-ref.ts`, and `MediaUpload.tsx` for the limits) and the `admin`
+ * Edge Function's server-side checks (P05, D15, D32). Pure functions and
+ * constants only: no imports, no runtime APIs.
  */
+
+/** The only MIME types an original may declare. */
+export const ORIGINAL_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'] as const
+
+/** 15 MiB per original. */
+export const MAX_ORIGINAL_BYTES = 15_728_640
+
+/** 40 million pixels per original (`width * height`). */
+export const MAX_PIXELS = 40_000_000
+
+/** 4 MiB per derivative. */
+export const MAX_DERIVATIVE_BYTES = 4_194_304
 
 /** Derivative widths the browser generates, ascending; never upscaled past the crop. */
 export const PRESET_WIDTHS = [360, 720, 1200, 1800] as const

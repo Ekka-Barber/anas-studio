@@ -16,7 +16,8 @@
  * `admin` function (through the step-up dialog where it moves money), said on this screen's
  * one status line or alert line, and followed by a new reading of the order. The owner's
  * «إعادة إرسال رابط الطلب» (FABLE-AUDIT) goes the same way: `order-link-reissue`, through the
- * dialog when a new address is given.
+ * dialog when a new address is given; it is not offered for an order of the other payment mode (the order page answers such a link
+ * NOT_FOUND), `canReissueLink`.
  *
  * The money controls are the configured payment mode's. The owner's mode is read once from the `admin` function's `status`; an
  * attempt, a review payment, a refund or the paying attempt of the other mode gives its «أعد الفحص», refund, external record and
@@ -58,6 +59,7 @@ import {
   type Refusal,
 } from '@/lib/admin-orders'
 import {
+  canReissueLink,
   CLOSE_PARKED,
   disputeLines,
   inFlight as refundInFlight,
@@ -67,6 +69,7 @@ import {
   PARKED_CLOSED,
   paymentModeOf,
   readReissueReply,
+  refundCurrency,
   REISSUE_CONFIRM,
   reissueBody,
   REREAD_FAILED,
@@ -81,7 +84,7 @@ import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 import { DisputeForm } from './DisputeForm'
 import { Enum, Fact, ltr, ltrLong, NONE, TestBadge } from './OrdersView'
-import { recheckAttempt, recheckRefund, RefundView, sendMoney, useFocusBack, useStepUp, type Money, type Said } from './RefundView'
+import { recheckAttempt, recheckRefund, RefundView, ReviewMoney, sendMoney, useFocusBack, useStepUp, type Money, type Said } from './RefundView'
 
 type Load = { kind: 'loading' } | { kind: 'failed' } | { kind: 'missing' } | { kind: 'ready'; detail: OrderDetail }
 type Item = OrderDetail['items'][number]
@@ -89,8 +92,6 @@ type Reply = { data: unknown; error: { code?: string } | null }
 
 const NO_ITEMS = 'اختر عناصر من هذا الطلب.'
 const NEEDS_CARRIER = 'أدخل شركة الشحن ورقم التتبع.'
-/** The orders whose link the owner can send again (`order_link_reissue` answers BAD_STATUS for any other). */
-const LINK_STATUSES = new Set(['paid', 'paid_needs_resolution', 'refunded'])
 
 /** A line still being prepared that cannot ship: fully refunded, or stopped by a dispute. It is shown, never chosen. */
 const blocked = (entry: Pick<OrderDetail['fulfillments'][number], 'state'>, item: Item | undefined): boolean =>
@@ -477,7 +478,7 @@ export function OrderView() {
             <Fact label="المدينة">{order.delivery.city === null ? NONE : <bdi>{order.delivery.city}</bdi>}</Fact>
             <Fact label="العنوان">{order.delivery.address === null ? NONE : <bdi>{order.delivery.address}</bdi>}</Fact>
           </ul>
-          {owner && LINK_STATUSES.has(order.status) && (
+          {owner && canReissueLink(order.status, mode, order.environment) && (
             <div className={styles.form}>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="reissue-email">
@@ -658,10 +659,12 @@ export function OrderView() {
                       <Fact label="السبب">
                         <Enum labels={REVIEW_REASON_LABELS} code={review.reason} />
                       </Fact>
-                      <Fact label="المبلغ">{review.amount === null ? NONE : formatMoney(review.amount)}</Fact>
+                      <Fact label="المبلغ">{review.amount === null ? NONE : <ReviewMoney minor={review.amount} currency={review.currency} />}</Fact>
                       <Fact label="رقم الدفعة لدى Moyasar">{ltrLong(review.paymentId)}</Fact>
                       <Fact label="حالة المزوّد">{ltr(review.providerStatus)}</Fact>
-                      <Fact label="المُعاد">{formatMoney(review.refunded)}</Fact>
+                      <Fact label="المُعاد">
+                        <ReviewMoney minor={review.refunded} currency={review.currency} />
+                      </Fact>
                       <Fact label="وقت الإنشاء">{formatRiyadh(review.createdAt)}</Fact>
                       <Fact label="الإغلاق">
                         {review.closedAt === null ? (
@@ -710,6 +713,7 @@ export function OrderView() {
                           remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
                           // The row's confirmed total (`refund_request` checks it: STALE) and whether one of its refunds is still settling.
                           refunded: review.refunded,
+                          currency: review.currency,
                           inFlight: d.refunds.some((refund) => refund.reviewPaymentId === review.paymentId && refundInFlight(refund.status)),
                         }}
                         money={money}
@@ -1141,7 +1145,7 @@ export function OrderView() {
                           <Enum labels={REFUND_STATUS_LABELS} code={refund.status} />
                         </td>
                         <td data-label="المبلغ" className={styles.cellNowrap}>
-                          {formatMoney(refund.amount)}
+                          <ReviewMoney minor={refund.amount} currency={refundCurrency(refund, d.reviews)} />
                         </td>
                         <td data-label="السبب">
                           <bdi>{refund.reason}</bdi>
@@ -1168,7 +1172,7 @@ export function OrderView() {
                                   type="button"
                                   className={styles.buttonSecondary}
                                   disabled={off}
-                                  onClick={() => void money.run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
+                                  onClick={() => void money.run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id, refundCurrency(refund, d.reviews)))}
                                 >
                                   أعد الفحص
                                 </button>

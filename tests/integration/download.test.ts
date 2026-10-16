@@ -16,7 +16,7 @@ import { randomUUID } from 'node:crypto'
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { commerceHarness, type Harness, type Paid, type Row, serviceClient, serviceRoleDb, settledWithin, sha256 } from './support'
+import { commerceHarness, type Harness, type Paid, type Row, serviceClient, serviceRoleDb, settledWithin, sha256, signIn } from './support'
 
 vi.setConfig({ testTimeout: 90_000, hookTimeout: 120_000 })
 
@@ -373,6 +373,35 @@ describe('paid_asset_set', () => {
     // An EPUB is as good.
     const epub = await setFileCall(variantId, keyFor(variantId), { p_mime: 'application/epub+zip', p_filename: 'كتاب.epub' })
     expect(epub).toMatchObject({ ok: true })
+  })
+
+  // ADMIN-COMMERCE-14 (RESIDUALS-1 R3b): a paid file belongs to a digital variant, and the check that says so is named for it
+  // (`product_variants_file_needs_digital`; Postgres had called it `product_variants_check1`), so the variant form can read the
+  // name out of a failed save and answer in words (`src/admin/tables/variants.ts`). The owner can no longer write `digital_asset`
+  // (only `paid_asset_set` does), so a file is never cleared and the type of its variant never changes.
+  it('refuses to change the type of a variant that holds a file to paper or signed, with a 23514 that names `product_variants_file_needs_digital`', async () => {
+    const variantId = await h.digital()
+    await setFile(variantId)
+    const session = await signIn(owner.email)
+    for (const fulfillment of ['physical', 'signed']) {
+      // What the variant form sends for the change: the new type, and a stock (the table's other check ties the two).
+      const { data, error } = await session.from('product_variants').update({ fulfillment, stock: 5 }).eq('id', variantId).select('id')
+      expect(data, fulfillment).toBeNull()
+      expect(error, fulfillment).toMatchObject({ code: '23514' })
+      expect(error!.message, fulfillment).toContain('product_variants_file_needs_digital')
+      expect(error!.message, fulfillment).not.toContain('product_variants_check1')
+      // The database itself says the same, whoever writes.
+      await expect(h.postgres.query('update public.product_variants set fulfillment = $2, stock = 5 where id = $1', [variantId, fulfillment]), fulfillment).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'product_variants_file_needs_digital',
+      })
+    }
+    expect(await h.row('select fulfillment, stock from public.product_variants where id = $1', [variantId])).toMatchObject({ fulfillment: 'digital', stock: null })
+    // The check is about the file: a digital variant with none changes type as before.
+    const bare = await h.digital()
+    const { error } = await session.from('product_variants').update({ fulfillment: 'physical', stock: 5 }).eq('id', bare)
+    expect(error).toBeNull()
+    expect(await h.row('select fulfillment, stock from public.product_variants where id = $1', [bare])).toMatchObject({ fulfillment: 'physical', stock: 5 })
   })
 
   it('refuses a caller that is not an active owner with 42501, and writes nothing', async () => {

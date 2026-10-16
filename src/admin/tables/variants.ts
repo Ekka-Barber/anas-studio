@@ -49,7 +49,13 @@ const fields: readonly TableField[] = [
   { name: 'sort_order', label: 'الترتيب', type: 'number' },
 ]
 
-export const variantsConfig: TableConfig = {
+/**
+ * The sentence a failed check of a table (SQLSTATE 23514) says, by the check's name; any other check says «تحقق من القيم.»
+ * (`checkMessage`, `TableForm`). `TableConfig` (in `./index`) has no such member: this config carries it alone.
+ */
+export type CheckMessages = Readonly<Record<string, string>>
+
+export const variantsConfig: TableConfig & { checkMessages: CheckMessages } = {
   table: 'product_variants',
   label: 'خيارات المنتج',
   read: 'staff',
@@ -68,6 +74,9 @@ export const variantsConfig: TableConfig = {
     { column: 'sku', ascending: true },
   ],
   uniqueMessage: 'رمز SKU مستخدم من قبل.',
+  // A paid file belongs to a digital variant only (the table's check, named by the migration of RESIDUALS-1 round R3b): the type of a variant
+  // that holds a file cannot change, and only a new variant can be the paper edition (ADMIN-COMMERCE-14).
+  checkMessages: { product_variants_file_needs_digital: 'لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.' },
   // A preorder with a delivery date that has passed is not for sale (the checkout refuses it), so the form refuses
   // to save one; it also names what is missing, which a field's own schema cannot say for a nullable field.
   validate: (values) => {

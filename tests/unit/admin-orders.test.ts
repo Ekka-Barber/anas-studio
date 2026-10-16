@@ -219,6 +219,31 @@ describe('normalizeOrderQuery', () => {
     expect(normalizeOrderQuery(`${'a'.repeat(64)}@${'b'.repeat(190)}.com`)).toBeNull()
     expect(normalizeOrderQuery(`${'a'.repeat(64)}@${'b'.repeat(120)}.com`)).toBe(`${'a'.repeat(64)}@${'b'.repeat(120)}.com`)
   })
+
+  // QUALITY-18: the functions store an address with its domain converted to ASCII (`emailField`), and `orders_list` hashes the
+  // query as given, so the search converts the typed address the same way before it asks.
+  it('converts an internationalised domain to its xn-- form, as every function stores the address', () => {
+    expect(normalizeOrderQuery('buyer@example.السعودية')).toBe('buyer@example.xn--mgberp4a5d4ar')
+    expect(normalizeOrderQuery('  Buyer.Name+Tag@Example.السعودية ')).toBe('buyer.name+tag@example.xn--mgberp4a5d4ar')
+    // The form the functions store is accepted as it is.
+    expect(normalizeOrderQuery('buyer@example.xn--mgberp4a5d4ar')).toBe('buyer@example.xn--mgberp4a5d4ar')
+  })
+
+  it('still refuses a malformed address, with an internationalised domain or without', () => {
+    for (const text of [
+      'مشتر@example.السعودية',
+      'bu yer@example.السعودية',
+      'buyer@السعودية',
+      'buyer@.السعودية',
+      // What the URL parser would silently drop or decode (a path, a query, a port, a user): the grammar refuses it instead.
+      'buyer@example.السعودية/path',
+      'buyer@example.السعودية?bcc=x@y.com',
+      'buyer@example.السعودية:8080',
+      'buyer@exam%70le.السعودية',
+    ]) {
+      expect(normalizeOrderQuery(text), text).toBeNull()
+    }
+  })
 })
 
 describe('isUuid', () => {

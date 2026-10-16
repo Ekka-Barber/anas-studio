@@ -28,11 +28,14 @@ import {
   isOtherMode,
   isParkedAttempt,
   LIST_CAP,
+  linesAnswered,
   OTHER_MODE_SENTENCE,
   PARKED_CLOSED,
   paymentModeOf,
+  refundCurrency,
   REREAD_FAILED,
   type DisputeLine,
+  type FormLines,
   type PaymentMode,
 } from '@/lib/admin-money'
 import {
@@ -65,7 +68,7 @@ import { useStaffRole } from './AdminShell'
 import styles from './admin.module.css'
 import { DisputeForm, type DisputeMode } from './DisputeForm'
 import { Enum, Fact, ltr, ltrLong, NONE, TestBadge } from './OrdersView'
-import { ExternalRefund, recheckAttempt, recheckRefund, RefundView, useFocusBack, useStepUp, type Money, type RefundSubject, type Said } from './RefundView'
+import { ExternalRefund, recheckAttempt, recheckRefund, RefundView, ReviewMoney, useFocusBack, useStepUp, type Money, type RefundSubject, type Said } from './RefundView'
 
 type Data = { rec: Reconciliation; disputes: DisputeReference[] }
 type ReviewRow = Reconciliation['reviews'][number]
@@ -90,20 +93,20 @@ async function readAll(): Promise<Load> {
   }
 }
 
-/** The lines of an order, found by its number, for a decision that names some; null when they cannot be read. */
-async function orderLines(orderNumber: string): Promise<DisputeLine[] | null> {
+/** The lines of an order, found by its number, for a decision that names some; `'failed'` when they cannot be read or the order is not found. */
+async function orderLines(orderNumber: string): Promise<DisputeLine[] | 'failed'> {
   try {
     const supabase = getSupabaseBrowserClient()
     const found = await supabase.rpc('orders_list', { p_filter: 'all', p_query: orderNumber, p_before: null, p_limit: 1 })
-    if (found.error) return null
+    if (found.error) return 'failed'
     const order = parseOrdersList(found.data).rows[0]
-    if (order === undefined) return null
+    if (order === undefined) return 'failed'
     const detail = await supabase.rpc('order_detail', { p_order: order.id })
-    if (detail.error) return null
+    if (detail.error) return 'failed'
     const parsed = parseOrderDetail(detail.data)
-    return parsed.found ? disputeLines(parsed.detail) : null
+    return parsed.found ? disputeLines(parsed.detail) : 'failed'
   } catch {
-    return null
+    return 'failed'
   }
 }
 
@@ -130,8 +133,10 @@ function ReviewFacts({ review }: { review: ReviewRow }) {
       <Fact label="السبب">
         <Enum labels={REVIEW_REASON_LABELS} code={review.reason} />
       </Fact>
-      <Fact label="المبلغ">{review.amount === null ? NONE : formatMoney(review.amount)}</Fact>
-      <Fact label="المُعاد">{formatMoney(review.refunded)}</Fact>
+      <Fact label="المبلغ">{review.amount === null ? NONE : <ReviewMoney minor={review.amount} currency={review.currency} />}</Fact>
+      <Fact label="المُعاد">
+        <ReviewMoney minor={review.refunded} currency={review.currency} />
+      </Fact>
       <Fact label="الطلب">
         {review.orderNumber === null || review.orderId === null ? 'بلا طلب' : orderLink(review.orderId, review.orderNumber)}{' '}
         <TestBadge environment={review.environment} />
@@ -159,7 +164,9 @@ export function ReconciliationView() {
   // The attempt whose «تسجيل استرداد خارجي» form is open.
   const [external, setExternal] = useState<string | null>(null)
   const [form, setForm] = useState<OpenForm | null>(null)
-  const [formLines, setFormLines] = useState<{ order: string; lines: DisputeLine[] | null } | null>(null)
+  const [formLines, setFormLines] = useState<FormLines | null>(null)
+  // The key of the form that is open now: a read of an order's lines that answers for another form is dropped (`linesAnswered`).
+  const openKey = useRef<string | null>(null)
   // The site's payment mode, read once (`status`); null until it is read, and when it cannot be.
   const [mode, setMode] = useState<PaymentMode | null>(null)
 
@@ -251,15 +258,23 @@ export function ReconciliationView() {
 
   function toggleForm(next: OpenForm) {
     const closing = form?.key === next.key
+    openKey.current = closing ? null : next.key
     setForm(closing ? null : next)
     setFormLines(null)
     const order = next.orderNumber
     if (!closing && order !== null) {
       void (async () => {
         const lines = await orderLines(order)
-        setFormLines({ order, lines })
+        // The key is read after the answer came: the owner may have opened another form, or closed this one, meanwhile.
+        const answered = linesAnswered(openKey.current, { key: next.key, order, lines })
+        if (answered !== null) setFormLines(answered)
       })()
     }
+  }
+
+  function closeForm() {
+    openKey.current = null
+    setForm(null)
   }
 
   function clear() {
@@ -291,11 +306,30 @@ export function ReconciliationView() {
     orderId: review.orderId,
     remainder: Math.max(0, (review.amount ?? 0) - review.refunded),
     refunded: review.refunded,
+    currency: review.currency,
     inFlight: (data?.rec.refunds ?? []).some((refund) => refund.reviewPaymentId === review.paymentId && refundInFlight(refund.status)),
   })
-  /** The order's lines for the open form: not asked for a form with no order, `'loading'` until they are read. */
-  const linesOf = (open: OpenForm): DisputeLine[] | 'loading' | null =>
+  /** The order's lines for the open form: not asked for a form with no order, `'loading'` until they are read, `'failed'` when they could not be. */
+  const linesOf = (open: OpenForm): DisputeLine[] | 'loading' | 'failed' | null =>
     open.orderNumber === null ? null : formLines?.order === open.orderNumber ? formLines.lines : 'loading'
+  /**
+   * «تسجيل اعتراض» of a review payment of the current mode, open or closed, and its form: a chargeback can arrive after the review was closed,
+   * and `dispute_record` accepts a closed review payment. A plain function, not a component, so the form keeps its state and its focus.
+   */
+  const disputeBlock = (review: ReviewRow): ReactNode => {
+    const formKey = `review:${review.paymentId}`
+    const open: OpenForm = { key: formKey, mode: { kind: 'payment', target: { reviewPaymentId: review.paymentId } }, orderNumber: review.orderNumber }
+    return (
+      <>
+        <div className={styles.row}>
+          <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
+            تسجيل اعتراض
+          </button>
+        </div>
+        {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={closeForm} />}
+      </>
+    )
+  }
 
   return (
     <div>
@@ -396,12 +430,6 @@ export function ReconciliationView() {
             <Notes count={data.rec.reviews.length} />
             <div className={styles.cards}>
               {data.rec.reviews.map((review) => {
-                const formKey = `review:${review.paymentId}`
-                const open: OpenForm = {
-                  key: formKey,
-                  mode: { kind: 'payment', target: { reviewPaymentId: review.paymentId } },
-                  orderNumber: review.orderNumber,
-                }
                 return (
                   <div key={review.paymentId} className={styles.listItem}>
                     <ReviewFacts review={review} />
@@ -433,12 +461,7 @@ export function ReconciliationView() {
                     ) : (
                       <>
                         <RefundView subject={reviewSubject(review)} money={money} />
-                        <div className={styles.row}>
-                          <button type="button" className={styles.buttonSecondary} aria-expanded={form?.key === formKey} disabled={off} onClick={() => toggleForm(open)}>
-                            تسجيل اعتراض
-                          </button>
-                        </div>
-                        {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={() => setForm(null)} />}
+                        {disputeBlock(review)}
                       </>
                     )}
                   </div>
@@ -457,7 +480,10 @@ export function ReconciliationView() {
                   {isOtherMode(mode, review.environment) ? (
                     <p className={styles.message}>{OTHER_MODE_SENTENCE}</p>
                   ) : (
-                    <RefundView subject={reviewSubject(review)} money={money} />
+                    <>
+                      <RefundView subject={reviewSubject(review)} money={money} />
+                      {disputeBlock(review)}
+                    </>
                   )}
                 </div>
               ))}
@@ -474,7 +500,9 @@ export function ReconciliationView() {
                     <Fact label="رقم الطلب">
                       {refund.orderNumber === null || refund.orderId === null ? 'بلا طلب' : orderLink(refund.orderId, refund.orderNumber)}
                     </Fact>
-                    <Fact label="المبلغ">{formatMoney(refund.amount)}</Fact>
+                    <Fact label="المبلغ">
+                      <ReviewMoney minor={refund.amount} currency={refundCurrency(refund, [...data.rec.reviews, ...data.rec.closedReviews])} />
+                    </Fact>
                     <Fact label="الحالة">
                       <Enum labels={REFUND_STATUS_LABELS} code={refund.status} />
                     </Fact>
@@ -489,7 +517,9 @@ export function ReconciliationView() {
                         type="button"
                         className={styles.buttonSecondary}
                         disabled={off}
-                        onClick={() => void run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id))}
+                        onClick={() =>
+                          void run(`recheck-refund:${refund.id}`, () => recheckRefund(refund.id, refundCurrency(refund, [...data.rec.reviews, ...data.rec.closedReviews])))
+                        }
                       >
                         أعد الفحص
                       </button>
@@ -548,7 +578,7 @@ export function ReconciliationView() {
                 تسجيل فرق
               </button>
             </div>
-            {form?.key === 'difference' && <DisputeForm mode={form.mode} lines={null} money={money} onClose={() => setForm(null)} />}
+            {form?.key === 'difference' && <DisputeForm mode={form.mode} lines={null} money={money} onClose={closeForm} />}
             {data.disputes.length === 0 && <p className={styles.message}>{EMPTY_LIST}</p>}
             <div className={styles.cards}>
               {data.disputes.map((reference) => {
@@ -607,7 +637,7 @@ export function ReconciliationView() {
                             إضافة متابعة
                           </button>
                         </div>
-                        {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={() => setForm(null)} />}
+                        {form?.key === formKey && <DisputeForm mode={form.mode} lines={linesOf(form)} money={money} onClose={closeForm} />}
                       </>
                     )}
                   </div>

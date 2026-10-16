@@ -1,4 +1,6 @@
 // Relative, not `@/`: the unit tests (tests/unit/admin-orders.test.ts, admin-ops.test.ts) import this file, and the unit config has no alias.
+import { EMAIL_SHAPE, toAsciiAddress } from '../../supabase/functions/_shared/email-address.ts'
+
 import { ORDER_NUMBER } from './cart'
 
 /**
@@ -120,20 +122,20 @@ export function labelOf(labels: Readonly<Record<string, string>>, code: string):
 // The search box
 // ---------------------------------------------------------------------------
 
-/** An address as `orders_list` reads one: the contact grammar, 3 to 254 characters (any letter case). */
-const EMAIL = /^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.(?:[a-z]{2,63}|xn--[a-z0-9-]{2,59})$/i
-
 /**
- * What to send as `p_query` for the typed text, trimmed: an order number upper-cased, an email
- * lower-cased (the SQL hashes `lower(btrim(email))`), or '' for nothing typed (no search). Null
- * when it is neither: the function raises 22023 for that, so the screen says so instead of asking.
+ * What to send as `p_query` for the typed text, trimmed: an order number upper-cased, an email as the
+ * functions store it (the SQL hashes `lower(btrim(email))`: lower-cased, an internationalised domain converted
+ * to its `xn--` form, then checked against the contact grammar, as `emailField` does), or '' for nothing typed
+ * (no search). Null when it is neither: the function raises 22023 for that, so the screen says so instead of asking.
  */
 export function normalizeOrderQuery(text: string): string | null {
   const query = text.trim()
   if (query === '') return ''
   const number = query.toUpperCase()
   if (ORDER_NUMBER.test(number)) return number
-  return query.length >= 3 && query.length <= 254 && EMAIL.test(query) ? query.toLowerCase() : null
+  if (query.length > 254) return null
+  const address = toAsciiAddress(query.toLowerCase())
+  return address.length <= 254 && EMAIL_SHAPE.test(address) ? address : null
 }
 
 // ---------------------------------------------------------------------------

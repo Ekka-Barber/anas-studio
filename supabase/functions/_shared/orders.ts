@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 import { noControlCharacters } from './commerce-settings.ts'
-import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
+import { emailField } from './email-address.ts'
 import { optionalEnv } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith, siteOrigin } from './http.ts'
 import { buyerMode } from './payments.ts'
@@ -47,15 +47,7 @@ const orderRef = {
 
 const getSchema = z.strictObject({ action: z.literal('get'), ...orderRef })
 
-// The address is normalized like checkout's, so it hashes to the one the order stored.
-const emailField = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254)
-  .transform((email) => toAsciiAddress(email))
-  .refine((email) => email.length <= 254 && EMAIL_SHAPE.test(email), { message: 'بريد غير صالح.' })
-
+// The address is normalized like checkout's (`emailField`), so it hashes to the one the order stored.
 const recoverSchema = z.strictObject({
   action: z.literal('recover'),
   email: emailField,

@@ -2,6 +2,8 @@
 // (src/lib/orders.ts): the order link in the address, the strict parser of the `orders` function's `get`
 // reply, the words for each state, the return request's items, and the calls the pages make with `fetch`
 // stubbed. The pages themselves are in tests/e2e/order-page.spec.ts.
+import { readFileSync } from 'node:fs'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -34,6 +36,8 @@ import {
   takeOrderFragment,
   type OrderLine,
 } from '../../src/lib/orders'
+import { preorderSentence } from '../../src/components/store/quote'
+import { formatDate } from '../../src/lib/format'
 
 const NUMBER = 'ABCD2345'
 // 43 characters of base64url.
@@ -645,6 +649,20 @@ describe('requestDownload', () => {
     for (const replies of bad) {
       stubFetch(...(replies as Parameters<typeof stubFetch>))
       expect(await requestDownload(ACCESS, ITEM_ID), JSON.stringify(replies).slice(0, 60)).toEqual({ problem: 'تعذّر الاتصال بالخدمة؛ أعد المحاولة.', refresh: false })
+    }
+  })
+})
+
+// QUALITY-24 (RESIDUALS-1 R3b): the order page writes a preorder line out itself (`OrderPage.tsx`): importing `preorderSentence` from `quote.ts` took
+// `orders.html` to 150.3 KiB of the 150 KiB public budget (it was 148.4), so the import was taken out again. What is pinned here is that the two say the
+// same, so a change to the one cannot leave the other saying something else unseen.
+describe('the preorder line of the order page', () => {
+  it('says what the shared sentence says, with the delivery day as the page draws it', () => {
+    // The page's own line, as its source writes it: the sentence below is that line with the day filled in.
+    const page = readFileSync(new URL('../../src/components/store/OrderPage.tsx', import.meta.url), 'utf8')
+    expect(page).toContain('طلب مسبق: يُسلَّم في {formatDate(item.preorder.shipsOn)}')
+    for (const shipsOn of ['2026-12-01', '2027-01-31', '2026-10-15']) {
+      expect(preorderSentence({ shipsOn, note: 'يصل بعد الطباعة' })).toBe(`طلب مسبق: يُسلَّم في ${formatDate(shipsOn)}`)
     }
   })
 })

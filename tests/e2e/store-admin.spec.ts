@@ -521,6 +521,10 @@ const PDF_BYTES = Buffer.from(
 )
 const PREORDER_NAMES = ['سعة الطلب المسبق', 'موعد التسليم', 'ملاحظة الطلب المسبق'] as const
 const NO_FILE = 'لا يوجد ملف بعد'
+/** RESIDUALS-1 R3b, ADMIN-COMMERCE-15: said on the panel's alert line for a digital variant on sale whose panel read no file. */
+const ON_SALE_WITHOUT_FILE = 'هذا الخيار معروض للبيع بلا ملف: من يشتريه ينتظر حتى ترفع الملف. ارفع الملف أو أوقف عرضه.'
+/** RESIDUALS-1 R3b, ADMIN-COMMERCE-14: said when the type of a variant that holds a paid file is changed to paper or signed. */
+const FILE_NEEDS_DIGITAL = 'لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.'
 const REPLACE_NOTE = 'يحل الملف الجديد محل الحالي في الطلبات الجديدة؛ الطلبات التي استلمت ملفًا تبقى عليه.'
 const BUSY_MESSAGE = 'الطلبات المرتبطة بهذا الملف قيد المعالجة؛ أعد المحاولة بعد لحظات.'
 const COMMERCE_NOTE =
@@ -1090,6 +1094,8 @@ test.describe('round 11c: the catalog and the figures', () => {
           const alertLine = page.locator('#variant-commerce-alert')
           const name = `busy-${width}-${marker}.pdf`
           await expect(area.getByText(NO_FILE, { exact: true })).toBeVisible()
+          // A digital variant on sale with no file: the alert line says so (ADMIN-COMMERCE-15) until a file is recorded.
+          await expect(alertLine).toHaveText(ON_SALE_WITHOUT_FILE)
           await expect(area.getByRole('button', { name: 'أعد المحاولة' })).toHaveCount(0)
           // The first reading (`next dev` runs its effect twice, so it may be two calls).
           const opened = reads
@@ -1249,6 +1255,71 @@ test.describe('round 11c: the catalog and the figures', () => {
           expect(problems).toEqual([])
         })
 
+        // ADMIN-COMMERCE-15 (RESIDUALS-1 R3b): a digital variant put on sale with no paid file says so on the panel's alert line. The sentence follows the
+        // SAVED variant (the panel reads what the database holds), not the checkbox: it goes when «معروض للبيع» is saved off, and returns when it is saved on.
+        test('says a digital variant on sale has no file until it is saved off sale or a file is recorded', async ({ page }) => {
+          const problems = watchProblems(page)
+          const fresh = await h.digital()
+          await page.goto(variantUrl(fresh))
+          const area = main(page)
+          const alertLine = page.locator('#variant-commerce-alert')
+          const onSale = area.getByLabel('معروض للبيع')
+          const enabled = async (): Promise<boolean> => (await h.row('select enabled from public.product_variants where id = $1', [fresh])).enabled as boolean
+          await expect(area.getByText(NO_FILE, { exact: true })).toBeVisible()
+          await expect(alertLine).toHaveText(ON_SALE_WITHOUT_FILE)
+          await expect(alertLine).not.toBeFocused()
+          await expectNoOverflow(page, 'a digital variant on sale with no file')
+          await shoot(page, 'variant-on-sale-without-file')
+          // Unticked and not saved: the saved variant is still on sale, so the sentence stays.
+          await onSale.uncheck()
+          await expect(alertLine).toHaveText(ON_SALE_WITHOUT_FILE)
+          // Saved off sale: nothing is sold, nothing is said. Saved on again: it is said again.
+          await button(area, 'حفظ').click()
+          await expect.poll(enabled).toBe(false)
+          await expect(alertLine).toHaveText('')
+          await onSale.check()
+          await button(area, 'حفظ').click()
+          await expect.poll(enabled).toBe(true)
+          await expect(alertLine).toHaveText(ON_SALE_WITHOUT_FILE)
+          // A file recorded: the sentence goes (the upload's own result is on the status line).
+          await area.getByLabel('رفع الملف المدفوع').setInputFiles({ name: `onsale-${width}-${marker}.pdf`, mimeType: 'application/pdf', buffer: PDF_BYTES })
+          await expect(page.locator('#variant-commerce-status')).toHaveText('رُفع الملف.')
+          await expect(alertLine).toHaveText('')
+          expect(problems).toEqual([])
+        })
+
+        // ADMIN-COMMERCE-14 (RESIDUALS-1 R3b): the type of a variant that holds a paid file cannot change (the database refuses, 23514, naming the check); the form says why
+        // in words and what to do, and the variant stays as it was.
+        test('answers a change of the type of a variant that holds a paid file in words, and leaves the variant as it was', async ({ page }) => {
+          const problems = watchProblems(page)
+          const held = await h.digital()
+          const filename = `held-${width}-${marker}.pdf`
+          const set = await h.call('paid_asset_set', {
+            p_actor: owner11c.userId,
+            p_variant: held,
+            p_storage_key: `assets/${held}/${randomUUID()}`,
+            p_filename: filename,
+            p_mime: 'application/pdf',
+            p_bytes: 2048,
+          })
+          expect(set, JSON.stringify(set)).toMatchObject({ ok: true })
+          await page.goto(variantUrl(held))
+          const area = main(page)
+          await expect(area.getByText(new RegExp(`${esc(filename)}، 2 كيلوبايت، رُفع `))).toBeVisible()
+          await area.getByLabel('نوع التنفيذ').selectOption({ label: 'ورقي' })
+          await area.getByLabel('المخزون').fill('3')
+          await button(area, 'حفظ').click()
+          await expect(area.getByText(FILE_NEEDS_DIGITAL, { exact: true })).toBeVisible()
+          await expect(area.getByText('تحقق من القيم.')).toHaveCount(0)
+          await expect(area.getByText('تم الحفظ.')).toHaveCount(0)
+          await shoot(page, 'variant-type-with-file')
+          expect(await h.row('select fulfillment, stock from public.product_variants where id = $1', [held])).toEqual({ fulfillment: 'digital', stock: null })
+          // The panel still follows the saved variant: digital, with its file.
+          await expect(area.getByRole('heading', { level: 2, name: 'الملف المدفوع' })).toBeVisible()
+          await expect(area.getByText(new RegExp(`${esc(filename)}، 2 كيلوبايت، رُفع `))).toBeVisible()
+          expect(problems).toEqual([])
+        })
+
         test('lists the availability sign-ups read-only, newest first, with no link on a row, no «جديد» and no edit page', async ({ page }) => {
           const problems = watchProblems(page)
           const area = main(page)
@@ -1316,7 +1387,7 @@ test.describe('round 11c: the catalog and the figures', () => {
           await expect(section.getByText('اترك الحقلين فارغين لآخر 30 يومًا.')).toBeVisible()
           // The figures say which days they cover.
           await expect(section.getByText('الأرقام لآخر 30 يومًا.', { exact: true })).toBeVisible()
-          for (const label of ['إجمالي المدفوع', 'الاستردادات المؤكدة', 'الصافي بعد الاستردادات', 'العملاء', 'دفعات قيد المراجعة', 'النزاعات']) {
+          for (const label of ['إجمالي المدفوع', 'الاستردادات المؤكدة', 'الصافي بعد الاستردادات', 'العملاء', 'دفعات وصلت للمراجعة في المدة', 'النزاعات']) {
             await expect(section.getByText(new RegExp(`^${label}: `))).toBeVisible()
           }
           await expect(statusLine).toHaveText('')
@@ -1331,7 +1402,8 @@ test.describe('round 11c: the catalog and the figures', () => {
               `الاستردادات المؤكدة: ${formatMoney(f.refundsConfirmed)}`,
               `الصافي بعد الاستردادات: ${f.netCollected < 0 ? '‎' : ''}${formatMoney(f.netCollected)}`,
               `العملاء: ${formatNumber(f.customers)}`,
-              `دفعات قيد المراجعة: مفتوحة ${formatNumber(f.review.open)}، مبالغها ${formatMoney(f.review.captured)}، المسترد منها ${formatMoney(f.review.refunded)}`,
+              // ADMIN-COMMERCE-03: the payments that arrived in the range (the riyal ones summed), and how many of them are open now.
+              `دفعات وصلت للمراجعة في المدة: مبالغها ${formatMoney(f.review.captured)}، المسترد منها ${formatMoney(f.review.refunded)}، المفتوح منها الآن ${formatNumber(f.review.open)}`,
               `النزاعات: ${formatNumber(f.disputes.count)}، على البائع ${formatMoney(f.disputes.againstSeller)}، لصالح البائع ${formatMoney(f.disputes.forSeller)}`,
             ]
           }
@@ -1462,6 +1534,8 @@ test.describe('round 11c: the catalog and the figures', () => {
           // A digital variant with no file says so, and still offers no upload.
           await page.goto(variantUrl(s.empty.id))
           await expect(area.getByText(NO_FILE, { exact: true })).toBeVisible()
+          // Operations are told too that it is on sale without one (the sentence is a reading, not an upload).
+          await expect(page.locator('#variant-commerce-alert')).toHaveText(ON_SALE_WITHOUT_FILE)
           await expect(area.getByLabel('رفع الملف المدفوع')).toHaveCount(0)
           await expect(area.getByText('طلبات مسبقة مؤكدة')).toHaveCount(0)
           expect(problems).toEqual([])

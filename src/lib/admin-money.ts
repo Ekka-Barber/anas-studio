@@ -1,4 +1,6 @@
 // Relative, not `@/`: tests/unit/admin-money.test.ts imports this file, and the unit config has no alias.
+import { isDay, riyadhToday } from '../../supabase/functions/_shared/riyadh-day.ts'
+
 import {
   ATTEMPT_STATUS_LABELS,
   clean,
@@ -156,6 +158,64 @@ export function orderRefundFields(detail: Pick<OrderDetail, 'order' | 'items' | 
 /** A review payment's refund form: its one field, with what is left of the payment. */
 export const reviewRefundFields = (remainder: number): RefundField[] =>
   remainder > 0 ? [{ key: REVIEW_KEY, itemId: null, label: 'المبلغ', remainder }] : []
+
+// ---------------------------------------------------------------------------
+// What a refund also does (ADMIN-COMMERCE-11)
+// ---------------------------------------------------------------------------
+
+/**
+ * One thing the ledger does when a refund succeeds besides moving the money, as the confirmation lists it. A sentence is
+ * `lead`, `subject` and `tail` in a row; the subject (a line's name, a SKU) is drawn on its own so Latin text does not
+ * scramble the Arabic around it.
+ */
+export interface RefundEffect {
+  lead: string
+  subject: string
+  tail: string
+  /** The subject is a SKU: drawn left to right. */
+  ltr: boolean
+}
+
+/** A refund effect as plain text. */
+export const effectText = (effect: RefundEffect): string => `${effect.lead}${effect.subject}${effect.tail}`
+
+/**
+ * What the ledger will do on success to the lines of an order's refund (a review payment's lists nothing): a line refunded in full
+ * (`finance.item_fully_refunded`: its refunded total reaches what it cost) loses its file for good when it is digital and holds one,
+ * and a physical or signed line still being prepared (not shipped, not stopped by a dispute) is no longer shipped, and its unit does
+ * not go back on the shelf: the refund never touches stock, so the owner adjusts it (once for each SKU; a preorder line took no stock,
+ * its capacity is released). When the refund takes all the paying attempt can still give back (`balance`) the order becomes refunded
+ * and every line counts as refunded in full; otherwise a line counts when its amount (from the frozen `lines`, keyed by item id) is
+ * what is left of it. A line already refunded in full lists nothing. `total` is the refund's.
+ */
+export function refundEffects(
+  detail: Pick<OrderDetail, 'items' | 'fulfillments' | 'entitlements'>,
+  lines: ReadonlyArray<{ key: string; halalas: number }>,
+  total: number,
+  balance: number,
+): RefundEffect[] {
+  const emptied = total > 0 && total >= balance
+  const effects: RefundEffect[] = []
+  const stockTold = new Set<string>()
+  for (const item of detail.items) {
+    if (item.fullyRefunded) continue
+    const amount = lines.find((line) => line.key === item.id)?.halalas ?? 0
+    if (!emptied && !(amount > 0 && amount === item.total - item.refunded)) continue
+    if (item.fulfillment === 'digital') {
+      if (detail.entitlements.some((entitlement) => entitlement.itemId === item.id && entitlement.revokedAt === null)) {
+        effects.push({ lead: 'سيُسحب الملف: ', subject: itemName(item), tail: '', ltr: false })
+      }
+      continue
+    }
+    if (item.stopped || !detail.fulfillments.some((entry) => entry.itemId === item.id && entry.state === 'preparing')) continue
+    effects.push({ lead: 'لن يُشحن: ', subject: itemName(item), tail: '', ltr: false })
+    if (item.preorder === null && !stockTold.has(item.sku)) {
+      stockTold.add(item.sku)
+      effects.push({ lead: 'لا يعود المخزون تلقائيًا؛ عدّل مخزون ', subject: item.sku, tail: ' بعد الاسترداد.', ltr: true })
+    }
+  }
+  return effects
+}
 
 /** The received returns that no refund is linked to yet, as the select offers them. */
 export function receivedReturns(detail: Pick<OrderDetail, 'items' | 'returns'>): Array<{ id: string; label: string }> {
@@ -409,10 +469,11 @@ const reading = (line: Reported['line'], text: string, over: Partial<Omit<Refund
  * own refusal keeps its words; a reply that is not `{refundId, status, amount}` (nor a refusal with a code) is never
  * read as a success or as a failure. `null` when the owner closed the step-up dialog: nothing was sent and there is
  * nothing to say. A reply it cannot read says «حدّث الصفحة»: only `refund-create` has a key to retry under
- * (`readCreateReply`).
+ * (`readCreateReply`). The amount is said in the payment's `currency` (riyals unless a review payment in another currency is
+ * recorded: its units, with its code, never as riyals).
  */
-export function readRefundReply(result: FunctionResult<unknown>, external = false): RefundReading | null {
-  return readRefund(result, external, BAD_REPLY)
+export function readRefundReply(result: FunctionResult<unknown>, external = false, currency: string | null = 'SAR'): RefundReading | null {
+  return readRefund(result, external, BAD_REPLY, currency)
 }
 
 /** `refund-create`'s answer: `readRefundReply` for a call whose idempotency key is kept when the reply cannot be read, so the same button retries safely. */
@@ -420,7 +481,7 @@ export function readCreateReply(result: FunctionResult<unknown>): RefundReading 
   return readRefund(result, false, REFUND_KEPT_REPLY)
 }
 
-function readRefund(result: FunctionResult<unknown>, external: boolean, unreadable: string): RefundReading | null {
+function readRefund(result: FunctionResult<unknown>, external: boolean, unreadable: string, currency: string | null = 'SAR'): RefundReading | null {
   if (!result.ok) {
     const refusal = refusalOf(result)
     // A «no» with no refusal in it: the refund may exist, so a repeat of the same request must carry the same key.
@@ -438,7 +499,8 @@ function readRefund(result: FunctionResult<unknown>, external: boolean, unreadab
     return reading('alert', unreadable, { keep: true })
   }
   if (refund.status === 'succeeded') {
-    return reading('status', external ? `سُجّل استرداد خارجي بمبلغ ${formatMoney(refund.amount)}.` : `تمت إعادة ${formatMoney(refund.amount)}.`, { done: true })
+    const amount = reviewAmountText(refund.amount, currency)
+    return reading('status', external ? `سُجّل استرداد خارجي بمبلغ ${amount}.` : `تمت إعادة ${amount}.`, { done: true })
   }
   if (refund.status === 'failed') return reading('alert', REFUND_FAILED)
   // `uncertain`, and `submitting`, which is the same to the owner: the reconciliation settles it.
@@ -544,6 +606,81 @@ export const isOtherMode = (mode: PaymentMode | null, environment: string): bool
 export const isParkedAttempt = (attempt: { status: string; lastError: string | null; providerInvoiceId: string | null }): boolean =>
   attempt.lastError === 'MODE_CHANGED' && attempt.providerInvoiceId !== null && attempt.status !== 'paid' && attempt.status !== 'review'
 
+/** The orders whose link the owner can send again (`order_link_reissue` answers BAD_STATUS for any other). */
+const LINK_STATUSES = new Set(['paid', 'paid_needs_resolution', 'refunded'])
+
+/**
+ * Whether «إعادة إرسال رابط الطلب» is offered: a status the function takes, and an order of the site's own payment mode (the order page
+ * answers NOT_FOUND for the other mode's order, so a new link would lead nowhere; `order_link_reissue` takes no mode). When the mode
+ * could not be read the button stays, as the money controls do.
+ */
+export const canReissueLink = (status: string, mode: PaymentMode | null, environment: string): boolean =>
+  LINK_STATUSES.has(status) && !isOtherMode(mode, environment)
+
+// ---------------------------------------------------------------------------
+// A payment Moyasar shows voided, a review payment in another currency (ADMIN-COMMERCE-09 and -06)
+// ---------------------------------------------------------------------------
+
+/** Said in place of the order's refund form once the paying attempt's provider status is `voided`: the void is recorded, not refunded. */
+export const VOIDED_SENTENCE = 'أُلغيت هذه الدفعة لدى Moyasar؛ سجّل الإلغاء هنا.'
+/** Said in place of a review payment's refund form when its currency is not the riyal: it is refunded in Moyasar's dashboard, then recorded. */
+export const OTHER_CURRENCY_SENTENCE = 'دفعة بعملة أخرى؛ أعدها من لوحة Moyasar ثم سجّلها هنا.'
+
+/** Whether the paying attempt's provider status says Moyasar voided it (`refund_record_external` records a void as the whole unrefunded amount). */
+export const isVoided = (providerStatus: string | null): boolean => providerStatus === 'voided'
+
+/** Whether a review payment is in riyals. A currency that is missing is not known to be: it is drawn without «ر.س» and not refunded here. */
+export const isSarReview = (currency: string | null): boolean => currency === 'SAR'
+
+/** The digits after the point of a currency's major unit, as `Intl` knows its code; 2 for a code it does not know. */
+export function currencyDigits(code: string): number {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits ?? 2
+  } catch {
+    // A code that is not three letters.
+    return 2
+  }
+}
+
+/**
+ * A review payment's amount or refunded total as the screens say it: the riyal's own text for `SAR`, else the amount in the currency's
+ * own units with its code (`10.000 KWD`: the minor units divided by the currency's digits), drawn left to right. Never «ر.س» for another
+ * currency: a USD 10.00 payment is not 10.00 riyals, and a KWD 10.000 one is not 100.00.
+ */
+export function reviewAmountText(minor: number, currency: string | null): string {
+  if (isSarReview(currency)) return formatMoney(minor)
+  const digits = currency === null ? 2 : currencyDigits(currency)
+  const amount = (minor / 10 ** digits).toFixed(digits)
+  return currency === null ? amount : `${amount} ${currency}`
+}
+
+/**
+ * The currency a refund is said in: its review payment's, as the screen lists it (a dashboard refund of a review payment in another
+ * currency is not riyals); riyals for a refund of an order's own payment, or of a review payment the screen does not list.
+ */
+export function refundCurrency(
+  refund: { reviewPaymentId: string | null },
+  reviews: ReadonlyArray<{ paymentId: string; currency: string | null }>,
+): string | null {
+  const review = refund.reviewPaymentId === null ? undefined : reviews.find((entry) => entry.paymentId === refund.reviewPaymentId)
+  return review === undefined ? 'SAR' : review.currency
+}
+
+/** What an order's or a review payment's refund form is, when no confirmation is open. */
+export type RefundPanel = 'form' | 'waiting' | 'voided' | 'other-currency' | 'empty'
+
+/**
+ * The panel «إعادة المبلغ» shows: a sentence while a refund of the payment is in flight (another would be refused), then once Moyasar
+ * shows the payment voided or for a review payment in another currency (each leaves «تسجيل استرداد خارجي» to record it), then "nothing
+ * left"; else the form.
+ */
+export function refundPanel(state: { waiting: boolean; voided: boolean; otherCurrency: boolean; fields: number }): RefundPanel {
+  if (state.waiting) return 'waiting'
+  if (state.voided) return 'voided'
+  if (state.otherCurrency) return 'other-currency'
+  return state.fields === 0 ? 'empty' : 'form'
+}
+
 // ---------------------------------------------------------------------------
 // The dispute form
 // ---------------------------------------------------------------------------
@@ -607,8 +744,33 @@ export function followStart(
   }
 }
 
-/** Riyadh is UTC+3 all year: the calendar day the owner is living in, as `YYYY-MM-DD`. */
-export const riyadhToday = (now: number = Date.now()): string => new Date(now + 3 * 3_600_000).toISOString().slice(0, 10)
+/** The order's lines as a dispute form holds them: the lines, or `'failed'` (the read failed or found no order). */
+export type FormLines = { order: string; lines: DisputeLine[] | 'failed' }
+
+/**
+ * The lines read for a dispute form, kept only while that form is still the open one: the answer of an earlier form, late, is
+ * dropped (null), so it cannot replace the open form's own lines and leave it loading for good.
+ */
+export const linesAnswered = (openKey: string | null, answer: { key: string; order: string; lines: DisputeLine[] | 'failed' }): FormLines | null =>
+  openKey === answer.key ? { order: answer.order, lines: answer.lines } : null
+
+/** Said in a dispute form while the order's lines are read, and when they could not be (the form then offers what it offers without lines). */
+export const LINES_LOADING = 'يحمّل بنود الطلب…'
+export const LINES_FAILED = 'تعذّر قراءة بنود الطلب؛ أغلق النموذج وافتحه من جديد أو سجّل من صفحة الطلب.'
+
+/** What a dispute form says of its lines: while they load, or when they failed; nothing for the lines read and for a form with no order. */
+export const linesSentence = (lines: DisputeLine[] | 'loading' | 'failed' | null): string | null =>
+  lines === 'loading' ? LINES_LOADING : lines === 'failed' ? LINES_FAILED : null
+
+/**
+ * What «تأكيد» says for a follow-up of a row that names lines before the lines are known: wait while they load; when they could not be
+ * read, reopen the form (the read is never retried, so waiting does not help).
+ */
+export const followWaitSentence = (lines: DisputeLine[] | 'loading' | 'failed' | null): string =>
+  lines === 'failed' ? LINES_FAILED : FOLLOW_WAITS_FOR_LINES
+
+// Today in Riyadh: one definition (`riyadh-day.ts`) for the screens and the function.
+export { riyadhToday }
 
 export interface DisputeInput {
   providerRef: string
@@ -641,9 +803,8 @@ export function buildDispute(
   if (providerRef === '' || providerRef.length > 120) return { ok: false, message: DISPUTE_PROBLEMS.reference }
   const amount = parseRiyals(input.amount)
   if (typeof amount !== 'number' || amount < 1 || amount > INT_MAX) return { ok: false, message: DISPUTE_PROBLEMS.amount }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.day) || Number.isNaN(Date.parse(input.day)) || input.day > today) {
-    return { ok: false, message: DISPUTE_PROBLEMS.day }
-  }
+  // A real calendar day (2026-02-30 is not one), as the function's own check judges it, and not in the future.
+  if (!isDay(input.day) || input.day > today) return { ok: false, message: DISPUTE_PROBLEMS.day }
   const reason = clean(input.reason)
   if (reason === '' || reason.length > 500) return { ok: false, message: DISPUTE_PROBLEMS.reason }
   const resolution = clean(input.resolution)

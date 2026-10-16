@@ -603,6 +603,39 @@ describe('owner_commerce_stats', () => {
     expect(after.refundsConfirmed).toBe(expected.refunds)
   })
 
+  // ADMIN-COMMERCE-06 (RESIDUALS-1 R3b): a review payment keeps the payment's own minor units and currency, so a USD 10.00 payment is
+  // 1000 and a KWD 10.000 one is 10000: added to the riyals' halalas they would read as 10.00 and 100.00 riyals. The sums are of the
+  // riyal ones; the count of open ones is of every currency (a person has to look at each).
+  it('a review payment in another currency is one more open payment and is added to neither sum', async () => {
+    const before = await statsOf(from, to)
+    const usd = randomUUID()
+    const kwd = randomUUID()
+    await h.postgres.query(
+      `insert into finance.payment_reviews (provider_payment_id, environment, amount_halalas, currency, provider_status, reason, created_at)
+       values ($1, 'test', 1000, 'USD', 'paid', 'UNMAPPED_INVOICE', $3), ($2, 'test', 10000, 'KWD', 'paid', 'UNMAPPED_INVOICE', $3)`,
+      [usd, kwd, iso(at(19))],
+    )
+    reviewsToClose.push(usd, kwd)
+    // The USD payment was partly refunded, in its own units: that refund is in no sum either.
+    await h.postgres.query(
+      `insert into finance.refunds (review_payment_id, amount_halalas, reason, allocation, status, source, provider_refunded_before, provider_refunded_after, succeeded_at)
+       values ($1, 400, 'استرداد', '{}'::jsonb, 'succeeded', 'admin', 0, 400, $2)`,
+      [usd, iso(at(19))],
+    )
+    const after = await statsOf(from, to)
+    expect(after.review).toEqual({ open: before.review.open + 2, captured: before.review.captured, refunded: before.review.refunded })
+    expect({ ...after, review: 0 }).toEqual({ ...before, review: 0 })
+    // A riyal payment of the same range is still summed: the filter is the currency, not the kind.
+    const sar = randomUUID()
+    await h.postgres.query(
+      `insert into finance.payment_reviews (provider_payment_id, environment, amount_halalas, currency, provider_status, reason, created_at)
+       values ($1, 'test', 555, 'SAR', 'paid', 'UNMAPPED_INVOICE', $2)`,
+      [sar, iso(at(19))],
+    )
+    reviewsToClose.push(sar)
+    expect((await statsOf(from, to)).review).toEqual({ open: before.review.open + 3, captured: before.review.captured + 555, refunded: before.review.refunded })
+  })
+
   it('a dispute counts once however many rows it has: its latest row is its current state, and it is counted where that row is dated', async () => {
     const before = await statsOf(from, to)
     const earlyBefore = (await statsOf(from, from + 22 * DAY)).disputes

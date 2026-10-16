@@ -17,6 +17,11 @@
  * Nothing is optimistic: the screen that owns the controls reads its data again after every call and shows what
  * it says.
  *
+ * RESIDUALS-1 round R3b: the confirmation of an order's refund lists, under its lines, what the ledger also does on success
+ * (`refundEffects`: a file withdrawn, a paper line that will not ship and the stock the refund does not give back); the form
+ * gives way to a sentence once Moyasar shows the paying attempt voided (the external record is then open) and, for a review
+ * payment, when its currency is not the riyal (`refundPanel`); a review payment's money is drawn in its own currency (`ReviewMoney`).
+ *
  * The screens (the order view, the reconciliation screen) own the one status line and the one alert line, the
  * guard against a second press, the re-read and the focus that returns to the pressed control when the owner
  * closes the code dialog (`useFocusBack`): they hand the controls a `Money`.
@@ -30,25 +35,33 @@ import {
   confirmedRefunded,
   EXTERNAL_SENTENCE,
   IN_FLIGHT_SENTENCE,
+  isSarReview,
+  isVoided,
   keptRequest,
   NEEDS_EXTERNAL_REASON,
   orderRefundFields,
+  OTHER_CURRENCY_SENTENCE,
   readAmount,
   readCreateReply,
   readPaymentRecheck,
   readRefundReply,
   receivedReturns,
   refundBody,
+  refundEffects,
   refundForm,
+  refundPanel,
   refundProblem,
   refundRequest,
   REFUND_WARNING,
+  reviewAmountText,
   reviewRefundFields,
   sum,
+  VOIDED_SENTENCE,
   withStepUp,
   type Kept,
   type KeptForm,
   type RefundBody,
+  type RefundEffect,
   type Verdict,
 } from '@/lib/admin-money'
 import { clean, DISPUTE_DIRECTION_LABELS, DISPUTE_KIND_LABELS, labelOf, type OrderDetail } from '@/lib/admin-orders'
@@ -143,9 +156,9 @@ export async function recheckAttempt(attemptId: string): Promise<Said> {
   return readPaymentRecheck(await callFunction<unknown>('admin', { action: 'payment-recheck', attemptId }))
 }
 
-/** The owner's «أعد الفحص» of a refund in flight (no code): the refund as it stands now. */
-export async function recheckRefund(refundId: string): Promise<Said | null> {
-  return readRefundReply(await callFunction<unknown>('admin', { action: 'refund-recheck', refundId }))
+/** The owner's «أعد الفحص» of a refund in flight (no code): the refund as it stands now, its amount in its payment's `currency`. */
+export async function recheckRefund(refundId: string, currency: string | null): Promise<Said | null> {
+  return readRefundReply(await callFunction<unknown>('admin', { action: 'refund-recheck', refundId }), false, currency)
 }
 
 /** «تسجيل استرداد خارجي»: a refund or a void made in Moyasar's dashboard, recorded from what Moyasar itself holds. */
@@ -154,20 +167,26 @@ export function ExternalRefund({
   money,
   open,
   onOpenChange,
+  currency = 'SAR',
 }: {
   target: { attemptId: string } | { reviewPaymentId: string }
   money: Money
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The payment's currency: the recorded amount is said in it (a review payment in another currency is not riyals). */
+  currency?: string | null
 }) {
   const [reason, setReason] = useState('')
   const id = useId()
   const reasonRef = useRef<HTMLInputElement>(null)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const key = 'attemptId' in target ? target.attemptId : target.reviewPaymentId
+  // The reason takes the focus when the form is opened, not when it is already open as it mounts (a voided payment's order view).
+  const wasOpen = useRef(open)
 
   useEffect(() => {
-    if (open) reasonRef.current?.focus()
+    if (open && !wasOpen.current) reasonRef.current?.focus()
+    wasOpen.current = open
   }, [open])
 
   function submit(event: FormEvent) {
@@ -175,7 +194,7 @@ export function ExternalRefund({
     const text = clean(reason)
     if (text === '' || text.length > 300) return money.say('alert', NEEDS_EXTERNAL_REASON)
     void money.run(`external:${key}`, async () => {
-      const reading = readRefundReply(await sendMoney({ action: 'refund-record-external', ...target, reason: text }, money.ask), true)
+      const reading = readRefundReply(await sendMoney({ action: 'refund-record-external', ...target, reason: text }, money.ask), true, currency)
       if (reading?.done) {
         setReason('')
         onOpenChange(false)
@@ -241,13 +260,26 @@ export function ExternalRefund({
  */
 export type RefundSubject =
   | { kind: 'order'; detail: OrderDetail; attemptId: string }
-  | { kind: 'review'; paymentId: string; orderId: string | null; remainder: number; refunded: number; inFlight?: boolean }
+  | { kind: 'review'; paymentId: string; orderId: string | null; remainder: number; refunded: number; currency: string | null; inFlight?: boolean }
 
-/** The request under confirmation: its body, and what the confirmation repeats of it (the total and the lines with an amount). */
+/**
+ * A review payment's amount or refunded total (ADMIN-COMMERCE-06): the riyal's text for `SAR`; any other currency in its own units
+ * with its code, left to right, never as riyals.
+ */
+export function ReviewMoney({ minor, currency }: { minor: number; currency: string | null }) {
+  const text = reviewAmountText(minor, currency)
+  return isSarReview(currency) ? <>{text}</> : <bdi dir="ltr">{text}</bdi>
+}
+
+/**
+ * The request under confirmation: its body, and what the confirmation repeats of it (the total and the lines with an amount), with
+ * what the ledger does on success besides moving the money (an order's refund only), read from the detail the request was built from.
+ */
 interface Frozen {
   body: RefundBody
   total: number
   lines: Array<{ key: string; label: string; halalas: number }>
+  effects: RefundEffect[]
 }
 
 /**
@@ -268,11 +300,15 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
   const chargebacks = review
     ? []
     : (subject.detail.disputes ?? []).filter((dispute) => dispute.attemptId === subject.attemptId && dispute.kind === 'chargeback')
+  // The paying attempt Moyasar shows voided is recorded, not refunded; a review payment in another currency is refunded in Moyasar's dashboard.
+  const voided = !review && isVoided(subject.detail.attempts.find((attempt) => attempt.id === subject.attemptId)?.providerStatus ?? null)
+  const otherCurrency = review && !isSarReview(subject.currency)
   const [texts, setTexts] = useState<Record<string, string>>({})
   const [reason, setReason] = useState('')
   const [returnChoice, setReturnChoice] = useState('')
   const [frozen, setFrozen] = useState<Frozen | null>(null)
-  const [recording, setRecording] = useState(false)
+  // «تسجيل استرداد خارجي»: open or closed by the owner; until he chooses, it is open for a payment Moyasar shows voided.
+  const [recording, setRecording] = useState<boolean | null>(null)
   const kept = useRef<Kept | null>(null)
   // The form the kept key's request was frozen from, and that request: the same form again shows it again (`keptRequest`).
   const keptForm = useRef<KeptForm<Frozen> | null>(null)
@@ -297,6 +333,7 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
   // A return linked since (the screen read again) is no longer offered, so it is no longer sent.
   const returnId = returns.some((returned) => returned.id === returnChoice) ? returnChoice : ''
   const external = review ? { reviewPaymentId: subject.paymentId } : { attemptId: subject.attemptId }
+  const panel = refundPanel({ waiting, voided, otherCurrency, fields: fields.length })
 
   function start(event: FormEvent) {
     event.preventDefault()
@@ -310,7 +347,9 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
     const problem = refundProblem(reads, reason, review, cap)
     if (problem !== null) return money.say('alert', problem)
     money.clear()
-    // Frozen here: the confirmation shows, and `confirm` sends, exactly this, whatever the screen reads meanwhile.
+    const lines = reads.filter((read) => read.halalas > 0).map((read) => ({ key: read.field.key, label: read.field.label, halalas: read.halalas }))
+    // Frozen here: the confirmation shows, and `confirm` sends, exactly this, whatever the screen reads meanwhile. The effects too:
+    // after an unknown answer whose refund succeeded, the screen reads a lower cap, and the replay causes nothing more.
     setFrozen({
       body: refundBody({
         orderId: review ? subject.orderId : subject.detail.order.id,
@@ -322,7 +361,8 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
         expectedRefunded,
       }),
       total,
-      lines: reads.filter((read) => read.halalas > 0).map((read) => ({ key: read.field.key, label: read.field.label, halalas: read.halalas })),
+      lines,
+      effects: review ? [] : refundEffects(subject.detail, lines, total, cap),
     })
   }
 
@@ -392,6 +432,17 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
               ))}
             </ul>
           )}
+          {frozen.effects.length > 0 && (
+            <ul className={styles.metaList}>
+              {frozen.effects.map((effect, index) => (
+                <li key={index}>
+                  {effect.lead}
+                  <bdi dir={effect.ltr ? 'ltr' : undefined}>{effect.subject}</bdi>
+                  {effect.tail}
+                </li>
+              ))}
+            </ul>
+          )}
           <p>{REFUND_WARNING}</p>
           <div className={styles.row}>
             <button type="button" className={styles.button} disabled={money.busy} onClick={confirm}>
@@ -410,9 +461,13 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
             </button>
           </div>
         </div>
-      ) : waiting ? (
+      ) : panel === 'waiting' ? (
         <p className={styles.message}>{IN_FLIGHT_SENTENCE}</p>
-      ) : fields.length === 0 ? (
+      ) : panel === 'voided' ? (
+        <p className={styles.message}>{VOIDED_SENTENCE}</p>
+      ) : panel === 'other-currency' ? (
+        <p className={styles.message}>{OTHER_CURRENCY_SENTENCE}</p>
+      ) : panel === 'empty' ? (
         <p className={styles.message}>لا يوجد مبلغ متبقٍ للاسترداد.</p>
       ) : (
         <form className={styles.form} onSubmit={start}>
@@ -487,7 +542,7 @@ export function RefundView({ subject, money }: { subject: RefundSubject; money: 
           </div>
         </form>
       )}
-      <ExternalRefund target={external} money={money} open={recording} onOpenChange={setRecording} />
+      <ExternalRefund target={external} money={money} open={recording ?? voided} onOpenChange={setRecording} currency={review ? subject.currency : 'SAR'} />
     </>
   )
 }

@@ -22,9 +22,10 @@ import {
   DISPUTE_DIRECTIONS,
   DISPUTE_PROBLEMS,
   FOLLOW_REPLACES,
-  FOLLOW_WAITS_FOR_LINES,
   followStart,
+  followWaitSentence,
   linesFor,
+  linesSentence,
   readDisputeReply,
   riyadhToday,
   type DisputeLine,
@@ -61,8 +62,8 @@ export function DisputeForm({
   onClose,
 }: {
   mode: DisputeMode
-  /** The order's lines for the decisions that name some; `'loading'` while they are being read, null when there is no order or they could not be read. */
-  lines: DisputeLine[] | 'loading' | null
+  /** The order's lines for the decisions that name some; `'loading'` while they are being read, `'failed'` when they could not be, null when there is no order. */
+  lines: DisputeLine[] | 'loading' | 'failed' | null
   money: Money
   onClose: () => void
 }) {
@@ -84,7 +85,9 @@ export function DisputeForm({
     opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
   }, [])
 
-  const known = lines === 'loading' ? null : lines
+  // While the lines load, and when they could not be read, the form offers what it offers without lines; it says which of the two it is.
+  const known = lines === 'loading' || lines === 'failed' ? null : lines
+  const linesNote = linesSentence(lines)
   const target: Target = mode.kind === 'difference' ? {} : mode.target
   const hasTarget = target.attemptId !== undefined || target.reviewPaymentId !== undefined
   const decisions = decisionsFor(hasTarget, known)
@@ -96,8 +99,9 @@ export function DisputeForm({
   function submit(event: FormEvent) {
     event.preventDefault()
     // A follow-up of a row that names lines (a stop, a revocation) waits for the order's lines: before they are read it could
-    // only start from «بلا إجراء», and sending that would lift the row's decision.
-    if (mode.kind === 'follow' && known === null && actsOnLines(mode.decision)) return money.say('alert', FOLLOW_WAITS_FOR_LINES)
+    // only start from «بلا إجراء», and sending that would lift the row's decision. Lines that could not be read are never read
+    // again: the sentence then says to reopen the form.
+    if (mode.kind === 'follow' && known === null && actsOnLines(mode.decision)) return money.say('alert', followWaitSentence(lines))
     const built = buildDispute(
       { providerRef: mode.kind === 'follow' ? mode.providerRef : providerRef, kind: mode.kind === 'follow' ? mode.disputeKind : kind, amount, direction, day, reason, resolution, decision, picked },
       target,
@@ -239,6 +243,16 @@ export function DisputeForm({
           )}
         </div>
       )}
+      {linesNote !== null &&
+        (lines === 'failed' ? (
+          <p role="alert" className={styles.error}>
+            {linesNote}
+          </p>
+        ) : (
+          <p role="status" className={styles.message}>
+            {linesNote}
+          </p>
+        ))}
       {actsOnLines(decision) &&
         (fitting.length === 0 ? (
           <p className={styles.message}>{DISPUTE_PROBLEMS.noLines}</p>

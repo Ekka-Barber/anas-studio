@@ -152,6 +152,59 @@ describe('staff-admin: the request body', () => {
   })
 })
 
+// QUALITY-26 (RESIDUALS-1 R3b): the size limit is 4,096 BYTES, read with the bounded reader like every other function's body. It used to be
+// 4,096 UTF-16 units of a body read whole, so 2,100 Arabic letters (4,200 bytes, 2,100 units) passed.
+describe('staff-admin: the size of the body', () => {
+  const LIMIT = 4096
+  const TOO_LARGE = { ok: false, error: { code: 'TOO_LARGE', message: 'الطلب أكبر من المسموح.' } }
+  const bytes = (text: string): number => Buffer.byteLength(text, 'utf8')
+  /** An invite whose display name is padded to make the whole body exactly `size` bytes: Arabic letters (two bytes), one Latin letter when the room is odd. */
+  function inviteOfBytes(size: number): string {
+    const base = (displayName: string): string => JSON.stringify({ action: 'invite', email: 'maha@example.com', displayName, role: 'editor' })
+    const room = size - bytes(base(''))
+    return base(`${'ب'.repeat(Math.floor(room / 2))}${room % 2 === 1 ? 'x' : ''}`)
+  }
+
+  it('a body of more than 4,096 bytes is 413 TOO_LARGE, and nothing is written', async () => {
+    const world: World = { users: [], staff: new Set(), staffInsertFails: false, deleteFails: false }
+    install(world)
+    const response = await send(JSON.stringify({ action: 'invite', email: 'maha@example.com', displayName: 'x'.repeat(5000), role: 'editor' }))
+    expect(response.status).toBe(413)
+    expect(await response.json()).toMatchObject(TOO_LARGE)
+    expect(world.users).toHaveLength(0)
+  })
+
+  it('a body of Arabic text over 4,096 bytes whose length is under 4,096 units is 413 too: bytes are counted, not UTF-16 units', async () => {
+    const world: World = { users: [], staff: new Set(), staffInsertFails: false, deleteFails: false }
+    install(world)
+    const body = JSON.stringify({ action: 'invite', email: 'maha@example.com', displayName: 'ب'.repeat(2100), role: 'editor' })
+    // What the old check measured, and what the new one does.
+    expect(body.length).toBeLessThan(LIMIT)
+    expect(bytes(body)).toBeGreaterThan(LIMIT)
+    const response = await send(body)
+    expect(response.status).toBe(413)
+    expect(await response.json()).toMatchObject(TOO_LARGE)
+    expect(world.users).toHaveLength(0)
+  })
+
+  it('a body of exactly 4,096 bytes is read and judged by its content, one byte more is 413', async () => {
+    install({ users: [], staff: new Set(), staffInsertFails: false, deleteFails: false })
+    const exact = inviteOfBytes(LIMIT)
+    expect(bytes(exact)).toBe(LIMIT)
+    expect(exact.length).toBeLessThan(LIMIT)
+    // Past the size check: the display name is far over 120 characters, so the invite itself is refused.
+    const judged = await send(exact)
+    expect(judged.status).toBe(422)
+    expect(await judged.json()).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+
+    const over = inviteOfBytes(LIMIT + 1)
+    expect(bytes(over)).toBe(LIMIT + 1)
+    const refused = await send(over)
+    expect(refused.status).toBe(413)
+    expect(await refused.json()).toMatchObject(TOO_LARGE)
+  })
+})
+
 describe('staff-admin: invite', () => {
   it('an auth user orphaned by a failed rollback is finished by the next invite, not blocked as USER_EXISTS', async () => {
     const world: World = { users: [], staff: new Set(), staffInsertFails: true, deleteFails: true }

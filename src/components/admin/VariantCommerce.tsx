@@ -16,7 +16,9 @@
  *
  * The status and alert lines are always mounted, for operations and a variant with no file too, so that what they
  * say is announced when it is filled. The result of an upload or of «تحديث» takes the focus, on the status line
- * or, for a refusal, the alert line.
+ * or, for a refusal, the alert line. When the saved variant is digital, not a preorder and on sale (`enabled`) and the
+ * panel read no file, the alert line says that its buyers wait for the upload (ADMIN-COMMERCE-15); it says nothing else
+ * until something is said there, and takes no focus.
  */
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 
@@ -26,6 +28,7 @@ import {
   formatFileSize,
   LOAD_FAILED,
   NO_FILE,
+  ON_SALE_WITHOUT_FILE,
   parseUploadDone,
   parseUploadTicket,
   parseVariantInfo,
@@ -33,6 +36,7 @@ import {
   PREORDER_UNITS,
   REFRESHED,
   REPLACE_NOTE,
+  soldWithoutFile,
   UPLOAD_FAILED,
   UPLOADING,
   uploadedSentence,
@@ -68,12 +72,15 @@ export function VariantCommerce({
   variantId,
   digital,
   preorder,
+  enabled,
   owner,
   onRecorded,
 }: {
   variantId: string
   digital: boolean
   preorder: boolean
+  /** The saved variant's «معروض للبيع». */
+  enabled: boolean
   owner: boolean
   /** The paid file's completion was answered (recorded or not): the form reads the row's version again. */
   onRecorded: () => Promise<void>
@@ -224,8 +231,16 @@ export function VariantCommerce({
   }
 
   const loaded = typeof info === 'object' && info !== null ? info : null
-  // A reading that failed, or found no variant, is said on the alert line until something else is said there.
-  const readLine = info === 'failed' ? LOAD_FAILED : info === null ? VARIANT_NOT_FOUND : ''
+  // A reading that failed, or found no variant, is said on the alert line until something else is said there; then, a digital variant
+  // on sale with no file (its buyers wait for the upload).
+  const readLine =
+    info === 'failed'
+      ? LOAD_FAILED
+      : info === null
+        ? VARIANT_NOT_FOUND
+        : soldWithoutFile({ digital, preorder, enabled }, loaded)
+          ? ON_SALE_WITHOUT_FILE
+          : ''
 
   return (
     <div className={styles.field}>

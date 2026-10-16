@@ -463,6 +463,24 @@ for (const width of [360, 1440]) {
         await expect(alertLine(page)).toHaveText(BAD_QUERY)
         expect(rpc.count('orders_list')).toBe(before)
 
+        // QUALITY-18 (RESIDUALS-1 R3b): the functions store an address with an internationalised domain in its xn-- form, and the SQL hashes the query as it is given,
+        // so the search converts what is typed before it asks: an order bought with `.السعودية` is found by the address as it is written.
+        const idnLocal = `idn-${randomUUID().slice(0, 8)}`
+        const idn = await h.paid([{ variantId: s.digital.id, quantity: 1 }], { email: `${idnLocal}@example.xn--mgberp4a5d4ar` })
+        const byIdn = page.waitForRequest((request) => request.url().includes('/rpc/orders_list') && request.method() === 'POST')
+        await search(page).fill(`  ${idnLocal.toUpperCase()}@Example.السعودية `)
+        await button(main(page), 'بحث').click()
+        expect((await byIdn).postDataJSON()).toEqual({ p_filter: 'all', p_query: `${idnLocal}@example.xn--mgberp4a5d4ar`, p_before: null, p_limit: 50 })
+        await expect(alertLine(page)).toHaveText('')
+        await expect(main(page).locator('tbody tr')).toHaveCount(1)
+        await expect(rowOf(page, idn.number)).toBeVisible()
+        // A malformed one with the same domain is still refused before any call.
+        const beforeIdn = rpc.count('orders_list')
+        await search(page).fill(`bad address@example.السعودية`)
+        await button(main(page), 'بحث').click()
+        await expect(alertLine(page)).toHaveText(BAD_QUERY)
+        expect(rpc.count('orders_list')).toBe(beforeIdn)
+
         // «مسح» ends the search: the field empties, the whole list returns, and the button goes.
         await button(main(page), 'مسح').click()
         await expect(search(page)).toHaveValue('')

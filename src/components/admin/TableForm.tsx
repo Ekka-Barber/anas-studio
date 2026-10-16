@@ -19,6 +19,7 @@ import { useEffect, useState } from 'react'
 
 import { schemaFromFields } from '@/admin/fields'
 import { tables, type TableField, type TableKey } from '@/admin/tables'
+import { checkMessage } from '@/lib/admin-commerce'
 import { formatDate, formatRiyadh } from '@/lib/format'
 import { formatRiyalsInput } from '@/lib/money-input'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
@@ -32,7 +33,6 @@ import styles from './admin.module.css'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const CONFLICT_MESSAGE = 'تغيّر هذا السجل من جلسة أخرى. حمّل آخر نسخة ثم أعد التعديل.'
-const CHECK_MESSAGE = 'تحقق من القيم.'
 const COVER_MESSAGE = 'صورة الغلاف لم تعد في المكتبة؛ اختر صورة أخرى.'
 const NO_ACCESS_MESSAGE = 'لا تملك صلاحية الوصول'
 
@@ -121,8 +121,8 @@ export function TableForm({ table }: { table: TableKey }) {
   const [products, setProducts] = useState<ProductOption[]>([])
   const [variantsError, setVariantsError] = useState(false)
   const [productsError, setProductsError] = useState(false)
-  // What the variant row holds now: the paid file and the preorder count follow the saved variant, not the unsaved form.
-  const [savedVariant, setSavedVariant] = useState<{ digital: boolean; preorder: boolean } | null>(null)
+  // What the variant row holds now: the paid file, the preorder count and the sale of a variant without a file follow the saved variant, not the unsaved form.
+  const [savedVariant, setSavedVariant] = useState<{ digital: boolean; preorder: boolean; enabled: boolean } | null>(null)
 
   useEffect(() => {
     let active = true
@@ -163,7 +163,7 @@ export function TableForm({ table }: { table: TableKey }) {
       setVersion(typeof row.version === 'number' ? row.version : null)
       if (table === 'variants') {
         setProductId(typeof row.product_id === 'string' ? row.product_id : null)
-        setSavedVariant({ digital: row.fulfillment === 'digital', preorder: row.preorder === true })
+        setSavedVariant({ digital: row.fulfillment === 'digital', preorder: row.preorder === true, enabled: row.enabled === true })
       }
     })()
     return () => {
@@ -206,7 +206,7 @@ export function TableForm({ table }: { table: TableKey }) {
     const supabase = getSupabaseBrowserClient()
     const payload = config.toRow(values)
     let savedRows: Array<{ id: string; version: number }> = []
-    let failure: { code?: string } | null = null
+    let failure: { code?: string; message?: string } | null = null
     if (rowId === null) {
       const insertPayload =
         table === 'variants' && productId ? { ...payload, product_id: productId } : payload
@@ -227,7 +227,8 @@ export function TableForm({ table }: { table: TableKey }) {
 
     if (failure) {
       if (failure.code === '23505') setMessage(config.uniqueMessage)
-      else if (failure.code === '23514') setMessage(CHECK_MESSAGE)
+      // A check the table's config has a sentence for (a variant's paid file) says it; any other is «تحقق من القيم.».
+      else if (failure.code === '23514') setMessage(checkMessage(failure, 'checkMessages' in config ? config.checkMessages : undefined))
       else if (failure.code === '23503' && table === 'products') setMessage(COVER_MESSAGE)
       else setMessage('تعذّر الحفظ.')
       return
@@ -242,7 +243,7 @@ export function TableForm({ table }: { table: TableKey }) {
     const saved = savedRows[0]!
     setRowId(saved.id)
     setVersion(saved.version)
-    if (table === 'variants') setSavedVariant({ digital: values.fulfillment === 'digital', preorder: values.preorder === true })
+    if (table === 'variants') setSavedVariant({ digital: values.fulfillment === 'digital', preorder: values.preorder === true, enabled: values.enabled === true })
     if (idParam !== saved.id) {
       const search = table === 'variants' && productId ? `?id=${saved.id}&product=${productId}` : `?id=${saved.id}`
       window.history.replaceState(null, '', `/admin/store/${table}/edit${search}`)
@@ -410,6 +411,7 @@ export function TableForm({ table }: { table: TableKey }) {
           variantId={rowId}
           digital={savedVariant.digital}
           preorder={savedVariant.preorder}
+          enabled={savedVariant.enabled}
           owner={owner}
           onRecorded={takeRecordedVersion}
         />

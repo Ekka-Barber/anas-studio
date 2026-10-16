@@ -21,6 +21,7 @@ import type { Rpc } from './db.ts'
 import { corsHeaders, fail as failWith, logCause, ok as okWith } from './http.ts'
 import type { PaymentDeps } from './payments.ts'
 import { isUuid, paymentsConfig } from './payments/moyasar.ts'
+import { riyadhToday } from './riyadh-day.ts'
 
 /** What the action needs of `AdminDeps`. */
 export interface DisputeDeps {
@@ -39,9 +40,6 @@ const INT_MAX = 2_147_483_647
 const uuid = z.string().regex(UUID)
 /** One line of text, trimmed, within the column's bound. */
 const line = (max: number) => z.string().trim().min(1).max(max).refine(noControlCharacters)
-
-/** Riyadh is UTC+3 all year: the calendar day the owner is living in, as `YYYY-MM-DD`. */
-const riyadhToday = (): string => new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10)
 
 const KINDS = ['chargeback', 'payout_difference', 'fee_difference', 'other'] as const
 const DECISIONS = ['none', 'entitlement_revoked', 'entitlement_kept', 'fulfillment_stopped'] as const

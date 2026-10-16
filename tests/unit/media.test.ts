@@ -14,6 +14,12 @@ import {
   ticketRequestSchema,
   verifyObjectHead,
 } from '../../supabase/functions/_shared/media.ts'
+import {
+  MAX_DERIVATIVE_BYTES,
+  MAX_ORIGINAL_BYTES,
+  MAX_PIXELS,
+  ORIGINAL_MIME_TYPES,
+} from '../../supabase/functions/_shared/media-rules.ts'
 
 function baseRequest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -85,6 +91,38 @@ describe('ticketRequestSchema', () => {
       }),
     )
     expect(parsed.success).toBe(false)
+  })
+
+  // QUALITY-24 (RESIDUALS-1 R3b): the limits live in `media-rules.ts`, which the browser's upload form imports as well; the schema is
+  // bound by those very numbers, to the byte and to the pixel.
+  it('is bound by the shared limits: an original, a derivative and the pixels at the limit pass, one more is refused', () => {
+    expect(MAX_ORIGINAL_BYTES).toBe(15 * 1024 * 1024)
+    expect(MAX_DERIVATIVE_BYTES).toBe(4 * 1024 * 1024)
+    expect(MAX_PIXELS).toBe(40_000_000)
+    expect([...ORIGINAL_MIME_TYPES]).toEqual(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+
+    const original = (over: Record<string, unknown>) => baseRequest({ original: { mime: 'image/jpeg', bytes: 1000, width: 2000, height: 1500, ...over } })
+    expect(ticketRequestSchema.safeParse(original({ bytes: MAX_ORIGINAL_BYTES })).success).toBe(true)
+    expect(ticketRequestSchema.safeParse(original({ bytes: MAX_ORIGINAL_BYTES + 1 })).success).toBe(false)
+
+    const derivatives = (bytes: number) => [
+      { width: 360, height: 270, bytes },
+      { width: 720, height: 540, bytes: 200 },
+      { width: 1200, height: 900, bytes: 300 },
+      { width: 1800, height: 1350, bytes: 400 },
+    ]
+    expect(ticketRequestSchema.safeParse(baseRequest({ derivatives: derivatives(MAX_DERIVATIVE_BYTES) })).success).toBe(true)
+    expect(ticketRequestSchema.safeParse(baseRequest({ derivatives: derivatives(MAX_DERIVATIVE_BYTES + 1) })).success).toBe(false)
+
+    const pixels = (height: number) =>
+      baseRequest({
+        original: { mime: 'image/jpeg', bytes: 1000, width: 8000, height },
+        crop: { x: 0, y: 0, width: 8000, height },
+        derivatives: [360, 720, 1200, 1800].map((width) => ({ width, height: Math.round((width * height) / 8000), bytes: 100 })),
+      })
+    expect(8000 * 5000).toBe(MAX_PIXELS)
+    expect(ticketRequestSchema.safeParse(pixels(5000)).success).toBe(true)
+    expect(ticketRequestSchema.safeParse(pixels(5001)).success).toBe(false)
   })
 
   it('rejects a crop outside the original', () => {

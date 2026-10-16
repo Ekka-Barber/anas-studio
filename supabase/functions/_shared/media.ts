@@ -10,19 +10,18 @@
 import { imageSize } from 'image-size'
 import { z } from 'zod'
 
-import { derivativeHeight, derivativeWidths, folderIsInvalid } from './media-rules.ts'
+import {
+  derivativeHeight,
+  derivativeWidths,
+  folderIsInvalid,
+  MAX_DERIVATIVE_BYTES,
+  MAX_ORIGINAL_BYTES,
+  MAX_PIXELS,
+  ORIGINAL_MIME_TYPES,
+} from './media-rules.ts'
 
-/** The only MIME types an original may declare. */
-export const ORIGINAL_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'] as const
-
-/** 15 MiB per original. */
-export const MAX_ORIGINAL_BYTES = 15_728_640
-
-/** 40 million pixels per original (`width * height`). */
-export const MAX_PIXELS = 40_000_000
-
-/** 4 MiB per derivative. */
-export const MAX_DERIVATIVE_BYTES = 4_194_304
+// The upload limits (the original's types, bytes and pixels, a derivative's bytes) live in `media-rules.ts`, which the
+// browser's upload form imports too (RESIDUALS-1 round R3b, QUALITY-24).
 
 /** How many bytes a verification reads from an object (never the whole file). */
 export const HEAD_READ_BYTES = 1_048_576

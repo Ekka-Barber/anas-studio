@@ -21,6 +21,8 @@ import { folderIsInvalid, mediaUrl } from '@/lib/media-ref'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction, documentHref } from '@/lib/supabase/functions'
 
+import { formatFileSize } from '../../lib/admin-commerce'
+
 import { FieldInput } from './FieldInput'
 import { MediaUpload } from './MediaUpload'
 import styles from './admin.module.css'
@@ -106,12 +108,6 @@ function whereUsedLabel(row: WhereUsedRow): string {
   }
   // Post ids are random UUIDs and the RPC returns no title: the section name plus the id's start keeps posts apart.
   return `${(COLLECTION_LABELS as Record<string, string>)[row.collection] ?? row.collection} · ${row.doc_id.slice(0, 8)}`
-}
-
-function formatBytes(bytes: number): string {
-  return bytes >= 1_048_576
-    ? `${(bytes / 1_048_576).toFixed(1)} ميغابايت`
-    : `${Math.max(1, Math.round(bytes / 1024))} كيلوبايت`
 }
 
 export function smallestDerivative(row: Pick<MediaRow, 'derivatives'>): MediaDerivative {
@@ -667,14 +663,14 @@ export function MediaLibrary() {
               </p>
             </div>
             <p className={styles.message}>
-              الأصل: {selected.original_width}×{selected.original_height} بكسل، {formatBytes(selected.original_bytes)}،{' '}
+              الأصل: {selected.original_width}×{selected.original_height} بكسل، {formatFileSize(selected.original_bytes)}،{' '}
               {selected.original_mime}. المشتقات:
             </p>
             <ul className={styles.metaList}>
               {selected.derivatives.map((derivative) => (
                 <li key={derivative.key}>
                   {derivative.width}×{derivative.height}
-                  {derivative.bytes ? `، ${formatBytes(derivative.bytes)}` : ''}
+                  {derivative.bytes ? `، ${formatFileSize(derivative.bytes)}` : ''}
                 </li>
               ))}
             </ul>

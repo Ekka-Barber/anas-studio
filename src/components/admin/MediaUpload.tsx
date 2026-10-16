@@ -17,15 +17,17 @@ import { derivativeHeight, derivativeWidths } from '@/lib/media-ref'
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser'
 import { callFunction } from '@/lib/supabase/functions'
 
+import {
+  MAX_DERIVATIVE_BYTES,
+  MAX_ORIGINAL_BYTES,
+  MAX_PIXELS,
+  ORIGINAL_MIME_TYPES,
+} from '../../../supabase/functions/_shared/media-rules.ts'
+
 import { FieldInput } from './FieldInput'
 import styles from './admin.module.css'
 
-// Mirrors the server's limits in supabase/functions/_shared/media.ts (a Deno
-// Edge Function module, which the Next client bundle cannot import).
-const ACCEPTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
-const MAX_ORIGINAL_BYTES = 15_728_640
-const MAX_PIXELS = 40_000_000
-const MAX_DERIVATIVE_BYTES = 4_194_304
+// The upload limits are the server's own: `media-rules.ts` is the pure module `media.ts` (the Edge function) imports too.
 
 const TYPE_ERROR = 'نوع الملف غير مدعوم؛ استخدم JPEG أو PNG أو WebP أو AVIF.'
 const SIZE_ERROR = 'حجم الملف أكبر من 15 ميغابايت.'
@@ -197,7 +199,7 @@ export function MediaUpload({
     if (!chosen) return
     setFileError(null)
     setFailure(null)
-    if (!ACCEPTED_MIME_TYPES.includes(chosen.type)) {
+    if (!(ORIGINAL_MIME_TYPES as readonly string[]).includes(chosen.type)) {
       setFileError(TYPE_ERROR)
       return
     }
@@ -332,7 +334,7 @@ export function MediaUpload({
             id="media-upload-file"
             className={styles.input}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/avif"
+            accept={ORIGINAL_MIME_TYPES.join(',')}
             onChange={(event) => void chooseFile(event)}
           />
           <p className={styles.message}>JPEG أو PNG أو WebP أو AVIF، حتى 15 ميغابايت و40 مليون بكسل.</p>

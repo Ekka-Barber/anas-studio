@@ -8,7 +8,7 @@
 // it holds here too. CORS allows any origin because the caller authenticates
 // with a bearer token the browser never attaches on its own.
 import { serviceClient } from '../_shared/db.ts'
-import { corsHeaders, fail as failWith, logCause, ok as okWith } from '../_shared/http.ts'
+import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith } from '../_shared/http.ts'
 import { type StaffIdentity, staffFromRequest } from '../_shared/staff.ts'
 
 const ROLES = ['owner', 'editor', 'operations'] as const
@@ -58,8 +58,9 @@ Deno.serve(async (req) => {
   // 2. What to do.
   let body: Record<string, unknown>
   try {
-    const text = await req.text()
-    if (text.length > 4096) return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
+    // Bytes, not UTF-16 units, and refused before it is all read (every other function's pattern, `boundedText`).
+    const text = await boundedText(req, 4096)
+    if (text === null) return fail(413, 'TOO_LARGE', 'الطلب أكبر من المسموح.')
     const parsed = JSON.parse(text) as unknown
     // `null`, an array or a scalar is not a request: BAD_JSON, like `admin`.
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('shape')

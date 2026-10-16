@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
+import { emailField } from './email-address.ts'
 import { optionalEnv, secretsMatch } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith, siteOrigin } from './http.ts'
 import { clientKeyHash, requestIp } from './rate-limit.ts'
@@ -41,15 +41,7 @@ const CONFIRM_LINK_MS = 7 * 24 * 60 * 60 * 1000
 /** The id a mac is computed for when the token names no subscription, so a miss still does the work of a hit. */
 const NO_SUBSCRIPTION = '00000000-0000-4000-8000-000000000000'
 
-// The address is normalized like checkout's and the contact form's, so it is stored the way it is looked up.
-const emailField = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254)
-  .transform((email) => toAsciiAddress(email))
-  .refine((email) => email.length <= 254 && EMAIL_SHAPE.test(email), { message: 'بريد غير صالح.' })
-
+// The address is normalized like checkout's and the contact form's (`emailField`), so it is stored the way it is looked up.
 // A token is judged by its mac, not its shape: a malformed one is the same 404 as any other bad one, never a 422.
 const tokenField = z.string().min(1).max(200)
 

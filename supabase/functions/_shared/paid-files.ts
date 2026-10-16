@@ -26,10 +26,12 @@ import { z } from 'zod'
 import { noControlCharacters } from './commerce-settings.ts'
 import { type Rpc, serviceClient } from './db.ts'
 import { corsHeaders, fail as failWith, logCause, ok as okWith } from './http.ts'
+import { PAID_FILE_MAX_BYTES } from './paid-file-rules.ts'
 
 export const PAID_BUCKET = 'paid-files'
-/** The bucket's own limit (`file_size_limit` of the migration that created it): 100 MiB. */
-export const PAID_FILE_MAX_BYTES = 104_857_600
+// The bucket's own limit (100 MiB) lives in `paid-file-rules.ts`, which the owner's upload form imports too (RESIDUALS-1
+// round R3b, QUALITY-24); it is exported from here as well for this module's importers.
+export { PAID_FILE_MAX_BYTES }
 const MIMES = ['application/pdf', 'application/epub+zip'] as const
 /** What the head check reads: a ZIP header, its first name and its first 20 bytes fit in a few hundred. */
 const HEAD_BYTES = 4096

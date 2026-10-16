@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { schemaFromFields } from '../../src/admin/fields'
 import { tables } from '../../src/admin/tables'
 import { replayableCount } from '../../src/components/admin/AdminHome'
+import { checkMessage } from '../../src/lib/admin-commerce'
 
 // AdminHome imports through the `@/` alias, which the unit config does not resolve.
 vi.mock('@/admin/collections', () => ({ COLLECTION_LABELS: {} }))
@@ -206,5 +207,26 @@ describe('the owner home counts only email problems a person can act on', () => 
     ]
     expect(replayableCount(rows)).toBe(2)
     expect(replayableCount([{ status: 'sent' }])).toBe(0)
+  })
+})
+
+// ADMIN-COMMERCE-14 (RESIDUALS-1 R3b): a variant that holds a paid file cannot become paper, and the form says why in words. The
+// migration names the check `product_variants_file_needs_digital` (tests/integration/download.test.ts proves the database names it in
+// a 23514); the variants' config maps that name to a sentence, and any other check keeps «تحقق من القيم.».
+describe('the variant form: a failed check says its own sentence', () => {
+  const failed = (name: string) => ({ code: '23514', message: `new row for relation "product_variants" violates check constraint "${name}"` })
+  const config = tables.variants
+
+  it('maps the paid-file check to «لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.»', () => {
+    expect(config.checkMessages).toEqual({ product_variants_file_needs_digital: 'لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.' })
+    expect(checkMessage(failed('product_variants_file_needs_digital'), config.checkMessages)).toBe('لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.')
+  })
+
+  it('leaves every other check on the general sentence, as the other tables always are', () => {
+    expect(checkMessage(failed('product_variants_check'), config.checkMessages)).toBe('تحقق من القيم.')
+    expect(checkMessage(failed('product_variants_preorder_complete'), config.checkMessages)).toBe('تحقق من القيم.')
+    for (const other of [tables.products, tables.coupons, tables['shipping-rates'], tables.customers, tables.notifications]) {
+      expect('checkMessages' in other).toBe(false)
+    }
   })
 })

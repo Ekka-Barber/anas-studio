@@ -7,12 +7,18 @@
 // read is not «no authenticator») and with an action that went through whose re-read failed.
 // RESIDUALS-1 R1 (I44 (1)) adds the policies an approval covers: the strict reading of `publishedPolicies`, the revisions an
 // approval sends and the line of the list above its button.
+// RESIDUALS-1 R3b adds the statistics' review line in its own words (ADMIN-COMMERCE-03), the digital variant on sale with no file
+// (-15), the sentence of a failed check (-14), and the day and the paid file's limit as the pure modules both sides import (QUALITY-24).
 import { describe, expect, it } from 'vitest'
 
 import { PAID_FILE_MAX_BYTES as SERVER_MAX_BYTES } from '../../supabase/functions/_shared/paid-files.ts'
+import { PAID_FILE_MAX_BYTES as RULES_MAX_BYTES } from '../../supabase/functions/_shared/paid-file-rules.ts'
+import { isDay as sharedIsDay, riyadhToday as sharedRiyadhToday } from '../../supabase/functions/_shared/riyadh-day.ts'
 import {
   afterSaved,
   approvalRevisions,
+  checkMessage,
+  CHECK_MESSAGE,
   checkoutLine,
   checkPaidFile,
   COMMERCE_NOTE,
@@ -28,6 +34,7 @@ import {
   FILE_TYPE,
   formatFileSize,
   isDay,
+  ON_SALE_WITHOUT_FILE,
   PAID_FILE_MAX_BYTES,
   paidFileMime,
   parseCommerceStats,
@@ -42,9 +49,11 @@ import {
   riyadhToday,
   SAVED_NOT_REFRESHED,
   signedMoney,
+  soldWithoutFile,
   statsRequest,
   uploadedSentence,
   type CommerceStats,
+  type VariantInfo,
 } from '../../src/lib/admin-commerce'
 
 const DAY_MS = 86_400_000
@@ -371,9 +380,18 @@ describe('the commerce lines and the sentence', () => {
       'الاستردادات المؤكدة: 250.50 ر.س',
       'الصافي بعد الاستردادات: 1,249.50 ر.س',
       'العملاء: 2',
-      'دفعات قيد المراجعة: مفتوحة 1، مبالغها 99.00 ر.س، المسترد منها 40.00 ر.س',
+      'دفعات وصلت للمراجعة في المدة: مبالغها 99.00 ر.س، المسترد منها 40.00 ر.س، المفتوح منها الآن 1',
       'النزاعات: 2، على البائع 30.00 ر.س، لصالح البائع 5.00 ر.س',
     ])
+  })
+
+  // ADMIN-COMMERCE-03: the sums are of every review payment that arrived in the range, closed ones included, so the line says "arrived
+  // in the range" and names the open ones last, as the part of them still open now.
+  it('words the review figures as what they are: the payments that arrived in the range, the sums, and how many of them are open now', () => {
+    const line = commerceLines({ ...stats, review: { open: 1, captured: 60_000, refunded: 0 } })[5]
+    expect(line).toBe('دفعات وصلت للمراجعة في المدة: مبالغها 600.00 ر.س، المسترد منها 0.00 ر.س، المفتوح منها الآن 1')
+    expect(line).not.toContain('قيد المراجعة')
+    expect(line!.indexOf('مبالغها')).toBeLessThan(line!.indexOf('المفتوح منها الآن'))
   })
 
   it('draws zeros as zeros, and a negative net with its minus on its left', () => {
@@ -389,6 +407,61 @@ describe('the commerce lines and the sentence', () => {
     expect(COMMERCE_NOTE).toBe(
       'الصافي هنا هو إجمالي المدفوع ناقص الاستردادات المؤكدة. لا يشمل رسوم بوابة الدفع ولا الاعتراضات ولا توقيت التحويل، وليس نقدًا مُسوّى في البنك ولا ربحًا.',
     )
+  })
+})
+
+// ADMIN-COMMERCE-15: a digital variant put on sale with no paid file says so on the panel's alert line.
+describe('a digital variant on sale with no file', () => {
+  const noFile: VariantInfo = { preorderUnits: 0, file: null }
+  const withFile: VariantInfo = { preorderUnits: 0, file: { filename: 'book.pdf', mime: PDF, bytes: 1000, createdAt: '2026-10-03T01:03:24.796123+00:00' } }
+  const sale = { digital: true, preorder: false, enabled: true }
+
+  it('is when the saved variant is digital, not a preorder, on sale, and the panel read no file', () => {
+    expect(soldWithoutFile(sale, noFile)).toBe(true)
+    expect(ON_SALE_WITHOUT_FILE).toBe('هذا الخيار معروض للبيع بلا ملف: من يشتريه ينتظر حتى ترفع الملف. ارفع الملف أو أوقف عرضه.')
+  })
+
+  it('is not, when any one of the four is otherwise', () => {
+    expect(soldWithoutFile(sale, withFile), 'a file is held').toBe(false)
+    expect(soldWithoutFile({ ...sale, enabled: false }, noFile), 'not on sale').toBe(false)
+    expect(soldWithoutFile({ ...sale, preorder: true }, noFile), 'a preorder: its page says the file comes later').toBe(false)
+    expect(soldWithoutFile({ ...sale, digital: false }, noFile), 'paper').toBe(false)
+  })
+
+  it('says nothing until the panel has read: loading, a failed reading and a variant that is gone read nothing', () => {
+    expect(soldWithoutFile(sale, null)).toBe(false)
+  })
+})
+
+// ADMIN-COMMERCE-14: a failed check of a table says the table's sentence for the check it names, else «تحقق من القيم.».
+describe('the sentence of a failed check', () => {
+  const failed = (name: string) => ({ message: `new row for relation "product_variants" violates check constraint "${name}"` })
+  const byCheck = { product_variants_file_needs_digital: 'لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.' }
+
+  it('is the config\'s own for the check the error names', () => {
+    expect(checkMessage(failed('product_variants_file_needs_digital'), byCheck)).toBe('لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.')
+  })
+
+  it('is «تحقق من القيم.» for another check, an error that names none, and a config with no sentences', () => {
+    expect(CHECK_MESSAGE).toBe('تحقق من القيم.')
+    expect(checkMessage(failed('product_variants_check'), byCheck)).toBe(CHECK_MESSAGE)
+    expect(checkMessage(failed('constructor'), byCheck), 'a name that is a key of every object').toBe(CHECK_MESSAGE)
+    expect(checkMessage({ message: 'permission denied' }, byCheck)).toBe(CHECK_MESSAGE)
+    expect(checkMessage({}, byCheck)).toBe(CHECK_MESSAGE)
+    expect(checkMessage(failed('product_variants_file_needs_digital'), undefined)).toBe(CHECK_MESSAGE)
+  })
+})
+
+// QUALITY-24: one definition of the Riyadh day and of the paid file's limit, for the screens and the function.
+describe('the pure modules the function and the screens share', () => {
+  it('the day is the one definition', () => {
+    expect(riyadhToday).toBe(sharedRiyadhToday)
+    expect(isDay).toBe(sharedIsDay)
+  })
+
+  it('the paid file limit is the one number, and the function exports it as before', () => {
+    expect(PAID_FILE_MAX_BYTES).toBe(RULES_MAX_BYTES)
+    expect(SERVER_MAX_BYTES).toBe(RULES_MAX_BYTES)
   })
 })
 

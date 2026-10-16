@@ -8,8 +8,15 @@
 // paying attempt can still give back (a refund recorded from Moyasar's dashboard included) and CHARGEBACK_RECORDED.
 // F3-2 and F3-5 add the confirmed total a refund is built from (`expectedRefunded`) and how the key keeps it, the
 // words of a refund-create reply whose key is kept, and the refund in flight that closes the form.
+// RESIDUALS-1 R3b adds what a refund also does (ADMIN-COMMERCE-11), a payment Moyasar shows voided (-09), a review payment in another
+// currency (-06), the lines of the open dispute form (-12), the order link of the other mode, and a dispute day that is not on the
+// calendar (QUALITY-24); the last describe renders the refund form and the dispute form once, as static markup.
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
+import { DisputeForm } from '../../src/components/admin/DisputeForm'
+import { RefundView, ReviewMoney, type Money, type RefundSubject } from '../../src/components/admin/RefundView'
 import {
   AMOUNT_ABOVE,
   AMOUNT_INVALID,
@@ -17,29 +24,41 @@ import {
   attemptRefundInFlight,
   BAD_REPLY,
   buildDispute,
+  canReissueLink,
   CANCELLED,
   CHARGEBACK_RECORDED,
   CLOSE_PARKED,
   confirmedRefunded,
+  currencyDigits,
   decisionsFor,
   DISPUTE_DUPLICATE,
   DISPUTE_PROBLEMS,
   DISPUTE_RECORDED,
   disputeLines,
+  effectText,
   FOLLOW_REPLACES,
+  FOLLOW_WAITS_FOR_LINES,
   followStart,
+  followWaitSentence,
   IN_FLIGHT_SENTENCE,
   inFlight,
   isOtherMode,
   isParkedAttempt,
+  isSarReview,
+  isVoided,
   keptRequest,
   keyFor,
+  LINES_FAILED,
+  LINES_LOADING,
+  linesAnswered,
   linesFor,
+  linesSentence,
   NEEDS_AMOUNT,
   NEEDS_AMOUNT_REVIEW,
   NEEDS_REFUND_REASON,
   NOT_ENROLLED,
   orderRefundFields,
+  OTHER_CURRENCY_SENTENCE,
   OTHER_MODE_SENTENCE,
   PARKED_CLOSED,
   paymentModeOf,
@@ -50,17 +69,22 @@ import {
   readRefundReply,
   receivedReturns,
   refundBody,
+  refundCurrency,
+  refundEffects,
   refundForm,
+  refundPanel,
   refundProblem,
   refundRequest,
   REFUND_FAILED,
   REFUND_KEPT_REPLY,
   REFUND_UNCERTAIN,
+  reviewAmountText,
   reviewRefundFields,
   riyadhToday,
   shippingLeft,
   sum,
   TOTAL_ABOVE,
+  VOIDED_SENTENCE,
   withStepUp,
   type DisputeInput,
   type DisputeLine,
@@ -73,6 +97,16 @@ import {
 import { parseDisputeReply, parsePaymentRecheckReply, parseRefundReply } from '../../src/lib/admin-orders'
 import { formatMoney } from '../../src/lib/format'
 import type { FunctionResult } from '../../src/lib/supabase/functions'
+
+// RefundView and DisputeForm (rendered once, as static markup, at the end of this file) import through the `@/` alias, which the unit
+// config does not resolve; the libraries they use are the real ones, the rest is stubbed.
+vi.mock('@/lib/admin-money', async () => import('../../src/lib/admin-money'))
+vi.mock('@/lib/admin-orders', async () => import('../../src/lib/admin-orders'))
+vi.mock('@/lib/format', async () => import('../../src/lib/format'))
+vi.mock('@/lib/supabase/browser', () => ({ getSupabaseBrowserClient: () => ({}) }))
+vi.mock('@/lib/supabase/functions', () => ({ callFunction: async () => ({}) }))
+vi.mock('../../src/components/admin/StepUp', () => ({ StepUp: () => null }))
+vi.mock('../../src/components/admin/OrdersView', () => ({ Enum: () => null, Fact: () => null, ltrLong: () => null }))
 
 const A = '11111111-1111-4111-8111-111111111111'
 const B = '22222222-2222-4222-8222-222222222222'
@@ -891,7 +925,11 @@ describe('the dispute form', () => {
     expect(build({ providerRef: 'x'.repeat(120) }).ok).toBe(true)
     for (const amount of ['', '0', '0.00', '-5', 'abc', '99999999']) expect(build({ amount }), amount).toEqual({ ok: false, message: DISPUTE_PROBLEMS.amount })
     expect(build({ amount: '0.01' }).ok).toBe(true)
-    for (const day of ['', '2026-10-04', '2027-01-01', '2026-13-45', '10/02/2026']) expect(build({ day }), day).toEqual({ ok: false, message: DISPUTE_PROBLEMS.day })
+    // QUALITY-24: a day that is not on the calendar is refused as the function refuses it (V8 reads 2026-02-30 as 2 March).
+    for (const day of ['', '2026-10-04', '2027-01-01', '2026-13-45', '10/02/2026', '2026-02-30', '2026-02-29', '2026-04-31', '20261-01-01']) {
+      expect(build({ day }), day).toEqual({ ok: false, message: DISPUTE_PROBLEMS.day })
+    }
+    expect(build({ day: '2024-02-29' }).ok, 'a real leap day').toBe(true)
     // Today itself is allowed, the day after is not.
     expect(build({ day: '2026-10-03' }).ok).toBe(true)
     expect(build({ reason: '   ' })).toEqual({ ok: false, message: DISPUTE_PROBLEMS.reason })
@@ -1091,5 +1129,392 @@ describe('the other payment mode', () => {
     expect(isParkedAttempt({ ...parked, providerInvoiceId: null })).toBe(false)
     expect(isParkedAttempt({ ...parked, lastError: 'UNVERIFIED' })).toBe(false)
     expect(isParkedAttempt({ ...parked, lastError: null })).toBe(false)
+  })
+})
+
+// ADMIN-COMMERCE-11 (RESIDUALS-1 R3b): what the confirmation of an order's refund lists besides the money, from the order, the frozen lines,
+// the total and what the paying attempt can still give back. The ledger's rule is `finance.item_fully_refunded`.
+describe('what a refund also does', () => {
+  type EffectDetail = Parameters<typeof refundEffects>[0]
+  const P1 = '66666666-6666-4666-8666-666666666666'
+  const P2 = '77777777-7777-4777-8777-777777777777'
+  /** A line of the order as `order_detail` gives it: a paper one (SKU `BOOK-P`) unless told otherwise. */
+  const line = (id: string, variantTitle: string, over: Record<string, unknown> = {}) => ({
+    id,
+    productTitle: 'كتاب',
+    variantTitle,
+    sku: 'BOOK-P',
+    fulfillment: 'physical',
+    total: 5000,
+    refunded: 0,
+    fullyRefunded: false,
+    stopped: false,
+    preorder: null,
+    ...over,
+  })
+  const digital = (id = A, over: Record<string, unknown> = {}) => line(id, 'رقمي', { sku: 'BOOK-D', fulfillment: 'digital', total: 3500, ...over })
+  const paper = (id = B, over: Record<string, unknown> = {}) => line(id, 'ورقي', over)
+  const preparing = (itemId: string, state = 'preparing') => ({ itemId, state })
+  const entitled = (itemId: string, revokedAt: string | null = null) => ({ itemId, revokedAt })
+
+  /** What the confirmation lists, as plain sentences. */
+  function listed(
+    items: Array<ReturnType<typeof line>>,
+    fulfillments: Array<ReturnType<typeof preparing>>,
+    entitlements: Array<ReturnType<typeof entitled>>,
+    lines: Array<[string, number]>,
+    balance: number,
+  ): string[] {
+    const total = lines.reduce((all, [, halalas]) => all + halalas, 0)
+    return refundEffects(
+      { items, fulfillments, entitlements } as unknown as EffectDetail,
+      lines.map(([key, halalas]) => ({ key, halalas })),
+      total,
+      balance,
+    ).map(effectText)
+  }
+
+  it('lists nothing for a line refunded in part', () => {
+    expect(listed([digital(), paper()], [preparing(B)], [entitled(A)], [[A, 1000], [B, 2500]], 8500)).toEqual([])
+    // Also a line that has already been refunded in part: it counts when this amount is what is left of it.
+    expect(listed([digital(A, { refunded: 1000 })], [], [entitled(A)], [[A, 1000]], 9000)).toEqual([])
+  })
+
+  it('says the file of a digital line refunded in full is withdrawn: its amount is what is left of it', () => {
+    expect(listed([digital(), paper()], [preparing(B)], [entitled(A)], [[A, 3500]], 8500)).toEqual(['سيُسحب الملف: كتاب: رقمي'])
+    // A line partly refunded before counts for what is left of it.
+    expect(listed([digital(A, { refunded: 1000 })], [], [entitled(A)], [[A, 2500]], 9000)).toEqual(['سيُسحب الملف: كتاب: رقمي'])
+  })
+
+  it('says a paper or signed line refunded in full that is still being prepared will not ship, and once for the SKU that the stock does not come back', () => {
+    expect(listed([digital(), paper()], [preparing(B)], [entitled(A)], [[B, 5000]], 8500)).toEqual([
+      'لن يُشحن: كتاب: ورقي',
+      'لا يعود المخزون تلقائيًا؛ عدّل مخزون BOOK-P بعد الاسترداد.',
+    ])
+    expect(listed([paper(B, { fulfillment: 'signed' })], [preparing(B)], [], [[B, 5000]], 5000)).toEqual([
+      'لن يُشحن: كتاب: ورقي',
+      'لا يعود المخزون تلقائيًا؛ عدّل مخزون BOOK-P بعد الاسترداد.',
+    ])
+  })
+
+  it('says it for every line when the total takes all the payment can still give back, whatever the lines say', () => {
+    // A refund of 4000 on a payment with 4000 left: the order becomes refunded, every line counts as refunded in full.
+    expect(listed([digital(), paper()], [preparing(B)], [entitled(A)], [[B, 4000]], 4000)).toEqual([
+      'سيُسحب الملف: كتاب: رقمي',
+      'لن يُشحن: كتاب: ورقي',
+      'لا يعود المخزون تلقائيًا؛ عدّل مخزون BOOK-P بعد الاسترداد.',
+    ])
+    // The shipping alone can empty it too.
+    expect(listed([digital(), paper()], [preparing(B)], [entitled(A)], [['shipping', 1500]], 1500)).toHaveLength(3)
+    // One halala less than all of it, and the lines decide again.
+    expect(listed([digital(), paper()], [preparing(B)], [entitled(A)], [[B, 3999]], 4000)).toEqual([])
+  })
+
+  it('lists nothing for a physical line that has shipped or been delivered, even when everything is refunded', () => {
+    for (const state of ['shipped', 'delivered']) {
+      expect(listed([paper()], [preparing(B, state)], [], [[B, 5000]], 5000), state).toEqual([])
+    }
+    // A line with no fulfilment at all (an order awaiting its resolution) has nothing to stop either.
+    expect(listed([paper()], [], [], [[B, 5000]], 5000)).toEqual([])
+  })
+
+  it('lists nothing for a line a dispute already stopped', () => {
+    expect(listed([paper(B, { stopped: true })], [preparing(B)], [], [[B, 5000]], 5000)).toEqual([])
+  })
+
+  it('lists nothing for a line already refunded in full, even when the total empties the payment', () => {
+    expect(listed([digital(A, { fullyRefunded: true, refunded: 3500 }), paper(B, { fullyRefunded: true, refunded: 5000 })], [preparing(B)], [entitled(A)], [['shipping', 1500]], 1500)).toEqual([])
+  })
+
+  it('says the stock once for each SKU: two lines of one SKU, and one of another', () => {
+    expect(listed([paper(P1), paper(P2), paper(B, { sku: 'BOOK-Q' })], [preparing(P1), preparing(P2), preparing(B)], [], [[P1, 5000], [P2, 5000], [B, 5000]], 20000)).toEqual([
+      'لن يُشحن: كتاب: ورقي',
+      'لا يعود المخزون تلقائيًا؛ عدّل مخزون BOOK-P بعد الاسترداد.',
+      'لن يُشحن: كتاب: ورقي',
+      'لن يُشحن: كتاب: ورقي',
+      'لا يعود المخزون تلقائيًا؛ عدّل مخزون BOOK-Q بعد الاسترداد.',
+    ])
+  })
+
+  it('says no file is withdrawn when there is none to withdraw: a file already withdrawn, or none granted yet', () => {
+    expect(listed([digital()], [], [entitled(A, '2026-10-03T00:00:00+00:00')], [[A, 3500]], 3500)).toEqual([])
+    expect(listed([digital()], [], [], [[A, 3500]], 3500)).toEqual([])
+  })
+
+  it('does not tell the owner to adjust the stock of a preorder line: it took none, and its capacity is released', () => {
+    expect(listed([paper(B, { preorder: { shipsOn: '2026-12-01', note: 'x' } })], [preparing(B)], [], [[B, 5000]], 5000)).toEqual(['لن يُشحن: كتاب: ورقي'])
+  })
+
+  it("draws the SKU on its own, left to right, and the line's name as a name", () => {
+    const [ship, stock] = refundEffects(
+      { items: [paper()], fulfillments: [preparing(B)], entitlements: [] } as unknown as EffectDetail,
+      [{ key: B, halalas: 5000 }],
+      5000,
+      5000,
+    )
+    expect(ship).toEqual({ lead: 'لن يُشحن: ', subject: 'كتاب: ورقي', tail: '', ltr: false })
+    expect(stock).toEqual({ lead: 'لا يعود المخزون تلقائيًا؛ عدّل مخزون ', subject: 'BOOK-P', tail: ' بعد الاسترداد.', ltr: true })
+  })
+
+  it('lists nothing for an order with no line, or a refund of nothing', () => {
+    expect(listed([], [], [], [], 0)).toEqual([])
+    expect(listed([paper()], [preparing(B)], [], [], 0)).toEqual([])
+  })
+})
+
+// ADMIN-COMMERCE-09 and -06 (RESIDUALS-1 R3b): a payment Moyasar shows voided, and a review payment in another currency.
+describe('a payment Moyasar shows voided, a review payment in another currency', () => {
+  it('says what the brief words, to the letter', () => {
+    expect(VOIDED_SENTENCE).toBe('أُلغيت هذه الدفعة لدى Moyasar؛ سجّل الإلغاء هنا.')
+    expect(OTHER_CURRENCY_SENTENCE).toBe('دفعة بعملة أخرى؛ أعدها من لوحة Moyasar ثم سجّلها هنا.')
+    expect(`${VOIDED_SENTENCE}${OTHER_CURRENCY_SENTENCE}`).not.toContain('—')
+  })
+
+  it('knows a void by the provider status, and nothing else', () => {
+    expect(isVoided('voided')).toBe(true)
+    for (const status of ['paid', 'refunded', 'captured', 'authorized', 'VOIDED', '', null]) expect(isVoided(status), String(status)).toBe(false)
+  })
+
+  it("the refund form gives way to the void's sentence while no refund is in flight, then to the other currency's, then to «nothing left»", () => {
+    const state = { waiting: false, voided: false, otherCurrency: false, fields: 2 }
+    expect(refundPanel(state)).toBe('form')
+    expect(refundPanel({ ...state, voided: true })).toBe('voided')
+    expect(refundPanel({ ...state, otherCurrency: true })).toBe('other-currency')
+    expect(refundPanel({ ...state, fields: 0 })).toBe('empty')
+    // A void with nothing drawn for it, and a void beside a currency: the void's sentence.
+    expect(refundPanel({ ...state, voided: true, fields: 0 })).toBe('voided')
+    expect(refundPanel({ ...state, voided: true, otherCurrency: true })).toBe('voided')
+    expect(refundPanel({ ...state, otherCurrency: true, fields: 0 })).toBe('other-currency')
+    // A refund in flight comes first: another would be refused, whatever the void or the currency says.
+    expect(refundPanel({ waiting: true, voided: true, otherCurrency: true, fields: 0 })).toBe('waiting')
+    expect(refundPanel({ ...state, waiting: true })).toBe('waiting')
+  })
+
+  it('a review payment is in riyals only when its currency is SAR', () => {
+    expect(isSarReview('SAR')).toBe(true)
+    for (const currency of ['USD', 'KWD', 'sar', '', null]) expect(isSarReview(currency), String(currency)).toBe(false)
+  })
+
+  it('reads the digits of a currency from Intl: 2 for a code it does not know', () => {
+    expect(currencyDigits('SAR')).toBe(2)
+    expect(currencyDigits('USD')).toBe(2)
+    expect(currencyDigits('KWD')).toBe(3)
+    expect(currencyDigits('JPY')).toBe(0)
+    expect(currencyDigits('XYZ')).toBe(2)
+    // Not a currency code at all.
+    expect(currencyDigits('')).toBe(2)
+    expect(currencyDigits('NOT A CODE')).toBe(2)
+  })
+
+  it("writes the amount in the currency's own units with its code, and never as riyals: SAR, USD, KWD, an unknown code", () => {
+    expect(reviewAmountText(1000, 'SAR')).toBe(formatMoney(1000))
+    expect(reviewAmountText(1000, 'SAR')).toBe('10.00 ر.س')
+    // 1000 minor units: USD 10.00 (not 10.00 riyals), KWD 1.000 (a thousandth each), and 10000 of them are KWD 10.000.
+    expect(reviewAmountText(1000, 'USD')).toBe('10.00 USD')
+    expect(reviewAmountText(10_000, 'KWD')).toBe('10.000 KWD')
+    expect(reviewAmountText(1000, 'KWD')).toBe('1.000 KWD')
+    expect(reviewAmountText(500, 'JPY')).toBe('500 JPY')
+    expect(reviewAmountText(1234, 'XYZ')).toBe('12.34 XYZ')
+    expect(reviewAmountText(0, 'USD')).toBe('0.00 USD')
+    expect(reviewAmountText(5, 'USD')).toBe('0.05 USD')
+    expect(reviewAmountText(2_147_483_647, 'KWD')).toBe('2147483.647 KWD')
+    for (const currency of ['USD', 'KWD', 'JPY', 'XYZ', null]) expect(reviewAmountText(1000, currency), String(currency)).not.toContain('ر.س')
+    // A missing currency has no code to draw: the number alone, never as riyals.
+    expect(reviewAmountText(1000, null)).toBe('10.00')
+  })
+
+  it('says the recorded refund of such a payment in its currency too, never as riyals', () => {
+    const recorded = done({ refundId: A, status: 'succeeded', amount: 600 })
+    expect(readRefundReply(recorded, true)?.text).toBe(`سُجّل استرداد خارجي بمبلغ ${formatMoney(600)}.`)
+    expect(readRefundReply(recorded, true, 'SAR')?.text).toBe(`سُجّل استرداد خارجي بمبلغ ${formatMoney(600)}.`)
+    expect(readRefundReply(recorded, true, 'USD')?.text).toBe('سُجّل استرداد خارجي بمبلغ 6.00 USD.')
+    expect(readRefundReply(recorded, true, 'KWD')?.text).toBe('سُجّل استرداد خارجي بمبلغ 0.600 KWD.')
+    // The refund of an order's payment is in riyals, as it always was.
+    expect(readRefundReply(recorded)?.text).toBe(`تمت إعادة ${formatMoney(600)}.`)
+    expect(readCreateReply(recorded)?.text).toBe(`تمت إعادة ${formatMoney(600)}.`)
+  })
+
+  it("says a refund row, and its recheck, in its review payment's currency: riyals for the order's own payment or a review the screen does not list", () => {
+    const reviews = [
+      { paymentId: 'pay_usd', currency: 'USD' },
+      { paymentId: 'pay_sar', currency: 'SAR' },
+      { paymentId: 'pay_none', currency: null },
+    ]
+    expect(refundCurrency({ reviewPaymentId: 'pay_usd' }, reviews)).toBe('USD')
+    expect(refundCurrency({ reviewPaymentId: 'pay_sar' }, reviews)).toBe('SAR')
+    // A listed payment with no currency stays without one (never riyals); the amount is then the number alone.
+    expect(refundCurrency({ reviewPaymentId: 'pay_none' }, reviews)).toBeNull()
+    expect(refundCurrency({ reviewPaymentId: null }, reviews)).toBe('SAR')
+    expect(refundCurrency({ reviewPaymentId: 'pay_gone' }, reviews)).toBe('SAR')
+    expect(reviewAmountText(1000, refundCurrency({ reviewPaymentId: 'pay_usd' }, reviews))).toBe('10.00 USD')
+    expect(readRefundReply(done({ refundId: A, status: 'succeeded', amount: 1000 }), false, refundCurrency({ reviewPaymentId: 'pay_usd' }, reviews))?.text).toBe('تمت إعادة 10.00 USD.')
+  })
+})
+
+// ADMIN-COMMERCE-12 (RESIDUALS-1 R3b): the lines read for a dispute form, and what the form says while they load or when they failed.
+describe('the lines of the open dispute form', () => {
+  const lines: DisputeLine[] = [{ id: A, name: 'كتاب', entitled: true, preparing: false }]
+
+  it('keeps an answer for the form that is open, whatever it holds', () => {
+    expect(linesAnswered('review:x', { key: 'review:x', order: 'ABCD2345', lines })).toEqual({ order: 'ABCD2345', lines })
+    expect(linesAnswered('review:x', { key: 'review:x', order: 'ABCD2345', lines: 'failed' })).toEqual({ order: 'ABCD2345', lines: 'failed' })
+  })
+
+  it('drops the answer of a form that is no longer the open one: another form was opened, or this one was closed', () => {
+    // Form X asked, form Y was opened and answered first, then X answered late: X's answer must not replace Y's.
+    expect(linesAnswered('review:y', { key: 'review:x', order: 'ABCD2345', lines })).toBeNull()
+    expect(linesAnswered(null, { key: 'review:x', order: 'ABCD2345', lines })).toBeNull()
+    expect(linesAnswered('review:y', { key: 'review:x', order: 'ABCD2345', lines: 'failed' })).toBeNull()
+  })
+
+  it("says «يحمّل بنود الطلب…» while they load, and the failure in the brief's words, and nothing otherwise", () => {
+    expect(LINES_LOADING).toBe('يحمّل بنود الطلب…')
+    expect(LINES_FAILED).toBe('تعذّر قراءة بنود الطلب؛ أغلق النموذج وافتحه من جديد أو سجّل من صفحة الطلب.')
+    expect(linesSentence('loading')).toBe(LINES_LOADING)
+    expect(linesSentence('failed')).toBe(LINES_FAILED)
+    expect(linesSentence(lines)).toBeNull()
+    expect(linesSentence([])).toBeNull()
+    // A form with no order has no lines to wait for.
+    expect(linesSentence(null)).toBeNull()
+  })
+
+  it('a follow-up pressed before its lines are known says to wait while they load, and to reopen the form when they could not be read', () => {
+    expect(followWaitSentence('loading')).toBe(FOLLOW_WAITS_FOR_LINES)
+    // The read is never retried: waiting would not help.
+    expect(followWaitSentence('failed')).toBe(LINES_FAILED)
+  })
+
+  it('offers, loading or failed, what it offers without lines: the decisions that name none', () => {
+    // `DisputeForm` hands decisionsFor `null` in both cases.
+    expect(decisionsFor(true, null)).toEqual(['none', 'entitlement_kept'])
+    expect(decisionsFor(false, null)).toEqual(['none'])
+  })
+})
+
+// The order's link of the other payment mode (RESIDUALS-1 R3b, R2b's audit): the order page answers such a link NOT_FOUND.
+describe('the order link', () => {
+  it("is offered for the statuses `order_link_reissue` takes, on an order of the site's own mode", () => {
+    for (const status of ['paid', 'paid_needs_resolution', 'refunded']) {
+      expect(canReissueLink(status, 'test', 'test'), status).toBe(true)
+      expect(canReissueLink(status, 'live', 'live'), status).toBe(true)
+    }
+    for (const status of ['pending_payment', 'expired', 'cancelled']) expect(canReissueLink(status, 'test', 'test'), status).toBe(false)
+  })
+
+  it('is not offered on an order of the other payment mode', () => {
+    expect(canReissueLink('paid', 'live', 'test')).toBe(false)
+    expect(canReissueLink('paid', 'test', 'live')).toBe(false)
+    expect(canReissueLink('refunded', 'live', 'test')).toBe(false)
+  })
+
+  it('stays when the mode could not be read, as the money controls do', () => {
+    expect(canReissueLink('paid', null, 'test')).toBe(true)
+    expect(canReissueLink('paid', null, 'live')).toBe(true)
+    expect(canReissueLink('pending_payment', null, 'test')).toBe(false)
+  })
+})
+
+// The screens' own wiring of the above, rendered once as static markup (the state a screen mounts in; the e2e specs click through it).
+describe('what the refund form and the dispute form draw (RESIDUALS-1 R3b)', () => {
+  const money: Money = { busy: false, run: async () => undefined, say: () => undefined, clear: () => undefined, ask: async () => 'cancelled' }
+  const orderOf = (attempt: Record<string, unknown>, refunds: unknown[] = []): RefundSubject => ({
+    kind: 'order',
+    attemptId: D,
+    detail: {
+      order: { shipping: 0, id: E },
+      items: [{ id: A, productTitle: 'كتاب', variantTitle: 'ورقي', sku: 'BOOK-P', total: 5000, refunded: 0 }],
+      attempts: [{ id: D, captured: 5000, providerStatus: 'paid', ...attempt }],
+      refunds,
+      returns: [],
+      disputes: null,
+    } as unknown as Extract<RefundSubject, { kind: 'order' }>['detail'],
+  })
+  const reviewOf = (currency: string | null, over: Partial<Extract<RefundSubject, { kind: 'review' }>> = {}): RefundSubject => ({
+    kind: 'review',
+    paymentId: PAYMENT,
+    orderId: null,
+    remainder: 1000,
+    refunded: 0,
+    currency,
+    ...over,
+  })
+  const draw = (subject: RefundSubject): string => renderToStaticMarkup(createElement(RefundView, { subject, money }))
+
+  it('a payment Moyasar shows voided: the sentence, the external record already open, and no refund form', () => {
+    const html = draw(orderOf({ providerStatus: 'voided' }))
+    expect(html).toContain(VOIDED_SENTENCE)
+    expect(html).not.toContain('إعادة المبلغ')
+    expect(html).not.toContain('الإجمالي')
+    // The external record is open: its sentence, its reason field and its confirmation are drawn, with «رجوع» to close it.
+    expect(html).toContain('سجّل هنا استردادًا أو إلغاءً تمّ من لوحة Moyasar')
+    expect(html).toContain('تأكيد التسجيل')
+    expect(html).toContain('رجوع')
+  })
+
+  it('a payment that is paid draws the refund form, and the external record closed behind its button', () => {
+    const html = draw(orderOf({}))
+    expect(html).toContain('إعادة المبلغ')
+    expect(html).not.toContain(VOIDED_SENTENCE)
+    expect(html).toContain('تسجيل استرداد خارجي')
+    expect(html).not.toContain('تأكيد التسجيل')
+  })
+
+  it('a refund in flight comes before the void: its sentence, not the void\'s', () => {
+    const html = draw(orderOf({ providerStatus: 'voided' }, [{ status: 'uncertain', attemptId: D, amount: 1000, allocation: {} }]))
+    expect(html).toContain(IN_FLIGHT_SENTENCE)
+    expect(html).not.toContain(VOIDED_SENTENCE)
+  })
+
+  it('a review payment in another currency: the sentence in place of the form, and the external record kept', () => {
+    for (const currency of ['USD', 'KWD', null]) {
+      const html = draw(reviewOf(currency))
+      expect(html, String(currency)).toContain(OTHER_CURRENCY_SENTENCE)
+      expect(html, String(currency)).not.toContain('استرداد هذه الدفعة')
+      expect(html, String(currency)).not.toContain('المتبقي')
+      expect(html, String(currency)).toContain('تسجيل استرداد خارجي')
+    }
+  })
+
+  it('a review payment in riyals draws the form it always did', () => {
+    const html = draw(reviewOf('SAR'))
+    expect(html).toContain('استرداد هذه الدفعة')
+    expect(html).toContain('المتبقي')
+    expect(html).not.toContain(OTHER_CURRENCY_SENTENCE)
+  })
+
+  it("draws a review payment's money in riyals as text, and in another currency in its own units, left to right", () => {
+    const sar = renderToStaticMarkup(createElement(ReviewMoney, { minor: 1000, currency: 'SAR' }))
+    expect(sar).toBe(formatMoney(1000))
+    expect(sar).not.toContain('<bdi')
+    expect(renderToStaticMarkup(createElement(ReviewMoney, { minor: 1000, currency: 'USD' }))).toBe('<bdi dir="ltr">10.00 USD</bdi>')
+    expect(renderToStaticMarkup(createElement(ReviewMoney, { minor: 10_000, currency: 'KWD' }))).toBe('<bdi dir="ltr">10.000 KWD</bdi>')
+    expect(renderToStaticMarkup(createElement(ReviewMoney, { minor: 1000, currency: null }))).toBe('<bdi dir="ltr">10.00</bdi>')
+  })
+
+  it('the dispute form says the order\'s lines load, or could not be read, and draws the decisions that name none in both cases', () => {
+    const form = (lines: Parameters<typeof linesSentence>[0]): string =>
+      renderToStaticMarkup(createElement(DisputeForm, { mode: { kind: 'payment', target: { reviewPaymentId: PAYMENT } }, lines, money, onClose: () => undefined }))
+    const loading = form('loading')
+    expect(loading).toContain(LINES_LOADING)
+    expect(loading).toContain('role="status"')
+    expect(loading).not.toContain(LINES_FAILED)
+    const failed = form('failed')
+    expect(failed).toContain(LINES_FAILED)
+    expect(failed).toContain('role="alert"')
+    expect(failed).not.toContain(LINES_LOADING)
+    for (const html of [loading, failed]) {
+      // `بلا إجراء` and `إبقاء الملفات` only: nothing that names a line.
+      expect(html).toContain('>بلا إجراء<')
+      expect(html).toContain('>إبقاء الملفات<')
+      expect(html).not.toContain('>سحب الملفات<')
+      expect(html).not.toContain('>إيقاف الشحن<')
+    }
+    // Lines read, or no order at all: no sentence.
+    const read = form([{ id: A, name: 'كتاب', entitled: true, preparing: false }])
+    expect(read).not.toContain(LINES_LOADING)
+    expect(read).not.toContain(LINES_FAILED)
+    expect(read).toContain('>سحب الملفات<')
+    expect(form(null)).not.toContain(LINES_LOADING)
+    expect(form(null)).not.toContain(LINES_FAILED)
   })
 })

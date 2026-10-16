@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 import { noControlCharacters } from './commerce-settings.ts'
-import { EMAIL_SHAPE, toAsciiAddress } from './contact.ts'
 import { type Rpc, serviceRpc } from './db.ts'
+import { emailField } from './email-address.ts'
 import { isHostedSite, optionalEnv, secretsMatch } from './env.ts'
 import { boundedText, corsHeaders, fail as failWith, logCause, ok, siteOrigin } from './http.ts'
 import { defaultPaymentDeps, type PaymentDeps, settleInvoice, startPayment, type StartResult } from './payments.ts'
@@ -70,15 +70,6 @@ const quoteSchema = z.strictObject({
   couponCode: z.string().max(64).optional(),
   testAccess: testAccessField,
 })
-
-const emailField = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .max(254)
-  .transform((email) => toAsciiAddress(email))
-  // Punycode can expand the domain, so the stored length is re-bounded here.
-  .refine((email) => email.length <= 254 && EMAIL_SHAPE.test(email), { message: 'بريد غير صالح.' })
 
 const createSchema = z.strictObject({
   action: z.literal('create'),

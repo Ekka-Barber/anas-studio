@@ -1,12 +1,15 @@
 // Relative, not `@/`: the unit tests and the variant table config import this file, and the unit config has no alias.
 import type { SettingsStatus } from '../../supabase/functions/_shared/admin.ts'
+import { PAID_FILE_MAX_BYTES } from '../../supabase/functions/_shared/paid-file-rules.ts'
+import { isDay, riyadhToday } from '../../supabase/functions/_shared/riyadh-day.ts'
 import { formatMoney, formatNumber, formatRiyadh } from './format'
 
 /**
  * The owner's catalog and figures screens (P08 round 11c), the parts that need no React: the Riyadh day
- * (a preorder's delivery date may not be before today; the statistics range is whole days), the checks a
- * paid file passes before any call, the strict parsers of what `variant_admin_info`, the paid-file actions
- * and `stats` answer, and the words the screens say, the store settings' «الشراء» box among them.
+ * (a preorder's delivery date may not be before today; the statistics range is whole days; the day and the
+ * paid file's limit are the pure modules the `admin` function imports too, re-exported here for the screens),
+ * the checks a paid file passes before any call, the strict parsers of what `variant_admin_info`, the paid-file
+ * actions and `stats` answer, and the words the screens say, the store settings' «الشراء» box among them.
  *
  * A reply is read key by key, as `admin-orders.ts` does: a key too few, or a value of the wrong type,
  * throws, and the screen then says it could not read the reply, never a half-drawn figure. Extra keys are
@@ -25,6 +28,8 @@ export const VARIANT_NOT_FOUND = 'لم نجد هذا الخيار.'
 export const PREORDER_UNITS = 'طلبات مسبقة مؤكدة لم تُشحن'
 export const PREORDER_STOCK_NOTE = 'أدخل المخزون الفعلي بعد طرح هذه الطلبات.'
 export const NO_FILE = 'لا يوجد ملف بعد'
+/** Said on the variant panel's alert line for a digital variant on sale whose panel read no paid file (ADMIN-COMMERCE-15). */
+export const ON_SALE_WITHOUT_FILE = 'هذا الخيار معروض للبيع بلا ملف: من يشتريه ينتظر حتى ترفع الملف. ارفع الملف أو أوقف عرضه.'
 export const REPLACE_NOTE = 'يحل الملف الجديد محل الحالي في الطلبات الجديدة؛ الطلبات التي استلمت ملفًا تبقى عليه.'
 export const UPLOADING = 'جارٍ الرفع…'
 export const UPLOAD_FAILED = 'تعذّر رفع الملف؛ حاول مرة أخرى.'
@@ -49,20 +54,9 @@ export const DAY_INVALID = 'اختر يومًا صحيحًا.'
 // ---------------------------------------------------------------------------
 
 const DAY_MS = 86_400_000
-/** Riyadh is UTC+3 all year, no daylight saving (the rule of `money-input.ts`'s datetime round trip). */
-const RIYADH_OFFSET_MS = 3 * 60 * 60 * 1000
 
-/** Today's calendar day in Riyadh, `YYYY-MM-DD`. */
-export function riyadhToday(now: number = Date.now()): string {
-  return new Date(now + RIYADH_OFFSET_MS).toISOString().slice(0, 10)
-}
-
-/** A real calendar day as `<input type="date">` writes it (four-digit year: 2026-02-30 and 20261-01-01 are not days). */
-export function isDay(text: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false
-  const time = Date.parse(`${text}T00:00:00Z`)
-  return !Number.isNaN(time) && new Date(time).toISOString().slice(0, 10) === text
-}
+// Today in Riyadh, and what a real calendar day is: one definition (`riyadh-day.ts`) for the screens and the function.
+export { isDay, riyadhToday }
 
 /** The day after `day`, `YYYY-MM-DD`. */
 export function dayAfter(day: string): string {
@@ -99,8 +93,8 @@ export function statsRequest(from: string, to: string): StatsRequest {
 // The paid file
 // ---------------------------------------------------------------------------
 
-/** The bucket's own limit (100 MiB), as `PAID_FILE_MAX_BYTES` in the Edge function's `paid-files.ts`, a Deno module the client cannot import. */
-export const PAID_FILE_MAX_BYTES = 104_857_600
+// The bucket's own limit (100 MiB): the pure module the Edge function's `paid-files.ts` imports too.
+export { PAID_FILE_MAX_BYTES }
 const PAID_FILE_NAME_MAX = 120
 const MIME_BY_EXTENSION: Readonly<Record<string, string>> = { pdf: 'application/pdf', epub: 'application/epub+zip' }
 
@@ -209,6 +203,15 @@ export function parseVariantInfo(value: unknown): VariantInfo | null {
   return { preorderUnits: int(o.preorderUnits), file }
 }
 
+/**
+ * A saved variant that is digital, not a preorder and on sale (`enabled`, «معروض للبيع»), whose panel read no paid file: whoever
+ * buys it pays for a download that does not exist yet and waits until the file is uploaded (ADMIN-COMMERCE-15). `info` is what the
+ * panel read: null while it has read nothing (loading, failed, no variant), when nothing is said.
+ */
+export function soldWithoutFile(variant: { digital: boolean; preorder: boolean; enabled: boolean }, info: VariantInfo | null): boolean {
+  return variant.digital && !variant.preorder && variant.enabled && info !== null && info.file === null
+}
+
 /** `paid-file-ticket`: the signed upload to put the file to. */
 export function parseUploadTicket(value: unknown): { ticket: string; bucket: string; path: string; token: string } {
   const o = obj(value)
@@ -219,6 +222,22 @@ export function parseUploadTicket(value: unknown): { ticket: string; bucket: str
 export function parseUploadDone(value: unknown): { assetId: string; filled: number } {
   const o = obj(value)
   return { assetId: uuid(o.assetId), filled: int(o.filled) }
+}
+
+// ---------------------------------------------------------------------------
+// The catalog forms' refusals
+// ---------------------------------------------------------------------------
+
+/** What a catalog form says of a 23514 (a check of the table) that its config has no sentence for. */
+export const CHECK_MESSAGE = 'تحقق من القيم.'
+
+/**
+ * The sentence of a failed check (SQLSTATE 23514, ADMIN-COMMERCE-14): the table config's own for the check the error names (PostgREST
+ * passes Postgres' text, `... violates check constraint "<name>"`), else the general one. `byCheck` maps a check's name to its sentence.
+ */
+export function checkMessage(error: { message?: string }, byCheck: Readonly<Record<string, string>> | undefined): string {
+  const name = /violates check constraint "([^"]+)"/.exec(error.message ?? '')?.[1]
+  return name !== undefined && byCheck !== undefined && Object.hasOwn(byCheck, name) ? (byCheck[name] ?? CHECK_MESSAGE) : CHECK_MESSAGE
 }
 
 export interface CommerceStats {
@@ -335,7 +354,8 @@ export function commerceLines(stats: CommerceStats): string[] {
     `الاستردادات المؤكدة: ${formatMoney(stats.refundsConfirmed)}`,
     `الصافي بعد الاستردادات: ${signedMoney(stats.netCollected)}`,
     `العملاء: ${formatNumber(stats.customers)}`,
-    `دفعات قيد المراجعة: مفتوحة ${formatNumber(review.open)}، مبالغها ${formatMoney(review.captured)}، المسترد منها ${formatMoney(review.refunded)}`,
+    // Of the review payments that arrived in the range: the sums are of the riyal ones (the SQL), the open count is of every currency and as they stand now.
+    `دفعات وصلت للمراجعة في المدة: مبالغها ${formatMoney(review.captured)}، المسترد منها ${formatMoney(review.refunded)}، المفتوح منها الآن ${formatNumber(review.open)}`,
     `النزاعات: ${formatNumber(disputes.count)}، على البائع ${formatMoney(disputes.againstSeller)}، لصالح البائع ${formatMoney(disputes.forSeller)}`,
   ]
 }
