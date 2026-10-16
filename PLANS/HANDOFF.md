@@ -41,7 +41,7 @@ Work on a short-lived `agent/<package>` branch cut from `main`. Fast-forward eac
 
 ## Next
 
-The ordered list is "Next work" in `PLANS/EXECUTION-STATUS.md`. In short (FABLE-AUDIT closed and P08 accepted on 2026-10-15; I56 fixed on 2026-10-15): RESIDUALS-1, in rounds (R1, R2a, R2b, R3a, R3b and R4a committed on `agent/residuals-1`; then, after P12, R4b, R4c and a round with a browser, `artifacts/acceptance/RESIDUALS-1/SCOPE.md`); P12 «لوحة المشاريع» building, on the owner's word (D52, `PLANS/P12-CONTRACT.md`; R1 committed, R2 next); SITE-STATE-1 (with the name-band change if Anas wants only «أنس القرني»); P09, starting with its contract; P10; P11 when the owner authorizes hosting. Owner and Anas inputs come in whenever they arrive (the open decisions in `PLANS/DECISIONS.md`; I43, I45, C05, D40, E03, the X link, the maintenance words, the zone's "Always Use HTTPS").
+The ordered list is "Next work" in `PLANS/EXECUTION-STATUS.md`. In short (FABLE-AUDIT closed and P08 accepted on 2026-10-15; I56 fixed on 2026-10-15): RESIDUALS-1, in rounds (R1, R2a, R2b, R3a, R3b and R4a committed on `agent/residuals-1`; then, after P12, R4b, R4c and a round with a browser, `artifacts/acceptance/RESIDUALS-1/SCOPE.md`); P12 «لوحة المشاريع» (D52, `PLANS/P12-CONTRACT.md`): R1 and R2 committed, then the owner STOPPED all work on 2026-10-16 until he says continue; then R3 (`artifacts/acceptance/P12/brief-R3.md`, ready); SITE-STATE-1 (with the name-band change if Anas wants only «أنس القرني»); P09, starting with its contract; P10; P11 when the owner authorizes hosting. Owner and Anas inputs come in whenever they arrive (the open decisions in `PLANS/DECISIONS.md`; I43, I45, C05, D40, E03, the X link, the maintenance words, the zone's "Always Use HTTPS").
 
 ## Rules to keep
 

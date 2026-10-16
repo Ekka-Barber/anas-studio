@@ -7,7 +7,9 @@ owner answered its one open question («Owner only»: the activity log stays the
 preview the owner approved in the Build Ledger on 2026-10-16 (`artifacts/acceptance/P12/comp/`). Every worker and
 auditor of P12 reads this file first; where it and `PLANS/WORK-PACKAGES.md` (P12) differ, this file wins. Amended the
 same day after R1's audit (`artifacts/acceptance/P12/RECORD-R1.md`): the activity keeps a person row's role and a column
-row's column, the caps of people count the people the screens show, and section 7 gains two sentences.
+row's column, the caps of people count the people the screens show, and section 7 gains two sentences. Before R3,
+section 7 gained the four words R3 needs (the archived cards' title, the label's name field, the activity's heading and
+the people dialog's line to the Team screen).
 
 Rules that hold for every round:
 
@@ -221,8 +223,10 @@ hidden posts from them; the functions, not the screens, are the wall (R1 calls e
   «اللوحة»، «القائمة»، «نظرة عامة»، «الأعمدة المخفية (n)»، «بطاقة جديدة»، «بطاقة جديدة في «…»»، «خيارات»، «نقل إلى…»،
   «حفظ»، «إغلاق»، «أرشفة البطاقة»، «استرجاع»، «تراجع»، «بند جديد»، «تصدير البطاقات (CSV)»، «إضافة شخص»، «إزالة»،
   «احفظ نسختي»، «اعتمد الأحدث»، «إعادة المحاولة»، «الأقدم»، «عمود جديد»، «إعادة تسمية»، «إخفاء العمود»، «إظهار العمود»،
-  «عمود الإنجاز»، «نقل العمود»، «حذف العمود»، «أرشفة المشروع»، «حذف المشروع نهائيًا»، «وسم جديد».
-- Fields: «اسم المشروع»، «اسم العمود»، «العنوان»، «الملاحظات»، «الأولوية»، «الموعد»، «الوسوم»، «الأشخاص»، «البنود»،
+  «عمود الإنجاز»، «نقل العمود»، «حذف العمود»، «أرشفة المشروع»، «حذف المشروع نهائيًا»، «وسم جديد»، «البطاقات المؤرشفة»،
+  «سجل النشاط»; in «الأشخاص والأدوار», the line to the Team screen: «من ليس في الفريق بعد يُضاف من صفحة الفريق بدور «لوحة
+  المشاريع فقط».».
+- Fields: «اسم المشروع»، «اسم العمود»، «اسم الوسم»، «العنوان»، «الملاحظات»، «الأولوية»، «الموعد»، «الوسوم»، «الأشخاص»، «البنود»،
   «مرتبطة بـ»، «الدور»، «اللون». Roles: «مالك»، «مشارك»، «مُطّلع»، «لوحة المشاريع فقط». Priorities: «عاجل»، «عادي»،
   «منخفض». Tones: «زعفراني»، «مرجاني»، «رملي»، «باذنجاني». Filters: «الأولوية»، «الموعد» («متأخرة»، «اليوم»، «هذا
   الأسبوع»، «بلا موعد»)، «الوسم»، «الشخص»، «مرتبطة» («مرتبطة بمحتوى»، «غير مرتبطة»), each «الكل» by default; the sort:
@@ -244,7 +248,9 @@ hidden posts from them; the functions, not the screens, are the wall (R1 calls e
   «لا بطاقات تطابق البحث.»؛ «لا بطاقات لك الآن.» («مهامي»)؛ «لا مواعيد قريبة.» (the home)؛ «لا مشاريع مؤرشفة.»؛ «لا
   بطاقات مؤرشفة.».
 - Answers: «أُرشفت البطاقة.» with «تراجع»؛ «تغيّرت هذه البطاقة منذ فتحتها؛ هذه نسختها الأحدث.»؛ «تعذّر نقل البطاقة؛
-  أعدناها إلى مكانها.»؛ «تعذّر التحميل.»؛ «تعذّر الحفظ؛ أعد المحاولة.»؛ «لم يعد هذا المشروع متاحًا لك.» (`NOT_FOUND`)؛
+  أعدناها إلى مكانها.»؛ «تعذّر التحميل.»؛ «تعذّر الحفظ؛ أعد المحاولة.»؛ «لم يعد هذا المشروع متاحًا لك.» (`NOT_FOUND` when a project is read; a write refused `NOT_FOUND` on a card or a column
+  that is gone says the write's own failure, «تعذّر الحفظ؛ أعد المحاولة.» or «تعذّر نقل البطاقة؛ أعدناها إلى مكانها.», and the
+  reading after it says «لم يعد…» if the project went too)؛
   «ليس لدورك أن يفعل هذا.» (`FORBIDDEN`)؛ «لا يُحذف عمود فيه بطاقات؛ انقلها أولًا.» (`NOT_EMPTY`; for the project's only
   column, which can hold archived cards alone: «هذا آخر عمود في المشروع، وفيه بطاقات مؤرشفة؛ أضف عمودًا قبل حذفه.»)؛ for `LIMIT`: «بلغ
   المشروع أقصى عدد من الأعمدة (12).»، «… من الوسوم (16).»، «… من الأشخاص (30).»، «… من البطاقات المفتوحة (1000).»،
@@ -255,6 +261,12 @@ hidden posts from them; the functions, not the screens, are the wall (R1 calls e
 - The keyboard and screen readers: instructions «لنقل بطاقة: المسافة ترفعها، والأسهم تنقلها، والمسافة تُفلتها، و Escape
   يلغي النقل.»؛ «رُفعت البطاقة «<card>».»؛ «البطاقة في «<column>»، الموضع n من m.»؛ «وُضعت البطاقة في «<column>».»؛
   «أُلغي النقل.».
+- Settled with R2's audit (`RECORD-R2.md`): «يحمّل...» (loading); «الأعمدة» (the phone's switcher); «خيارات العمود <column>»
+  (the ⋯ button's name); «نقل إلى… «<card>»» (the move button's name); «لا بطاقات.» (a project with no column); a tile's
+  late count «بطاقة واحدة متأخرة»، «بطاقتان متأخرتان»، «n بطاقات متأخرة»، «n بطاقة متأخرة»; the people past the row's first
+  «و<people>» («و453 شخصًا»); «الموضع n من m» (the menu's places); «بند n» (a checklist row's name); «نعم» and «لا» (the
+  CSV's «مؤرشفة»); «غير مرتبطة» (a card with no link); and from the comp: «تُفلت البطاقة هنا» (the dashed place a lifted
+  card will land) and «الربط لا ينشر شيئًا ولا يغيّر حالة المنشور أو الغرفة.» (under «مرتبطة بـ»).
 - The home: «مواعيد المشاريع». The dialog's title: «بطاقة: <title>». The tiles: «<cards>»، «<late> متأخرة»
   (coral-deep)، the people in words («أنس وشخصان»).
 
