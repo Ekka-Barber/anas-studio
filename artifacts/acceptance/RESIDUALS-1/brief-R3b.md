@@ -19,7 +19,8 @@ applies to an admin control you change), `docs/payments-runbook.md`, and each en
 
 - `supabase/migrations/20261015160000_residuals_r3b.sql` (new: every SQL change of this round, one file)
 - `supabase/functions/_shared/contact.ts`, `checkout.ts`, `orders.ts`, `notify.ts`, `disputes.ts`, `media.ts`,
-  `media-rules.ts`, `paid-files.ts`; new pure modules under `supabase/functions/_shared/` that items 9 and 10 name;
+  `media-rules.ts`, `paid-files.ts`; the new pure modules `supabase/functions/_shared/email-address.ts`, `riyadh-day.ts`
+  and `paid-file-rules.ts`;
   `supabase/functions/staff-admin/index.ts`
 - `src/lib/admin-orders.ts`, `admin-money.ts`, `admin-commerce.ts`; `src/admin/tables/variants.ts`
 - `src/components/admin/ReconciliationView.tsx`, `OrderView.tsx`, `RefundView.tsx`, `DisputeForm.tsx`,
@@ -27,8 +28,7 @@ applies to an admin control you change), `docs/payments-runbook.md`, and each en
   (item 10's one import only)
 - tests: `tests/unit/admin-money.test.ts`, `admin-refunds.test.ts`, `admin-disputes.test.ts`, `admin-commerce.test.ts`,
   `admin-orders.test.ts`, `admin-paid-files.test.ts`, `media.test.ts`, `media-library.test.ts`, `table-rules.test.ts`,
-  `staff-admin-function.test.ts`, `orders-page.test.ts`, `email.test.ts`; `tests/integration/stats.test.ts` and the one
-  integration file that tests the variants' table rules (name it in your report); `tests/e2e/store-admin.spec.ts`,
+  `staff-admin-function.test.ts`, `orders-page.test.ts`, `email.test.ts`; `tests/integration/stats.test.ts`, `download.test.ts`; `tests/e2e/store-admin.spec.ts`,
   `orders-money.spec.ts`, `orders-admin.spec.ts`
 - `docs/payments-runbook.md` (the paragraphs items 2 and 3 change)
 
@@ -90,8 +90,8 @@ below; if your run is cut short, your last message says what is built, what ran,
    'digital' or digital_asset is null`; check the name with `pg_get_constraintdef` before you rename) to
    `product_variants_file_needs_digital`; a table's config may map a check's name to its own sentence, and `TableForm`
    shows that sentence when a 23514 names that check (else «تحقق من القيم.» as today). The variants' config maps it to
-   «لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.». Proof: a unit test of the message's choice; the variants'
-   integration file: the refused update names the renamed check.
+   «لهذا الخيار ملف مدفوع؛ أنشئ خيارًا جديدًا للنسخة الورقية.». Proof: a unit test of the message's choice; `download.test.ts`: a digital
+   variant with a paid file, changed to «ورقي», is refused 23514 naming the renamed check.
 8. **ADMIN-COMMERCE-15, a digital variant on sale with no file** (`VariantCommerce.tsx`, `TableForm.tsx`). Decided: the
    saved variant's «معروض» reaches the panel; when the saved variant is digital, not a preorder, on sale, and the panel
    read no file, its alert line says «هذا الخيار معروض للبيع بلا ملف: من يشتريه ينتظر حتى ترفع الملف. ارفع الملف أو
@@ -107,7 +107,8 @@ below; if your run is cut short, your last message says what is built, what ran,
     `admin-commerce.ts`, `admin-money.ts` and `_shared/disputes.ts` use them (the libs may re-export them for their
     importers); the dispute form's day check is `isDay`. The media limits (`ORIGINAL_MIME_TYPES`, `MAX_ORIGINAL_BYTES`,
     `MAX_PIXELS`, `MAX_DERIVATIVE_BYTES`) move to `media-rules.ts`, which `media.ts` and `MediaUpload.tsx` import;
-    `PAID_FILE_MAX_BYTES` moves to a pure module that `paid-files.ts` and `admin-commerce.ts` import; `MediaLibrary.tsx`
+    `PAID_FILE_MAX_BYTES` moves to the new pure module `paid-file-rules.ts`, which `paid-files.ts` and `admin-commerce.ts`
+    import; `MediaLibrary.tsx`
     uses `formatFileSize`; `OrderPage.tsx` uses `preorderSentence` (if the budget allows). Proof: `admin-money.test.ts`
     (`2026-02-30` refused); the existing tests of each moved piece stay green.
 11. **The order link of the other mode** (`OrderView.tsx`; R2b's audit, outside its five controls). Decided: on an order
@@ -127,7 +128,8 @@ below; if your run is cut short, your last message says what is built, what ran,
    status -o json`, never printed);
 3. a mutation for items 1, 3 (the SQL's filter) and 7 (revert the change, run its test, see it fail, restore);
 4. only if free memory is at least 10 GB and there are fewer than 950 staff rows, once: `pnpm exec playwright test
-   tests/e2e/store-admin.spec.ts tests/e2e/orders-money.spec.ts tests/e2e/orders-admin.spec.ts` (Playwright on
+   tests/e2e/store-admin.spec.ts tests/e2e/orders-money.spec.ts tests/e2e/orders-admin.spec.ts tests/e2e/media.spec.ts`
+   (`media.spec.ts` for item 10's upload limits; its screenshot test timed out in R3a's run on a full machine) (Playwright on
    `http://localhost:3000`; restore `next-env.d.ts` afterwards); otherwise say so and list the e2e tests you changed;
 5. `pnpm build`, `pnpm check:export`, `pnpm check:budgets` (the three largest pages).
 
