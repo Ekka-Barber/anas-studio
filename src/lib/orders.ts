@@ -1,5 +1,13 @@
 // Relative, not `@/`: the unit tests (tests/unit/orders-page.test.ts) import this file, and the unit config has no alias.
-import { instantOf, ORDER_NUMBER, pendingOrderOf, readSessionValue, writeSessionValue, type PendingOrder } from './cart'
+import {
+  instantOf,
+  ORDER_NUMBER,
+  pendingOrderOf,
+  readSessionValue,
+  removeSessionValue,
+  writeSessionValue,
+  type PendingOrder,
+} from './cart'
 
 /**
  * The buyer's order page and the two notification link pages (P08 contract
@@ -11,8 +19,15 @@ import { instantOf, ORDER_NUMBER, pendingOrderOf, readSessionValue, writeSession
  * Nothing here trusts the address or a reply. The address gives two things, the
  * order number and the 43-character token of the link, and only after they match
  * the shapes the function issues; every reply is parsed key by key, and one that
- * has a key too few, a key too many or a value out of its set is refused whole
- * (the page then shows the network sentence), like `quote.ts` for the cart.
+ * has a key too few or a value out of its set is refused whole (the page then
+ * shows the network sentence), like `quote.ts` for the cart. A key the page does
+ * not read is ignored, as the admin's parsers ignore it (QUALITY-07): the
+ * functions deploy apart from the site, so a field added to a reply must not
+ * take every order page down until a rebuild.
+ * The notification pages keep their token, the link's whole fragment, in this
+ * tab's sessionStorage until the page's last word (`keepNotifyToken`, as `/orders`
+ * keeps its pair), so a reload after a throttle still has the link (STORE-UI-10);
+ * the address bar loses it all the same.
  * No `@supabase/supabase-js` and no zod on a public page (the 150 KiB budget, D32).
  */
 
@@ -49,12 +64,7 @@ export function readOrderAccess(): OrderAccess | null {
 
 /** Forgets the link: the function no longer knows the order, or its token has expired. */
 export function clearOrderAccess(): void {
-  if (typeof window === 'undefined') return
-  try {
-    window.sessionStorage.removeItem(ORDER_ACCESS_KEY)
-  } catch {
-    // Nothing to clean.
-  }
+  removeSessionValue(ORDER_ACCESS_KEY)
 }
 
 /**
@@ -78,6 +88,41 @@ export function takeOrderFragment(): OrderAccess | null {
   const access = parseOrderFragment(takeFragment())
   if (access !== null) writeSessionValue(ORDER_ACCESS_KEY, JSON.stringify(access))
   return access
+}
+
+/** The two notification links: the confirmation of a sign-up and the unsubscribe. */
+export type NotifyKind = 'confirm' | 'unsubscribe'
+
+/** What this tab keeps of a notification link: its token, the link's whole fragment, in sessionStorage only, under the page's kind. */
+const notifyKey = (kind: NotifyKind): string => `anasaq:notify:${kind}`
+
+/** The token this tab kept for the notification page `kind`, or null (STORE-UI-10: a reload has no fragment, and the page has not said its last word). */
+export function readNotifyToken(kind: NotifyKind): string | null {
+  return readSessionValue(notifyKey(kind)) || null
+}
+
+/** Keeps the token of the link just taken from the address; a second link opened in the tab replaces the first. */
+export function keepNotifyToken(kind: NotifyKind, token: string): void {
+  writeSessionValue(notifyKey(kind), token)
+}
+
+/** Forgets the token: the page has said its last word on it, the success or a dead link. A second link opened meanwhile keeps its own. */
+export function clearNotifyToken(kind: NotifyKind, token: string): void {
+  if (readNotifyToken(kind) === token) removeSessionValue(notifyKey(kind))
+}
+
+/** A notification link's token, as `notificationToken` writes it (`_shared/tokens.ts`): `<subscription id>.<mac>`. */
+const NOTIFY_TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/
+
+/**
+ * Takes a notification link's token out of the address and keeps it for the tab. Any other fragment (the skip link's
+ * `#main`, a link cut short) is no token: it stays in the address, and the token the tab kept is left as it was.
+ */
+export function takeNotifyFragment(kind: NotifyKind): string | null {
+  if (typeof window === 'undefined' || !NOTIFY_TOKEN.test(window.location.hash.slice(1))) return null
+  const token = takeFragment()
+  keepNotifyToken(kind, token)
+  return token
 }
 
 // ---------------------------------------------------------------------------
@@ -124,14 +169,14 @@ export function formProblem(reply: FunctionReply): string {
 }
 
 // ---------------------------------------------------------------------------
-// The small replies, judged by their exact shape (contract section 7): a success
-// that does not say what it should is not read as one.
+// The small replies, judged by the keys they must carry (contract section 7): a
+// success that does not say what it should is not read as one.
 // ---------------------------------------------------------------------------
 
 /** `return-request`: 201 `{returnId}`. */
 export function isFiled(reply: FunctionReply): boolean {
   try {
-    return reply.ok && reply.status === 201 && UUID.test(str(exact(reply.data, ['returnId']).returnId))
+    return reply.ok && reply.status === 201 && UUID.test(str(keyed(reply.data, ['returnId']).returnId))
   } catch {
     return false
   }
@@ -140,7 +185,7 @@ export function isFiled(reply: FunctionReply): boolean {
 /** `recover`: 200 `{sent: true}`. */
 export function isSent(reply: FunctionReply): boolean {
   try {
-    return reply.ok && reply.status === 200 && exact(reply.data, ['sent']).sent === true
+    return reply.ok && reply.status === 200 && keyed(reply.data, ['sent']).sent === true
   } catch {
     return false
   }
@@ -149,7 +194,7 @@ export function isSent(reply: FunctionReply): boolean {
 /** `confirm` and `unsubscribe`: 200 `{status}`; null for anything else. */
 export function notifyStatus(reply: FunctionReply): string | null {
   try {
-    return reply.ok && reply.status === 200 ? str(exact(reply.data, ['status']).status) : null
+    return reply.ok && reply.status === 200 ? str(keyed(reply.data, ['status']).status) : null
   } catch {
     return null
   }
@@ -219,11 +264,15 @@ function malformed(): never {
 function obj(value: unknown): Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : malformed()
 }
-/** An object with exactly the keys it should have: every `required` one, any `optional` one, and no other. */
-function exact(value: unknown, required: readonly string[], optional: readonly string[] = []): Record<string, unknown> {
+/**
+ * An object that has every `required` key. A key the page does not read is ignored, as the admin's parsers ignore it
+ * (QUALITY-07): the functions deploy apart from the site, so a field added to a reply must not take every order page
+ * down until a rebuild. A key that may be absent is not listed: the caller reads it as such.
+ */
+function keyed(value: unknown, required: readonly string[]): Record<string, unknown> {
   const o = obj(value)
   const keys = Object.keys(o)
-  if (!required.every((key) => keys.includes(key)) || !keys.every((key) => required.includes(key) || optional.includes(key))) malformed()
+  if (!required.every((key) => keys.includes(key))) malformed()
   return o
 }
 function str(value: unknown): string {
@@ -254,13 +303,13 @@ function instant(value: unknown): string {
 
 function parsePreorder(value: unknown): OrderLine['preorder'] {
   if (value === null) return null
-  const o = exact(value, ['shipsOn', 'note'])
+  const o = keyed(value, ['shipsOn', 'note'])
   return { shipsOn: shaped(o.shipsOn, DATE), note: str(o.note) }
 }
 
 /** A line of the order summary: checked, then left out (the items carry what the page shows). */
 function checkSummaryLine(value: unknown): void {
-  const o = exact(value, ['sku', 'productTitle', 'variantTitle', 'fulfillment', 'quantity', 'unitPrice', 'discount', 'total', 'preorder'])
+  const o = keyed(value, ['sku', 'productTitle', 'variantTitle', 'fulfillment', 'quantity', 'unitPrice', 'discount', 'total', 'preorder'])
   str(o.sku)
   str(o.productTitle)
   str(o.variantTitle)
@@ -273,12 +322,8 @@ function checkSummaryLine(value: unknown): void {
 }
 
 function parseItem(value: unknown): OrderLine {
-  const o = exact(
-    value,
-    ['itemId', 'title', 'variantTitle', 'quantity', 'fulfillment', 'preorder', 'returnable'],
-    ['state', 'carrier', 'tracking', 'download'],
-  )
-  const download = o.download === undefined ? null : exact(o.download, ['available', 'revoked'])
+  const o = keyed(value, ['itemId', 'title', 'variantTitle', 'quantity', 'fulfillment', 'preorder', 'returnable'])
+  const download = o.download === undefined ? null : keyed(o.download, ['available', 'revoked'])
   return {
     itemId: shaped(o.itemId, UUID),
     title: str(o.title),
@@ -295,14 +340,14 @@ function parseItem(value: unknown): OrderLine {
 }
 
 function parseReturn(value: unknown): OrderReturn {
-  const o = exact(value, ['id', 'state', 'createdAt'])
+  const o = keyed(value, ['id', 'state', 'createdAt'])
   return { id: shaped(o.id, UUID), state: oneOf(o.state, RETURN_STATES), createdAt: instant(o.createdAt) }
 }
 
 /** The `data` of a `get` reply: `{order, payment, items, returns}`; throws when anything is missing, unknown or out of its set. */
 export function parseOrderView(value: unknown): OrderView {
-  const o = exact(value, ['order', 'payment', 'items', 'returns'])
-  const order = exact(o.order, [
+  const o = keyed(value, ['order', 'payment', 'items', 'returns'])
+  const order = keyed(o.order, [
     'id',
     'orderNumber',
     'status',
@@ -318,7 +363,7 @@ export function parseOrderView(value: unknown): OrderView {
     'refunded',
     'testMode',
   ])
-  const payment = exact(o.payment, ['state'], ['invoiceUrl'])
+  const payment = keyed(o.payment, ['state'])
   shaped(order.id, UUID)
   instant(order.holdExpiresAt)
   str(order.currency)
@@ -480,10 +525,10 @@ export async function requestDownload(access: OrderAccess, itemId: string): Prom
   try {
     const issued = await postFunction('download', { action: 'issue', orderNumber: access.orderNumber, accessToken: access.accessToken, itemId })
     if (!issued.ok) return downloadProblem(issued)
-    const { downloadToken } = exact(issued.data, ['downloadToken', 'expiresAt'])
+    const { downloadToken } = keyed(issued.data, ['downloadToken', 'expiresAt'])
     const redeemed = await postFunction('download', { action: 'redeem', downloadToken: shaped(downloadToken, /^[A-Za-z0-9_-]{43}$/) })
     if (!redeemed.ok) return downloadProblem(redeemed)
-    return { url: shaped(exact(redeemed.data, ['url']).url, WEB_URL) }
+    return { url: shaped(keyed(redeemed.data, ['url']).url, WEB_URL) }
   } catch {
     return { problem: NETWORK, refresh: false }
   }

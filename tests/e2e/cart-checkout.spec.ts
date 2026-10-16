@@ -127,6 +127,41 @@ async function placeOrder(page: Page, email: string): Promise<string> {
   return (await page.locator('#checkout-order-number span').innerText()).trim()
 }
 
+/**
+ * Replaces Cloudflare's Turnstile script with a widget the test controls (RESIDUALS-1 R4a): it answers by itself with the dummy token the
+ * local function accepts (`solves`), or never answers, and `solveWidget` answers it by hand, as the visitor does by completing the check.
+ * The real widget needs the network and timers of its own, which a clock the test has stopped would stall.
+ */
+const DUMMY_TOKEN = 'XXXX.DUMMY.TOKEN.XXXX'
+async function stubTurnstile(page: Page, solves = true): Promise<void> {
+  await page.route('https://challenges.cloudflare.com/turnstile/v0/api.js*', (route) =>
+    route.fulfill({
+      contentType: 'text/javascript',
+      body: `(() => {
+        const widgets = {}
+        window.__widgets = widgets
+        const solve = (id) => ${solves ? `setTimeout(() => widgets[id] && widgets[id].callback(${JSON.stringify(DUMMY_TOKEN)}), 20)` : '0'}
+        window.turnstile = {
+          render(el, options) { const id = 'stub-' + Object.keys(widgets).length; widgets[id] = options; solve(id); return id },
+          reset(id) { solve(id) },
+          remove(id) { delete widgets[id] },
+        }
+        if (window.__anasaqTurnstileOnload) window.__anasaqTurnstileOnload()
+      })()`,
+    }),
+  )
+}
+/** Answers the stubbed widget by hand. */
+const solveWidget = (page: Page) =>
+  page.evaluate(
+    (token) => Object.values((window as unknown as { __widgets: Record<string, { callback: (value: string) => void }> }).__widgets)[0]!.callback(token),
+    DUMMY_TOKEN,
+  )
+
+/** Whether this request is the `create` call of the checkout function. */
+const isCreate = (request: { url(): string; method(): string; postData(): string | null }) =>
+  request.url() === CHECKOUT && request.method() === 'POST' && (request.postData() ?? '').includes('"action":"create"')
+
 /** What this tab keeps in sessionStorage under `key`. */
 const kept = (page: Page, key: string) => page.evaluate((name) => sessionStorage.getItem(name), key)
 
@@ -712,7 +747,122 @@ test('«تعذّر تجهيز الدفع؛ حاول بعد لحظات.» when th
   expect(await emulatorInvoices()).toHaveLength(1)
 })
 
-test('a stored order whose `pay` the function refuses (closed store, throttle) shows its words with the retry, and the retry works', async ({ page }) => {
+/**
+ * RESIDUALS-1 R4a, STORE-UI-09. The journey to the hold view of a real order whose `create` reply says the payment is still being prepared
+ * (the function made the order; only the payment of its reply is replaced), with `pay` counted and answered by the function (`'real'`) or
+ * with `preparing` every time (`'preparing'`). The clock is Playwright's, installed once the form and its quote are in and stopped before the
+ * press, so the view's schedule moves only when the test moves it.
+ */
+async function holdViewPreparing(page: Page, email: string, pay: 'real' | 'preparing') {
+  const calls = { pay: 0 }
+  let order: unknown = null
+  await page.route('**/functions/v1/checkout', async (route) => {
+    const request = route.request()
+    const action = request.method() === 'POST' ? (request.postDataJSON() as { action?: string } | null)?.action : undefined
+    if (action === 'create') {
+      const response = await route.fetch()
+      const body = (await response.json()) as { data: { order: unknown; payment: unknown } }
+      order = body.data.order
+      body.data.payment = { state: 'preparing' }
+      return route.fulfill({ response, json: body })
+    }
+    if (action === 'pay') {
+      calls.pay += 1
+      if (pay === 'preparing') {
+        return route.fulfill({
+          status: 200,
+          headers: { 'access-control-allow-origin': SITE_ORIGIN, 'content-type': 'application/json' },
+          body: JSON.stringify({ ok: true, data: { order, payment: { state: 'preparing' } } }),
+        })
+      }
+    }
+    return route.continue()
+  })
+  await stubTurnstile(page)
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
+  // The check has answered (the stub's 20 ms are real time): from here only the test moves the clock.
+  await page.waitForTimeout(300)
+  await page.clock.install()
+  await page.clock.pauseAt(Date.now() + 1_000)
+  await confirmOrder(page)
+  await expect(page.getByText('نجهّز صفحة الدفع…')).toBeVisible()
+  return calls
+}
+
+test('«نجهّز صفحة الدفع…» asks `pay` again by itself: none before 5 seconds, one at 5, and «ادفع الآن» shows without a press when it answers', async ({ page }) => {
+  await checkoutOn()
+  const calls = await holdViewPreparing(page, `buyer-${marker}-schedule-ready@example.com`, 'real')
+  const pay = page.getByRole('link', { name: 'ادفع الآن' })
+  const cancel = page.getByRole('button', { name: 'إلغاء الطلب' })
+  // The buyer's own action (the press) put the focus in the order box; the buyer then moves on to «إلغاء الطلب».
+  await cancel.focus()
+
+  await page.clock.runFor(4_900)
+  await page.waitForTimeout(500)
+  expect(calls.pay).toBe(0)
+  await expect(page.getByText('نجهّز صفحة الدفع…')).toBeVisible()
+  await expect(pay).toHaveCount(0)
+
+  await page.clock.runFor(200)
+  await expect.poll(() => calls.pay).toBe(1)
+  // Nobody pressed «أعد المحاولة»: the answer moved the view on by itself, and a scheduled ask moves no focus.
+  await expect(pay).toBeVisible()
+  await expect(page.getByText('نجهّز صفحة الدفع…')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'أعد المحاولة' })).toHaveCount(0)
+  await expect(cancel).toBeFocused()
+
+  // The payment is no longer being prepared: the schedule is over, nothing asks again.
+  await page.clock.runFor(120_000)
+  await page.waitForTimeout(500)
+  expect(calls.pay).toBe(1)
+  expect(await emulatorInvoices()).toHaveLength(1)
+})
+
+test('«نجهّز صفحة الدفع…» that stays so is asked exactly four times, at 5, 15, 45 and 75 seconds, and then only «أعد المحاولة» asks', async ({ page }) => {
+  await checkoutOn()
+  const calls = await holdViewPreparing(page, `buyer-${marker}-schedule-slow@example.com`, 'preparing')
+  const retry = page.getByRole('button', { name: 'أعد المحاولة' })
+  const cancel = page.getByRole('button', { name: 'إلغاء الطلب' })
+  const waiting = page.getByText('نجهّز صفحة الدفع…')
+  const box = page.locator('[aria-labelledby="checkout-order-number"]')
+  /** Moves the clock on by `ms` and waits until the ask it may have made is answered (a tick finding a request still running is skipped). */
+  async function advance(ms: number, asked: number) {
+    await page.clock.runFor(ms)
+    // The stray ask of a tick that came too early would reach the route a moment later: give it that moment.
+    await page.waitForTimeout(300)
+    await expect.poll(() => calls.pay).toBe(asked)
+    await expect(retry).not.toHaveAttribute('aria-disabled', 'true')
+  }
+  // The buyer's own action (the press) put the focus in the order box; the buyer then moves on to «إلغاء الطلب».
+  await cancel.focus()
+
+  await advance(4_900, 0)
+  await advance(200, 1)
+  // An answer of `preparing` again changes nothing on screen: the same sentence, the same buttons, no failure, no focus move, and the schedule goes on.
+  await expect(waiting).toBeVisible()
+  await expect(box.getByRole('alert')).toHaveCount(0)
+  await expect(cancel).toBeFocused()
+  await advance(9_800, 1)
+  await advance(200, 2)
+  await advance(29_800, 2)
+  await advance(200, 3)
+  await advance(29_800, 3)
+  await advance(200, 4)
+  await expect(waiting).toBeVisible()
+  // Past the last tick nothing asks any more, however long the view stays: only «أعد المحاولة».
+  await page.clock.runFor(300_000)
+  await page.waitForTimeout(500)
+  expect(calls.pay).toBe(4)
+  await retry.click()
+  await expect.poll(() => calls.pay).toBe(5)
+})
+
+// RESIDUALS-1 R4a, STORE-UI-08: a view opened from storage does not know the payment, so a `pay` that fails shows only its own words:
+// never «نجهّز صفحة الدفع…» beside them, and for a closed store never «تعذّر تجهيز الدفع؛ حاول بعد لحظات.» beside the store-closed sentence.
+test('a stored order whose `pay` the function refuses (closed store, throttle) shows only its own words with the retry, and the retry works', async ({ page }) => {
   await checkoutOn()
   const placed = await apiOrder(`buyer-${marker}-closed@example.com`)
   await page.addInitScript(
@@ -739,22 +889,69 @@ test('a stored order whose `pay` the function refuses (closed store, throttle) s
   })
   await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
   await page.goto('/checkout')
+  // The closed store is said once: the payment is not "being prepared" (nothing is), and it did not fail to be made.
   await expect(page.getByText('الشراء غير متاح حاليًا، ويفتح قريبًا.')).toBeVisible()
-  await expect(page.getByText('تعذّر تجهيز الدفع؛ حاول بعد لحظات.')).toBeVisible()
+  await expect(page.getByText('تعذّر تجهيز الدفع؛ حاول بعد لحظات.')).toHaveCount(0)
+  await expect(page.getByText('نجهّز صفحة الدفع…')).toHaveCount(0)
   // The order is kept: the buyer can still try again, or cancel.
   expect(await kept(page, PENDING_KEY)).not.toBeNull()
   await expect(page.getByRole('button', { name: 'إلغاء الطلب' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'أعد المحاولة' })).toBeVisible()
 
-  // The throttle says its own words, in place of the earlier ones.
+  // The throttle says its own words, in place of the earlier ones, and nothing is "being prepared" beside them.
   refusing = 'throttled'
   await page.getByRole('button', { name: 'أعد المحاولة' }).click()
   await expect(page.getByText('أرسلت طلبات كثيرة؛ حاول لاحقًا.')).toBeVisible()
+  await expect(page.getByText('نجهّز صفحة الدفع…')).toHaveCount(0)
+  await expect(page.getByText('تعذّر تجهيز الدفع؛ حاول بعد لحظات.')).toHaveCount(0)
   await expect(page.getByText('الشراء غير متاح حاليًا، ويفتح قريبًا.')).toHaveCount(0)
   expect(await kept(page, PENDING_KEY)).not.toBeNull()
 
   refusing = null
   await page.getByRole('button', { name: 'أعد المحاولة' }).click()
   await expect(page.getByRole('link', { name: 'ادفع الآن' })).toHaveAttribute('href', placed.invoiceUrl)
+})
+
+// RESIDUALS-1 R4a's audit: the view's very first `pay` throttled. Nothing was ever known of the payment, so the throttle stands alone.
+test('a stored order whose first `pay` is throttled shows the throttle alone, never «نجهّز صفحة الدفع…»', async ({ page }) => {
+  await checkoutOn()
+  const placed = await apiOrder(`buyer-${marker}-throttled-first@example.com`)
+  await page.addInitScript(
+    ([key, order]) => sessionStorage.setItem(key!, order!),
+    [PENDING_KEY, JSON.stringify({ orderNumber: placed.orderNumber, accessToken: placed.accessToken })],
+  )
+  await page.route('**/functions/v1/checkout', async (route) => {
+    const request = route.request()
+    if (request.method() === 'POST' && request.postDataJSON()?.action === 'pay') {
+      return route.fulfill({
+        status: 429,
+        headers: { 'access-control-allow-origin': SITE_ORIGIN, 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: false, error: { code: 'RATE_LIMITED', message: 'أرسلت طلبات كثيرة؛ حاول لاحقًا.' } }),
+      })
+    }
+    return route.continue()
+  })
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(page.getByText('أرسلت طلبات كثيرة؛ حاول لاحقًا.')).toBeVisible()
+  await expect(page.getByText('نجهّز صفحة الدفع…')).toHaveCount(0)
+  await expect(page.getByText('تعذّر تجهيز الدفع؛ حاول بعد لحظات.')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'أعد المحاولة' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'إلغاء الطلب' })).toBeVisible()
+})
+
+// RESIDUALS-1 R4a's audit: a scheduled answer that takes away the control the buyer is on («أعد المحاولة», once the payment is ready)
+// gives the focus to the order box, never to the page.
+test('a scheduled answer that removes the focused «أعد المحاولة» hands the focus to the order box, not to the page', async ({ page }) => {
+  await checkoutOn()
+  const calls = await holdViewPreparing(page, `buyer-${marker}-schedule-focus@example.com`, 'real')
+  const retry = page.getByRole('button', { name: 'أعد المحاولة' })
+  await retry.focus()
+  await page.clock.runFor(5_100)
+  await expect.poll(() => calls.pay).toBe(1)
+  await expect(page.getByRole('link', { name: 'ادفع الآن' })).toBeVisible()
+  await expect(retry).toHaveCount(0)
+  await expect(page.locator('[aria-labelledby="checkout-order-number"]')).toBeFocused()
 })
 
 test('a cancel the function refuses (a payment under way, the throttle) shows its words and keeps the hold view', async ({ page }) => {
@@ -898,8 +1095,10 @@ test('at the hold\'s end the view asks the function: a device clock that runs ah
   await expect(page.getByText('انتهت مدة حجز الطلب.')).toHaveCount(0)
   expect(await kept(page, PENDING_KEY)).not.toBeNull()
 
-  // The hold is over at the function (under a minute left: no payment can begin on it): now the view ends.
+  // The hold is over at the function: under a minute left, and its invoice can no longer be paid (since RESIDUALS-1 R2a, P08-CKPT-04,
+  // an invoice that can still be paid is answered in the hold's last minute; HOLD_EXPIRED is for an order with none). Now the view ends.
   await db.query(`update finance.orders set hold_expires_at = now() + interval '20 seconds' where customer_email = $1`, [email])
+  await db.query(`update finance.payment_attempts set invoice_expires_at = now() - interval '1 second' where order_id = (select id from finance.orders where customer_email = $1)`, [email])
   await fire()
   await expect(page.getByText('انتهت مدة حجز الطلب.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'العودة إلى السلة' })).toBeVisible()
@@ -914,8 +1113,10 @@ test('when the function says the hold is over, a reload ends the view the same w
   await checkoutOn()
   const email = `buyer-${marker}-holdover@example.com`
   await placeOrder(page, email)
-  // The hold has under a minute left: no payment can begin on it any more (HOLD_EXPIRED).
+  // The hold has under a minute left and its invoice can no longer be paid: no payment can begin on it any more (HOLD_EXPIRED; an
+  // invoice still payable would be answered instead: RESIDUALS-1 R2a, P08-CKPT-04).
   await db.query(`update finance.orders set hold_expires_at = now() + interval '20 seconds' where customer_email = $1`, [email])
+  await db.query(`update finance.payment_attempts set invoice_expires_at = now() - interval '1 second' where order_id = (select id from finance.orders where customer_email = $1)`, [email])
   await page.goto('/checkout')
   await expect(page.getByText('انتهت مدة حجز الطلب.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'العودة إلى السلة' })).toBeVisible()
@@ -974,8 +1175,9 @@ async function loseFirstCreateReply(page: Page) {
 }
 
 // The deep audit's FD-B-01: the order a lost reply made comes back through ACTIVE_HOLD, and only a press that changed
-// the request since is told it was made before the edit.
-test('a lost create reply, then a changed name: ACTIVE_HOLD hands back that order and the hold view says it was made before the edit', async ({ page }) => {
+// the request since is told it was made before the edit. RESIDUALS-1 R4a (its residual, ISSUES I55 (8)): the request whose reply was
+// lost is kept in the tab's storage with the key, so that holds across a reload too.
+test('a lost create reply, a reload, then a changed name: ACTIVE_HOLD hands back that order and the hold view says it was made before the edit', async ({ page }) => {
   await checkoutOn()
   const email = `buyer-${marker}-lost-edited@example.com`
   await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
@@ -986,7 +1188,17 @@ test('a lost create reply, then a changed name: ACTIVE_HOLD hands back that orde
   await confirmOrder(page)
   await expect(page.getByText('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')).toBeVisible()
   expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
+  // The record of the lost request is a digest kept beside the key, never the request.
+  expect(JSON.parse((await kept(page, IDEMPOTENCY_KEY))!)).toEqual({
+    digest: expect.stringMatching(/^[0-9a-f]{16}$/),
+    key: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    unseen: expect.stringMatching(/^[0-9a-f]{16}$/),
+  })
 
+  // The page goes (the typed details with it); the tab keeps the key and the lost request. The buyer fills the form again, with a corrected name.
+  await page.reload()
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
   await page.getByLabel('الاسم').fill('مشترٍ آخر')
   await confirmOrder(page)
   await expect(page.locator('#checkout-order-number')).toBeVisible()
@@ -994,9 +1206,30 @@ test('a lost create reply, then a changed name: ACTIVE_HOLD hands back that orde
   expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
 })
 
-test('a lost create reply, then the same request again: the order comes back with no warning', async ({ page }) => {
+test('a lost create reply, a reload, then the same request again: the order comes back with no warning', async ({ page }) => {
   await checkoutOn()
   const email = `buyer-${marker}-lost-same@example.com`
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
+  await loseFirstCreateReply(page)
+  await confirmOrder(page)
+  await expect(page.getByText('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')).toBeVisible()
+
+  // The same request, filled in again after a reload, keeps its key (the tab kept it), so the function replays the order it made.
+  await page.reload()
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
+  await confirmOrder(page)
+  await expect(page.locator('#checkout-order-number')).toBeVisible()
+  await expect(page.getByText('هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.')).toHaveCount(0)
+  expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
+})
+
+test('a lost create reply, then the same request again in the same page: the order comes back with no warning', async ({ page }) => {
+  await checkoutOn()
+  const email = `buyer-${marker}-lost-same-page@example.com`
   await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
   await page.goto('/checkout')
   await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
@@ -1009,6 +1242,62 @@ test('a lost create reply, then the same request again: the order comes back wit
   await confirmOrder(page)
   await expect(page.locator('#checkout-order-number')).toBeVisible()
   await expect(page.getByText('هذا الطلب أُنشئ قبل تعديلك؛ ادفعه كما هو أو ألغه لتطلب من جديد.')).toHaveCount(0)
+  expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
+})
+
+// RESIDUALS-1 R4a, STORE-UI-11: a name pasted from two cells keeps the TAB between them; the function refuses control characters.
+test('a name typed with a TAB shows and is sent with a space in its place', async ({ page }) => {
+  await checkoutOn()
+  await stubTurnstile(page)
+  const email = `buyer-${marker}-tab@example.com`
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await page.getByLabel('البريد الإلكتروني').fill(email)
+  await page.getByLabel('الاسم').fill('أنس\tالقرني')
+  await expect(page.getByLabel('الاسم')).toHaveValue('أنس القرني')
+  await page.getByRole('checkbox').check()
+  const creating = page.waitForRequest(isCreate)
+  await confirmOrder(page)
+  expect(((await creating).postDataJSON() as { name: string }).name).toBe('أنس القرني')
+  await expect(page.locator('#checkout-order-number')).toBeVisible()
+  expect((await db.query<{ customer_name: string }>('select customer_name from finance.orders where customer_email = $1', [email])).rows).toEqual([{ customer_name: 'أنس القرني' }])
+})
+
+// RESIDUALS-1 R4a, STORE-UI-18: a press made before the check has a token keeps its label, says what it waits for, sends nothing, and goes
+// by itself once the token arrives.
+test('a press before the check has a token keeps «تأكيد الطلب», says what it waits for, sends nothing, and sends itself when the token arrives', async ({ page }) => {
+  await checkoutOn()
+  await stubTurnstile(page, false)
+  const email = `buyer-${marker}-waiting@example.com`
+  const created: string[] = []
+  page.on('request', (request) => {
+    if (isCreate(request)) created.push(request.url())
+  })
+  await addFixtures(page, [{ row: 'النسخة الإلكترونية', quantity: 1 }])
+  await page.goto('/checkout')
+  await expect(totalRow(page, 'الإجمالي')).toContainText('12.40 ر.س')
+  await fillDigital(page, email)
+
+  const submit = page.getByRole('button', { name: 'تأكيد الطلب' })
+  const sentence = page.getByText('أكمل التحقق أعلاه ليُرسل الطلب.')
+  await expect(sentence).toHaveCount(0)
+  await submit.click()
+  // The label stays, the button waits (aria-disabled, so it keeps the focus), and a status line under the check says what for.
+  await expect(sentence).toBeVisible()
+  await expect(sentence).toHaveAttribute('role', 'status')
+  await expect(submit).toHaveAttribute('aria-disabled', 'true')
+  await expect(submit).toBeFocused()
+  await expect(page.getByRole('button', { name: 'جارٍ الإرسال…' })).toHaveCount(0)
+  await page.waitForTimeout(1_000)
+  expect(created).toEqual([])
+
+  // The check answers: the form sends itself, the sentence goes, and only now the button says it is sending.
+  const creating = page.waitForRequest(isCreate)
+  await solveWidget(page)
+  expect(((await creating).postDataJSON() as { turnstileToken: string }).turnstileToken).toBe(DUMMY_TOKEN)
+  await expect(page.locator('#checkout-order-number')).toBeVisible()
+  await expect(sentence).toHaveCount(0)
   expect(await orderRow(email)).toEqual([{ status: 'pending_payment', total_halalas: 1240 }])
 })
 
@@ -1144,6 +1433,72 @@ test('the return page tells a throttle from a lost connection from an unknown or
   await expect(page.getByText('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')).toHaveCount(0)
   await expect(refresh).toHaveCount(0)
   expect(asked).toBe(3)
+})
+
+// RESIDUALS-1 R4a, STORE-UI-13: once the schedule has run out with the payment still pending, nothing is being verified any more.
+test('the return page, once its schedule has run out with the payment pending, says «بانتظار الدفع.» and not that it is verifying; «تحديث» leaves it so until an answer changes the state', async ({ page }) => {
+  const invoice = 'https://pay.example.test/invoices/abc'
+  let state = 'pending'
+  let gate: Promise<void> | null = null
+  let asked = 0
+  await page.route('**/functions/v1/payments', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    asked += 1
+    if (gate !== null) await gate
+    return route.fulfill({
+      status: 200,
+      headers: { 'access-control-allow-origin': SITE_ORIGIN, 'content-type': 'application/json' },
+      body: JSON.stringify({ ok: true, data: { state, hasToken: true, testMode: true, ...(state === 'pending' ? { invoiceUrl: invoice } : {}) } }),
+    })
+  })
+  await page.addInitScript(
+    ([key, order]) => sessionStorage.setItem(key!, order!),
+    [PENDING_KEY, JSON.stringify({ orderNumber: 'ABCD2345', accessToken: 'B'.repeat(43) })],
+  )
+  // Playwright's clock: the schedule's 30 seconds pass when the test says so.
+  await page.clock.install()
+  await page.goto('/checkout/return?order=ABCD2345')
+  const verifying = page.getByText('جارٍ التحقق من الدفع…')
+  const awaiting = page.getByText('بانتظار الدفع.')
+  const resume = page.getByRole('link', { name: 'متابعة الدفع' })
+  const refresh = page.getByRole('button', { name: 'تحديث' })
+
+  // While the schedule runs the page is verifying, and «تحديث» is not offered yet.
+  await expect(resume).toHaveAttribute('href', invoice)
+  await expect(verifying).toBeVisible()
+  await expect(awaiting).toHaveCount(0)
+  await expect(refresh).toHaveCount(0)
+
+  // The schedule runs out with the answer still `pending`: the page says what is true, and keeps the way back to the invoice and «تحديث».
+  await page.clock.runFor(30_000)
+  await expect(awaiting).toBeVisible()
+  await expect(awaiting).toHaveAttribute('role', 'status')
+  await expect(verifying).toHaveCount(0)
+  await expect(resume).toBeVisible()
+  await expect(refresh).toBeVisible()
+
+  // A press of «تحديث» asks once more and leaves the sentence while it waits for the answer, and after an answer that is still pending.
+  let release!: () => void
+  gate = new Promise<void>((resolve) => (release = resolve))
+  const before = asked
+  await refresh.click()
+  await page.clock.runFor(10)
+  await expect.poll(() => asked).toBe(before + 1)
+  await expect(awaiting).toBeVisible()
+  await expect(verifying).toHaveCount(0)
+  release()
+  gate = null
+  await expect(refresh).not.toHaveAttribute('aria-disabled', 'true')
+  await expect(awaiting).toBeVisible()
+  await expect(verifying).toHaveCount(0)
+
+  // An answer that changes the state changes the sentence.
+  state = 'paid'
+  await refresh.click()
+  await page.clock.runFor(10)
+  await expect(page.getByText('تم الدفع.')).toBeVisible()
+  await expect(awaiting).toHaveCount(0)
+  await expect(refresh).toHaveCount(0)
 })
 
 // The state is the function's to say (what settles each one is proven by the integration tests); the page has to

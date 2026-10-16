@@ -1,13 +1,16 @@
 // P08 round 10a: the pure parts of the buyer's order page and the two notification link pages
-// (src/lib/orders.ts): the order link in the address, the strict parser of the `orders` function's `get`
+// (src/lib/orders.ts): the order link in the address, the parser of the `orders` function's `get`
 // reply, the words for each state, the return request's items, and the calls the pages make with `fetch`
-// stubbed. The pages themselves are in tests/e2e/order-page.spec.ts.
+// stubbed. The pages themselves are in tests/e2e/order-page.spec.ts. RESIDUALS-1 R4a: a reply is read by the keys
+// the page uses and any other key is ignored (QUALITY-07), and a notification page keeps its token in the tab
+// until its last word (STORE-UI-10).
 import { readFileSync } from 'node:fs'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   clampQuantity,
+  clearNotifyToken,
   clearOrderAccess,
   failureOf,
   fetchOrder,
@@ -15,6 +18,7 @@ import {
   FULFILLMENT_LABELS,
   isFiled,
   isSent,
+  keepNotifyToken,
   keptRequestKey,
   lineName,
   normalizeReason,
@@ -24,6 +28,7 @@ import {
   PAYMENT_STATES,
   parseOrderFragment,
   parseOrderView,
+  readNotifyToken,
   readOrderAccess,
   requestDownload,
   RETURN_LABELS,
@@ -33,6 +38,7 @@ import {
   STATUS_SENTENCES,
   statusKind,
   takeFragment,
+  takeNotifyFragment,
   takeOrderFragment,
   type OrderLine,
 } from '../../src/lib/orders'
@@ -138,7 +144,7 @@ describe('the order link in the address and in the tab', () => {
     const { storage, replaceState } = stubWindow({ hash: '#0aaa.token-value', pathname: '/notify/confirm' })
     expect(takeFragment()).toBe('0aaa.token-value')
     expect(replaceState).toHaveBeenCalledWith({ marker: 1 }, '', '/notify/confirm')
-    // Nothing is stored: the token lives in the page's memory only.
+    // Taking the fragment stores nothing: the page keeps the token itself (`keepNotifyToken`, below).
     expect(Object.keys(storage)).toEqual([])
   })
 
@@ -160,6 +166,82 @@ describe('the order link in the address and in the tab', () => {
     expect(takeFragment()).toBe('')
     expect(readOrderAccess()).toBeNull()
     expect(() => clearOrderAccess()).not.toThrow()
+  })
+})
+
+// STORE-UI-10: a notification page takes its token out of the address bar and keeps it in the tab until its last word.
+describe('the notification link\'s token in the tab', () => {
+  const NOTIFY_TOKEN = `0f3c8a1e-5b2d-4c6a-9e47-1a2b3c4d5e6f.${'Mn8_-'.repeat(9).slice(0, 43)}`
+
+  it('keeps the token under the page\'s kind, in sessionStorage, and reads it back', () => {
+    const { storage } = stubWindow({ hash: '' })
+    expect(readNotifyToken('confirm')).toBeNull()
+    keepNotifyToken('confirm', NOTIFY_TOKEN)
+    expect(storage['anasaq:notify:confirm']).toBe(NOTIFY_TOKEN)
+    expect(readNotifyToken('confirm')).toBe(NOTIFY_TOKEN)
+    // The other page's token is another key: a confirmation link opened beside an unsubscribe link keeps both.
+    expect(readNotifyToken('unsubscribe')).toBeNull()
+    keepNotifyToken('unsubscribe', 'other.token')
+    expect(readNotifyToken('unsubscribe')).toBe('other.token')
+    expect(readNotifyToken('confirm')).toBe(NOTIFY_TOKEN)
+    // A second link opened in the tab replaces the first.
+    keepNotifyToken('confirm', 'second.token')
+    expect(readNotifyToken('confirm')).toBe('second.token')
+  })
+
+  it('forgets the token at the page\'s last word, only the page\'s own', () => {
+    const { storage } = stubWindow({ hash: '' })
+    keepNotifyToken('confirm', NOTIFY_TOKEN)
+    keepNotifyToken('unsubscribe', NOTIFY_TOKEN)
+    clearNotifyToken('confirm', NOTIFY_TOKEN)
+    expect(storage['anasaq:notify:confirm']).toBeUndefined()
+    expect(readNotifyToken('confirm')).toBeNull()
+    expect(readNotifyToken('unsubscribe')).toBe(NOTIFY_TOKEN)
+    clearNotifyToken('unsubscribe', NOTIFY_TOKEN)
+    expect(Object.keys(storage)).toEqual([])
+  })
+
+  it('keeps a second link opened while the first was answered: the first link\x27s last word clears only its own token', () => {
+    const { storage } = stubWindow({ hash: '' })
+    keepNotifyToken('confirm', 'second.token')
+    clearNotifyToken('confirm', NOTIFY_TOKEN)
+    expect(storage['anasaq:notify:confirm']).toBe('second.token')
+  })
+
+  it('takes and keeps only a fragment shaped as a link of the function: the skip link and a cut link are left alone', () => {
+    const link = stubWindow({ hash: `#${NOTIFY_TOKEN}`, pathname: '/notify/confirm' })
+    expect(takeNotifyFragment('confirm')).toBe(NOTIFY_TOKEN)
+    expect(link.storage['anasaq:notify:confirm']).toBe(NOTIFY_TOKEN)
+    expect(link.replaceState).toHaveBeenCalledTimes(1)
+    for (const hash of ['#main', `#${NOTIFY_TOKEN.slice(0, -1)}`, `#${NOTIFY_TOKEN.toUpperCase()}`, '#', '']) {
+      const other = stubWindow({ hash, pathname: '/notify/confirm' }, { 'anasaq:notify:confirm': NOTIFY_TOKEN })
+      expect(takeNotifyFragment('confirm'), hash).toBeNull()
+      expect(other.replaceState, hash).not.toHaveBeenCalled()
+      expect(other.storage['anasaq:notify:confirm'], hash).toBe(NOTIFY_TOKEN)
+    }
+  })
+
+  it('reads an empty value as no token', () => {
+    stubWindow({ hash: '' }, { 'anasaq:notify:confirm': '' })
+    expect(readNotifyToken('confirm')).toBeNull()
+  })
+
+  it('leaves the token in the tab\'s memory when sessionStorage throws, and never throws', async () => {
+    // The tab's memory is module state: a copy of the modules of its own, so nothing is left for the other tests.
+    vi.resetModules()
+    const tab = await import('../../src/lib/orders')
+    const denied = (): never => {
+      throw new DOMException('denied', 'SecurityError')
+    }
+    vi.stubGlobal('window', { sessionStorage: { getItem: denied, setItem: denied, removeItem: denied } })
+    expect(() => tab.keepNotifyToken('confirm', NOTIFY_TOKEN)).not.toThrow()
+    expect(tab.readNotifyToken('confirm')).toBe(NOTIFY_TOKEN)
+    expect(() => tab.clearNotifyToken('confirm', NOTIFY_TOKEN)).not.toThrow()
+    expect(tab.readNotifyToken('confirm')).toBeNull()
+    // No window at all (the static export's server render): nothing to read, nothing thrown.
+    vi.unstubAllGlobals()
+    expect(tab.readNotifyToken('unsubscribe')).toBeNull()
+    expect(() => tab.clearNotifyToken('unsubscribe', NOTIFY_TOKEN)).not.toThrow()
   })
 })
 
@@ -295,16 +377,30 @@ describe('parseOrderView', () => {
     { name: 'a download', path: ['items', 1, 'download'], required: ['available', 'revoked'], base: richReply },
   ]
 
+  // QUALITY-07: the functions deploy apart from the site, so a field a newer function adds to a reply must not take every order page
+  // down until a rebuild. A key the page does not read is ignored, at every level; a key it needs is still needed.
   for (const level of LEVELS) {
-    it(`refuses ${level.name} with a key missing, and with a key it does not know`, () => {
+    it(`refuses ${level.name} with a key missing, and ignores a key it does not read`, () => {
       const base = level.base ?? reply
       expect(() => parseOrderView(base())).not.toThrow()
       for (const key of level.required) {
         expect(() => parseOrderView(changed(level.path, (target) => delete target[key], base())), `without ${key}`).toThrow()
       }
-      expect(() => parseOrderView(changed(level.path, (target) => (target.extra = 1), base())), 'with an unknown key').toThrow()
+      const withExtra = changed(level.path, (target) => (target.extra = 1), base())
+      expect(() => parseOrderView(withExtra), 'with an unknown key').not.toThrow()
+      expect(parseOrderView(withExtra), 'with an unknown key').toEqual(parseOrderView(base()))
     })
   }
+
+  it('ignores an unknown key at every level at once, and still refuses a key it needs when an unknown one sits beside it', () => {
+    const noisy = structuredClone(richReply()) as Record<string, any>
+    for (const node of [noisy, noisy.order, noisy.order.lines[0], noisy.payment, noisy.items[0], noisy.items[1], noisy.items[1].preorder, noisy.items[1].download, noisy.returns[0]]) {
+      node.addedLater = { nested: [1, 2, 3] }
+    }
+    expect(parseOrderView(noisy)).toEqual(parseOrderView(richReply()))
+    delete noisy.order.total
+    expect(() => parseOrderView(noisy)).toThrow()
+  })
 
   it('refuses a value out of its set or of the wrong kind', () => {
     const refused: Array<[string, Array<string | number>, string, unknown]> = [
@@ -554,10 +650,15 @@ describe('fetchOrder', () => {
     expect(await fetchOrder(ACCESS)).toEqual({ failure: 'network' })
     stubFetch({ body: '<html>bad gateway</html>', status: 502 })
     expect(await fetchOrder(ACCESS)).toEqual({ failure: 'network' })
-    stubFetch({ body: { ok: true, data: { ...reply(), extra: 1 } } })
+    stubFetch({ body: { ok: true, data: { ...reply(), items: 'none' } } })
     expect(await fetchOrder(ACCESS)).toEqual({ failure: 'network' })
     stubFetch({ body: { ok: true } })
     expect(await fetchOrder(ACCESS)).toEqual({ failure: 'network' })
+  })
+
+  it('reads a reply that carries a key the page does not read (QUALITY-07): a newer function does not take the page down', async () => {
+    stubFetch({ body: { ok: true, data: { ...reply(), extra: 1 } } })
+    expect(await fetchOrder(ACCESS)).toEqual({ view: parseOrderView(reply()) })
   })
 
   it('classifies a status', () => {
@@ -565,32 +666,37 @@ describe('fetchOrder', () => {
   })
 })
 
-describe('the small replies, by their exact shape', () => {
+// A success that does not say what it should is not read as one; a key beside the ones it must carry is ignored (QUALITY-07).
+describe('the small replies, by the keys they must carry', () => {
   const RETURN_ID = '44444444-4444-4444-8444-444444444444'
   it('reads a filed return only from a 201 that names it', () => {
     expect(isFiled({ status: 201, ok: true, data: { returnId: RETURN_ID } })).toBe(true)
     for (const reply of [
       { status: 201, ok: true, data: {} },
       { status: 201, ok: true, data: { returnId: 'x' } },
-      { status: 201, ok: true, data: { returnId: RETURN_ID, extra: 1 } },
+      { status: 201, ok: true, data: { extra: RETURN_ID } },
       { status: 200, ok: true, data: { returnId: RETURN_ID } },
       { status: 201, ok: false, data: { returnId: RETURN_ID } },
     ]) {
       expect(isFiled(reply), JSON.stringify(reply)).toBe(false)
     }
+    // A key it does not read is ignored, and the reply still reads.
+    expect(isFiled({ status: 201, ok: true, data: { returnId: RETURN_ID, extra: 1 } })).toBe(true)
   })
   it('reads a sent recovery only from 200 {sent: true}', () => {
     expect(isSent({ status: 200, ok: true, data: { sent: true } })).toBe(true)
-    for (const data of [{}, { sent: false }, { sent: 'true' }, { sent: true, extra: 1 }, null]) {
+    for (const data of [{}, { sent: false }, { sent: 'true' }, { extra: true }, null]) {
       expect(isSent({ status: 200, ok: true, data }), JSON.stringify(data)).toBe(false)
     }
+    expect(isSent({ status: 200, ok: true, data: { sent: true, extra: 1 } })).toBe(true)
   })
   it('reads a link action only from 200 {status}', () => {
     expect(notifyStatus({ status: 200, ok: true, data: { status: 'confirmed' } })).toBe('confirmed')
-    for (const data of [{}, { status: 1 }, { status: 'confirmed', extra: 1 }, null]) {
+    for (const data of [{}, { status: 1 }, { extra: 'confirmed' }, null]) {
       expect(notifyStatus({ status: 200, ok: true, data }), JSON.stringify(data)).toBeNull()
     }
     expect(notifyStatus({ status: 404, ok: false, data: { status: 'confirmed' } })).toBeNull()
+    expect(notifyStatus({ status: 200, ok: true, data: { status: 'confirmed', extra: 1 } })).toBe('confirmed')
   })
 })
 
@@ -641,15 +747,24 @@ describe('requestDownload', () => {
     const bad: Array<unknown[]> = [
       [{ body: { ok: true, data: {} } }],
       [{ body: { ok: true, data: { downloadToken: 'short', expiresAt: 'x' } } }],
-      [{ body: { ok: true, data: { downloadToken: DOWNLOAD_TOKEN, expiresAt: 'x', extra: 1 } } }],
+      [{ body: { ok: true, data: { downloadToken: DOWNLOAD_TOKEN, extra: 1 } } }],
       [issued, { body: { ok: true, data: {} } }],
       [issued, { body: { ok: true, data: { url: 'javascript:alert(1)' } } }],
-      [issued, { body: { ok: true, data: { url: 'https://x.test/f', extra: 1 } } }],
+      [issued, { body: { ok: true, data: { extra: 'https://x.test/f' } } }],
     ]
     for (const replies of bad) {
       stubFetch(...(replies as Parameters<typeof stubFetch>))
       expect(await requestDownload(ACCESS, ITEM_ID), JSON.stringify(replies).slice(0, 60)).toEqual({ problem: 'تعذّر الاتصال بالخدمة؛ أعد المحاولة.', refresh: false })
     }
+  })
+
+  it('follows a reply that carries a key it does not read (QUALITY-07), as long as the keys it needs are there', async () => {
+    const sent = stubFetch(
+      { body: { ok: true, data: { downloadToken: DOWNLOAD_TOKEN, expiresAt: '2026-10-03T12:15:00.000Z', extra: 1 } } },
+      { body: { ok: true, data: { url: 'https://x.test/f', extra: 1 } } },
+    )
+    expect(await requestDownload(ACCESS, ITEM_ID)).toEqual({ url: 'https://x.test/f' })
+    expect(sent).toHaveLength(2)
   })
 })
 

@@ -926,7 +926,9 @@ for (const width of [360, 1440]) {
     })
 
     test('order page: a reply that does not fit is shown as the network sentence, never as an order', async ({ page }) => {
-      await mock(page, { orders: scripted(ok({ ...view(), extra: 1 }), ok({ ...view(), order: { ...view().order, status: 'shipped' } }), ok(view({ payment: { state: 'paid', invoiceUrl: 'javascript:alert(1)' } }))) })
+      // A missing key, an unknown status, a link that is not a web address. An added key is no misfit: the page ignores it (RESIDUALS-1 R4a, QUALITY-07).
+      const { payment: _payment, ...noPayment } = view()
+      await mock(page, { orders: scripted(ok(noPayment), ok({ ...view(), order: { ...view().order, status: 'shipped' } }), ok(view({ payment: { state: 'paid', invoiceUrl: 'javascript:alert(1)' } }))) })
       await page.goto(`/orders#${NUMBER}.${TOKEN}`)
       await expect(status(page)).toHaveText(NETWORK)
       await expect(page.getByText(`رقم الطلب: ${NUMBER}`)).toHaveCount(0)
@@ -1165,6 +1167,8 @@ for (const width of [360, 1440]) {
           window.location.hash = hash
         }, second)
         await expect.poll(() => new URL(page.url()).hash).toBe('')
+        // The tab keeps the second link's token in place of the first (STORE-UI-10).
+        expect(await kept(page, `anasaq:notify:${variant.kind}`)).toBe(second)
         await page.getByRole('button', { name: variant.button }).click()
         await expect(page.locator('main').getByRole('status')).toHaveText(variant.done)
         expect(bodies(calls, 'notify')).toEqual([{ action: variant.kind, token: second }])
@@ -1179,10 +1183,11 @@ for (const width of [360, 1440]) {
         await expect(page.locator('main').getByRole('status')).toHaveText(variant.prompt)
         const button = page.getByRole('button', { name: variant.button })
         await expect(button).toBeVisible()
-        // The token left the address bar and is kept nowhere: not in either storage, not in the page.
+        // The token left the address bar for this tab's sessionStorage, under the page's kind (STORE-UI-10), and for nothing else: not localStorage, not the page.
         expect(new URL(page.url()).hash).toBe('')
         expect(new URL(page.url()).pathname).toBe(variant.route)
-        expect(await storages(page)).not.toContain(NOTIFY_TOKEN.slice(0, 20))
+        expect(await kept(page, `anasaq:notify:${variant.kind}`)).toBe(NOTIFY_TOKEN)
+        expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(NOTIFY_TOKEN.slice(0, 20))
         await expect(page.locator('main')).not.toContainText(NOTIFY_TOKEN.slice(0, 20))
         await expectNoOverflow(page, `notify ${variant.kind}`)
         await expectTargets(page, `notify ${variant.kind}`)
@@ -1197,12 +1202,47 @@ for (const width of [360, 1440]) {
         await expect(page.locator('main').getByRole('button')).toHaveCount(0)
         expect(bodies(calls, 'notify')).toEqual([{ action: variant.kind, token: NOTIFY_TOKEN }])
 
-        // The token was in memory only: a reload has no link.
+        // The page has said its last word and the tab forgot the token: a reload has no link.
+        expect(await kept(page, `anasaq:notify:${variant.kind}`)).toBeNull()
         await page.reload()
         await expect(page.locator('main').getByRole('status')).toHaveText('الرابط غير مكتمل.')
         await expect(page.locator('main').getByRole('button')).toHaveCount(0)
         expect(calls).toHaveLength(1)
         expect(problems).toEqual([])
+      })
+
+      // STORE-UI-10: a throttle is not the page's last word, so a reload still has the link; the success is, and then it does not.
+      test(`notify ${variant.kind}: a reload after a throttle still has the link, and one after the final answer has none`, async ({ page }) => {
+        const key = `anasaq:notify:${variant.kind}`
+        const calls = await mock(page, { notify: scripted(refused(429, 'RATE_LIMITED', 'أرسلت طلبات كثيرة؛ حاول لاحقًا.'), ok({ status: variant.status })) })
+        await page.goto(`${variant.route}#${NOTIFY_TOKEN}`)
+        const line = page.locator('main').getByRole('status')
+        const button = page.getByRole('button', { name: variant.button })
+        await expect(line).toHaveText(variant.prompt)
+        await button.click()
+        await expect(line).toHaveText('حاول بعد قليل.')
+        await expect(button).toBeVisible()
+
+        // A reload has no fragment: the prompt and the button come back from the tab, not «الرابط غير مكتمل.».
+        await page.reload()
+        await expect(line).toHaveText(variant.prompt)
+        await expect(button).toBeVisible()
+        expect(new URL(page.url()).hash).toBe('')
+        expect(await kept(page, key)).toBe(NOTIFY_TOKEN)
+
+        await button.click()
+        await expect(line).toHaveText(variant.done)
+        await expect(page.locator('main').getByRole('button')).toHaveCount(0)
+        expect(await kept(page, key)).toBeNull()
+        expect(bodies(calls, 'notify')).toEqual([
+          { action: variant.kind, token: NOTIFY_TOKEN },
+          { action: variant.kind, token: NOTIFY_TOKEN },
+        ])
+
+        await page.reload()
+        await expect(line).toHaveText('الرابط غير مكتمل.')
+        await expect(page.locator('main').getByRole('button')).toHaveCount(0)
+        expect(calls).toHaveLength(2)
       })
 
       test(`notify ${variant.kind}: a throttle and a lost connection keep the button, a dead link ends the page`, async ({ page }) => {
@@ -1242,10 +1282,11 @@ for (const width of [360, 1440]) {
         await busy.click({ force: true })
         expect(calls).toHaveLength(4)
         release()
-        // 404: the link is dead, said once, and the button goes with it.
+        // 404: the link is dead, said once, and the button goes with it, and the token the tab kept.
         await expect(line).toHaveText('الرابط غير صالح أو انتهت صلاحيته.')
         await expect(line).toBeFocused()
         await expect(page.locator('main').getByRole('button')).toHaveCount(0)
+        expect(await kept(page, `anasaq:notify:${variant.kind}`)).toBeNull()
         expect(bodies(calls, 'notify').every((body) => body.token === NOTIFY_TOKEN && body.action === variant.kind)).toBe(true)
       })
 
@@ -1257,6 +1298,24 @@ for (const width of [360, 1440]) {
         await page.waitForTimeout(500)
         expect(calls).toHaveLength(0)
         await expectNoOverflow(page, `notify ${variant.kind} without a token`)
+      })
+
+      // RESIDUALS-1 R4a's audit: the layout's skip link («انتقل إلى المحتوى», `#main`) is a fragment navigation too. It is no
+      // link: the page keeps the token it stands on, in the tab as well, and the press still sends it.
+      test(`notify ${variant.kind}: the skip link changes nothing, and the press still carries the link's token`, async ({ page }) => {
+        const calls = await mock(page, { notify: () => ok({ status: variant.status }) })
+        await page.goto(`${variant.route}#${NOTIFY_TOKEN}`)
+        const line = page.locator('main').getByRole('status')
+        await expect(line).toHaveText(variant.prompt)
+        await page.keyboard.press('Tab')
+        await expect(page.getByRole('link', { name: 'انتقل إلى المحتوى' })).toBeFocused()
+        await page.keyboard.press('Enter')
+        await expect.poll(() => new URL(page.url()).hash).toBe('#main')
+        await expect(line).toHaveText(variant.prompt)
+        expect(await kept(page, `anasaq:notify:${variant.kind}`)).toBe(NOTIFY_TOKEN)
+        await page.getByRole('button', { name: variant.button }).click()
+        await expect(line).toHaveText(variant.done)
+        expect(bodies(calls, 'notify')).toEqual([{ action: variant.kind, token: NOTIFY_TOKEN }])
       })
     }
   })

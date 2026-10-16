@@ -865,7 +865,7 @@ describe('Turnstile (create only)', () => {
   })
 
   it('asks siteverify for the checkout action, the site hostname and the configured secret', async () => {
-    // The widget renders action 'checkout' (CheckoutForm); a drift here would fail every hosted checkout.
+    // The widget renders action 'checkout' (CheckoutBody); a drift here would fail every hosted checkout.
     const verify = vi.fn(verifyOk)
     await checkoutPost(request(createBody()), { verify })
     expect(verify).toHaveBeenCalledTimes(1)

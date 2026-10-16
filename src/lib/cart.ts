@@ -134,13 +134,16 @@ export function setQuantity(cart: CartV1, variantId: string, quantity: number): 
 }
 
 /** Control characters (a pasted tab or line break) become spaces, so the text stays valid for the function. */
+export function foldControls(text: string): string {
+  return text.replace(/\p{Cc}/gu, ' ')
+}
+
+/** The dedication as typed, with its control characters folded (`foldControls`) and cut at 200 characters. */
 export function setDedication(cart: CartV1, variantId: string, dedication: string): CartV1 {
   const id = variantId.toLowerCase()
   return {
     version: 1,
-    lines: cart.lines.map((l) =>
-      l.variantId === id ? { ...l, dedication: dedication.replace(/\p{Cc}/gu, ' ').slice(0, MAX_DEDICATION) } : l,
-    ),
+    lines: cart.lines.map((l) => (l.variantId === id ? { ...l, dedication: foldControls(dedication).slice(0, MAX_DEDICATION) } : l)),
   }
 }
 
@@ -350,7 +353,17 @@ function sessionArea(): CartArea {
   }
 }
 
+/**
+ * What this tab wrote while sessionStorage could not take it (blocked, or it threw), as the cart has `memoryCart`: it
+ * overrides storage, so the checkout session, the pending order, the key, the city and the coupon survive a client
+ * navigation in the tab (STORE-UI-16); a reload still loses them. `null`: removed, and the removal did not reach
+ * storage. A write or a removal that reaches storage drops its key from here, so a working storage keeps nothing.
+ */
+const sessionMemory = new Map<string, string | null>()
+
 export function readSessionValue(key: string): string | null {
+  const kept = sessionMemory.get(key)
+  if (kept !== undefined) return kept
   const area = sessionArea()
   if (area === null) return null
   try {
@@ -362,12 +375,30 @@ export function readSessionValue(key: string): string | null {
 
 export function writeSessionValue(key: string, value: string): void {
   const area = sessionArea()
-  if (area === null) return
-  try {
-    area.setItem(key, value)
-  } catch {
-    // Keep going without persistence; the page still works.
+  if (area !== null) {
+    try {
+      area.setItem(key, value)
+      sessionMemory.delete(key)
+      return
+    } catch {
+      // Falls through: the tab keeps the value in memory.
+    }
   }
+  sessionMemory.set(key, value)
+}
+
+export function removeSessionValue(key: string): void {
+  const area = sessionArea()
+  if (area !== null) {
+    try {
+      area.removeItem(key)
+    } catch {
+      // The removal did not reach storage, which may still hold the value: the memory says it is gone.
+      sessionMemory.set(key, null)
+      return
+    }
+  }
+  sessionMemory.delete(key)
 }
 
 /** A coupon as the buyer typed it, in the form the function compares: trimmed, upper-case, at most 64 characters. */
@@ -537,7 +568,8 @@ export interface PendingOrder {
 
 /** The mark of an order an `ACTIVE_HOLD` handed back to a tab that did not send its request: its lines are not this tab's cart. */
 export const OTHER_REQUEST = 'other-request'
-const LINES_DIGEST = /^[0-9a-f]{16}$/
+/** The shape of `digestText`'s answer: what stands for a set of lines and for a request. */
+const DIGEST = /^[0-9a-f]{16}$/
 
 /**
  * The lines an order is made from, as one short string: their variant ids and quantities, sorted. The one place that
@@ -623,7 +655,7 @@ export function pendingOrderOf(value: { orderNumber?: unknown; accessToken?: unk
     ORDER_NUMBER.test(value.orderNumber) &&
     /^[A-Za-z0-9_-]{43}$/.test(value.accessToken)
   ) {
-    const readable = typeof value.lines === 'string' && (LINES_DIGEST.test(value.lines) || value.lines === OTHER_REQUEST)
+    const readable = typeof value.lines === 'string' && (DIGEST.test(value.lines) || value.lines === OTHER_REQUEST)
     return { orderNumber: value.orderNumber, accessToken: value.accessToken, ...(readable ? { lines: value.lines as string } : {}) }
   }
   return null
@@ -646,13 +678,7 @@ export function writePendingOrder(order: PendingOrder): void {
 }
 
 export function clearPendingOrder(): void {
-  const area = sessionArea()
-  if (area === null) return
-  try {
-    area.removeItem(PENDING_ORDER_KEY)
-  } catch {
-    // Nothing to clean.
-  }
+  removeSessionValue(PENDING_ORDER_KEY)
 }
 
 // ---------------------------------------------------------------------------
@@ -677,12 +703,16 @@ export function digestText(text: string): string {
   return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0')
 }
 
-/** The key and the request digest of the last `create` this tab sent (sessionStorage only), or null. */
-export function readIdempotency(): { digest: string; key: string } | null {
+/**
+ * The key and the request digest of the last `create` this tab sent (sessionStorage only), or null. `unseen` is the digest
+ * of a request of this tab whose reply was lost (`unseenRequest`) and may have made an order; null when there is none, when
+ * the record has none (one stored before it existed) and when what it holds is not a digest.
+ */
+export function readIdempotency(): { digest: string; key: string; unseen: string | null } | null {
   try {
-    const parsed = JSON.parse(readSessionValue(IDEMPOTENCY_KEY) ?? 'null') as { digest?: unknown; key?: unknown } | null
+    const parsed = JSON.parse(readSessionValue(IDEMPOTENCY_KEY) ?? 'null') as { digest?: unknown; key?: unknown; unseen?: unknown } | null
     if (typeof parsed?.digest === 'string' && typeof parsed.key === 'string' && UUID.test(parsed.key)) {
-      return { digest: parsed.digest, key: parsed.key }
+      return { digest: parsed.digest, key: parsed.key, unseen: typeof parsed.unseen === 'string' && DIGEST.test(parsed.unseen) ? parsed.unseen : null }
     }
   } catch {
     // An unreadable value is no key.
@@ -690,15 +720,13 @@ export function readIdempotency(): { digest: string; key: string } | null {
   return null
 }
 
-export function writeIdempotency(value: { digest: string; key: string }): void {
-  writeSessionValue(IDEMPOTENCY_KEY, JSON.stringify(value))
+/** Keeps the key and the request digest, and the digest of the request whose reply was lost (`unseen`) when there is one: a digest, never the request. */
+export function writeIdempotency(value: { digest: string; key: string; unseen?: string | null }): void {
+  const { digest, key, unseen } = value
+  writeSessionValue(IDEMPOTENCY_KEY, JSON.stringify(unseen ? { digest, key, unseen } : { digest, key }))
 }
 
-/** Forgets the key once its order has ended, so the same cart can be ordered again. */
+/** Forgets the key, and the request that may have made an order, once the order has ended, so the same cart can be ordered again. */
 export function clearIdempotency(): void {
-  try {
-    sessionArea()?.removeItem(IDEMPOTENCY_KEY)
-  } catch {
-    // Nothing to clean.
-  }
+  removeSessionValue(IDEMPOTENCY_KEY)
 }

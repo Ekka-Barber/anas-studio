@@ -20,7 +20,11 @@
  * holds the token.
  * An order this tab does not hold clears nothing: a number in the address is
  * no reason to empty anyone's cart. The state sits in one `role="status"`
- * region; the page is calm and official (D38): no countdown, no motion.
+ * region, empty until the address is read (the static page carries no loading
+ * line); once the schedule has run out, or a throttle stopped it, with the last
+ * answer still `pending`, it says «بانتظار الدفع.» (the order page's sentence)
+ * instead of «جارٍ التحقق من الدفع…», and «تحديث» leaves it so until an answer
+ * changes the state. The page is calm and official (D38): no countdown, no motion.
  */
 
 import Link from 'next/link'
@@ -71,6 +75,8 @@ function spend(target: ReturnTarget, paid: boolean): void {
 }
 
 const REVIEW = 'وصلتنا دفعتك ونراجع طلبك؛ سنتواصل معك عبر البريد.'
+/** The order page's sentence for a payment that has not arrived (`STATUS_SENTENCES.pending`, not imported: `orders.ts` is not in this page's script). */
+const PENDING = 'بانتظار الدفع.'
 
 export function PaymentReturn() {
   // undefined: the address is not read yet; null: there is no order to ask about.
@@ -142,7 +148,12 @@ export function PaymentReturn() {
       ? `/orders#${target.orderNumber}.${target.accessToken}`
       : null
 
-  let headline: ReactNode = 'جارٍ التحقق من الدفع…'
+  // Empty while the address is not read (`target` undefined): the static page is made in that state, and a line there
+  // would never end without script (R10A-5, STORE-UI-03). Once the schedule has run out, or a throttle stopped it, with
+  // the last answer still `pending`, nothing is being checked any more: the order page's sentence for that state.
+  // Once nothing is asked any more: «بانتظار الدفع.» after an answer that said pending; with no answer read at all (a throttle
+  // stopped the first ask), nothing, since the page cannot know (the alert beside it says why nothing is being checked).
+  let headline: ReactNode = target === undefined ? '' : !done ? 'جارٍ التحقق من الدفع…' : verified !== null ? PENDING : ''
   if (state === 'paid') {
     headline = (
       <>
@@ -157,7 +168,7 @@ export function PaymentReturn() {
 
   return (
     <div className={styles.orderBox}>
-      <p className={state === 'paid' ? styles.orderNumber : styles.note} role="status" aria-live="polite">
+      <p className={headline === '' ? 'visually-hidden' : state === 'paid' ? styles.orderNumber : styles.note} role="status" aria-live="polite">
         {headline}
       </p>
       {state === 'paid' && (

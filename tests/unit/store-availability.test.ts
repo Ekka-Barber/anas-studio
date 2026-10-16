@@ -134,6 +134,24 @@ describe('preorderCurrent: a build\'s preorder date is shown only while it has n
     const shown = rowView(new Map([[A, 'preorder']]), A, preorderCurrent('2026-10-03', lateEvening))
     expect(shown).toBe('add')
   })
+
+  // TEST-UNIT-07: this runs in the buyer's browser, whose ICU may format `en-CA` as M/d/y (CLDR 42 did). Node's own ICU does not, so
+  // the cases above prove nothing about that browser: this one makes the formatter answer as such a browser's would, and the answer
+  // must not change, since the day is computed without locale data.
+  it('does not read the day from the browser\'s locale data: a formatter that says 10/4/2026 changes nothing', () => {
+    const formatter = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation(function () {
+      return { format: () => '10/4/2026' }
+    } as never)
+    try {
+      expect(preorderCurrent('2026-10-04', lateEvening)).toBe(true)
+      expect(preorderCurrent('2026-12-01', lateEvening)).toBe(true)
+      // With that string as today, every date of 2026 would sort after it and read as current.
+      expect(preorderCurrent('2026-10-03', lateEvening)).toBe(false)
+      expect(formatter).not.toHaveBeenCalled()
+    } finally {
+      formatter.mockRestore()
+    }
+  })
 })
 
 describe('fetchAvailability and loadAvailability: one read for a page, and a failed read is no information', () => {

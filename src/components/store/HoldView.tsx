@@ -2,20 +2,24 @@
 
 /**
  * The checkout's hold view (P07, P08 contract section 10): what the buyer sees
- * once `create` has made the order, loaded on demand by `CheckoutForm` so the
+ * once `create` has made the order, loaded on demand by `CheckoutBody` so the
  * checkout page's first script stays under the public budget (150 KiB gzip).
  * It shows the order, its total, the time the hold ends and, per the payment
  * the reply carried, «ادفع الآن» (a plain link to the invoice), a retry (`pay`)
  * or why payment cannot start; a view with no payment yet (a reload, or
- * ACTIVE_HOLD handing the order back) asks `pay` once. One timer, no interval
- * and nothing counting on screen, ends the view at the hold's end (DESIGN-AUDIT
+ * ACTIVE_HOLD handing the order back) asks `pay` once and draws no payment
+ * sentence until it knows one (`unknown`: view-only, the function never sends it),
+ * so a failed `pay` shows only its own failure. While the payment is `preparing`
+ * the view asks `pay` again on a short bounded schedule (`PAY_SCHEDULE_SECONDS`,
+ * nothing counting on screen), and «أعد المحاولة» asks after the last. One timer,
+ * no interval and nothing counting on screen, ends the view at the hold's end (DESIGN-AUDIT
  * 33): the device's clock only chooses when to ask, the function says whether
  * the hold is over. The form is told when the order ended (cancelled, expired,
  * hold over) so it forgets its token and its key, and when the function does
  * not know the order any more, so it shows the form again. A payment that
  * arrived is `received`: nothing is cleared then, the return page tells the
  * rest. Focus follows the buyer's own action (create, cancel, retry) into the
- * order box; not a page load. The view shows the order's own lines and, for one that
+ * order box; not a page load, and not a scheduled ask. The view shows the order's own lines and, for one that
  * ships, where it goes (what the order says, never the cart); when the buyer has since
  * edited the cart (`changed`) it says the order was made before the edit.
  */
@@ -33,6 +37,16 @@ import styles from './store.module.css'
 /** What the hold view knows of the payment; `closed` is never shown as a payment: it ends the order or settles it. */
 type LivePayment = Exclude<PaymentView, { state: 'closed' }>
 
+/**
+ * What the view draws of the payment: a live one, or `unknown`, the view's own state of a view opened with no `create`
+ * reply (from storage, or by ACTIVE_HOLD), until `pay` answers or says the store is closed. It draws no sentence and keeps
+ * the retry and the cancel. The function never sends it, and no reply parser reads it.
+ */
+type ShownPayment = LivePayment | { state: 'unknown' }
+
+/** Seconds after «نجهّز صفحة الدفع…» first shows at which the view asks `pay` again (STORE-UI-09); after the last, only «أعد المحاولة» asks. */
+export const PAY_SCHEDULE_SECONDS = [5, 15, 45, 75] as const
+
 /** Why the view has nothing to pay: the order ended, a payment of it arrived, or it cannot be paid from here (`blocked`: the order still holds its stock, so the view keeps the cancel). */
 type Closed = 'cancelled' | 'expired' | 'received' | 'blocked'
 
@@ -47,11 +61,11 @@ interface Shown {
   lines: OrderSummary['lines']
   /** The hold's end (an ISO time) while the order waits for payment. */
   holdEnds: string | null
-  payment: LivePayment
+  payment: ShownPayment
   closed: Closed | null
 }
 
-const WAITING: Shown = { total: null, lines: [], holdEnds: null, payment: { state: 'preparing' }, closed: null }
+const WAITING: Shown = { total: null, lines: [], holdEnds: null, payment: { state: 'unknown' }, closed: null }
 
 /** What `create` said of the order: its summary and, when the reply carried one, its payment. */
 export interface HoldStart {
@@ -103,6 +117,14 @@ export function HoldView({
   const orderBoxRef = useRef<HTMLDivElement>(null)
   const focusOrderBox = useRef(focusOnOpen)
   const opened = useRef(false)
+  // A request of this view is running (`pay` or `cancel`): the schedule's tick finds it and waits for the next one.
+  const requesting = useRef(false)
+  // The newest `pay` answers for the view: an older one (a scheduled ask overtaken by a press, say) is not applied.
+  const payRun = useRef(0)
+  // The failure on screen came from a scheduled ask: a later scheduled answer may clear it, never a buyer's own.
+  const quietError = useRef(false)
+  // The control the buyer was on when a scheduled answer came: if the answer removed it, the focus goes to the order box.
+  const watched = useRef<HTMLElement | null>(null)
   const { total, lines, holdEnds, payment, closed } = shown
   // What the order still holds for the buyer: shown while it can be paid or cancelled.
   const holds = (closed === null || closed === 'blocked') && lines.length > 0
@@ -121,29 +143,51 @@ export function HoldView({
   )
 
   // `pay` for this order: its summary and the state of its payment (after a reload, for «أعد المحاولة», and when the hold's time has passed).
-  const loadPayment = useCallback(async (): Promise<void> => {
-    setSubmitting(true)
-    setSubmitError('')
+  // A `quiet` ask is the view's own (the schedule, the hold's end): it draws no busy state and clears no sentence before its
+  // answer, so nothing on screen changes unless the answer does.
+  const loadPayment = useCallback(async (quiet = false): Promise<void> => {
+    const run = ++payRun.current
+    requesting.current = true
+    if (!quiet) {
+      setSubmitting(true)
+      setSubmitError('')
+      quietError.current = false
+    }
+    const fail = (text: string) => {
+      setSubmitError(text)
+      quietError.current = quiet
+    }
     try {
       const reply = await postCheckout<{ order: unknown; payment: unknown }>({
         action: 'pay',
         orderNumber: pending.orderNumber,
         accessToken: pending.accessToken,
       })
+      if (run !== payRun.current) return
+      if (quiet) {
+        const focused = document.activeElement
+        watched.current = focused instanceof HTMLElement && orderBoxRef.current?.contains(focused) ? focused : null
+      }
       if (reply.ok && reply.data !== undefined) {
+        if (quiet && quietError.current) {
+          setSubmitError('')
+          quietError.current = false
+        }
         show(orderSchema.parse(reply.data.order), parsePayment(reply.data.payment))
       } else if (reply.error?.code === 'NOT_FOUND') {
         onForget(reply.error.message)
       } else if (reply.error?.code === 'CHECKOUT_DISABLED') {
-        setShown((current) => ({ ...current, payment: { state: 'unavailable' } }))
-        setSubmitError('الشراء غير متاح حاليًا، ويفتح قريبًا.')
+        // The store is closed: the payment is not known, and the view says only that (never beside «تعذّر تجهيز الدفع…»).
+        setShown((current) => ({ ...current, payment: { state: 'unknown' } }))
+        fail('الشراء غير متاح حاليًا، ويفتح قريبًا.')
       } else {
-        setSubmitError(reply.error?.message ?? 'تعذّر تجهيز الدفع؛ حاول بعد لحظات.')
+        fail(reply.error?.message ?? 'تعذّر تجهيز الدفع؛ حاول بعد لحظات.')
       }
     } catch {
-      setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
+      if (run === payRun.current) fail('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
     } finally {
-      setSubmitting(false)
+      if (run === payRun.current) requesting.current = false
+      if (!quiet) setSubmitting(false)
     }
   }, [pending, show, onForget])
 
@@ -163,20 +207,45 @@ export function HoldView({
   // decides when to ask: the function says whether the hold is over, so a clock that runs ahead ends nothing.
   useEffect(() => {
     if (holdEnds === null || closed !== null) return
-    const timer = setTimeout(() => void loadPayment(), Math.max(0, instantOf(holdEnds) - Date.now()))
+    const timer = setTimeout(() => void loadPayment(true), Math.max(0, instantOf(holdEnds) - Date.now()))
     return () => clearTimeout(timer)
   }, [holdEnds, closed, loadPayment])
 
+  // While «نجهّز صفحة الدفع…» shows (the payment is `preparing` and the order is open) the view asks `pay` again on a short
+  // bounded schedule (STORE-UI-09): the function settles a payment a slow provider made only when asked. The ticks count from the
+  // moment the sentence first showed (an answer of `preparing` again does not restart them: only these two values are the
+  // effect's), a tick that finds a request of the view running is skipped, and a payment that is no longer `preparing`, a
+  // closed order or the view's end clears them. A scheduled ask moves no focus, only the buyer's own action does; a failed one
+  // shows its failure as a pressed retry's does. After the last tick only «أعد المحاولة» asks.
+  const preparing = closed === null && payment.state === 'preparing'
+  useEffect(() => {
+    if (!preparing) return
+    const ticks = PAY_SCHEDULE_SECONDS.map((seconds) =>
+      setTimeout(() => {
+        if (requesting.current) return
+        // A flag left by a buyer's request that failed must not turn this ask's answer into a focus move.
+        focusOrderBox.current = false
+        void loadPayment(true)
+      }, seconds * 1000),
+    )
+    return () => ticks.forEach(clearTimeout)
+  }, [preparing, loadPayment])
+
   // Focus follows the buyer's own action (create, cancel, retry) into the order box, which replaces the form and the
   // button that had it. Not on a page load.
+  // A scheduled answer that removed the control the buyer was on (a payment now ready takes «أعد المحاولة» away) gives the
+  // focus to the order box, never to the page.
   useEffect(() => {
-    if (!focusOrderBox.current) return
+    const lost = watched.current !== null && !watched.current.isConnected
+    watched.current = null
+    if (!focusOrderBox.current && !lost) return
     focusOrderBox.current = false
     orderBoxRef.current?.focus()
   }, [shown])
 
   async function cancelOrder(): Promise<void> {
     if (submitting) return
+    requesting.current = true
     setSubmitting(true)
     try {
       const reply = await postCheckout<{ status: string }>({
@@ -201,10 +270,13 @@ export function HoldView({
         onForget(reply.error.message)
       } else {
         setSubmitError(reply.error?.message ?? 'تعذّر إلغاء الطلب.')
+        quietError.current = false
       }
     } catch {
       setSubmitError('تعذّر الاتصال بالخدمة؛ أعد المحاولة.')
+      quietError.current = false
     } finally {
+      requesting.current = false
       setSubmitting(false)
     }
   }

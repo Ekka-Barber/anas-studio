@@ -3,6 +3,8 @@
 // Relative, not `@/`: the unit tests (tests/unit/store-availability.test.ts) import this file, and the unit config has no alias.
 import { useEffect, useState } from 'react'
 
+import { riyadhToday } from '../../../supabase/functions/_shared/riyadh-day.ts'
+
 import { AddToCart } from './AddToCart'
 import { AvailabilityForm } from './AvailabilityForm'
 import styles from './store.module.css'
@@ -85,10 +87,12 @@ export function loadAvailability(): Promise<Availability | null> {
  * Riyadh (contract section 4: a buyer is never shown a date that has passed).
  * A page built before the owner moved a lapsed date carries the old one; its
  * row then shows the plain add control, and the cart and the checkout show the
- * current date from the quote.
+ * current date from the quote. Today is the one definition the owner's screens
+ * and the functions share (`riyadhToday`), with no locale data: this runs in the
+ * buyer's browser, whose ICU may format `en-CA` as M/d/y (TEST-UNIT-07).
  */
 export function preorderCurrent(shipsOn: string, now: Date = new Date()): boolean {
-  return shipsOn >= new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(now)
+  return shipsOn >= riyadhToday(now.getTime())
 }
 
 /** What a variant's row offers. */

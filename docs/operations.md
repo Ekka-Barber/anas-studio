@@ -892,12 +892,21 @@ pages").
   function accepts; a saved code longer than that (from before the cap) is
   dropped with an alert.
   When the browser blocks storage, the cart lives in memory for the tab and
-  the page says «السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.»
+  the page says «السلة مؤقتة في هذه الصفحة: المتصفح يمنع الحفظ.» Every value
+  the tab keeps in sessionStorage (the checkout session, the pending order, the
+  idempotency key, the city, the coupon, the dedications, the test-mode code, the
+  order page's link and the notification links) is kept in memory instead while
+  sessionStorage is blocked, so
+  they survive a move between the cart and the checkout in the tab; a reload
+  loses them, as it loses the cart.
 - **Checkout** sends `create` with one `checkoutSession` per tab and an
   `idempotencyKey` reused only for an identical retried request; the buyer
   consents to exactly the policy revisions the quote carried. The create
   idempotency key and a 53-bit digest of the request are kept in
-  `sessionStorage['anasaq:idempotency']`, with no buyer data. While
+  `sessionStorage['anasaq:idempotency']`, with no buyer data; so is
+  `unseen`, the digest of a request whose reply was lost (it may have made an
+  order), which survives a reload so that a corrected form meeting that order
+  through `ACTIVE_HOLD` still gets «هذا الطلب أُنشئ قبل تعديلك…». While
   `checkout_enabled` is false, the cart and checkout pages say «الشراء غير
   متاح حاليًا، ويفتح قريبًا.» and no order can be created (D34). A created
   hold shows its order number, the total, the time the hold ends as a plain
@@ -906,6 +915,14 @@ pages").
   tab's sessionStorage copy of the access token. The cart is kept until the
   return page shows the order paid, and it is cleared only in the tab that
   holds that order.
+- **Notification links** (`/notify/confirm`, `/notify/unsubscribe`): the token
+  is the link's whole fragment, shaped as the function writes it (any other
+  fragment, the skip link's `#main` say, is left alone). The page takes it out of the address bar and
+  keeps it in the tab's `sessionStorage['anasaq:notify:<confirm|unsubscribe>']`
+  until its last word (the success, or a dead link), so a reload after «حاول
+  بعد قليل.» still has the link; it is never stored in `localStorage`, and with
+  storage blocked it stays in memory for the tab. A page opened with no token
+  and none kept says «الرابط غير مكتمل.»
 - **Screens:** the store pages link to the cart themselves; a site-nav entry
   for the store is Anas's to add in the site settings.
 

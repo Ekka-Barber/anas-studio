@@ -13,7 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { AddToCart, DIGITAL_IN_CART } from '../../src/components/store/AddToCart'
-import { HoldView, ORDER_BEFORE_EDIT, SHIPS_TO_TYPED_ADDRESS } from '../../src/components/store/HoldView'
+import { HoldView, ORDER_BEFORE_EDIT, PAY_SCHEDULE_SECONDS, SHIPS_TO_TYPED_ADDRESS } from '../../src/components/store/HoldView'
 import { VariantAction } from '../../src/components/store/VariantAction'
 import {
   fetchQuote,
@@ -527,5 +527,41 @@ describe('the hold view shows the order it holds (FABLE-AUDIT F3-8)', () => {
     expect(waiting).toContain('إلغاء الطلب')
     expect(waiting).not.toMatch(/\sdisabled(=|\s|>)/)
     expect(waiting).not.toContain('aria-disabled')
+  })
+})
+
+// RESIDUALS-1 R4a, STORE-UI-08: a view opened with no `create` reply (from storage, or by ACTIVE_HOLD) does not know the payment yet,
+// and says nothing of it; a `pay` that then fails shows only its own failure.
+describe('the hold view before it knows the payment (STORE-UI-08)', () => {
+  const PENDING = { orderNumber: 'ABCD2345', accessToken: TOKEN }
+  const open = (start: Parameters<typeof HoldView>[0]['start']) =>
+    renderToStaticMarkup(
+      createElement(HoldView, { pending: PENDING, start, testMode: false, focusOnOpen: false, changed: false, onEnd: () => {}, onForget: () => {} }),
+    ).replaceAll('<!-- -->', '')
+
+  it('opened with no `create` reply it draws no payment sentence, and keeps the retry and the cancel', () => {
+    const html = open(null)
+    expect(html).toContain('رقم الطلب: <span dir="ltr">ABCD2345</span>')
+    expect(html).not.toContain('نجهّز صفحة الدفع…')
+    expect(html).not.toContain('تعذّر تجهيز الدفع؛ حاول بعد لحظات.')
+    expect(html).not.toContain('ادفع الآن')
+    expect(html).toContain('أعد المحاولة')
+    expect(html).toContain('إلغاء الطلب')
+  })
+
+  it('still says «نجهّز صفحة الدفع…» when the function said `preparing`, and «تعذّر تجهيز الدفع؛ حاول بعد لحظات.» when it said `unavailable`', () => {
+    const order = orderSchema.parse(ORDER)
+    expect(open({ order, payment: { state: 'preparing' } })).toContain('نجهّز صفحة الدفع…')
+    expect(open({ order, payment: null })).toContain('نجهّز صفحة الدفع…')
+    const unavailable = open({ order, payment: { state: 'unavailable' } })
+    expect(unavailable).toContain('تعذّر تجهيز الدفع؛ حاول بعد لحظات.')
+    expect(unavailable).not.toContain('نجهّز صفحة الدفع…')
+  })
+})
+
+// RESIDUALS-1 R4a, STORE-UI-09: while «نجهّز صفحة الدفع…» shows, the view asks `pay` again (the timers run in a browser: the e2e proves them).
+describe('the hold view\'s schedule of `pay` (STORE-UI-09)', () => {
+  it('asks 5, 15, 45 and 75 seconds after the sentence first showed', () => {
+    expect([...PAY_SCHEDULE_SECONDS]).toEqual([5, 15, 45, 75])
   })
 })

@@ -2,7 +2,9 @@
 // format and its guards (DATA "Checkout transaction" step 1), the
 // storage-denied fallback, and the create-request fingerprint that decides
 // when the idempotency key is reused. FABLE-AUDIT F3-8 adds the digest of the lines an order was made from, which
-// the hold view and the return page compare the cart with.
+// the hold view and the return page compare the cart with. RESIDUALS-1 R4a adds the tab's session values kept in
+// memory while sessionStorage is blocked (STORE-UI-16), the request whose reply was lost kept with the key
+// (FD-B-01's residual) and `foldControls` (STORE-UI-11).
 import { randomUUID } from 'node:crypto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -13,14 +15,16 @@ import {
   cartArea,
   CART_EVENT,
   CART_STORAGE_KEY,
-  clearIdempotency,
+  CHECKOUT_SESSION_KEY,
   COUPON_KEY,
   DEDICATIONS_KEY,
   digestText,
   EMPTY_CART,
+  foldControls,
   formatRiyadhTime,
   handedLinesDigest,
   heldOrder,
+  IDEMPOTENCY_KEY,
   instantOf,
   linesDigest,
   orderChanged,
@@ -29,22 +33,15 @@ import {
   parseTestFragment,
   pendingOrderOf,
   PENDING_ORDER_KEY,
-  readIdempotency,
-  readPendingOrder,
-  readTestAccess,
-  readTestFragment,
   refusedOutright,
   TEST_ACCESS_KEY,
   unseenRequest,
-  writeIdempotency,
-  writePendingOrder,
   fingerprintCreate,
   MAX_COUPON,
   MAX_LINES,
   MAX_QUANTITY,
   normalizeCoupon,
   parseCart,
-  readSavedCoupon,
   removeLine,
   removeLines,
   returnOrder,
@@ -57,9 +54,10 @@ import {
   type PendingOrder,
 } from '../../src/lib/cart'
 
-// The storage bridge keeps the tab's memory cart and a write-failed flag in module state, so the three functions that
-// read or write it come from a fresh copy of the module in every test: each test passes alone and in any order
-// (FABLE-AUDIT T-14). Everything else imported above is pure.
+// The storage bridge keeps the tab's memory cart, a write-failed flag and the session values it could not store in module
+// state, so the functions that read or write them come from a fresh copy of the module in every test: each test passes
+// alone and in any order (FABLE-AUDIT T-14; RESIDUALS-1 R4a, STORE-UI-16, for the session layer). Everything else imported
+// above is pure.
 let fresh: typeof import('../../src/lib/cart')
 beforeEach(async () => {
   vi.resetModules()
@@ -69,6 +67,19 @@ const readCart: typeof fresh.readCart = (...args) => fresh.readCart(...args)
 const writeCart: typeof fresh.writeCart = (...args) => fresh.writeCart(...args)
 const updateStoredCart: typeof fresh.updateStoredCart = (...args) => fresh.updateStoredCart(...args)
 const emptyBoughtCart: typeof fresh.emptyBoughtCart = (...args) => fresh.emptyBoughtCart(...args)
+const readSessionValue: typeof fresh.readSessionValue = (...args) => fresh.readSessionValue(...args)
+const writeSessionValue: typeof fresh.writeSessionValue = (...args) => fresh.writeSessionValue(...args)
+const removeSessionValue: typeof fresh.removeSessionValue = (...args) => fresh.removeSessionValue(...args)
+const checkoutSession: typeof fresh.checkoutSession = (...args) => fresh.checkoutSession(...args)
+const readPendingOrder: typeof fresh.readPendingOrder = (...args) => fresh.readPendingOrder(...args)
+const writePendingOrder: typeof fresh.writePendingOrder = (...args) => fresh.writePendingOrder(...args)
+const clearPendingOrder: typeof fresh.clearPendingOrder = (...args) => fresh.clearPendingOrder(...args)
+const readIdempotency: typeof fresh.readIdempotency = (...args) => fresh.readIdempotency(...args)
+const writeIdempotency: typeof fresh.writeIdempotency = (...args) => fresh.writeIdempotency(...args)
+const clearIdempotency: typeof fresh.clearIdempotency = (...args) => fresh.clearIdempotency(...args)
+const readSavedCoupon: typeof fresh.readSavedCoupon = (...args) => fresh.readSavedCoupon(...args)
+const readTestAccess: typeof fresh.readTestAccess = (...args) => fresh.readTestAccess(...args)
+const readTestFragment: typeof fresh.readTestFragment = (...args) => fresh.readTestFragment(...args)
 
 const VARIANT_A = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d'
 const VARIANT_B = '1b2c3d4e-5f6a-4b7c-9d8e-0f1a2b3c4d5e'
@@ -287,9 +298,188 @@ describe('audit fixes: dedications, stale storage, the kept key', () => {
     expect(digestText('a')).toBe(digestText('a'))
     expect(digestText('a')).not.toBe(digestText('b'))
     writeIdempotency({ digest: digestText('a'), key: VARIANT_A })
-    expect(readIdempotency()).toEqual({ digest: digestText('a'), key: VARIANT_A })
+    expect(readIdempotency()).toEqual({ digest: digestText('a'), key: VARIANT_A, unseen: null })
     clearIdempotency()
     expect(readIdempotency()).toBeNull()
+  })
+
+  // FD-B-01's residual (ISSUES I55 (8)): the request whose reply was lost goes to storage with the key, so a reload keeps it as it
+  // keeps the retry.
+  it('keeps with the key the digest of the request whose reply was lost, and reads it back', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    const digest = digestText('the request')
+    const unseen = digestText('the request whose reply was lost')
+    writeIdempotency({ digest, key: VARIANT_A, unseen })
+    expect(readIdempotency()).toEqual({ digest, key: VARIANT_A, unseen })
+    // A digest, never the request: the record holds the three values and nothing else.
+    expect(JSON.parse(session.store.get(IDEMPOTENCY_KEY)!)).toEqual({ digest, key: VARIANT_A, unseen })
+    // None to keep: the field is absent, not null, and reads as none.
+    for (const none of [null, undefined]) {
+      writeIdempotency({ digest, key: VARIANT_A, unseen: none })
+      expect(JSON.parse(session.store.get(IDEMPOTENCY_KEY)!)).toEqual({ digest, key: VARIANT_A })
+      expect(readIdempotency()).toEqual({ digest, key: VARIANT_A, unseen: null })
+    }
+    // The key's end takes it too.
+    writeIdempotency({ digest, key: VARIANT_A, unseen })
+    clearIdempotency()
+    expect(readIdempotency()).toBeNull()
+    expect(session.store.has(IDEMPOTENCY_KEY)).toBe(false)
+  })
+
+  it('reads a record stored before this round as it did (its key, no request lost), and anything but 16 hex digits as none', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    const digest = digestText('a')
+    session.setItem(IDEMPOTENCY_KEY, JSON.stringify({ digest, key: VARIANT_A }))
+    expect(readIdempotency()).toEqual({ digest, key: VARIANT_A, unseen: null })
+    for (const bad of [5, true, null, '', 'zz', 'ABCDEF0123456789', '0123456789abcde', '0123456789abcdef0', {}, ['0123456789abcdef']]) {
+      session.setItem(IDEMPOTENCY_KEY, JSON.stringify({ digest, key: VARIANT_A, unseen: bad }))
+      expect(readIdempotency(), JSON.stringify(bad)).toEqual({ digest, key: VARIANT_A, unseen: null })
+    }
+    // The record still needs its key: a request lost under a key that is not one is no record.
+    session.setItem(IDEMPOTENCY_KEY, JSON.stringify({ digest, key: 'not-a-key', unseen: digestText('x') }))
+    expect(readIdempotency()).toBeNull()
+  })
+})
+
+// STORE-UI-11: a name pasted from two spreadsheet cells keeps the TAB between them, and the function refuses control characters.
+describe('foldControls', () => {
+  it('turns a tab, a line break and every other control character into a space', () => {
+    expect(foldControls('أنس\tالقرني')).toBe('أنس القرني')
+    expect(foldControls('a\nb\rc\u007fd\u0085e')).toBe('a b c d e')
+    expect(foldControls('\u0000x\u001f')).toBe(' x ')
+  })
+
+  it('leaves Arabic letters, a zero-width non-joiner and the other format characters as they are', () => {
+    const text = 'أنس‌القرني، عبدالله‏'
+    expect(foldControls(text)).toBe(text)
+    expect(foldControls('')).toBe('')
+  })
+
+  it('is what the dedication folds with', () => {
+    const base = addLine(EMPTY_CART, { variantId: VARIANT_A, quantity: 1 })
+    expect(setDedication(base, VARIANT_A, 'إلى\tأمي\u0085مع الحب').lines[0]!.dedication).toBe(foldControls('إلى\tأمي\u0085مع الحب'))
+  })
+})
+
+// STORE-UI-16: the cart survives a client navigation with storage blocked (`memoryCart`); the tab's session values do too.
+describe('the tab\'s session values when sessionStorage is blocked', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const denied = (): never => {
+    throw new DOMException('denied', 'SecurityError')
+  }
+  /** A sessionStorage whose every method throws, as a browser that blocks site storage hands it over. */
+  const blocked = (): CartArea => ({ getItem: denied, setItem: denied, removeItem: denied })
+  const ORDER: PendingOrder = { orderNumber: 'ABCD2345', accessToken: 'B'.repeat(43), lines: linesDigest([{ variantId: VARIANT_A, quantity: 1 }]) }
+
+  it('gives one checkout session for the tab: two calls, one id', () => {
+    vi.stubGlobal('window', { sessionStorage: blocked() })
+    const first = checkoutSession()
+    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
+    expect(checkoutSession()).toBe(first)
+  })
+
+  it('keeps the pending order, the key, the city and the coupon, and forgets them when told', () => {
+    vi.stubGlobal('window', { sessionStorage: blocked() })
+    expect(readPendingOrder()).toBeNull()
+    writePendingOrder(ORDER)
+    expect(readPendingOrder()).toEqual(ORDER)
+    clearPendingOrder()
+    expect(readPendingOrder()).toBeNull()
+
+    const digest = digestText('a')
+    const unseen = digestText('lost')
+    writeIdempotency({ digest, key: VARIANT_A, unseen })
+    expect(readIdempotency()).toEqual({ digest, key: VARIANT_A, unseen })
+    clearIdempotency()
+    expect(readIdempotency()).toBeNull()
+
+    writeSessionValue('anasaq:city', 'tabuk')
+    writeSessionValue(COUPON_KEY, 'DEMO10')
+    expect(readSessionValue('anasaq:city')).toBe('tabuk')
+    expect(readSavedCoupon()).toEqual({ coupon: 'DEMO10', tooLong: false })
+    removeSessionValue(COUPON_KEY)
+    expect(readSavedCoupon()).toEqual({ coupon: '', tooLong: false })
+  })
+
+  it('does the same when the storage object itself is missing (the property throws, or there is no window)', () => {
+    vi.stubGlobal('window', {
+      get sessionStorage(): never {
+        return denied()
+      },
+    })
+    const session = checkoutSession()
+    expect(checkoutSession()).toBe(session)
+    writePendingOrder(ORDER)
+    expect(readPendingOrder()).toEqual(ORDER)
+    clearPendingOrder()
+    expect(readPendingOrder()).toBeNull()
+    vi.unstubAllGlobals()
+    // Without a window (the static export's server render) a read is none, and a removal leaves nothing behind.
+    removeSessionValue(CHECKOUT_SESSION_KEY)
+    expect(readSessionValue(CHECKOUT_SESSION_KEY)).toBeNull()
+  })
+
+  it('keeps the dedications through a blocked sessionStorage as well, with the cart that has a working localStorage', () => {
+    vi.stubGlobal('window', { sessionStorage: blocked(), dispatchEvent: () => true })
+    const local = memoryArea()
+    const typed = setDedication(addLine(EMPTY_CART, { variantId: VARIANT_A, quantity: 1 }), VARIANT_A, 'إلى سارة')
+    writeCart(typed, local)
+    expect(local.store.get(CART_STORAGE_KEY)).not.toContain('إلى سارة')
+    expect(readCart(local).cart).toEqual(typed)
+  })
+
+  it('keeps nothing in memory while the storage works: what is in storage is what is read', () => {
+    const session = memoryArea()
+    vi.stubGlobal('window', { sessionStorage: session })
+    writeSessionValue('k', 'a')
+    expect(session.store.get('k')).toBe('a')
+    // Another writer changes storage; with nothing held in memory the next read follows it.
+    session.store.set('k', 'b')
+    expect(readSessionValue('k')).toBe('b')
+    removeSessionValue('k')
+    expect(session.store.has('k')).toBe(false)
+    session.store.set('k', 'c')
+    expect(readSessionValue('k')).toBe('c')
+    const token = 'T'.repeat(43)
+    writePendingOrder({ orderNumber: 'ABCD2345', accessToken: token })
+    session.store.set(PENDING_ORDER_KEY, JSON.stringify({ orderNumber: 'KMNP6789', accessToken: token }))
+    expect(readPendingOrder()?.orderNumber).toBe('KMNP6789')
+    clearPendingOrder()
+    session.store.set(PENDING_ORDER_KEY, JSON.stringify({ orderNumber: 'ABCD2345', accessToken: token }))
+    expect(readPendingOrder()?.orderNumber).toBe('ABCD2345')
+  })
+
+  it('a write that reaches storage again drops what memory held, and a removal that cannot reach it says the value is gone', () => {
+    const stored = memoryArea()
+    let full = true
+    const flaky: CartArea = {
+      getItem: (key) => stored.getItem(key),
+      setItem: (key, value) => {
+        if (full) throw new Error('quota')
+        stored.setItem(key, value)
+      },
+      removeItem: () => denied(),
+    }
+    vi.stubGlobal('window', { sessionStorage: flaky })
+    writeSessionValue('k', 'a')
+    expect(readSessionValue('k')).toBe('a')
+    expect(stored.store.has('k')).toBe(false)
+    full = false
+    writeSessionValue('k', 'b')
+    expect(stored.store.get('k')).toBe('b')
+    // Memory holds nothing now: storage's own value is the one read.
+    stored.store.set('k', 'c')
+    expect(readSessionValue('k')).toBe('c')
+    // The removal throws while storage still holds the value: it is still read as gone.
+    removeSessionValue('k')
+    expect(stored.store.get('k')).toBe('c')
+    expect(readSessionValue('k')).toBeNull()
+    // A later write that reaches storage is read.
+    writeSessionValue('k', 'd')
+    expect(readSessionValue('k')).toBe('d')
   })
 })
 
@@ -475,7 +665,8 @@ describe('P08: the sandbox access code in the URL fragment', () => {
       history: { state: null, replaceState },
     })
     expect(() => readTestFragment()).not.toThrow()
-    expect(readTestAccess()).toBeNull()
+    // Storage denied: the code stays in the tab's memory (as the cart does), so it survives a client navigation, not a reload.
+    expect(readTestAccess()).toBe('secret-code-1234')
   })
 
   it('reads an empty stored code as no code', () => {

@@ -11,7 +11,8 @@
  * in sessionStorage, and `checkoutEnabled` false hides the checkout button
  * while the cart itself keeps working (D34). Every edit is applied to the
  * latest stored cart (see CartProvider), and a removal moves focus on to the
- * next line and is announced.
+ * next line and is announced. While the cart is read the page shows an empty
+ * status, never a loading line (a static page would keep it without script).
  */
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
@@ -180,8 +181,10 @@ export function CartView() {
   const couponErrors = cartErrors.filter((error) => error.code.startsWith('COUPON_'))
   const otherErrors = cartErrors.filter((error) => !error.code.startsWith('COUPON_'))
 
+  // An empty status while the cart is read: the static page is made in this state, and a loading line there would never
+  // end without script (R10A-5, STORE-UI-03; the order page's way).
   if (cartState === null || !cartState.ready) {
-    return <p className={styles.note}>جارٍ تحميل السلة…</p>
+    return <p role="status" className="visually-hidden" />
   }
 
   const { cart, update } = cartState
