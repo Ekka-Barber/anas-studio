@@ -146,7 +146,7 @@ Proof: live route/private boundary/domain/sender/job/backup/monitor smoke, actua
 
 ## P12: لوحة المشاريع (BONUS SCOPE)
 
-Depends P10 accepted and the redesigned admin (D49); built while P11 waits only on Anas's external launch inputs, so it joins P11's training and handover; if P11 waits on nothing, it follows P11 (D50). It changes no offer acceptance or timeline (D22). Complexity medium-high; risk privacy, RTL drag loss and scope growth. No C-IDs.
+D52 (2026-10-16) moved it right after RESIDUALS-1's round R4a, before P10, on the owner's word, and made it a team board; `PLANS/P12-CONTRACT.md` wins over this section where they differ. Before D52: depends P10 accepted and the redesigned admin (D49); built while P11 waits only on Anas's external launch inputs, so it joins P11's training and handover; if P11 waits on nothing, it follows P11 (D50). It changes no offer acceptance or timeline (D22). Complexity medium-high; risk privacy, RTL drag loss and scope growth. No C-IDs.
 
 Files: one board migration (the tables, RLS, `board_move` and the other write functions), `src/app/(admin)/admin/(shell)/projects/page.tsx` and `projects/view/page.tsx` (the project's id in the query: static export), `src/components/admin/projects/` (the board, a column, a card, the card dialog, the toolbar, the list view, the overview, the activity log) with `projects.module.css`, `src/lib/projects.ts` (pure: search, filters, sort keys, the RTL move mapping, the overview's counts), `src/components/admin/{AdminShell,AdminHome}.tsx`, `tests/unit/projects.test.ts`, `tests/integration/projects.test.ts`, `tests/e2e/projects.spec.ts`, `docs/projects-guide.ar.md`, manifests/lockfile (@dnd-kit).
 
