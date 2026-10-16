@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة المشاريع · تصميم للعرض</title>
+<link rel="stylesheet" href="/tokens.css">
+<style>
+/* P12 «لوحة المشاريع»: a design comp in the admin's own system (DESIGN.md section 10, admin.module.css values).
+   Every value below is the admin's, except the board's own parts, which are marked. */
+@font-face { font-family: 'Thmanyah Serif Display'; src: url('/fonts/thmanyah/thmanyahserifdisplay-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+@font-face { font-family: 'Thmanyah Serif Display'; src: url('/fonts/thmanyah/thmanyahserifdisplay-Medium.woff2') format('woff2'); font-weight: 500; font-display: block; }
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah/thmanyahsans-Regular.woff2') format('woff2'); font-weight: 400; font-display: block; }
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah/thmanyahsans-Medium.woff2') format('woff2'); font-weight: 500; font-display: block; }
+@font-face { font-family: 'Thmanyah Sans'; src: url('/fonts/thmanyah/thmanyahsans-Bold.woff2') format('woff2'); font-weight: 700; font-display: block; }
+
+*, *::before, *::after { box-sizing: border-box; }
+:is(:lang(ar)) { letter-spacing: 0; font-style: normal; text-transform: none; font-synthesis: none; }
+body { margin: 0; background: var(--sand); }
+.visually-hidden { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--aub); outline-offset: 3px; }
+
+/* ---- The shell and the rail (admin.module.css) ---- */
+.shell { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; min-block-size: 100dvh; background: var(--sand); color: var(--aub); font-family: var(--font-body); font-size: var(--size-body); line-height: 1.6; accent-color: var(--aub); }
+.rail { position: relative; background: var(--aub-800); color: var(--sand-50); }
+.railInner { display: flex; flex-direction: column; gap: 10px; padding-block-start: 14px; }
+.rail::after { content: ''; display: block; block-size: var(--edge-weave); background: url('/brand/weave.svg') 100% 0 / var(--edge-weave) var(--edge-weave) repeat-x; }
+.brand { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; margin: 0; padding-inline: 16px; }
+.mark { display: inline-block; flex: none; inline-size: 36px; block-size: 12px; background: conic-gradient(from 135deg at 50% 0, var(--coral) 90deg, transparent 0) 0 0 / 12px 12px repeat-x; }
+.brandName { font-family: var(--font-display); font-size: var(--size-brand); line-height: 1.2; }
+.brandDomain { font-size: var(--size-label); color: var(--sand-muted); }
+.nav { display: flex; align-items: center; gap: 4px; padding-inline: 16px; padding-block-end: 10px; overflow-x: auto; scrollbar-width: none; }
+.navGroup { display: flex; flex: none; gap: 4px; }
+.navGroup + .navGroup { padding-inline-start: 8px; border-inline-start: 1px solid color-mix(in srgb, var(--sand-50) 22%, transparent); }
+.navLink { position: relative; display: inline-flex; flex: none; align-items: center; gap: 10px; min-block-size: var(--tap); padding-inline: 12px; color: var(--sand-50); font-size: var(--size-control); font-weight: 500; white-space: nowrap; text-decoration: none; }
+.navLink[aria-current='page'] { background: var(--sand); color: var(--aub); font-weight: 700; }
+.navLink::before { content: ''; flex: none; inline-size: 12px; block-size: 9px; background: currentColor; clip-path: polygon(50% 0, 100% 100%, 0 100%); opacity: 0; }
+.navLink[aria-current='page']::before { opacity: 1; }
+.nav[data-more-end] { mask-image: linear-gradient(to left, transparent, #000 0, #000 calc(100% - 40px), transparent); }
+@media (min-width: 1280px) { .nav[data-more-end] { mask-image: none; } }
+.signOut { flex: none; min-block-size: var(--tap); margin-inline-start: 8px; padding-inline: 14px; border: 2px solid var(--sand-muted); background: transparent; color: var(--sand-50); font-size: var(--size-small); font-weight: 700; }
+@media (min-width: 1280px) {
+  .shell { grid-template-columns: 16.5rem minmax(0, 1fr); }
+  .railInner { position: sticky; inset-block-start: 0; gap: 28px; min-block-size: 100dvh; padding-block: 32px 24px; padding-inline-end: var(--edge-weave); }
+  .rail::after { position: absolute; inset-block: 0; inset-inline-end: 0; inline-size: var(--edge-weave); block-size: auto; background-position: 0 0; background-repeat: repeat-y; }
+  .brand { padding-inline: 24px 16px; }
+  .brandDomain { flex-basis: 100%; padding-inline-start: 48px; }
+  .nav { flex: 1; flex-direction: column; align-items: stretch; gap: 0; padding: 0; overflow: visible; }
+  .navGroup { flex-direction: column; gap: 2px; padding-block: 12px; }
+  .navGroup + .navGroup { padding-inline-start: 0; border-inline-start: 0; border-block-start: 1px solid color-mix(in srgb, var(--sand-50) 18%, transparent); }
+  .navLink { min-block-size: 46px; padding-inline: 24px 16px; }
+  .navLink[aria-current='page'] { z-index: 1; margin-inline-end: calc(var(--edge-weave) * -1); padding-inline-end: calc(16px + var(--edge-weave)); }
+  .signOut { align-self: start; margin: auto 24px 0; }
+}
+
+/* ---- A screen (admin.module.css) ---- */
+.page { inline-size: 100%; max-inline-size: 104rem; padding-block: clamp(24px, 4vw, 48px) 96px; padding-inline: clamp(16px, 2vw, 32px); }
+.page h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 0 0 22px; padding-block-end: 16px; border-block-end: 3px solid var(--aub); font-family: var(--font-display); font-size: var(--size-admin-title); font-weight: 500; line-height: 1.25; }
+.page h1::before { content: ''; display: inline-block; inline-size: 36px; block-size: 12px; align-self: center; background: conic-gradient(from 135deg at 50% 0, var(--coral) 90deg, transparent 0) 0 0 / 12px 12px repeat-x; }
+.page h2 { margin: 0 0 14px; font-family: var(--font-display); font-size: var(--size-admin-section); font-weight: 500; line-height: 1.3; }
+.page p { margin-block: 0 12px; }
+.page a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.35em; }
+.panel { margin-block: 0 20px; padding: clamp(18px, 2.2vw, 28px); border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent); background: var(--sand-50); }
+.message { color: var(--aub-muted); }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.badge { display: inline-flex; align-items: center; padding: 1px 9px; background: var(--aub); color: var(--sand-50); font-family: var(--font-body); font-size: var(--size-label); font-weight: 700; line-height: 1.6; white-space: nowrap; }
+/* The comp's own honesty mark: every name, date and count here is an example. */
+.badge.sample { background: var(--saffron); color: var(--saffron-ink); }
+.input { min-inline-size: 0; min-block-size: 46px; padding: 8px 12px; border: 2px solid var(--aub-muted); border-radius: 0; background: var(--paper-page); color: var(--aub); font-size: var(--size-control); }
+select.input { padding-inline-end: 34px; appearance: none; background: var(--paper-page) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0h12L6 8z' fill='%2354353b'/%3E%3C/svg%3E") no-repeat left 12px center; }
+.label { font-size: var(--size-label); font-weight: 700; }
+.field { display: flex; flex-direction: column; gap: 8px; min-inline-size: 0; }
+.button, .buttonSecondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-block-size: 46px; padding-inline: 22px; border-radius: 0; font-size: var(--size-control); font-weight: 700; text-decoration: none; cursor: pointer; }
+.button { border: 2px solid var(--aub); background: var(--aub); color: var(--sand-50); }
+.buttonSecondary { border: 2px solid var(--aub-muted); background: transparent; color: var(--aub); }
+.toolbarButton { min-block-size: var(--tap); min-inline-size: var(--tap); padding-inline: 12px; border: 1px solid var(--aub-muted); border-radius: 0; background: var(--paper-page); color: var(--aub); font-weight: 700; cursor: pointer; white-space: nowrap; }
+.toolbarButton[aria-pressed='true'] { border-color: var(--aub); background: var(--aub); color: var(--sand-50); }
+.metaList { margin: 0; padding: 0; list-style: none; font-size: var(--size-small); }
+.metaList > li { padding-block: 9px; border-block-end: 1px solid color-mix(in srgb, var(--aub-muted) 22%, transparent); }
+.metaList > li:last-child { border-block-end: 0; }
+.num { font-variant-numeric: tabular-nums; }
+.ltr { direction: ltr; unicode-bidi: isolate; }
+
+/* ---- The board's own parts ---- */
+
+/* Above the board: who is on the project, and the tools. */
+.people { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-block: 0 16px; font-size: var(--size-small); }
+.person { display: inline-flex; align-items: center; gap: 8px; min-block-size: 36px; padding-inline: 4px 10px; border: 1px solid color-mix(in srgb, var(--aub-muted) 40%, transparent); background: var(--sand-50); }
+.person small { color: var(--aub-muted); font-size: var(--size-label); }
+.peopleMore { display: none; }
+/* A person's initial, square like every mark here; the name always stands beside it or in its label. */
+.who { display: inline-grid; place-items: center; inline-size: 26px; min-block-size: 26px; background: var(--aub); color: var(--sand-50); font-size: 14px; font-weight: 700; line-height: 1.6; }
+.who.second { background: var(--sand-300); color: var(--aub); }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-block: 0 18px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent); background: var(--sand-50); }
+.tools .search { display: flex; align-items: center; gap: 10px; flex: 1 1 18rem; }
+.tools .search .input { flex: 1; min-inline-size: 0; }
+.tools .button, .tools .buttonSecondary { white-space: nowrap; }
+.views { display: flex; }
+.views .toolbarButton + .toolbarButton { margin-inline-start: -1px; }
+.tools .push { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 10px; }
+.dropping { position: relative; }
+.dropping .slot { block-size: 9.2rem; }
+.dropping .card.lifted { position: absolute; inset-block-start: -10px; inset-inline: -8px 8px; }
+
+/* The board: columns from the start (right) edge, scrolling inside their own box when there are more than fit. */
+.board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(17rem, 1fr); gap: 14px; align-items: start; overflow-x: auto; padding-block-end: 6px; }
+.column { display: flex; flex-direction: column; min-block-size: 30rem; border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent); background: var(--sand-50); }
+.colHead { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 6px; border-block-end: 2px solid var(--aub); }
+.colHead h2 { flex: 1; margin: 0 !important; font-size: 24px !important; }
+.count { min-inline-size: 30px; padding: 0 8px; border: 1px solid var(--aub-muted); text-align: center; font-size: var(--size-label); font-weight: 700; }
+.colMenu { min-inline-size: var(--tap); min-block-size: var(--tap); border: 0; background: transparent; color: var(--aub); font-size: 22px; line-height: 1.6; cursor: pointer; }
+/* The done column is the one place the board speaks the house's language: a night head closed by the palm weave. */
+.column.done .colHead { background: var(--aub-800); color: var(--sand-50); border-block-end: 0; }
+.column.done .colHead::after { content: none; }
+.column.done .weave { block-size: 14px; background: url('/brand/weave.svg') 100% 0 / 14px 14px repeat-x; }
+.column.done .count { border-color: var(--sand-muted); }
+.column.done .colMenu { color: var(--sand-50); }
+.cards { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 12px; list-style: none; }
+.addCard { margin: 0 12px 12px; min-block-size: var(--tap); border: 1px dashed var(--aub-muted); background: transparent; color: var(--aub); font-weight: 700; cursor: pointer; }
+
+/* A card: the lighter paper, so it never reads as the column's own box. */
+.card { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--aub-muted) 40%, transparent); background: var(--paper-page); }
+.cardTitle { margin: 0 !important; font-size: var(--size-body); font-weight: 500; line-height: 1.6; text-wrap: pretty; }
+.cardMeta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 !important; font-size: var(--size-label); }
+/* «عاجل» is the board's one accent: coral-deep, in words (7.0:1). «عادي» shows nothing; «منخفض» stays quiet. */
+.urgent { padding: 0 8px; background: var(--coral-deep); color: var(--paper-page); font-weight: 700; }
+.low { padding: 0 8px; border: 1px solid var(--aub-muted); color: var(--aub-muted); font-weight: 500; }
+.due { font-weight: 700; }
+.due.late { color: var(--coral-deep); }
+.due.soon { color: var(--aub); }
+.due.later { color: var(--aub-muted); font-weight: 500; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 14px; font-weight: 700; }
+/* Labels take the palette's own tones (D50), each pair measured. */
+.tag { padding: 0 8px; line-height: 1.75; }
+.tag.saffron { background: var(--saffron); color: var(--saffron-ink); }
+.tag.coral { background: var(--coral); color: var(--aub-900); }
+.tag.sand { background: var(--sand-300); color: var(--aub); }
+.tag.aub { background: var(--aub); color: var(--sand-50); }
+.cardFoot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 !important; font-size: var(--size-label); color: var(--aub-muted); }
+.whos { display: flex; gap: 4px; }
+.linked { font-size: var(--size-label); color: var(--aub-muted); }
+.column.done .card .cardTitle { color: var(--aub-muted); }
+.moveTo { display: none; }
+
+/* A card being moved: lifted with B's one depth, the solid ink shadow, over a dashed slot where it will land. */
+.card.lifted { z-index: 2; border: 2px solid var(--aub); box-shadow: -6px 6px 0 var(--aub); }
+.slot { display: grid; place-items: center; block-size: 4.6rem; border: 2px dashed var(--aub-muted); color: var(--aub-muted); font-size: var(--size-label); font-weight: 700; }
+
+/* ---- The card's dialog ---- */
+.scrim { position: fixed; inset: 0; z-index: 50; display: none; place-items: start center; padding: 40px 16px; overflow-y: auto; background: color-mix(in srgb, var(--aub-900) 62%, transparent); }
+body[data-view='card'] .scrim { display: grid; }
+.dialog { accent-color: var(--aub); inline-size: min(46rem, 100%); padding: 28px; border: 3px solid var(--aub); background: var(--sand-50); color: var(--aub); font-family: var(--font-body); font-size: var(--size-body); line-height: 1.6; }
+.dialog h2 { margin: 0 0 18px; font-family: var(--font-display); font-size: var(--size-admin-dialog); font-weight: 500; }
+.dialog form { display: grid; gap: 20px; }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 20px; }
+fieldset { margin: 0; padding: 0; border: 0; min-inline-size: 0; }
+legend { margin-block-end: 8px; padding: 0; font-size: var(--size-label); font-weight: 700; }
+.segmented { display: flex; }
+.segmented label { display: inline-flex; align-items: center; min-block-size: var(--tap); padding-inline: 14px; border: 1px solid var(--aub-muted); background: var(--paper-page); font-weight: 700; cursor: pointer; }
+.segmented label + label { margin-inline-start: -1px; }
+.segmented input { position: absolute; opacity: 0; }
+.segmented label:has(input:checked) { border-color: var(--aub); background: var(--aub); color: var(--sand-50); }
+.segmented label.urgentChoice:has(input:checked) { border-color: var(--coral-deep); background: var(--coral-deep); color: var(--paper-page); }
+.checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.check { display: inline-flex; align-items: center; gap: 8px; min-block-size: var(--tap); }
+.check input { inline-size: 20px; block-size: 20px; margin: 0; }
+.checklist { margin: 0; padding: 0; list-style: none; border: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent); background: var(--paper-page); }
+.checklist li { display: flex; align-items: center; gap: 10px; min-block-size: 46px; padding-inline: 12px; border-block-end: 1px solid color-mix(in srgb, var(--aub-muted) 18%, transparent); }
+.checklist li:last-child { border-block-end: 0; }
+.checklist .done-item span { color: var(--aub-muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.activity { font-size: var(--size-label); }
+.activity time { display: block; color: var(--aub-muted); }
+.dialogActions { display: flex; flex-wrap: wrap; gap: 10px; padding-block-start: 6px; border-block-start: 1px solid color-mix(in srgb, var(--aub-muted) 30%, transparent); }
+.dialogActions .end { margin-inline-start: auto; }
+
+/* ---- The projects list: doors, as the content home draws its collections ---- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr)); gap: 16px; }
+.tile { position: relative; display: flex; flex-direction: column; justify-content: end; gap: 6px; min-block-size: 10rem; padding: 34px 22px 20px; border: 2px solid var(--aub); background: var(--sand-50); color: var(--aub); text-decoration: none; }
+.tile::before { content: ''; position: absolute; inset-block-start: 0; inset-inline: 0; block-size: var(--edge-crenel-sm); background: conic-gradient(from 135deg at 50% 0, var(--aub) 90deg, transparent 0) 100% 0 / calc(var(--edge-crenel-sm) * 2) var(--edge-crenel-sm) repeat-x; }
+.tile strong { font-family: var(--font-display); font-size: var(--size-admin-door); font-weight: 500; line-height: 1.3; }
+.tile span { font-size: var(--size-label); color: var(--aub-muted); }
+.tile span.late { color: var(--coral-deep); font-weight: 700; }
+
+/* ---- Views ---- */
+.view { display: none; }
+body[data-view='projects'] .v-projects,
+body[data-view='board'] .v-board,
+body[data-view='card'] .v-board,
+body[data-view='overview'] .v-overview,
+body[data-view='mine'] .v-mine { display: block; }
+.overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: 20px; align-items: start; }
+
+/* ---- A phone: one column at a time, a switcher with the counts, and «نقل إلى…» on every card ---- */
+.switcher { display: none; }
+@media (max-width: 767px) {
+  .tools .search { flex-basis: 100%; }
+  .tools .views { order: 3; inline-size: 100%; }
+  .tools .views .toolbarButton { flex: 1; }
+  .tools .push { margin-inline-start: 0; }
+  .tools .push .buttonSecondary { display: none; }
+  .people .person:not(:first-child) { display: none; }
+  .switcher { display: flex; gap: 6px; margin-block: 0 12px; overflow-x: auto; scrollbar-width: none; }
+  .board { display: block; }
+  .board > .column:not(.current) { display: none; }
+  .column { min-block-size: 0; }
+  .moveTo { display: inline-flex; justify-self: start; min-block-size: var(--tap); align-items: center; padding-inline: 14px; border: 1px solid var(--aub-muted); background: transparent; color: var(--aub); font-size: var(--size-small); line-height: 1.6; font-weight: 700; }
+  .peopleMore { display: inline-flex; }
+  .dropping .slot { display: none; }
+  .dropping .card.lifted { position: static; border-width: 1px; box-shadow: none; }
+}
+
+</style>
+</head>
+<body data-view="board">
+<div class="shell">
+  <header class="rail" data-tone="night">
+    <div class="railInner">
+      <p class="brand"><span class="mark" aria-hidden="true"></span><span class="brandName">أنس</span><span class="brandDomain ltr">anas.studio</span></p>
+      <nav class="nav" aria-label="لوحة التحكم" data-more-end>
+        <div class="navGroup">
+          <a class="navLink" href="#">الرئيسية</a>
+          <a class="navLink" href="#" aria-current="page">المشاريع</a>
+          <a class="navLink" href="#">البريد</a>
+        </div>
+        <div class="navGroup">
+          <a class="navLink" href="#">المحتوى</a>
+          <a class="navLink" href="#">المكتبة</a>
+        </div>
+        <div class="navGroup">
+          <a class="navLink" href="#">المتجر</a>
+          <a class="navLink" href="#">الطلبات</a>
+        </div>
+        <div class="navGroup">
+          <a class="navLink" href="#">الإحصاءات</a>
+          <a class="navLink" href="#">الإعدادات</a>
+          <a class="navLink" href="#">الأمان</a>
+          <a class="navLink" href="#">الفريق</a>
+        </div>
+        <button class="signOut" type="button">تسجيل الخروج</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page" id="main">
+
+    <!-- ===== The projects ===== -->
+    <div class="view v-projects">
+      <h1>المشاريع <span class="badge sample">مثال للعرض</span></h1>
+      <p class="message">كل اسم ورقم في هذه الصفحة مثال، لتُرى اللوحة قبل بنائها.</p>
+      <div class="row" style="margin-block: 6px 22px">
+        <button class="button" type="button">مشروع جديد</button>
+        <a class="buttonSecondary" href="#">مهامي</a>
+        <a href="#" class="message" style="margin-inline-start:auto;display:inline-flex;align-items:center;min-block-size:var(--tap)">المشاريع المؤرشفة (1)</a>
+      </div>
+      <div class="grid">
+        <a class="tile" href="#"><strong>إطلاق ذرى</strong><span>11 بطاقة · <span class="late">واحدة متأخرة</span></span><span>أنس ومشاركان</span></a>
+        <a class="tile" href="#"><strong>كوب ضوء القمر</strong><span>6 بطاقات</span><span>أنس ومشارك</span></a>
+        <a class="tile" href="#"><strong>بوتيك أنس القرني</strong><span>9 بطاقات · <span class="late">بطاقتان متأخرتان</span></span><span>أنس وثلاثة</span></a>
+        <a class="tile" href="#"><strong>فروع رحى</strong><span>14 بطاقة</span><span>أنس وخمسة</span></a>
+      </div>
+    </div>
+
+    <!-- ===== A project's board ===== -->
+    <div class="view v-board">
+      <p class="message" style="margin-block-end:8px"><a href="#">كل المشاريع</a></p>
+      <h1>إطلاق ذرى <span class="badge sample">مثال للعرض</span></h1>
+      <div class="people" aria-label="الأشخاص في هذا المشروع">
+        <span class="person"><span class="who" aria-hidden="true">أ</span>أنس <small>المالك</small></span>
+        <span class="person"><span class="who second" aria-hidden="true">م</span>مدير التسويق (مثال) <small>مشارك</small></span>
+        <span class="person"><span class="who second" aria-hidden="true">ح</span>المحاسب (مثال) <small>مُطّلع</small></span>
+        <span class="peopleMore message">وشخصان آخران</span>
+        <button class="buttonSecondary" type="button" style="min-block-size:var(--tap)">الأشخاص والأدوار</button>
+      </div>
+
+      <div class="tools">
+        <div class="search">
+          <label class="label" for="q">بحث</label>
+          <input class="input" id="q" type="search">
+        </div>
+        <button class="buttonSecondary" type="button" aria-expanded="false">تصفية</button>
+        <div class="views" role="group" aria-label="العرض">
+          <button class="toolbarButton" type="button" aria-pressed="true">اللوحة</button>
+          <button class="toolbarButton" type="button" aria-pressed="false">القائمة</button>
+          <button class="toolbarButton" type="button" aria-pressed="false">نظرة عامة</button>
+        </div>
+        <div class="push">
+          <button class="buttonSecondary" type="button">عمود مخفي (1)</button>
+          <button class="button" type="button">بطاقة جديدة</button>
+        </div>
+      </div>
+
+      <div class="switcher" role="group" aria-label="الأعمدة">
+        <button class="toolbarButton" type="button" aria-pressed="false">أفكار <span class="num">3</span></button>
+        <button class="toolbarButton" type="button" aria-pressed="false">تجهيز <span class="num">2</span></button>
+        <button class="toolbarButton" type="button" aria-pressed="true">قيد العمل <span class="num">3</span></button>
+        <button class="toolbarButton" type="button" aria-pressed="false">تم <span class="num">3</span></button>
+      </div>
+
+      <div class="board">
+        <section class="column" aria-labelledby="c1">
+          <div class="colHead"><h2 id="c1">أفكار</h2><span class="count num" aria-label="3 بطاقات">3</span><button class="colMenu" type="button" aria-label="خيارات العمود أفكار">⋯</button></div>
+          <ol class="cards">
+            <li><article class="card"><p class="cardTitle">فيلم قصير لنكهات ذرى</p><p class="cardMeta"><span class="low">منخفض</span></p><ul class="tags"><li class="tag saffron">تصوير</li></ul></article></li>
+            <li><article class="card"><p class="cardTitle">علبة هدية لنكهات ذرى</p><p class="cardMeta"><span class="due later">30 أكتوبر</span></p><ul class="tags"><li class="tag sand">تغليف</li></ul></article></li>
+            <li><article class="card"><p class="cardTitle">ركن ذرى في بوتيك أنس القرني</p><p class="linked">مرتبطة بغرفة «على الرف»</p></article></li>
+          </ol>
+          <button class="addCard" type="button">بطاقة في «أفكار»</button>
+        </section>
+
+        <section class="column" aria-labelledby="c2">
+          <div class="colHead"><h2 id="c2">تجهيز</h2><span class="count num" aria-label="بطاقتان">2</span><button class="colMenu" type="button" aria-label="خيارات العمود تجهيز">⋯</button></div>
+          <ol class="cards">
+            <li><article class="card"><p class="cardTitle">صور حقيقية لكل نكهة</p><p class="cardMeta"><span class="urgent">عاجل</span><span class="due soon">اليوم</span></p><ul class="tags"><li class="tag saffron">تصوير</li></ul><p class="cardFoot"><span>القائمة <span class="num">2</span> من <span class="num">7</span></span><span class="whos"><span class="who" title="أنس">أ</span></span></p></article></li>
+            <li><article class="card"><p class="cardTitle">نص بطاقة كوب ضوء القمر</p><p class="cardMeta"><span class="due later">22 أكتوبر</span></p><ul class="tags"><li class="tag coral">نصوص</li></ul><p class="cardFoot"><span></span><span class="whos"><span class="who second" title="مدير التسويق (مثال)">م</span></span></p></article></li>
+          </ol>
+          <button class="addCard" type="button">بطاقة في «تجهيز»</button>
+        </section>
+
+        <section class="column current" aria-labelledby="c3">
+          <div class="colHead"><h2 id="c3">قيد العمل</h2><span class="count num" aria-label="3 بطاقات">3</span><button class="colMenu" type="button" aria-label="خيارات العمود قيد العمل">⋯</button></div>
+          <ol class="cards">
+            <li><article class="card"><p class="cardTitle">اعتماد إعلان ذرى القصير</p><p class="cardMeta"><span class="urgent">عاجل</span><span class="due late">متأخرة يومين</span></p><ul class="tags"><li class="tag saffron">تصوير</li></ul><p class="linked">مرتبطة بمنشور في المجلس</p><p class="cardFoot"><span></span><span class="whos"><span class="who" title="أنس">أ</span><span class="who second" title="مدير التسويق (مثال)">م</span></span></p><button class="moveTo" type="button">نقل إلى…</button></article></li>
+            <li class="dropping"><div class="slot">تُفلت البطاقة هنا</div><article class="card lifted"><p class="cardTitle">صفحة ذرى في المتجر</p><p class="cardMeta"><span class="due later">25 أكتوبر</span></p><ul class="tags"><li class="tag aub">متجر</li></ul><button class="moveTo" type="button">نقل إلى…</button></article></li>
+            <li><article class="card"><p class="cardTitle">قائمة أسعار النكهات</p><p class="cardMeta"><span class="due soon">19 أكتوبر</span></p><ul class="tags"><li class="tag aub">متجر</li></ul><p class="cardFoot"><span>القائمة <span class="num">3</span> من <span class="num">4</span></span><span class="whos"><span class="who" title="أنس">أ</span></span></p><button class="moveTo" type="button">نقل إلى…</button></article></li>
+          </ol>
+          <button class="addCard" type="button">بطاقة في «قيد العمل»</button>
+        </section>
+
+        <section class="column done" aria-labelledby="c4">
+          <div class="colHead"><h2 id="c4">تم</h2><span class="count num" aria-label="3 بطاقات">3</span><button class="colMenu" type="button" aria-label="خيارات العمود تم">⋯</button></div>
+          <div class="weave" aria-hidden="true"></div>
+          <ol class="cards">
+            <li><article class="card"><p class="cardTitle">تحميل فيلم ذرى</p><p class="cardMeta message">أُنجزت 16 أكتوبر</p></article></li>
+            <li><article class="card"><p class="cardTitle">اختيار نكهات الإطلاق</p><p class="cardMeta message">أُنجزت 12 أكتوبر</p></article></li>
+            <li><article class="card"><p class="cardTitle">بطاقة ذرى بالمثلث النجدي</p><p class="cardMeta message">أُنجزت 9 أكتوبر</p></article></li>
+          </ol>
+        </section>
+      </div>
+      <p class="visually-hidden" role="status">رُفعت بطاقة «صفحة ذرى في المتجر». استخدم الأسهم لنقلها، والمسافة لإفلاتها، و Escape للإلغاء.</p>
+    </div>
+
+    <!-- ===== Overview and activity ===== -->
+    <div class="view v-overview">
+      <p class="message" style="margin-block-end:8px"><a href="#">إطلاق ذرى</a></p>
+      <h1>نظرة عامة: إطلاق ذرى <span class="badge sample">مثال للعرض</span></h1>
+      <div class="overview">
+        <section class="panel">
+          <h2>البطاقات الآن</h2>
+          <ul class="metaList">
+            <li>في «أفكار»: <span class="num">3</span> بطاقات</li>
+            <li>في «تجهيز»: بطاقتان</li>
+            <li>في «قيد العمل»: <span class="num">3</span> بطاقات</li>
+            <li>في «تم»: <span class="num">3</span> بطاقات</li>
+            <li style="color:var(--coral-deep);font-weight:700">متأخرة: بطاقة واحدة</li>
+            <li>تستحق هذا الأسبوع: <span class="num">3</span> بطاقات</li>
+            <li>أُنجزت في آخر سبعة أيام: <span class="num">3</span> بطاقات</li>
+          </ul>
+          <p class="message" style="margin-block:14px 0">الأرقام تُعدّ من البطاقات نفسها، ولا تُقدَّر.</p>
+        </section>
+        <section class="panel">
+          <h2>النشاط</h2>
+          <ol class="metaList activity">
+            <li><time>16 أكتوبر، <span class="num">21:05</span></time>أنس نقل «اعتماد إعلان ذرى القصير» من «تجهيز» إلى «قيد العمل».</li>
+            <li><time>16 أكتوبر، <span class="num">18:40</span></time>أنس عدّل الموعد والأولوية في «صور حقيقية لكل نكهة».</li>
+            <li><time>15 أكتوبر، <span class="num">10:12</span></time>مدير التسويق (مثال) أنشأ «نص بطاقة كوب ضوء القمر».</li>
+            <li><time>14 أكتوبر، <span class="num">22:30</span></time>أنس أرشف «ملصق النكهات القديم»، ويمكن استرجاعه.</li>
+          </ol>
+          <p class="message" style="margin-block:14px 0">يُسجَّل ما تغيّر ومن غيّره، ولا يُنسخ نص الملاحظات إلى السجل.</p>
+          <div class="row" style="margin-block-start:16px"><button class="buttonSecondary" type="button">تصدير البطاقات (CSV)</button></div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== A card, open ===== -->
+<div class="scrim">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg">
+    <h2 id="dlg">بطاقة: صور حقيقية لكل نكهة <span class="badge sample">مثال للعرض</span></h2>
+    <form>
+      <div class="field"><label class="label" for="t">العنوان</label><input class="input" id="t" value="صور حقيقية لكل نكهة"></div>
+      <div class="split">
+        <fieldset><legend>الأولوية</legend><div class="segmented"><label class="urgentChoice"><input type="radio" name="p" checked>عاجل</label><label><input type="radio" name="p">عادي</label><label><input type="radio" name="p">منخفض</label></div></fieldset>
+        <div class="field"><label class="label" for="d">الموعد</label><input class="input ltr" id="d" type="date" value="2026-10-16"></div>
+      </div>
+      <fieldset><legend>الأشخاص</legend><div class="checks"><label class="check"><input type="checkbox" checked>أنس</label><label class="check"><input type="checkbox">مدير التسويق (مثال)</label></div></fieldset>
+      <fieldset><legend>التصنيفات</legend><div class="checks"><label class="check"><input type="checkbox" checked><span class="tag saffron">تصوير</span></label><label class="check"><input type="checkbox"><span class="tag coral">نصوص</span></label><label class="check"><input type="checkbox"><span class="tag aub">متجر</span></label><label class="check"><input type="checkbox"><span class="tag sand">تغليف</span></label></div></fieldset>
+      <div class="field"><label class="label" for="n">الملاحظات</label><textarea class="input" id="n" rows="3">صورة لكل نكهة على قماش الخوص، بضوء النهار، من غير نص على الصورة.</textarea></div>
+      <fieldset><legend>القائمة (<span class="num">2</span> من <span class="num">7</span>)</legend>
+        <ul class="checklist">
+          <li class="done-item"><input type="checkbox" checked aria-label="تم"><span>حجز يوم التصوير</span></li>
+          <li class="done-item"><input type="checkbox" checked aria-label="تم"><span>تجهيز النكهات</span></li>
+          <li><input type="checkbox" aria-label="تم"><span>تصوير النكهة الأولى</span></li>
+          <li style="padding-block:6px"><button class="buttonSecondary" type="button">بند جديد</button></li>
+        </ul>
+      </fieldset>
+      <div class="field"><label class="label" for="l">مرتبطة بـ</label><select class="input" id="l"><option>غرفة «على الرف»</option></select><span class="message">الربط لا ينشر شيئًا ولا يغيّر حالة المنشور أو الغرفة.</span></div>
+      <div class="dialogActions"><button class="button" type="button">حفظ</button><button class="buttonSecondary" type="button">إغلاق</button><button class="buttonSecondary end" type="button">أرشفة البطاقة</button></div>
+    </form>
+  </div>
+</div>
+<script>
+  document.body.dataset.view = location.hash.slice(1) || 'board'
+</script>
+</body>
+</html>
