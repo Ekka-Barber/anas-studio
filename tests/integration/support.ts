@@ -107,7 +107,7 @@ export function localEnv(): Record<string, string> {
   return parseEnv(readFileSync('.env.local', 'utf8')) as Record<string, string>
 }
 
-export type Role = 'owner' | 'editor' | 'operations'
+export type Role = 'owner' | 'editor' | 'operations' | 'board'
 
 /** Service-role client: bypasses RLS, used only to set up and inspect fixtures. */
 export const serviceClient: SupabaseClient = createClient(status.API_URL, status.SECRET_KEY, {

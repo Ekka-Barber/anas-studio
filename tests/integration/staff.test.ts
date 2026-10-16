@@ -20,7 +20,8 @@ describe('anon', () => {
   })
 })
 
-describe.each(['editor', 'operations'] as const)('%s', (role) => {
+// P12 R1: the board-only role is one more staff role that sees only its own row and nothing of the owner's screens.
+describe.each(['editor', 'operations', 'board'] as const)('%s', (role) => {
   it('sees only its own staff row, cannot write staff, sees no audit rows, and staff_directory fails', async () => {
     const { userId, email } = await createStaff(role)
     const client = await signIn(email)
@@ -97,6 +98,12 @@ describe('staff_directory order', () => {
   })
 })
 describe('current_staff_role', () => {
+  it('answers board for the board-only role (P12 R1)', async () => {
+    const { email } = await createStaff('board')
+    const client = await signIn(email)
+    expect((await client.rpc('current_staff_role')).data).toBe('board')
+  })
+
   it('goes null on the next query once the service client deactivates the member', async () => {
     const { userId, email } = await createStaff('editor')
     const client = await signIn(email)
@@ -154,7 +161,7 @@ describe('audit_events is append-only', () => {
       expect((await serviceClient.from('audit_events').select('id').eq('entity_id', entityId)).error?.code).toBe('42501')
       expect((await serviceClient.from('audit_events').update({ action: 'test.edited' }).eq('entity_id', entityId)).error?.code).toBe('42501')
       expect((await serviceClient.from('audit_events').delete().eq('entity_id', entityId)).error?.code).toBe('42501')
-      for (const role of ['owner', 'editor', 'operations'] as const) {
+      for (const role of ['owner', 'editor', 'operations', 'board'] as const) {
         const client = await signIn((await createStaff(role)).email)
         expect((await client.from('audit_events').update({ action: 'test.edited' }).eq('entity_id', entityId)).error?.code, `${role} update`).toBe('42501')
         expect((await client.from('audit_events').delete().eq('entity_id', entityId)).error?.code, `${role} delete`).toBe('42501')

@@ -142,6 +142,7 @@ real JWTs, and the `staff-admin` Edge Function end to end, against the running
 local stack (`supabase status`). `tests/e2e/auth.spec.ts` exercises sign-in,
 TOTP enrolment and an invite through the browser; it expects `next dev` and
 the local stack running, and creates its own owner with the local service key.
+`tests/integration/{board,board-wall}.test.ts` (P12 R1) prove the projects board's data (every `public.board_*` function as every kind of caller, the versions, the races, the activity, the limits and the links) and the wall a board-only token meets (the four staff policies, the admin's functions, `Accept-Profile: board`).
 
 ## Content (P04)
 

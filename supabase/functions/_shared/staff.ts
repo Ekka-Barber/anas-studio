@@ -15,7 +15,7 @@ import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { serviceClient } from './db.ts'
 import { hasRecentTotp } from './recent-totp.ts'
 
-export type StaffRole = 'owner' | 'editor' | 'operations'
+export type StaffRole = 'owner' | 'editor' | 'operations' | 'board'
 
 export interface StaffIdentity {
   userId: string
@@ -26,7 +26,7 @@ export interface StaffIdentity {
 
 export type StaffResolver = (request: Request) => Promise<StaffIdentity | null>
 
-const ROLES = new Set<string>(['owner', 'editor', 'operations'])
+const ROLES = new Set<string>(['owner', 'editor', 'operations', 'board'])
 
 /** The default resolver: Supabase Auth, then the `staff` row. */
 export const staffFromRequest: StaffResolver = async (request) => {

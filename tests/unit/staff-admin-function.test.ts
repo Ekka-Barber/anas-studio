@@ -118,6 +118,7 @@ describe('staff-admin: who may call it', () => {
   it.each([
     ['an editor', 'FORBIDDEN', { role: 'editor', recentTotp: true }],
     ['an operations member', 'FORBIDDEN', { role: 'operations', recentTotp: true }],
+    ['a board-only member (P12 R1)', 'FORBIDDEN', { role: 'board', recentTotp: true }],
     ['a member with no active role (revoked, or an unknown role)', 'FORBIDDEN', { role: null, recentTotp: true }],
     ['an owner whose TOTP is not fresh', 'STEP_UP_REQUIRED', { role: 'owner', recentTotp: false }],
   ])('%s is refused with 403 %s before any action, and nothing is called', async (_who, code, identity) => {
@@ -233,6 +234,36 @@ describe('staff-admin: invite', () => {
     expect(await response.json()).toMatchObject({ error: { code: 'USER_EXISTS' } })
     expect(world.staff.size).toBe(1)
     expect(deleted).toEqual([])
+  })
+
+  // P12 R1: the board-only role is an assignable role; a role the function does not know is still refused before anything is written.
+  it('accepts the role board on an invite and on set_role, and still refuses an unknown role without writing', async () => {
+    const world: World = { users: [], staff: new Set(), staffInsertFails: false, deleteFails: false }
+    install(world)
+    const board = await send(JSON.stringify({ action: 'invite', email: 'sara@example.com', displayName: 'سارة', role: 'board' }))
+    expect(board.status).toBe(200)
+    expect(world.users).toHaveLength(1)
+    expect(world.staff.size).toBe(1)
+
+    const unknown = await send(JSON.stringify({ action: 'invite', email: 'khalid@example.com', displayName: 'خالد', role: 'admin' }))
+    expect(unknown.status).toBe(422)
+    expect(await unknown.json()).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    expect(world.users).toHaveLength(1)
+
+    const MEMBER = '22222222-2222-4222-8222-222222222222'
+    const updates: unknown[] = []
+    hoisted.client = {
+      from: () => ({
+        update: (values: unknown) => ({ eq: () => ({ select: async () => (updates.push(values), { data: [{ user_id: MEMBER }], error: null }) }) }),
+        insert: async () => ({ error: null }),
+      }),
+    }
+    const set = await send(JSON.stringify({ action: 'set_role', userId: MEMBER, role: 'board' }))
+    expect(set.status).toBe(200)
+    expect(updates).toEqual([{ role: 'board' }])
+    const refused = await send(JSON.stringify({ action: 'set_role', userId: MEMBER, role: 'admin' }))
+    expect(refused.status).toBe(422)
+    expect(updates).toHaveLength(1)
   })
 
   it('a failed staff insert for a new user rolls the new auth user back', async () => {

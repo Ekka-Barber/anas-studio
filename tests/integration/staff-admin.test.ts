@@ -4,7 +4,7 @@
 import { Client } from 'pg'
 import { describe, expect, it } from 'vitest'
 
-import { anonClient, callStaffAdmin, createStaff, serviceClient, signIn, stepUp, uniqueEmail } from './support'
+import { anonClient, callStaffAdmin, createStaff, serviceClient, signIn, status, stepUp, uniqueEmail } from './support'
 
 // Each case signs real users in and enrols a TOTP through the local auth service: about 3.5 seconds alone, so the
 // default 5 seconds fails as soon as the stack is busy (a full test:db run).
@@ -21,6 +21,52 @@ describe('staff-admin', { timeout: 20_000 }, () => {
     const result = await callStaffAdmin(client, { action: 'invite' })
     expect(result.status).toBe(403)
     expect(result.reply).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+
+  // P12 R1: the board-only role is known to the function (an assignable role) and is no more than an editor is: not an owner.
+  it('rejects a board-only member, invites one, sets the role board, and refuses a role it does not know', async () => {
+    const boardCaller = await signIn((await createStaff('board')).email)
+    const refused = await callStaffAdmin(boardCaller, { action: 'invite' })
+    expect(refused.status).toBe(403)
+    expect(refused.reply).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+
+    const owner = await createStaff('owner')
+    const client = await signIn(owner.email)
+    await stepUp(client)
+    const invitedEmail = uniqueEmail('invited-board')
+    const invite = await callStaffAdmin(client, { action: 'invite', email: invitedEmail, displayName: 'Board Person', role: 'board' })
+    expect(invite.status, JSON.stringify(invite.reply)).toBe(200)
+    expect((await (await signIn(invitedEmail)).rpc('current_staff_role')).data).toBe('board')
+
+    const member = await createStaff('editor')
+    const setRole = await callStaffAdmin(client, { action: 'set_role', userId: member.userId, role: 'board' })
+    expect(setRole.status, JSON.stringify(setRole.reply)).toBe(200)
+    expect((await (await signIn(member.email)).rpc('current_staff_role')).data).toBe('board')
+
+    const unknown = await callStaffAdmin(client, { action: 'invite', email: uniqueEmail('invited-nobody'), displayName: 'x', role: 'admin' })
+    expect(unknown.status).toBe(422)
+    expect(unknown.reply).toMatchObject({ ok: false, error: { code: 'INVALID' } })
+    const unknownSet = await callStaffAdmin(client, { action: 'set_role', userId: member.userId, role: 'admin' })
+    expect(unknownSet.status).toBe(422)
+  })
+
+  // P12 R1: the `admin` function resolves the same staff roles (`_shared/staff.ts` knows `board` now); none of its actions names it.
+  it('the admin function refuses a board-only member on every action (403 FORBIDDEN)', async () => {
+    const session = (await (await signIn((await createStaff('board')).email)).auth.getSession()).data.session!
+    const actions = [
+      'media-ticket', 'media-complete', 'media-delete', 'stats', 'status', 'payment-recheck', 'order-link-reissue', 'refund-create',
+      'refund-recheck', 'refund-record-external', 'dispute-record', 'commerce-settings-save', 'commerce-policies-approve',
+      'commerce-checkout-set', 'paid-file-ticket', 'paid-file-complete',
+    ]
+    for (const action of actions) {
+      const response = await fetch(`${status.FUNCTIONS_URL}/admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: status.PUBLISHABLE_KEY, Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action }),
+      })
+      expect(response.status, action).toBe(403)
+      expect(await response.json(), action).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    }
   })
 
   it('requires step-up for an owner at aal1', async () => {

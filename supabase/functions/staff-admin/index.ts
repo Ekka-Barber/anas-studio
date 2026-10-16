@@ -11,7 +11,7 @@ import { serviceClient } from '../_shared/db.ts'
 import { boundedText, corsHeaders, fail as failWith, logCause, ok as okWith } from '../_shared/http.ts'
 import { type StaffIdentity, staffFromRequest } from '../_shared/staff.ts'
 
-const ROLES = ['owner', 'editor', 'operations'] as const
+const ROLES = ['owner', 'editor', 'operations', 'board'] as const
 type Role = (typeof ROLES)[number]
 const BAN_FOREVER = '876000h'
 
